@@ -324,7 +324,7 @@ Analysis arrives progressively, one `analysis.apply` op per finished stage ([01 
 
 | Stage | Effect kind | Payload |
 |---|---|---|
-| `ingest` | — (empty list) | Starts the source's block: the full-mix track and one section spanning the song |
+| `ingest` | — (empty list) | Starts the source's block: the full-mix track and one `custom` section, "Song", spanning the song |
 | `rhythm` | `tempo` | `tempoMap`, `timeSignatures` — the beat grid as a musical grid |
 | `structure` | `sections` | `sections[]` — boundaries and labels, the same `StructureSection` the blob holds |
 | `separation` | `separation` | `stems[] {role, asset}`, `residual` |
@@ -332,9 +332,11 @@ Analysis arrives progressively, one `analysis.apply` op per finished stage ([01 
 | `describe` | `description` | the plain-language paragraph |
 | `harmony`, `loudness_energy`, `energy_stems`, `stem_activity`, `preview`, `embed_full`, `section_embed`, `stem_embed`, `drum_split`, `transcribe`, `lyrics` | — (empty list) | No arrangement change; the op only updates `analyses[src]` |
 
-An effect payload that does not match its stage, two effects of the same kind, or an empty/unsorted `sections`/`stems` list is rejected with `{ opIndex, code: "analysis_effects", message }` (§4.3).
+An effect payload that does not match its stage, two effects of the same kind, or an empty/unsorted/overlapping `sections`/`stems` list is rejected with `{ opIndex, code: "analysis_effects", message }` (§4.3). A stage that owns an effect must carry it: `rhythm` without its tempo map is a producer bug, not a silent no-op.
 
 The stage names in the left column are the `AnalysisStage` enum, and they are the **same** names as the capabilities in [05 §4.1](05-backend-and-jobs.md) and the stage sections of [04](04-analysis-pipeline.md): `loudness_energy` (not "energy"), `tag` (not "tags"), `embed_full`/`section_embed`/`stem_embed` (not "embeddings"), `describe` (not "description"). One name per stage across the specs, the schemas and the capability catalogue.
+
+The `AssetIndex` the caller passes to `apply` — as for every clip op — must hold metadata for the assets the effects introduce (the source's `workingAsset`, every stem and the residual), because invariant 2 checks clip ranges against the asset's length (§4.3).
 
 ### 6.1 What each stage builds
 
