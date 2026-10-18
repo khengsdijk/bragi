@@ -82,6 +82,13 @@ pretty = true
 # looser"); bragi_common always stays strict.
 exclude = ['^\.venv/']
 
+# Vendored C-extension clients ship no stubs. They are used through a thin
+# adapter (bragi_common.s3, bragi_common.cache), so the untyped edge is contained
+# to those two modules rather than spreading through the framework.
+[[tool.mypy.overrides]]
+module = ["asyncpg", "asyncpg.*", "boto3", "boto3.*", "botocore", "botocore.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 addopts = "-q --strict-markers --strict-config"
 testpaths = [

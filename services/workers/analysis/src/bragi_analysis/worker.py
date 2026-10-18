@@ -1,0 +1,23 @@
+"""The analysis worker process: registers its capabilities and runs.
+
+The CPU ``worker`` service in ``infra/docker-compose.yml`` runs this entrypoint.
+Real analysis capabilities (``specs/04``) join the same list in WP-1.2+; today it
+carries ``echo``, the framework's smoke test.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+
+from bragi_analysis.capabilities import echo
+from bragi_common.config import Settings
+from bragi_common.protocol import Capability
+from bragi_common.worker import run_worker
+
+#: Every capability this process serves (13 §3: one module per capability).
+CAPABILITIES: Sequence[Capability] = [echo]
+
+
+def main() -> None:
+    """Runs the worker until SIGTERM (05 §4.3)."""
+    run_worker(Settings(), CAPABILITIES)

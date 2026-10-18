@@ -6,10 +6,13 @@ write S3 blobs, and report progress back to the API
 
 | Member | Distribution | What it does | Filled by |
 |---|---|---|---|
-| [`bragi_common/`](bragi_common) | `bragi-common` | Worker framework: NATS client, job protocol, result cache, S3 IO, progress, cancel, generated Pydantic models | WP-0.7 |
-| [`analysis/`](analysis) | `bragi-analysis` | ingest, separate, rhythm, loudness_energy, structure, harmony, tag, describe | WP-1.2 → WP-1.7 |
+| [`bragi_common/`](bragi_common) | `bragi-common` | Worker framework: NATS client, job protocol, result cache, S3 IO, progress, cancel, generated Pydantic models | WP-0.7 (**done**) |
+| [`analysis/`](analysis) | `bragi-analysis` | ingest, separate, rhythm, loudness_energy, structure, harmony, tag, describe | WP-1.2 → WP-1.7 (ships the `echo` test capability) |
 | [`embed/`](embed) | `bragi-embed` | audio/text embeddings, tag heads, projection, constellations | WP-1.6, WP-3.2 |
 | [`generate/`](generate) | `bragi-generate` | extend, inpaint, stem-gen, text2music, fx, transform | WP-2.7+ |
+
+`python -m bragi_analysis` runs the analysis worker (today with `echo`), and the CPU `worker`
+service in `infra/docker-compose.yml` runs the same command.
 
 ## Conventions ([13 §3](../../specs/13-agent-guide.md))
 

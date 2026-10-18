@@ -3,7 +3,7 @@ name = "bragi-analysis"
 version = "0.0.0"
 description = "Analysis workers: ingest, separate, rhythm, harmony, structure, tag, describe"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["bragi-common"]
 
 [build-system]
 requires = ["hatchling"]
@@ -11,3 +11,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bragi_analysis"]
+
+[tool.uv.sources]
+bragi-common = { workspace = true }
