@@ -1,0 +1,20 @@
+---
+source: crates/bragi-model/tests/snapshots.rs
+expression: section_spans(&fixture())
+---
+[
+  {
+    "id": "sec_0",
+    "index": 0,
+    "startTick": 0,
+    "endTick": 3840,
+    "lengthTicks": 3840
+  },
+  {
+    "id": "sec_1",
+    "index": 1,
+    "startTick": 3840,
+    "endTick": 7680,
+    "lengthTicks": 3840
+  }
+]

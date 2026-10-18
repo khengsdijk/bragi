@@ -1,0 +1,171 @@
+---
+source: crates/bragi-model/tests/snapshots.rs
+expression: "diff(&doc, &next)"
+---
+{
+  "projectId": "prj_01",
+  "timebaseChanged": false,
+  "metaChanged": false,
+  "sourcesAdded": [],
+  "sourcesRemoved": [],
+  "tracksAdded": [],
+  "tracksRemoved": [],
+  "tracksUpdated": [
+    {
+      "color": "#8A8F98",
+      "fx": [],
+      "gainDb": -3.0,
+      "hidden": false,
+      "id": "trk_0",
+      "mute": false,
+      "name": "Track 0",
+      "pan": 0.0,
+      "role": "full_mix",
+      "solo": false
+    }
+  ],
+  "sectionsAdded": [],
+  "sectionsRemoved": [],
+  "sectionsUpdated": [
+    {
+      "id": "sec_0",
+      "kind": "verse",
+      "label": "Chorus",
+      "lanes": {
+        "trk_0": {
+          "automation": [],
+          "clips": [
+            {
+              "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "fadeCurve": "equal_power",
+              "fadeInTicks": 0,
+              "fadeOutTicks": 0,
+              "gainDb": 0.0,
+              "id": "clp_000",
+              "pitchSemitones": 0.0,
+              "provenance": {
+                "createdAt": "2026-10-18T12:00:00Z",
+                "kind": "user"
+              },
+              "srcEnd": 48000,
+              "srcStart": 0,
+              "start": 0,
+              "warp": {
+                "anchors": [
+                  {
+                    "srcSample": 0,
+                    "tick": 0
+                  },
+                  {
+                    "srcSample": 48000,
+                    "tick": 1920
+                  }
+                ],
+                "mode": "beatgrid"
+              }
+            },
+            {
+              "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "fadeCurve": "equal_power",
+              "fadeInTicks": 0,
+              "fadeOutTicks": 0,
+              "gainDb": 0.0,
+              "id": "clp_001",
+              "pitchSemitones": 0.0,
+              "provenance": {
+                "createdAt": "2026-10-18T12:00:00Z",
+                "kind": "user"
+              },
+              "srcEnd": 48000,
+              "srcStart": 0,
+              "start": 1920,
+              "warp": {
+                "anchors": [
+                  {
+                    "srcSample": 0,
+                    "tick": 1920
+                  },
+                  {
+                    "srcSample": 48000,
+                    "tick": 3840
+                  }
+                ],
+                "mode": "beatgrid"
+              }
+            }
+          ]
+        },
+        "trk_1": {
+          "automation": [],
+          "clips": [
+            {
+              "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "fadeCurve": "equal_power",
+              "fadeInTicks": 0,
+              "fadeOutTicks": 0,
+              "gainDb": 0.0,
+              "id": "clp_010",
+              "pitchSemitones": 0.0,
+              "provenance": {
+                "createdAt": "2026-10-18T12:00:00Z",
+                "kind": "user"
+              },
+              "srcEnd": 48000,
+              "srcStart": 0,
+              "start": 0,
+              "warp": {
+                "anchors": [
+                  {
+                    "srcSample": 0,
+                    "tick": 0
+                  },
+                  {
+                    "srcSample": 48000,
+                    "tick": 1920
+                  }
+                ],
+                "mode": "beatgrid"
+              }
+            },
+            {
+              "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "fadeCurve": "equal_power",
+              "fadeInTicks": 0,
+              "fadeOutTicks": 0,
+              "gainDb": 0.0,
+              "id": "clp_011",
+              "pitchSemitones": 0.0,
+              "provenance": {
+                "createdAt": "2026-10-18T12:00:00Z",
+                "kind": "user"
+              },
+              "srcEnd": 48000,
+              "srcStart": 0,
+              "start": 1920,
+              "warp": {
+                "anchors": [
+                  {
+                    "srcSample": 0,
+                    "tick": 1920
+                  },
+                  {
+                    "srcSample": 48000,
+                    "tick": 3840
+                  }
+                ],
+                "mode": "beatgrid"
+              }
+            }
+          ]
+        }
+      },
+      "lengthTicks": 3840,
+      "transitionIn": {
+        "kind": "cut",
+        "lengthTicks": 0
+      }
+    }
+  ],
+  "masterChanged": false,
+  "requiresFullResync": false
+}

@@ -1,0 +1,63 @@
+---
+source: crates/bragi-model/tests/snapshots.rs
+expression: "resolve_region(&fixture(), &region, &assets())"
+---
+{
+  "startTick": 0,
+  "endTick": 7680,
+  "freqRange": null,
+  "slices": [
+    {
+      "sectionId": "sec_0",
+      "sectionIndex": 0,
+      "trackId": "trk_0",
+      "startTick": 0,
+      "endTick": 3840,
+      "localStartTick": 0,
+      "localEndTick": 3840,
+      "clipIds": [
+        "clp_000",
+        "clp_001"
+      ]
+    },
+    {
+      "sectionId": "sec_0",
+      "sectionIndex": 0,
+      "trackId": "trk_1",
+      "startTick": 0,
+      "endTick": 3840,
+      "localStartTick": 0,
+      "localEndTick": 3840,
+      "clipIds": [
+        "clp_010",
+        "clp_011"
+      ]
+    },
+    {
+      "sectionId": "sec_1",
+      "sectionIndex": 1,
+      "trackId": "trk_0",
+      "startTick": 3840,
+      "endTick": 7680,
+      "localStartTick": 0,
+      "localEndTick": 3840,
+      "clipIds": [
+        "clp_100",
+        "clp_101"
+      ]
+    },
+    {
+      "sectionId": "sec_1",
+      "sectionIndex": 1,
+      "trackId": "trk_1",
+      "startTick": 3840,
+      "endTick": 7680,
+      "localStartTick": 0,
+      "localEndTick": 3840,
+      "clipIds": [
+        "clp_110",
+        "clp_111"
+      ]
+    }
+  ]
+}

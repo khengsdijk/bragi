@@ -1,0 +1,16 @@
+---
+source: crates/bragi-model/tests/snapshots.rs
+expression: "validate(&doc, &assets()).unwrap_err()"
+---
+[
+  {
+    "opIndex": 0,
+    "code": "fx_param",
+    "message": "fx fx_bad parameter db = 100 is above 12"
+  },
+  {
+    "opIndex": 0,
+    "code": "numeric_range",
+    "message": "track trk_0 pan 2 is outside -1..1"
+  }
+]
