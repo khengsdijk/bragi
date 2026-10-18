@@ -13,6 +13,7 @@
 pub mod blobs;
 pub mod commands;
 pub mod db;
+pub mod engine;
 pub mod error;
 pub mod migrations;
 pub mod selftest;
@@ -64,6 +65,12 @@ pub fn run() {
         .setup(|app| {
             let directory = data_directory(app.handle())?;
             app.manage(Storage::open(&directory)?);
+            // The audio engine (WP-1.1). `new` only opens the PCM cache
+            // directory; playback starts when the page calls `engine_init`, so
+            // a machine with no output device still loads, renders and meters.
+            app.manage(engine::EngineState(std::sync::Mutex::new(
+                bragi_engine_native::EngineService::new(&directory, 512)?,
+            )));
             WebviewWindowBuilder::new(app, window_label(), WebviewUrl::App("index.html".into()))
                 .title("Bragi")
                 .inner_size(1280.0, 800.0)
@@ -79,6 +86,15 @@ pub fn run() {
             commands::blob_get,
             commands::blob_has,
             commands::blob_delete,
+            engine::engine_init,
+            engine::engine_load_document,
+            engine::engine_apply_delta,
+            engine::engine_transport,
+            engine::engine_set_preview,
+            engine::engine_state,
+            engine::engine_render,
+            engine::engine_peaks,
+            engine::engine_dispose,
             selftest::selftest_report,
         ])
         .run(tauri::generate_context!());

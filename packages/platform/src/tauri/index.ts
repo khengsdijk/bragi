@@ -40,3 +40,4 @@ export async function createTauriPlatform(options: TauriPlatformOptions): Promis
 }
 
 export { createTauriBlobCache, createTauriLocalDb, type Invoke } from "./adapters.js";
+export { createTauriEngineHost, type TauriEngineOptions } from "./engine.js";

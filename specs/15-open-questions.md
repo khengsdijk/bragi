@@ -49,6 +49,17 @@ rows.
 | Q19 | After the ±12 % drum listening check, is the vocoder's transient smearing acceptable, or should offline `Render` adopt Signalsmith Stretch (or a smaller `Render` FFT)? | WP-0.4 follow-up / WP-1.1 | Koen | Decided by [0.4-MANUAL_CHECKS](../docs/wp/0.4-MANUAL_CHECKS.md). ADR-0002 stays Proposed until answered. |
 | Q20 | If Signalsmith is adopted, do we carry its `wasm32` toolchain (wasi-sdk + 7 libc++ shims) in `pnpm verify`, or keep it native-only and use the vocoder in the browser? | WP-1.1 | Koen | Toolchain details in [ADR-0002](decisions/ADR-0002-time-stretch.md). |
 
+## Added by WP-1.1
+
+| # | Question | Needed by | Owner | Notes |
+|---|---|---|---|---|
+| Q26 | Master metering: momentary LUFS and the 64-band spectrum (03 §10). WP-1.1 ships per-track peak/RMS and master peak/RMS in the fixed-word state block; K-weighting + FFT are not done. Which work package owns the full master meter, and at what update rate? | WP-1.9 (canvas visuals) | Agent | [03 §10](03-audio-engine.md), `crates/bragi-engine/src/meters.rs` |
+| Q27 | When the output device refuses 48 kHz (03 §7 assumes the project rate), does the engine resample on output, does the host, or does playback refuse? WP-1.1's cpal host refuses and says so. | WP-1.9 / WP-1.11 | Koen | [02 §2.2](02-song-model.md), `crates/bragi-engine-native/src/output.rs` |
+| Q28 | Does the browser compile render plans on the main thread and ship them to the AudioWorklet, or does the worklet compile them itself from the document? WP-1.1 ships the worklet-side path (decode + `load_project` in the worklet), which is simpler but puts plan compilation off the 128-frame budget. | WP-1.9 | Agent | [03 §3.1, §4](03-audio-engine.md) |
+| Q29 | `Warp::Stretch.ratio` has **two readings**: 03 §7 says time ratio = output/input (`> 1` is longer), while `bragi_model::clipmath` computes `duration = (srcEnd − srcStart)/ratio` (i.e. `> 1` is shorter). WP-1.1 derives the segment ratio from the resolved destination window, so playback follows the model, but the spec and the model must be reconciled — and reverse + stretch/pitch is unimplemented until they are. | WP-2.2 (resize `stretch`) | Agent | [03 §7](03-audio-engine.md), [02 §3.6](02-song-model.md), `crates/bragi-model/src/clipmath.rs` |
+| Q30 | The master limiter is zero-latency (instant attack, 50 ms release, hard ceiling) rather than the 5 ms look-ahead / true-peak of 03 §6, because a look-ahead delay needs a pre-roll in every offline render. Keep it, or implement the delay + pre-roll? | WP-1.11 (export) | Agent | [03 §6](03-audio-engine.md), `crates/bragi-engine/src/render.rs` |
+| Q31 | WASM-vs-native: the engine's own paths null at ≤ −90 dBFS, but a **phase-vocoder** fixture nulls at ≈ −69 dBFS because libm trig (`sin`/`cos`/`atan2`) differs in the last bits between native and wasm32 and the vocoder accumulates phase. Fix by using deterministic f32 math in `bragi-dsp` (owner: WP-0.4 follow-up), or accept and keep the fixture informational? | WP-0.4 follow-up | Koen | [ADR-0002](decisions/ADR-0002-time-stretch.md), `scripts/conformance.mjs` |
+
 ## Added by WP-0.3
 
 | # | Question | Needed by | Owner | Notes |

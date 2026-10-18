@@ -12,6 +12,15 @@
     "allow-blob-get",
     "allow-blob-has",
     "allow-blob-delete",
-    "allow-selftest-report"
+    "allow-selftest-report",
+    "allow-engine-init",
+    "allow-engine-load-document",
+    "allow-engine-apply-delta",
+    "allow-engine-transport",
+    "allow-engine-set-preview",
+    "allow-engine-state",
+    "allow-engine-render",
+    "allow-engine-peaks",
+    "allow-engine-dispose"
   ]
 }

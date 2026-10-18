@@ -1,5 +1,6 @@
 [package]
 name = "bragi-engine-native"
+description = "Desktop glue for bragi-engine: symphonia decoding, the mmap PCM cache, cpal output and the conformance render binary (WP-1.1)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,6 +9,17 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+bragi-engine = { path = "../bragi-engine", features = ["decode"] }
+bragi-model = { path = "../bragi-model" }
+memmap2.workspace = true
+cpal.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[[bin]]
+name = "bragi-render"
+path = "src/bin/render.rs"
 
 [lints]
 workspace = true

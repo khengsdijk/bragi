@@ -13,6 +13,15 @@ bragi-dsp = { path = "../bragi-dsp" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+# One decoder for native and wasm (specs/01-architecture.md §1). Optional so a
+# host that only mixes pre-decoded PCM does not carry it.
+symphonia = { workspace = true, optional = true }
+
+[features]
+default = []
+# Enables `bragi_engine::decode` (symphonia): FLAC/WAV/MP3/AAC/OGG/M4A to
+# interleaved f32. Both hosts enable it.
+decode = ["dep:symphonia"]
 
 [dev-dependencies]
 proptest.workspace = true

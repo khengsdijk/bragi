@@ -1,6 +1,6 @@
 # 03 — Audio Engine
 
-Status: Draft v0.2 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
+Status: Draft v0.3 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
 
 ## 1. Responsibilities
 
@@ -41,6 +41,9 @@ Main thread (React)                Decoder Worker(s)                 AudioWorkle
 - **Commands** use a lock-free SPSC ring buffer in a SharedArrayBuffer (main → worklet). **State** uses a fixed-layout SAB block: transport state, playhead sample, and per-track peak/RMS, written by the worklet with `Atomics.store` and read by the UI each animation frame.
 - **PCM is never fully resident.** Working assets are decoded on demand in **2-second chunks** (96 000 frames × channels × f32) into a **shared chunk pool** (default 256 MB, LRU). The engine requests chunks ahead of the playhead (prefetch window 6 s, plus 2 s behind for scrubbing). A missing chunk produces silence for that clip, an `underrun` counter increment, and a warning event. This must be rare in practice.
 - Requires cross-origin isolation (COOP/COEP), see [01-architecture.md §3](01-architecture.md).
+- WP-1.1 defaults: the pool is sized from the 2 s chunk length and a 256 MB budget
+  (`ChunkPool::with_defaults`), so the resident-chunk count follows from those two numbers. Missing
+  chunks are silence, one `underrun` counter increment and one event in a fixed-size ring.
 
 ### 3.2 Desktop host (`TauriEngineHost`)
 - `bragi-engine-native` runs in the Tauri Rust process. Audio output goes through **cpal** with a default buffer of **256 frames** (configurable 64–2048) and device selection in Settings.
@@ -93,6 +96,32 @@ struct Segment {                      // one clip occurrence, flattened to absol
 - Plan compilation for a 10-minute, 12-track song must take **< 20 ms** native and **< 60 ms** WASM. Deltas should recompile only affected tracks.
 - Parameter changes (gain, fx params) are **smoothed** over 10 ms to avoid zipper noise.
 
+WP-1.1 pinned the parts this sketch left open:
+
+- **`SrcMap`** is an ordered list of `(dst_offset, src_sample)` breakpoints, interpolated
+  linearly and extrapolated with the slope of the outermost interval. `dst_offset` is relative to
+  the segment's `dst_start`; `src_sample` is absolute in the asset, which is what a chunk-pool or
+  mmap lookup needs.
+- **A beatgrid becomes segments.** Its anchors are converted to absolute output samples; the clip
+  is split wherever the local rate changes, and pieces whose time ratio differs by less than
+  `1e-6` are coalesced. A piece stays on the bit-exact direct path while its ratio is 1, the asset
+  is at the output rate and no pitch shift is requested; otherwise it drives a `PhaseVocoder`
+  allocated by `Renderer::new` (never by `process`).
+- **`TrackPlan.solo`** exists: the "any solo" rule is resolved at compile time, and the renderer
+  ramps the resulting audible gain.
+- **Sections window their clips.** A clip occurrence is trimmed at its section's end, because a
+  section is the arrangement's window (02 §3.5).
+- **Automation** in v1 is gain only (`track:<id>/gainDb`, `master/gainDb`, already converted to
+  absolute samples by the compiler). Fx parameters arrive with WP-2.3, which also supplies
+  `FxNode`; `TrackPlan.fx` is empty in WP-1.1.
+- **Solo/mute ramps are linear over exactly 5 ms** (`MUTE_RAMP_MS`); gain, pan and fx parameters
+  ramp over 10 ms (`PARAM_RAMP_MS`). A plan swap carries the current ramp *value* over for tracks
+  that survive, so flipping mute is a ramp, not a click.
+- **Reverse with stretch/pitch is not supported** by the vocoder's forward pull model in v1; those
+  clips are rendered on the varispeed direct path and the planner emits a warning (Q29).
+- **The loop crossfade is equal-power over exactly 5 ms** (`LOOP_FADE_MS`) and is applied *after*
+  the sample-exact wrap point: the first frame after the loop end is the loop start's first frame.
+
 ## 5. Transport and real-time behaviours
 
 ### 5.1 State machine
@@ -106,6 +135,12 @@ struct Segment {                      // one clip occurrence, flattened to absol
 | Loop boundary | Sample-accurate, 5 ms crossfade at the loop point |
 | Solo/mute | Applied within one buffer, 5 ms ramp |
 | Playhead drift vs `AudioContext.currentTime` / device clock | < 1 ms over 10 min |
+
+Measured by WP-1.1 in `crates/bragi-engine/tests/timing.rs`: play start 0 samples (rendering
+begins at the playhead's first frame when the chunks are resident); seek ≤ 1 block (128 samples =
+2.7 ms); the loop wrap starts the incoming material on the exact frame after the loop end with a
+240-sample equal-power crossfade; mute/solo is silent after 240 samples; the playhead is an integer
+sample counter, so ten minutes of playback drift by 0 samples.
 
 ### 5.3 Live preview (`setPreview`)
 During a drag, the UI sends a lightweight `PreviewPatch`, for example `{ moveSection: { id, toIndex } }`, `{ clipOffset: { clipId, deltaTicks } }`, `{ trackGain: { trackId, db } }`, `{ fxParam: { fxId, param, value } }`, or `{ macro: { trackId, macroId, value } }`. The engine applies the patch to a **shadow plan** without recompiling the whole document. On commit, the UI clears the preview and sends the real `applyDelta`.
@@ -215,7 +250,7 @@ type RenderJob =
   | { kind: "cache"; sectionId: SectionId };                           // pre-rendered HQ section audio
 type AudioFormat = { container: "wav"; bits: 16 | 24 | 32 } | { container: "flac"; bits: 16 | 24 } | { container: "mp3"; kbps: 128 | 192 | 320 };
 ```
-- Offline render uses the `Render` stretch quality and is **deterministic**, with no dither randomness unless a seed is supplied.
+- Offline render uses the `Render` stretch quality and is **deterministic**, with no dither randomness unless a seed is supplied. WP-1.1 fixes the block size at 512 frames (`OFFLINE_BLOCK`) and renders single-threaded, so a mixdown is host-independent; the rayon per-track parallel path stays for WP-1.11.
 - **Export bundle ("Open in your DAW")**: a zip containing stems aligned to bar 1 (24-bit WAV), `tempo_and_markers.mid` (tempo map + section markers), `chords.mid` (if harmony analysis is present), and a `README.txt` listing BPM, key and section times. A native Ableton `.als` export is post-v1.
 - The MP3 encoder is chosen in the export work package. It must be licence-clean and compile on all targets. In the browser it may run as a separate WASM module in a worker.
 
@@ -225,7 +260,7 @@ type AudioFormat = { container: "wav"; bits: 16 | 24 | 32 } | { container: "flac
 |---|---|---|
 | Peak pyramid | Decoder worker / native thread on first load of an asset | Min/max pairs at 256, 1024, 4096 and 16384 samples per bin, cached in BlobCache as `peaks/<hash>.bin` |
 | Spectrogram tiles | Same, on demand | Mel 128 bins, hop 512, tile = 1024 frames, u8 log-magnitude, cached |
-| Live meters | Audio thread | Per track: peak + RMS at 60 Hz. Master: momentary LUFS + 64-band spectrum (for the "alive" visuals). |
+| Live meters | Audio thread | Per track: peak + RMS at 60 Hz. Master: momentary LUFS + 64-band spectrum (for the "alive" visuals). WP-1.1 ships peak + RMS for tracks and master, in a fixed-word state block (`bragi_engine::rt::StateBlock`); momentary LUFS needs K-weighting and the 64-band spectrum needs an FFT, so both are Q26. |
 | Section energy | From analysis (not the engine) | See [04-analysis-pipeline.md §5.6](04-analysis-pipeline.md) |
 
 ## 11. Testing

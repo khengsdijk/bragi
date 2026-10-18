@@ -52,9 +52,6 @@ symphonia = { version = "0.5.4", default-features = false, features = [
 memmap2 = "0.9"
 # Desktop audio output (specs/03-audio-engine.md §3.2). Native only.
 cpal = "0.15"
-# Lock-free plan swap on the desktop audio thread (`ArcSwap::load` is one atomic op and never
-# allocates). Native only; the wasm host uses the epoch slot in `bragi-engine::rt`.
-arc-swap = "1.7"
 
 # Lints apply to every crate via `[lints] workspace = true`.
 # CI runs `cargo clippy --workspace --all-targets -- -D warnings`, so these

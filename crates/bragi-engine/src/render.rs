@@ -462,6 +462,10 @@ impl Renderer {
             })
             .collect();
         self.transport.set_length(prepared.plan.length_samples);
+        if self.meters.len() != prepared.plan.tracks.len() {
+            // The track set changed; rebuild the meter vector (control thread).
+            self.meters = Meters::new(prepared.plan.tracks.len());
+        }
         self.master_gain = Ramp::new(prepared.plan.master.gain, param_frames);
         self.limiter = Limiter::new(prepared.plan.master.ceiling, prepared.plan.sample_rate);
         std::mem::replace(&mut self.prepared, prepared)
@@ -774,6 +778,7 @@ fn render_direct(
     accumulate(scratch, offset, frames);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_stretched(
     scratch: &mut Scratch,
     pcm: &dyn PcmSource,
@@ -827,6 +832,7 @@ fn render_stretched(
 
 /// Feeds up to `need` source frames to the stretcher and processes
 /// `out_frames`; returns the number of source frames consumed.
+#[allow(clippy::too_many_arguments)]
 fn feed(
     scratch: &mut Scratch,
     pcm: &dyn PcmSource,

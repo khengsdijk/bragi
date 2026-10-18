@@ -1,0 +1,270 @@
+#!/usr/bin/env node
+/**
+ * The engine conformance harness (`specs/03-audio-engine.md` §11,
+ * `specs/13-agent-guide.md` §6): renders golden fixtures three ways and nulls
+ * them against each other.
+ *
+ *     native binary  ─┐
+ *     WASM in Node   ─┼─  pairwise null ≤ −90 dBFS
+ *     golden WAV     ─┘
+ *
+ * Usage:
+ *   node scripts/conformance.mjs            # verify against the committed goldens
+ *   node scripts/conformance.mjs --update   # rewrite the goldens from the native render
+ *   node scripts/conformance.mjs --no-build # reuse the last builds
+ *
+ * The fixtures are generated/CC0 audio (fixtures/audio/LICENSE.txt); no
+ * copyrighted content is involved.
+ */
+import { execFileSync } from "node:child_process";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { OUT_DIR } from "./build-engine-wasm.mjs";
+
+const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const UPDATE = process.argv.includes("--update");
+const BUILD = !process.argv.includes("--no-build");
+/** The acceptance threshold from specs/12-roadmap.md WP-1.1. */
+const NULL_TARGET_DB = -90.0;
+
+const DRUMS = "sha256:1b77ad128280974bbacf069084b80098f0561361a2b76e852ced984779a64900";
+const TONE = "sha256:4f0f99f60f5a81427887a233bacd5bbca2e0f7e4fe4f18ce1c39904955362f3e";
+
+const FIXTURES = [
+  {
+    name: "engine-conformance-a",
+    project: "fixtures/projects/engine-conformance-a.json",
+    frames: 96000,
+    assets: [
+      { hash: DRUMS, path: "fixtures/audio/drums_120.wav", mime: "audio/wav" },
+      { hash: TONE, path: "fixtures/audio/tone_440.wav", mime: "audio/wav" },
+    ],
+    gate: true,
+  },
+  {
+    name: "engine-conformance-b",
+    project: "fixtures/projects/engine-conformance-b.json",
+    frames: 48000,
+    assets: [{ hash: TONE, path: "fixtures/audio/tone_440.wav", mime: "audio/wav" }],
+    gate: true,
+  },
+  {
+    // The phase vocoder uses libm trig, whose last bits differ between native
+    // and wasm32, so this fixture is reported but not gated (Q31). Everything
+    // else about it — plan, transport, gain, fades — is still compared.
+    name: "engine-conformance-c-stretch",
+    project: "fixtures/projects/engine-conformance-c.json",
+    frames: 48000,
+    assets: [{ hash: TONE, path: "fixtures/audio/tone_440.wav", mime: "audio/wav" }],
+    gate: false,
+  },
+];
+
+const GOLDEN_DIR = join(ROOT, "fixtures", "audio", "golden");
+const work = mkdtempSync(join(tmpdir(), "bragi-conformance-"));
+
+/**
+ * @param {string} command
+ * @param {string[]} args
+ * @param {import("node:child_process").ExecFileSyncOptions} [options]
+ */
+function run(command, args, options = {}) {
+  return execFileSync(command, args, { cwd: ROOT, encoding: "utf8", ...options });
+}
+
+/**
+ * Parses the project's 32-bit-float WAV format
+ * (crates/bragi-engine-native/src/wav.rs).
+ * @param {string} path
+ */
+function readF32Wav(path) {
+  const bytes = readFileSync(path);
+  if (bytes.length < 44 || bytes.toString("ascii", 0, 4) !== "RIFF") {
+    throw new Error(`${path}: not a WAV`);
+  }
+  let offset = 12;
+  let channels = 1;
+  let sampleRate = 48000;
+  let format = 1;
+  let bits = 16;
+  let data = null;
+  while (offset + 8 <= bytes.length) {
+    const id = bytes.toString("ascii", offset, offset + 4);
+    const size = bytes.readUInt32LE(offset + 4);
+    const body = offset + 8;
+    if (id === "fmt ") {
+      format = bytes.readUInt16LE(body);
+      channels = bytes.readUInt16LE(body + 2);
+      sampleRate = bytes.readUInt32LE(body + 4);
+      bits = bytes.readUInt16LE(body + 14);
+    } else if (id === "data") {
+      data = bytes.subarray(body, Math.min(body + size, bytes.length));
+    }
+    offset = body + size + (size % 2);
+  }
+  if (!data) throw new Error(`${path}: no data chunk`);
+  if (format !== 3 || bits !== 32) throw new Error(`${path}: expected 32-bit float`);
+  const samples = new Float32Array(
+    data.buffer.slice(data.byteOffset, data.byteOffset + data.length),
+  );
+  return { samples, channels, sampleRate };
+}
+
+/**
+ * RMS of the sample difference, in dBFS. −Infinity means identical.
+ * @param {ArrayLike<number>} a
+ * @param {ArrayLike<number>} b
+ */
+function nullLevelDb(a, b) {
+  const len = Math.min(a.length, b.length);
+  if (len === 0) return Number.NEGATIVE_INFINITY;
+  let sum = 0;
+  for (let index = 0; index < len; index += 1) {
+    const diff = (a[index] ?? 0) - (b[index] ?? 0);
+    sum += diff * diff;
+  }
+  const rms = Math.sqrt(sum / len);
+  return rms === 0 ? Number.NEGATIVE_INFINITY : 20 * Math.log10(rms);
+}
+
+/** @returns {Promise<Record<string, unknown>>} */
+async function loadWasm() {
+  const module = await import(pathToFileURL(join(OUT_DIR, "bragi_engine_wasm.js")).href);
+  module.initSync({ module: readFileSync(join(OUT_DIR, "bragi_engine_wasm_bg.wasm")) });
+  return module;
+}
+
+/**
+ * @param {any} module
+ * @param {{ assets: { hash: string, path: string, mime: string }[], project: string, frames: number }} fixture
+ */
+async function renderWasm(module, fixture) {
+  const engine = new module.EngineWasm(512);
+  for (const asset of fixture.assets) {
+    const bytes = new Uint8Array(readFileSync(join(ROOT, asset.path)));
+    engine.add_asset(asset.hash, bytes, asset.mime);
+  }
+  const json = readFileSync(join(ROOT, fixture.project), "utf8");
+  engine.load_project(json);
+  const samples = engine.render(0n, BigInt(fixture.frames), 512);
+  return Float32Array.from(samples);
+}
+
+/**
+ * @param {{ assets: { hash: string, path: string }[], project: string, frames: number }} fixture
+ * @param {string} outWav
+ * @param {string} outRaw
+ */
+function renderNative(fixture, outWav, outRaw) {
+  const args = [
+    "run",
+    "--quiet",
+    "-p",
+    "bragi-engine-native",
+    "--bin",
+    "bragi-render",
+    "--",
+    "--project",
+    join(ROOT, fixture.project),
+    "--frames",
+    String(fixture.frames),
+    "--out",
+    outWav,
+    "--raw",
+    outRaw,
+  ];
+  for (const asset of fixture.assets) {
+    args.push("--asset", `${asset.hash}=${join(ROOT, asset.path)}`);
+  }
+  const output = String(run("cargo", args));
+  const sha = /^sha256:([0-9a-f]{64})$/m.exec(output)?.[1];
+  if (!sha) throw new Error(`native render printed no sha:\n${output}`);
+  const raw = readFileSync(outRaw);
+  return {
+    samples: new Float32Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.length)),
+    sha,
+  };
+}
+
+if (BUILD) {
+  process.stdout.write("building the native render binary…\n");
+  run("cargo", ["build", "-p", "bragi-engine-native", "--bin", "bragi-render"]);
+  process.stdout.write("building the wasm engine…\n");
+  run("node", ["scripts/build-engine-wasm.mjs"]);
+}
+
+mkdirSync(GOLDEN_DIR, { recursive: true });
+const module = await loadWasm();
+let failed = false;
+const rows = [];
+
+for (const fixture of FIXTURES) {
+  const nativeWav = join(work, `${fixture.name}.native.wav`);
+  const nativeRaw = join(work, `${fixture.name}.native.f32`);
+  const native = renderNative(fixture, nativeWav, nativeRaw);
+  const wasm = await renderWasm(module, fixture);
+  const goldenPath = join(GOLDEN_DIR, `${fixture.name}.wav`);
+
+  if (UPDATE) {
+    copyFileSync(nativeWav, goldenPath);
+  }
+
+  const nativeVsWasm = nullLevelDb(native.samples, wasm);
+  const hasGolden = existsSync(goldenPath);
+  let nativeVsGolden = Number.NEGATIVE_INFINITY;
+  let wasmVsGolden = Number.NEGATIVE_INFINITY;
+  if (hasGolden) {
+    const golden = readF32Wav(goldenPath).samples;
+    nativeVsGolden = nullLevelDb(native.samples, golden);
+    wasmVsGolden = nullLevelDb(wasm, golden);
+  }
+  if (!hasGolden && !UPDATE) {
+    process.stderr.write(`${fixture.name}: missing golden; run with --update\n`);
+  }
+
+  const ok =
+    hasGolden &&
+    (!fixture.gate ||
+      (nativeVsWasm <= NULL_TARGET_DB &&
+        nativeVsGolden <= NULL_TARGET_DB &&
+        wasmVsGolden <= NULL_TARGET_DB));
+  failed ||= !ok;
+  rows.push({
+    fixture: fixture.name,
+    frames: native.samples.length / 2,
+    sha: native.sha.slice(0, 12),
+    nativeVsWasm,
+    nativeVsGolden,
+    wasmVsGolden,
+    ok,
+    gate: fixture.gate,
+  });
+}
+
+/** @param {number} value */
+const formatDb = (value) =>
+  value === Number.NEGATIVE_INFINITY ? "  -inf" : value.toFixed(1).padStart(6);
+process.stdout.write(
+  "\nfixture                    frames   sha256[0:12]  native/WASM  native/golden  WASM/golden  ok\n",
+);
+for (const row of rows) {
+  process.stdout.write(
+    `${row.fixture.padEnd(26)} ${String(row.frames).padStart(6)}   ${row.sha}   ` +
+      `${formatDb(row.nativeVsWasm)}      ${formatDb(row.nativeVsGolden)}      ` +
+      `${formatDb(row.wasmVsGolden)}   ${row.gate ? (row.ok ? "yes" : "NO") : "info"}\n`,
+  );
+}
+process.stdout.write(
+  `\nthreshold: ≤ ${NULL_TARGET_DB} dBFS for every gated pair ` +
+    `(the stretch fixture is informational; see Q31 in specs/15-open-questions.md)\n`,
+);
+
+if (failed) {
+  process.stderr.write("conformance failed\n");
+  process.exitCode = 1;
+} else {
+  process.stdout.write("conformance passed\n");
+}

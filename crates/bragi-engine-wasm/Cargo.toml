@@ -1,5 +1,6 @@
 [package]
 name = "bragi-engine-wasm"
+description = "wasm-bindgen bindings for bragi-engine: the browser engine surface (WP-1.1)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,7 +8,16 @@ license.workspace = true
 publish.workspace = true
 repository.workspace = true
 
+[lib]
+# `cdylib` is what `wasm-bindgen` consumes; `rlib` lets the crate be a normal
+# Rust dependency so `cargo test --workspace` and clippy build it natively too.
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
+bragi-engine = { path = "../bragi-engine", features = ["decode"] }
+bragi-model = { path = "../bragi-model" }
+serde_json.workspace = true
+wasm-bindgen.workspace = true
 
 [lints]
 workspace = true

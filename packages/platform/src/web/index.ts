@@ -27,4 +27,16 @@ export async function createWebPlatform(options: WebPlatformOptions): Promise<Pl
   };
 }
 
+export {
+  type AssetResolver,
+  createBlobCacheAssetResolver,
+  createBrowserEngineHost,
+  createWasmEngineHost,
+  type EngineAsset,
+  type EngineOfflineBridge,
+  type EnginePlaybackBridge,
+  guessMime,
+  stateWordCount,
+  type WasmEngineHostOptions,
+} from "./engine.js";
 export { createInputFileAccess } from "./file-access.js";

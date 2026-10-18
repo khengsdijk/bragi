@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The app window. It grants the core defaults and exactly the commands the page needs for the local database and blob cache, and nothing else: no plugin, no filesystem scope (01 §10). Every other app command is denied by default.",
+  "description": "The app window. It grants the core defaults and exactly the commands the page needs for the local database and blob cache, and nothing else: no plugin, no filesystem scope (01 \u00a710). Every other app command is denied by default.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -11,6 +11,15 @@
     "allow-blob-put",
     "allow-blob-get",
     "allow-blob-has",
-    "allow-blob-delete"
+    "allow-blob-delete",
+    "allow-engine-init",
+    "allow-engine-load-document",
+    "allow-engine-apply-delta",
+    "allow-engine-transport",
+    "allow-engine-set-preview",
+    "allow-engine-state",
+    "allow-engine-render",
+    "allow-engine-peaks",
+    "allow-engine-dispose"
   ]
 }

@@ -70,6 +70,8 @@
 #![warn(missing_docs)]
 
 pub mod chunkpool;
+#[cfg(feature = "decode")]
+pub mod decode;
 pub mod engine;
 pub mod error;
 pub mod fade;
@@ -89,6 +91,9 @@ pub use error::{EngineError, PlanError};
 pub use plan::{RenderPlan, Segment, TrackPlan, compile};
 pub use render::{RenderStats, Renderer};
 pub use transport::{Transport, TransportState};
+
+/// The engine crate's version, for diagnostics and cache invalidation.
+pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The project's internal sample rate (`specs/02-song-model.md` §2.2).
 pub const SAMPLE_RATE: u32 = 48_000;
