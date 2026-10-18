@@ -7,8 +7,16 @@
     "noEmit": true,
     "types": ["node"],
     "allowJs": true,
-    "checkJs": true
+    "checkJs": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx"
   },
-  "include": ["packages/*/src/**/*", "services/api/src/**/*", "scripts/**/*"],
-  "//": "Typechecks what the per-package builds leave out: the src/__tests__ files and the JSDoc-annotated .mjs scripts. The generated Ajv validators are not typechecked either -- they carry `@ts-nocheck`, because their chosen surface is the typed facade in packages/schemas/src/generated/validators.ts."
+  "include": [
+    "packages/*/src/**/*",
+    "packages/*/.storybook/**/*",
+    "packages/*/vitest.config.ts",
+    "services/api/src/**/*",
+    "scripts/**/*"
+  ],
+  "//": "Typechecks what the per-package builds leave out: the src/__tests__ files, the component tests and the JSDoc-annotated .mjs scripts. The generated Ajv validators are not typechecked either -- they carry `@ts-nocheck`, because their chosen surface is the typed facade in packages/schemas/src/generated/validators.ts."
 }

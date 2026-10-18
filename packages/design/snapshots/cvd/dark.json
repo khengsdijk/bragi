@@ -1,0 +1,147 @@
+{
+  "generatedFrom": "packages/design/tokens.json",
+  "method": "Machado, Oliveira & Fernandes (2009), severity 1.0, linear sRGB",
+  "theme": "dark",
+  "entries": [
+    {
+      "var": "--role-vocals",
+      "normal": "#fb766a",
+      "protanopia": "#978d68",
+      "deuteranopia": "#b8a967",
+      "tritanopia": "#ff5f74"
+    },
+    {
+      "var": "--role-drums",
+      "normal": "#ffab46",
+      "protanopia": "#c7b139",
+      "deuteranopia": "#dac548",
+      "tritanopia": "#ff9796"
+    },
+    {
+      "var": "--role-bass",
+      "normal": "#9778f5",
+      "protanopia": "#448ff9",
+      "deuteranopia": "#498bf2",
+      "tritanopia": "#7f92ab"
+    },
+    {
+      "var": "--role-guitar",
+      "normal": "#6ad987",
+      "protanopia": "#dac981",
+      "deuteranopia": "#cbbf8c",
+      "tritanopia": "#52d6c4"
+    },
+    {
+      "var": "--role-piano",
+      "normal": "#8fe1ff",
+      "protanopia": "#d0ddff",
+      "deuteranopia": "#bfd0ff",
+      "tritanopia": "#5debea"
+    },
+    {
+      "var": "--role-synth",
+      "normal": "#db5fd3",
+      "protanopia": "#5785d7",
+      "deuteranopia": "#7e96d0",
+      "tritanopia": "#e26b90"
+    },
+    {
+      "var": "--role-strings",
+      "normal": "#29b5a8",
+      "protanopia": "#ababa8",
+      "deuteranopia": "#999da9",
+      "tritanopia": "#00b9b1"
+    },
+    {
+      "var": "--role-generated",
+      "normal": "#f3df83",
+      "protanopia": "#efdb7b",
+      "deuteranopia": "#f5e287",
+      "tritanopia": "#ffd3c9"
+    },
+    {
+      "var": "--role-residual",
+      "normal": "#808693",
+      "protanopia": "#828794",
+      "deuteranopia": "#818593",
+      "tritanopia": "#7c888a"
+    },
+    {
+      "var": "--section-fill-neutral",
+      "normal": "#d4d7de",
+      "protanopia": "#d5d7de",
+      "deuteranopia": "#d4d7de",
+      "tritanopia": "#d2d8d9"
+    },
+    {
+      "var": "--section-fill-blue",
+      "normal": "#a5ccf4",
+      "protanopia": "#bdcdf6",
+      "deuteranopia": "#b3c4f3",
+      "tritanopia": "#8dd5d9"
+    },
+    {
+      "var": "--section-fill-warm",
+      "normal": "#fac597",
+      "protanopia": "#d6c894",
+      "deuteranopia": "#e2d498",
+      "tritanopia": "#ffbab9"
+    },
+    {
+      "var": "--section-fill-purple",
+      "normal": "#ac9be0",
+      "protanopia": "#8aa6e3",
+      "deuteranopia": "#8ca4de",
+      "tritanopia": "#a2a6b4"
+    },
+    {
+      "var": "--section-fill-redorange",
+      "normal": "#f09080",
+      "protanopia": "#a69e7e",
+      "deuteranopia": "#bdb17f",
+      "tritanopia": "#ff828c"
+    },
+    {
+      "var": "--section-fill-teal",
+      "normal": "#81c6c1",
+      "protanopia": "#bfbfc1",
+      "deuteranopia": "#b2b6c2",
+      "tritanopia": "#67c9c4"
+    },
+    {
+      "var": "--energy-stop-1",
+      "normal": "#5680e6",
+      "protanopia": "#508bea",
+      "deuteranopia": "#387ee4",
+      "tritanopia": "#0097a8"
+    },
+    {
+      "var": "--energy-stop-2",
+      "normal": "#17d0d8",
+      "protanopia": "#c0c6d9",
+      "deuteranopia": "#a8b4d9",
+      "tritanopia": "#00d8d2"
+    },
+    {
+      "var": "--energy-stop-3",
+      "normal": "#fcd948",
+      "protanopia": "#efd531",
+      "deuteranopia": "#f8e050",
+      "tritanopia": "#ffc8bc"
+    },
+    {
+      "var": "--energy-stop-4",
+      "normal": "#ff8f31",
+      "protanopia": "#b09c21",
+      "deuteranopia": "#cbb630",
+      "tritanopia": "#ff767d"
+    },
+    {
+      "var": "--energy-stop-5",
+      "normal": "#fb40ad",
+      "protanopia": "#5f79b0",
+      "deuteranopia": "#969aa9",
+      "tritanopia": "#ff3472"
+    }
+  ]
+}

@@ -10,7 +10,15 @@
     },
     "test": {
       "dependsOn": ["build"],
-      "inputs": ["src/**", "tsconfig.json", "package.json"],
+      "inputs": [
+        "src/**",
+        "tsconfig.json",
+        "package.json",
+        "**/*.css",
+        "tokens.json",
+        "snapshots/**",
+        ".storybook/**"
+      ],
       "outputs": ["coverage/**"]
     }
   }

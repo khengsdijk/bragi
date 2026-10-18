@@ -1,0 +1,143 @@
+/**
+ * GENERATED FILE — DO NOT EDIT.
+ *
+ * Source: packages/design/tokens.json
+ * Regenerate: pnpm --filter @bragi/design tokens:gen
+ * Tickets: WP-0.6, specs/11-ux-and-accessibility.md §3
+ */
+
+:root {
+  --font-sans: Geist, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --text-2xl: 1.512rem;
+  --text-base: 0.875rem;
+  --text-lg: 1.05rem;
+  --text-xl: 1.26rem;
+  --text-xs: 0.7292rem;
+  --leading-normal: 1.5;
+  --leading-tight: 1.25;
+  --weight-medium: 500;
+  --weight-regular: 400;
+  --weight-semibold: 600;
+  --space-0: 0rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --radius-full: 9999px;
+  --radius-lg: 0.625rem;
+  --radius-md: 0.375rem;
+  --radius-sm: 0.25rem;
+  --radius-xl: 0.875rem;
+  --size-hit-target: 1.5rem;
+  --size-control-sm: 1.5rem;
+  --size-control-md: 2rem;
+  --size-control-lg: 2.5rem;
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-slow: 250ms;
+  --motion-lens: 600ms;
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1.06);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-accent: #66a5ff;
+  --color-accent-active: #4f91f2;
+  --color-accent-hover: #7db9ff;
+  --color-accent-quiet: #1e2e47;
+  --color-canvas: #080c14;
+  --color-danger: #ef6567;
+  --color-danger-hover: #ff7d7c;
+  --color-danger-quiet: #451e1d;
+  --color-focus: #eef2f9;
+  --color-info: #6ec3eb;
+  --color-line: #363b43;
+  --color-line-strong: #6c727e;
+  --color-overlay: #03060ddb;
+  --color-success: #63d18f;
+  --color-surface: #13171f;
+  --color-surface-active: #353b46;
+  --color-surface-hover: #292e38;
+  --color-surface-raised: #1d222a;
+  --color-text: #f4f5f8;
+  --color-text-disabled: #656971;
+  --color-text-muted: #babec6;
+  --color-text-on-accent: #060d1a;
+  --color-warning: #f0ba59;
+  --role-bass: #9778f5;
+  --role-drums: #ffab46;
+  --role-generated: #f3df83;
+  --role-guitar: #6ad987;
+  --role-piano: #8fe1ff;
+  --role-residual: #808693;
+  --role-strings: #29b5a8;
+  --role-synth: #db5fd3;
+  --role-vocals: #fb766a;
+  --section-label: #161b24;
+  --section-fill-blue: #a5ccf4;
+  --section-fill-neutral: #d4d7de;
+  --section-fill-purple: #ac9be0;
+  --section-fill-redorange: #f09080;
+  --section-fill-teal: #81c6c1;
+  --section-fill-warm: #fac597;
+  --energy-stop-1: #5680e6;
+  --energy-stop-2: #17d0d8;
+  --energy-stop-3: #fcd948;
+  --energy-stop-4: #ff8f31;
+  --energy-stop-5: #fb40ad;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --color-accent: #085dc7;
+  --color-accent-active: #00399a;
+  --color-accent-hover: #004bb3;
+  --color-accent-quiet: #e1eeff;
+  --color-canvas: #eff0f3;
+  --color-danger: #ba1d27;
+  --color-danger-hover: #a50013;
+  --color-danger-quiet: #ffe9e6;
+  --color-focus: #06489c;
+  --color-info: #0070a6;
+  --color-line: #d2d4d8;
+  --color-line-strong: #7d8088;
+  --color-overlay: #292e386b;
+  --color-success: #007840;
+  --color-surface: #ffffff;
+  --color-surface-active: #e0e3e8;
+  --color-surface-hover: #ebedf0;
+  --color-surface-raised: #ffffff;
+  --color-text: #1d2028;
+  --color-text-disabled: #8d9198;
+  --color-text-muted: #4d515a;
+  --color-text-on-accent: #fafcfe;
+  --color-warning: #a06700;
+  --role-bass: #5d3ddb;
+  --role-drums: #a44b20;
+  --role-generated: #674700;
+  --role-guitar: #327122;
+  --role-piano: #005d95;
+  --role-residual: #676d79;
+  --role-strings: #007e6b;
+  --role-synth: #6a3373;
+  --role-vocals: #822a35;
+  --section-label: #fafcff;
+  --section-fill-blue: #085491;
+  --section-fill-neutral: #3a3d44;
+  --section-fill-purple: #482584;
+  --section-fill-redorange: #8d0e04;
+  --section-fill-teal: #00726d;
+  --section-fill-warm: #8c4500;
+  --energy-stop-1: #3054ae;
+  --energy-stop-2: #00848b;
+  --energy-stop-3: #9e840a;
+  --energy-stop-4: #9f3e00;
+  --energy-stop-5: #b51c79;
+}
