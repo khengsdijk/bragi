@@ -45,7 +45,10 @@ fn engine_delta_snapshot() {
     // `SectionInstance.lanes` is a HashMap, and insta's own `Content` serialization
     // preserves its (per-instance, non-deterministic) iteration order, which made this
     // snapshot flaky. `serde_json`'s default Map is BTree-backed and sorts the keys.
-    assert_json_snapshot!("engine_delta", serde_json::to_value(diff(&doc, &next)).unwrap());
+    assert_json_snapshot!(
+        "engine_delta",
+        serde_json::to_value(diff(&doc, &next)).unwrap()
+    );
 }
 
 #[test]
