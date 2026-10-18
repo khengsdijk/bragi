@@ -1,6 +1,6 @@
 # 11 — UX, Design System & Accessibility
 
-Status: Draft v0.1 · Code: `packages/design/`, `packages/app/src/features/onboarding/`
+Status: Draft v0.2 · Code: `packages/design/`, `packages/app/src/features/onboarding/`
 
 ## 1. Experience pillars
 
@@ -35,26 +35,81 @@ Copy rules: second person, present tense, ≤ 12 words for labels and tooltips, 
 
 ## 3. Visual language (design tokens)
 
-- **Dark-first** theme (the canvas glows best on dark), with a full light theme. Tokens are CSS variables in `packages/design/tokens.css`, mirrored to `tokens.json` for the PixiJS/Three.js renderers.
-- **Typography:** one open-licence variable grotesk for UI (finalised in WP-0.6, e.g. Geist or Manrope) plus a monospace with tabular figures for times, BPM and values. Base size 14 px, scale 1.2.
-- **Instrument role colours** (dark theme values are illustrative; WP-0.6 finalises them with contrast checks):
+Tokens in `packages/design/tokens.json` are the single hand-edited source; `packages/design/tokens.css`
+is generated from it for the DOM UI (CSS variables) and the file itself is what the PixiJS/Three.js
+renderers read. Regenerate with `pnpm --filter @bragi/design tokens:gen`; `tokens:report` prints every
+contrast pairing, every ΔE00 minimum and the palette as OKLCH. Colours are designed in OKLCH and
+committed as hex.
 
-| Role | Colour | Pattern (for colour-blind safety) |
+- **Dark-first** theme (the canvas glows best on dark), with a full light theme. Both themes are
+  complete: `:root` carries the dark values, `[data-theme="light"]` the light ones.
+- **Typography:** **Geist** (UI, variable `wght` 100–900) plus **Geist Mono** (times, BPM and values,
+  tabular figures), both SIL OFL 1.1, self-hosted as `woff2` (latin + latin-ext) in
+  `packages/design/fonts/` with the licence file next to them — no remote font loading (strict CSP,
+  [01 §10](01-architecture.md)). Pending the owner's sign-off (Q8 in [15](15-open-questions.md));
+  swapping a family is a token change plus a file swap. Base size 14 px (`0.875rem`), scale 1.2, five
+  steps (`xs`, `base`, `lg`, `xl`, `2xl`), all in `rem` so text follows the user's font size (200 %).
+- **Instrument role colours** (final, both themes). Colour is never the only carrier: every role also
+  has a paper pattern for the ribbon texture ([07 §2](07-song-canvas.md)) and a name in the lane header.
+
+| Role | Dark | Light | Pattern |
+|---|---|---|---|
+| Vocals | Coral `#FB766A` | `#822A35` | Smooth |
+| Drums | Amber `#FFAB46` | `#A44B20` | Dotted grain |
+| Bass | Violet `#9778F5` | `#5D3DDB` | Thick solid |
+| Guitar | Green `#6AD987` | `#327122` | Fine hatching |
+| Piano | Ice `#8FE1FF` | `#005D95` | Light dots |
+| Synth / Other | Magenta `#DB5FD3` | `#6A3373` | Wave texture |
+| Strings | Teal `#29B5A8` | `#007E6B` | Long strokes |
+| Generated | Gold `#F3DF83` + sparkle edge | `#674700` | Sparkle |
+| Residual / FX | Slate `#808693` | `#676D79` | Faint |
+
+  `StemRole` has more members than the table: `other` uses the Synth colour, `fx`, `full_mix` and
+  `recorded` use the residual slate until they need a hue of their own ([02 §3.4](02-song-model.md)).
+
+- **Section kind hues** are a separate, calmer palette, always shown with text labels. Six families
+  cover the thirteen `SectionKind` values ([02 §3.5](02-song-model.md)): **neutral** (intro, outro,
+  solo, interlude, custom), **blue** (verse), **warm** (chorus, pre-chorus, post-chorus), **purple**
+  (bridge), **red-orange** (drop, build) and **teal** (breakdown). The label sits on the fill: the dark
+  theme uses light fills with a dark label, the light theme dark fills with a light label, and the
+  label's contrast is checked against every fill.
+
+| Family | Dark fill | Light fill |
 |---|---|---|
-| Vocals | Coral `#FF7A6B` | Smooth |
-| Drums | Amber `#FFB547` | Dotted grain |
-| Bass | Violet `#9B7BFF` | Thick solid |
-| Guitar | Green `#5FD38D` | Fine hatching |
-| Piano | Ice `#7FD3FF` | Light dots |
-| Synth / Other | Magenta `#E66BD6` | Wave texture |
-| Strings | Teal `#3CC7B5` | Long strokes |
-| Generated | Gold `#F5D06F` + sparkle edge | Sparkle |
-| Residual / FX | Slate `#8A8F98` | Faint |
+| Neutral | `#D4D7DE` | `#3A3D44` |
+| Blue | `#A5CCF4` | `#085491` |
+| Warm | `#FAC597` | `#8C4500` |
+| Purple | `#AC9BE0` | `#482584` |
+| Red-orange | `#F09080` | `#8D0E04` |
+| Teal | `#81C6C1` | `#00726D` |
 
-- **Section kind hues** are a separate, calmer palette (intro/outro neutral, verse blue, chorus warm, bridge purple, drop red-orange, breakdown teal), always shown with text labels.
-- **Energy gradient** (skyline): deep blue → cyan → yellow → orange → hot pink.
-- **Colour is never the only carrier of meaning.** Every colour-coded element also has a label, glyph or pattern. Palettes are checked under deuteranopia, protanopia and tritanopia simulations in visual tests.
-- **Motion:** 150–250 ms UI transitions, 600 ms for lens morphs and zoom transitions, spring easing for drag. Music-reactive motion (ribbon glow, star twinkle) is subtle. With `prefers-reduced-motion`, reactive motion is off and transitions become cross-fades.
+- **Energy gradient** (skyline): deep blue → cyan → yellow → orange → hot pink. The skyline is an
+  essential graphic, so every stop is checked at 3:1 against the canvas; the light theme's stops are
+  therefore deep (`#3054AE` → `#B51C79`) rather than bright, and its low stop stays brighter than a
+  naive "deep blue" so the line stays perceivable in both themes.
+
+| Stop | Dark | Light |
+|---|---|---|
+| 1 (low) | `#5680E6` | `#3054AE` |
+| 2 | `#17D0D8` | `#00848B` |
+| 3 | `#FCD948` | `#9E840A` |
+| 4 | `#FF8F31` | `#9F3E00` |
+| 5 (high) | `#FB40AD` | `#B51C79` |
+
+- **Colour is never the only carrier of meaning.** Every colour-coded element also has a label, glyph
+  or pattern. The palettes are checked under deuteranopia, protanopia and tritanopia (Machado et al.
+  2009, severity 1.0): a CIEDE2000 minimum per group and vision is declared in `tokens.json` and
+  asserted by `pnpm --filter @bragi/design test`, which also writes the simulation snapshots in
+  `packages/design/snapshots/cvd/`.
+- **Contrast** is declared, not assumed: `tokens.json` lists which token pairs must meet which ratio
+  (text 4.5:1, essential graphics 3:1), the check iterates that list in both themes, and a second test
+  fails if a colour token has no pairing. The focus ring is drawn with an offset, so it is checked
+  against the surfaces behind a control rather than against the control's own fill.
+- **Motion:** 150–250 ms UI transitions, 600 ms for lens morphs and zoom transitions, spring easing
+  for drag. Music-reactive motion (ribbon glow, star twinkle) is subtle. With
+  `prefers-reduced-motion` **or** the reduced-motion setting ([§9](#9-settings-v1), which sets
+  `data-motion="reduced"` on `<html>`), reactive motion is off, transforms are dropped and what
+  remains reads as a cross-fade.
 
 ## 4. Onboarding (first run)
 
