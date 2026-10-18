@@ -7,13 +7,34 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./auto": {
+      "types": "./dist/auto.d.ts",
+      "default": "./dist/auto.js"
+    },
+    "./web": {
+      "types": "./dist/web/index.d.ts",
+      "default": "./dist/web/index.js"
+    },
+    "./tauri": {
+      "types": "./dist/tauri/index.d.ts",
+      "default": "./dist/tauri/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
     }
   },
   "scripts": {
     "build": "tsc -b",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@sqlite.org/sqlite-wasm": "3.53.4-build2",
+    "@tauri-apps/api": "^2.12.4"
+  },
   "devDependencies": {
+    "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

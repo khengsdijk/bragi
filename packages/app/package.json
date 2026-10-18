@@ -13,7 +13,16 @@
     "build": "tsc -b",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@bragi/platform": "workspace:*",
+    "@tanstack/react-router": "^1.170.45",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
   "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

@@ -1,0 +1,28 @@
+{
+  "name": "@bragi/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@bragi/app": "workspace:*",
+    "@bragi/platform": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

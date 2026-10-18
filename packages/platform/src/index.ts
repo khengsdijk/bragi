@@ -1,6 +1,26 @@
 /**
- * Package identity. The scaffold (WP-0.1) ships this so that the lint, build
- * and test chain runs against real code in every package; the work package
- * named in this package's README replaces it with the real surface.
+ * `@bragi/platform`: the interfaces the app is written against, plus the
+ * platform-neutral pieces (migration runner, blob hashing, in-memory
+ * adapters). Host-specific adapters live behind the `./web`, `./tauri` and
+ * `./auto` entry points so that importing this module never pulls them in.
  */
 export const PACKAGE_NAME = "@bragi/platform";
+
+export { assertBlobHash, blobHashOf, isBlobHash } from "./blob-hash.js";
+export { createMemoryBlobCache, createScriptedFileAccess } from "./memory.js";
+export { parseMigrations, runMigrations } from "./migrations.js";
+export type {
+  BlobCache,
+  BlobHash,
+  FileAccess,
+  LocalDB,
+  Migration,
+  PickedFile,
+  PickFilesOptions,
+  Platform,
+  PlatformKind,
+  Row,
+  RunResult,
+  SqlValue,
+  Statement,
+} from "./types.js";
