@@ -238,6 +238,7 @@ The Rust engine (0.3/0.4/1.1) and the analysis workers (0.7/1.x) are independent
 | WP | Status | Notes |
 |---|---|---|
 | 0.1 Monorepo scaffold & CI | **Done** (2026-10-18) | Plan: [`docs/wp/0.1.md`](../docs/wp/0.1.md). `pnpm verify` and `pnpm infra:up` green on macOS 15 / arm64 — the only machine used. Ubuntu and Windows are **unverified**: hosted CI was dropped the same day (Q11 in [15](15-open-questions.md)), and the committed workflow has never run. Reviewed by a fresh-context agent; its findings are resolved in the branch and recorded in the plan. |
-| 0.2, 0.4, 0.5, 0.6 | Ready to start | Their only dependency (0.1) is Done, and they have none on each other, so they can run in parallel |
+| 0.2 Schemas & codegen | **Done** (2026-10-18) | Plan: [`docs/wp/0.2.md`](../docs/wp/0.2.md). Tooling decision: [ADR-0006](decisions/ADR-0006-schema-codegen.md). 63 root types across `song/`, `analysis/`, `jobs/` and `api/` generate TypeScript types + precompiled Ajv validators, Rust types (typify) and Pydantic v2 models, all from one bundle; `pnpm schemas:check` runs first in `pnpm verify` and in its own CI job. The 02 §10 example document validates and round-trips losslessly in all three languages. Verified on macOS 15 / arm64 only — the same unverified cross-OS caveat as 0.1 (Q11). |
+| 0.4, 0.5, 0.6 | Ready to start | Their only dependency (0.1) is Done, and they have none on each other, so they can run in parallel |
 | 0.7 | Blocked on 0.2 | |
 | All others | Not started | Specs v0.1 written 2026-10-18 |
