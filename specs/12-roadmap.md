@@ -1,6 +1,6 @@
 # 12 — Roadmap & Work Packages
 
-Status: Draft v0.1
+Status: Draft v0.2
 
 Bragi is built in **phases**. Every phase ends with a demo-able milestone (matching the success criteria in [00 §9](00-vision.md)). Each phase is split into **work packages (WPs)**: units of work that one agent (or person) can pick up, implement and verify independently once their dependencies are done.
 
@@ -18,8 +18,8 @@ Bragi is built in **phases**. Every phase ends with a demo-able milestone (match
 
 ### WP-0.1 Monorepo scaffold & CI · S
 - **Depends on:** none · **Specs:** [01 §4](01-architecture.md), [13](13-agent-guide.md)
-- **Scope:** pnpm workspaces + Turborepo, Cargo workspace, uv workspace, all directories from [01 §4](01-architecture.md) with placeholder READMEs. Linting/formatting: Biome (TS), rustfmt + clippy, ruff + mypy. `infra/docker-compose.yml` with Postgres+pgvector, MinIO, NATS JetStream, Mailpit. GitHub Actions running lint + test per language, with a matrix for macOS, Windows and Ubuntu for Rust/TS.
-- **Acceptance:** `pnpm i && pnpm build && pnpm test` succeeds on all three OSes in CI. `docker compose up` brings all infra services to healthy.
+- **Scope:** pnpm workspaces + Turborepo, Cargo workspace, uv workspace, all directories from [01 §4](01-architecture.md) with placeholder READMEs. Linting/formatting: Biome (TS), rustfmt + clippy, ruff + mypy. `infra/docker-compose.yml` with Postgres+pgvector, MinIO, NATS JetStream, Mailpit. A single local verification command, `pnpm verify`, covering lint + build + test for all three languages, plus a GitHub Actions workflow that mirrors it across the three OSes — committed and kept correct, but dormant ([13 §6](13-agent-guide.md)).
+- **Acceptance:** `pnpm verify` succeeds on the development machine and `docker compose up` brings all infra services to healthy. (Originally "succeeds on all three OSes in CI"; hosted CI was dropped on 2026-10-18 because this is a solo project, so cross-OS coverage is now whatever the owner's machines prove — recorded in [15-open-questions.md](15-open-questions.md).)
 
 ### WP-0.2 Schemas & codegen · M
 - **Depends on:** 0.1 · **Specs:** [01 §7](01-architecture.md), [02](02-song-model.md)
@@ -237,7 +237,7 @@ The Rust engine (0.3/0.4/1.1) and the analysis workers (0.7/1.x) are independent
 
 | WP | Status | Notes |
 |---|---|---|
-| 0.1 Monorepo scaffold & CI | **Done** (2026-10-18) | Plan: [`docs/wp/0.1.md`](../docs/wp/0.1.md). `pnpm i && pnpm build && pnpm test` green; `docker compose up -d --wait` brings Postgres+pgvector, MinIO, NATS JetStream and Mailpit to healthy. CI matrix covers Ubuntu, macOS and Windows for TS and Rust. |
+| 0.1 Monorepo scaffold & CI | **Done** (2026-10-18) | Plan: [`docs/wp/0.1.md`](../docs/wp/0.1.md). `pnpm verify` and `pnpm infra:up` green on macOS 15 / arm64 — the only machine used. Ubuntu and Windows are **unverified**: hosted CI was dropped the same day (Q11 in [15](15-open-questions.md)), and the committed workflow has never run. Reviewed by a fresh-context agent; its findings are resolved in the branch and recorded in the plan. |
 | 0.2, 0.4, 0.5, 0.6 | Ready to start | Their only dependency (0.1) is Done, and they have none on each other, so they can run in parallel |
 | 0.7 | Blocked on 0.2 | |
 | All others | Not started | Specs v0.1 written 2026-10-18 |

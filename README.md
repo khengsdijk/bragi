@@ -35,24 +35,25 @@ Architecture decisions are recorded in [`specs/decisions/`](specs/decisions/). C
 
 | Area | Status |
 |---|---|
-| Specs | Draft v0.1 (2026-10-18) |
-| Code | Phase 0 started — [WP-0.1](specs/12-roadmap.md) (monorepo scaffold & CI) is Done |
+| Specs | Draft v0.1 (2026-10-18); [12](specs/12-roadmap.md) and [13](specs/13-agent-guide.md) at v0.2 |
+| Code | Phase 0 started — [WP-0.1](specs/12-roadmap.md) (monorepo scaffold) is Done, verified on macOS |
 | Next step | WP-0.2 (schemas & codegen), 0.4 (stretch spike), 0.5 (platform shell) and 0.6 (design tokens) are unblocked and can run in parallel |
 
 ## Getting started
 
 ```bash
 pnpm install        # TypeScript workspace
-pnpm build          # build every package
-pnpm test           # TS unit tests
-pnpm lint           # Biome + the 01 §4 layout guard
+pnpm verify         # the gate: lint + build + typecheck + test, all three languages
 pnpm infra:up       # Postgres+pgvector, MinIO, NATS JetStream, Mailpit
+pnpm infra:down     # ...and tear it down, volumes included
 
-pnpm test:all       # TS + Rust + Python
-pnpm lint:all       # Biome + rustfmt/clippy + ruff/mypy
+pnpm build          # TypeScript only
+pnpm test           # TypeScript unit tests
+pnpm lint           # Biome + the 01 §4 layout guard
 ```
 
-The Rust toolchain is pinned by `rust-toolchain.toml` and the Python one by
-`services/workers/.python-version`, so `cargo` and `uv` fetch what they need.
-Commands that belong to a work package that has not landed yet fail with a
+Verification is local: `pnpm verify` is the gate, not CI
+([13 §6](specs/13-agent-guide.md)). The Rust toolchain is pinned by
+`rust-toolchain.toml` and the Python one by `services/workers/.python-version`, so `cargo` and `uv`
+fetch what they need. Commands that belong to a work package that has not landed yet fail with a
 message naming that work package.

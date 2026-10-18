@@ -1,5 +1,7 @@
 # 13 — Agent Implementation Guide
 
+Status: Draft v0.2
+
 This guide is for coding agents (and humans) implementing Bragi. Read it fully before starting any work package.
 
 ## 1. Golden rules
@@ -54,7 +56,7 @@ This guide is for coding agents (and humans) implementing Bragi. Read it fully b
 A WP is Done when:
 - [ ] All acceptance criteria in [12](12-roadmap.md) pass (automated where possible, manual checks documented).
 - [ ] Unit tests cover new logic. Integration/e2e tests cover new user flows.
-- [ ] CI is green on the full matrix (§6).
+- [ ] `pnpm verify` is green, and `pnpm infra:up` reaches healthy if the WP touches infrastructure (§6).
 - [ ] Performance budgets from the relevant spec are measured and recorded in the PR.
 - [ ] New UI passes axe with no serious or critical issues, is keyboard reachable, and is reflected in the accessible DOM where it lives on a canvas.
 - [ ] Schemas, generated code and docs are updated. Any spec deviations are reflected in the specs.
@@ -74,9 +76,21 @@ A WP is Done when:
 ### Screenshots / audio examples
 ```
 
-## 6. Testing and CI
+## 6. Testing and verification
 
-| Layer | Tooling | Runs on |
+**Verification is local.** Bragi is a solo project, so the gate is `pnpm verify` on the
+development machine — Biome + the layout guard, the TypeScript build, typecheck and unit tests,
+rustfmt + clippy + `cargo test` + the wasm32 build, and ruff + `mypy --strict` + pytest — plus
+`pnpm infra:up` when a WP touches infrastructure. A GitHub Actions workflow mirroring `pnpm verify`
+across the three OSes is committed at `.github/workflows/ci.yml` and kept correct, but it is **not**
+required to pass and has not been run (owner's decision, 2026-10-18).
+
+The consequence to keep in mind: the "Runs on" column below says where a layer *must work*, not
+where it is automatically exercised. Anything cross-platform — the engine on three OSes, WebKit
+e2e, the Windows desktop build — is only as verified as the machines a WP is actually run on, and a
+WP that cannot test a platform says so in its PR instead of implying coverage.
+
+| Layer | Tooling | Must work on |
 |---|---|---|
 | Rust unit/snapshot/property | `cargo test`, `insta`, `proptest` | Linux, macOS, Windows |
 | Engine conformance (WASM vs native null test) | custom harness (`pnpm test:conformance`) | Linux, macOS, Windows |
@@ -114,15 +128,23 @@ A WP is Done when:
 ## Consequences (positive, negative, mitigations)
 ```
 
-## 9. Planned commands (to be created in WP-0.1)
+## 9. Commands
+
+Created in WP-0.1. A command whose owning work package has not landed yet exists but fails,
+naming that work package, so the surface is discoverable without pretending to work.
 
 | Command | Does |
 |---|---|
+| `pnpm verify` | **The gate** (§4, §6): lint + build + typecheck + test, all three languages |
+| `pnpm lint` / `pnpm lint:rust` / `pnpm lint:py` / `pnpm lint:all` | Biome + the 01 §4 layout guard / rustfmt + clippy / ruff + mypy / all three |
+| `pnpm test:rust` / `pnpm test:py` / `pnpm test:all` | `cargo test` / pytest / plus `pnpm test` |
+| `pnpm build:wasm` | `wasm32-unknown-unknown` build of every non-native crate |
+| `pnpm infra:up` / `infra:logs` / `infra:down` | Local infrastructure (Postgres+pgvector, MinIO, NATS, Mailpit) |
 | `pnpm dev:web` | Vite dev server with COOP/COEP |
 | `pnpm dev:desktop` | Tauri dev |
 | `pnpm dev:backend` | docker compose infra + API + orchestrator + CPU workers |
 | `pnpm schemas:gen` | Regenerate TS/Rust/Python from JSON Schemas |
-| `pnpm test` | All unit tests |
+| `pnpm test` | TypeScript unit tests (`test:all` adds Rust and Python) |
 | `pnpm test:e2e` | Playwright web e2e |
 | `pnpm test:conformance` | Engine WASM vs native parity |
 | `pnpm eval:analysis` / `pnpm bench:planner` | Quality evaluations |
