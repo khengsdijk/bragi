@@ -1,0 +1,105 @@
+# Local development infrastructure (specs/01-architecture.md §8).
+#
+#   pnpm infra:up     start everything, wait for healthy
+#   pnpm infra:logs   follow logs
+#   pnpm infra:down   stop and delete the volumes
+#
+# The API, orchestrator and CPU workers join this file in WP-0.7; until then it
+# is infrastructure only. Everything binds to 127.0.0.1: none of this is
+# reachable from the network.
+
+name: bragi
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bragi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bragi}
+      POSTGRES_DB: ${POSTGRES_DB:-bragi}
+      # Deterministic collation, so ORDER BY matches between machines.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bragi} -d ${POSTGRES_DB:-bragi}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  minio:
+    # MinIO no longer publishes dated RELEASE tags for anonymous pulls on Docker
+    # Hub, so this is the one tag available; `docker manifest inspect` is also
+    # denied anonymously, which rules out a verified digest pin. Known-good
+    # digest at the time of WP-0.1:
+    #   sha256:a616cd8f37758b0296db62cc9e6af05a074e844cc7b5c0a0e62176d73828d440
+    #   (minio RELEASE.2025-05-24T17-08-30Z, mc RELEASE.2025-04-16T18-13-26Z)
+    # Production uses real S3 (01 §1), so this floats only in local dev.
+    image: minio/minio:latest
+    restart: unless-stopped
+    # MinIO turns every top-level directory under its data root into a bucket, so
+    # creating the directory *is* bucket provisioning (05 §6) — no init container,
+    # which would make `up --wait` exit non-zero when it finished. Blobs are never
+    # publicly readable, and private is MinIO's default policy.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - mkdir -p "/data/${MINIO_BUCKET:-bragi-blobs}" && exec minio server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-bragi}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-bragi-dev-secret}
+    ports:
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  nats:
+    image: nats:2.15.1-alpine
+    restart: unless-stopped
+    # -js: JetStream (durable job queues and events, 05 §4).
+    # -m:  HTTP monitoring, which is also the health endpoint.
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports:
+      - "127.0.0.1:${NATS_PORT:-4222}:4222"
+      - "127.0.0.1:${NATS_MONITORING_PORT:-8222}:8222"
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8222/healthz | grep -q ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  # Catches magic-link email locally (Better Auth, 05 §8). Web UI on :8025.
+  mailpit:
+    image: axllent/mailpit:v1.31.6
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  postgres-data:
+  minio-data:
+  nats-data:
