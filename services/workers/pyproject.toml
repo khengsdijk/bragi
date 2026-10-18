@@ -1,0 +1,85 @@
+# uv workspace root for the Bragi Python workers (specs/01-architecture.md §4).
+# This is a virtual root: it builds nothing, it only ties the members together
+# and holds the shared tool configuration.
+
+[project]
+name = "bragi-workers"
+version = "0.0.0"
+description = "Bragi ML workers: analysis, embedding and generation"
+requires-python = ">=3.12"
+dependencies = [
+  "bragi-common",
+  "bragi-analysis",
+  "bragi-embed",
+  "bragi-generate",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["bragi_common", "analysis", "embed", "generate"]
+
+[tool.uv.sources]
+bragi-common = { workspace = true }
+bragi-analysis = { workspace = true }
+bragi-embed = { workspace = true }
+bragi-generate = { workspace = true }
+
+[dependency-groups]
+dev = [
+  "mypy>=1.19",
+  "pytest>=9.0",
+  "ruff>=0.15",
+]
+
+# --- Tooling (specs/13-agent-guide.md §3) -----------------------------------
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["bragi_common/src", "analysis/src", "embed/src", "generate/src"]
+
+[tool.ruff.lint]
+select = [
+  "F",   # pyflakes
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "I",   # import sorting
+  "N",   # pep8-naming
+  "D",   # pydocstyle
+  "UP",  # pyupgrade
+  "ANN", # missing annotations
+  "S",   # flake8-bandit
+  "B",   # flake8-bugbear
+  "A",   # builtin shadowing
+  "C4",  # comprehensions
+  "PT",  # pytest style
+  "SIM", # simplify
+  "TID", # tidy imports
+  "RUF", # ruff-specific
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "D", "ANN"] # asserts, docstrings and annotations are not required in tests
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+pretty = true
+# Model-heavy worker code may be relaxed per package (13 §3: "models may be
+# looser"); bragi_common always stays strict.
+exclude = ['^\.venv/']
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers --strict-config"
+testpaths = [
+  "bragi_common/tests",
+  "analysis/tests",
+  "embed/tests",
+  "generate/tests",
+]
