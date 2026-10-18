@@ -1,0 +1,696 @@
+---
+source: crates/bragi-model/tests/analysis.rs
+expression: "serde_json::to_value(doc).unwrap()"
+---
+{
+  "analyses": {
+    "src_01": {
+      "blobs": {
+        "describe": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "ingest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "rhythm": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "separation": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "structure": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "tag": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      },
+      "effects": [
+        {
+          "kind": "tempo",
+          "tempoMap": [
+            {
+              "bpm": 120.0,
+              "curve": "step",
+              "tick": 0
+            }
+          ],
+          "timeSignatures": [
+            {
+              "bar": 0,
+              "denominator": 4,
+              "numerator": 4
+            }
+          ]
+        },
+        {
+          "kind": "sections",
+          "sections": [
+            {
+              "confidence": 0.9,
+              "endSec": 2.0,
+              "kind": "intro",
+              "startSec": 0.0
+            },
+            {
+              "confidence": 0.9,
+              "endSec": 6.0,
+              "kind": "verse",
+              "startSec": 2.0
+            },
+            {
+              "confidence": 0.9,
+              "endSec": 10.0,
+              "kind": "chorus",
+              "startSec": 6.0
+            }
+          ]
+        },
+        {
+          "kind": "separation",
+          "residual": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "stems": [
+            {
+              "asset": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "rmsDb": -18.0,
+              "role": "vocals"
+            },
+            {
+              "asset": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "rmsDb": -14.0,
+              "role": "drums"
+            }
+          ]
+        },
+        {
+          "genres": [
+            "synthwave"
+          ],
+          "kind": "tags",
+          "moods": [
+            "nostalgic"
+          ]
+        },
+        {
+          "description": "A nocturnal synthwave drive.",
+          "kind": "description"
+        }
+      ],
+      "profile": "standard",
+      "status": {
+        "describe": "done",
+        "ingest": "done",
+        "rhythm": "done",
+        "separation": "done",
+        "structure": "done",
+        "tag": "done"
+      },
+      "stems": {
+        "drums": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "vocals": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    }
+  },
+  "arrangement": {
+    "master": {
+      "automation": [],
+      "fx": [],
+      "gainDb": 0.0
+    },
+    "sections": [
+      {
+        "id": "sec_XXN5OS7GOS2AOB3ST3P7MHJAK5",
+        "kind": "intro",
+        "label": "Intro",
+        "lanes": {
+          "trk_7EH2NQECPAFHYL4IVGRLH5KLBA": {
+            "automation": [],
+            "clips": [
+              {
+                "asset": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "fadeCurve": "equal_power",
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "gainDb": 0.0,
+                "id": "clp_5NRUYWLBLWX263CAVN6YJOZA2B",
+                "pitchSemitones": 0.0,
+                "provenance": {
+                  "createdAt": "2026-10-18T12:00:00Z",
+                  "kind": "separation"
+                },
+                "srcEnd": 96000,
+                "srcStart": 0,
+                "start": 0,
+                "warp": {
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 96000,
+                      "tick": 3840
+                    }
+                  ],
+                  "mode": "beatgrid"
+                }
+              }
+            ]
+          },
+          "trk_KBGX5OFEWOERCHREW4UVBWISSW": {
+            "automation": [],
+            "clips": [
+              {
+                "asset": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                "fadeCurve": "equal_power",
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "gainDb": 0.0,
+                "id": "clp_3B6SOAPQK4KCHGQPEXY6JCEDMH",
+                "pitchSemitones": 0.0,
+                "provenance": {
+                  "createdAt": "2026-10-18T12:00:00Z",
+                  "kind": "separation"
+                },
+                "srcEnd": 96000,
+                "srcStart": 0,
+                "start": 0,
+                "warp": {
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 96000,
+                      "tick": 3840
+                    }
+                  ],
+                  "mode": "beatgrid"
+                }
+              }
+            ]
+          },
+          "trk_KVIK5JXXSFNPDGE7NQQXHZZDH2": {
+            "automation": [],
+            "clips": [
+              {
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "fadeCurve": "equal_power",
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "gainDb": 0.0,
+                "id": "clp_XQLP4FDH3UB2EQ5RX3GFJR4XLO",
+                "pitchSemitones": 0.0,
+                "provenance": {
+                  "createdAt": "2026-10-18T12:00:00Z",
+                  "kind": "transform"
+                },
+                "srcEnd": 96000,
+                "srcStart": 0,
+                "start": 0,
+                "warp": {
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 96000,
+                      "tick": 3840
+                    }
+                  ],
+                  "mode": "beatgrid"
+                }
+              }
+            ]
+          },
+          "trk_MLJK7HHNW3JR6FK7XCWLUNEOFY": {
+            "automation": [],
+            "clips": [
+              {
+                "asset": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "fadeCurve": "equal_power",
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "gainDb": 0.0,
+                "id": "clp_6PQV3RWWHIUN45YCGVNLZW6GZ5",
+                "pitchSemitones": 0.0,
+                "provenance": {
+                  "createdAt": "2026-10-18T12:00:00Z",
+                  "kind": "separation"
+                },
+                "srcEnd": 96000,
+                "srcStart": 0,
+                "start": 0,
+                "warp": {
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 96000,
+                      "tick": 3840
+                    }
+                  ],
+                  "mode": "beatgrid"
+                }
+              }
+            ]
+          }
+        },
+        "lengthTicks": 3840,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        }
+      },
+      {
+        "id": "sec_EVYL4EJAZYAWZDPCK5ESCSSKQ4",
+        "kind": "verse",
+        "label": "Verse",
+        "lanes": {
+          "trk_7EH2NQECPAFHYL4IVGRLH5KLBA": {
+            "automation": [],
+            "clips": [
+              {
+                "asset": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "fadeCurve": "equal_power",
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "gainDb": 0.0,
+                "id": "clp_KYBXHJG5ULYCL2YWBLLNOP4QKT",
+                "pitchSemitones": 0.0,
+                "provenance": {
+                  "createdAt": "2026-10-18T12:00:00Z",
+                  "kind": "separation"
+                },
+                "srcEnd": 288000,
+                "srcStart": 96000,
+                "start": 0,
+                "warp": {
+                  "anchors": [
+                    {
+                      "srcSample": 96000,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 192000,
+                      "tick": 3840
+                    },
+                    {
+                      "srcSample": 288000,
+                      "tick": 7680
+                    }
+                  ],
+                  "mode": "beatgrid"
+                }
+              }
+            ]
+          },
+          "trk_KBGX5OFEWOERCHREW4UVBWISSW": {
+            "automation": [],
+            "clips": [
+              {
+                "asset": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                "fadeCurve": "equal_power",
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "gainDb": 0.0,
+                "id": "clp_ZEZCPGXB7LIV3DNZHBDKZF4I6E",
+                "pitchSemitones": 0.0,
+                "provenance": {
+                  "createdAt": "2026-10-18T12:00:00Z",
+                  "kind": "separation"
+                },
+                "srcEnd": 288000,
+                "srcStart": 96000,
+                "start": 0,
+                "warp": {
+                  "anchors": [
+                    {
+                      "srcSample": 96000,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 192000,
+                      "tick": 3840
+                    },
+                    {
+                      "srcSample": 288000,
+                      "tick": 7680
+                    }
+                  ],
+                  "mode": "beatgrid"
+                }
+              }
+            ]
+          },
+          "trk_KVIK5JXXSFNPDGE7NQQXHZZDH2": {
+            "automation": [],
+            "clips": [
+              {
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "fadeCurve": "equal_power",
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "gainDb": 0.0,
+                "id": "clp_ONXCNVOWK65WODG5LUBY2Q3DMP",
+                "pitchSemitones": 0.0,
+                "provenance": {
+                  "createdAt": "2026-10-18T12:00:00Z",
+                  "kind": "transform"
+                },
+                "srcEnd": 288000,
+                "srcStart": 96000,
+                "start": 0,
+                "warp": {
+                  "anchors": [
+                    {
+                      "srcSample": 96000,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 192000,
+                      "tick": 3840
+                    },
+                    {
+                      "srcSample": 288000,
+                      "tick": 7680
+                    }
+                  ],
+                  "mode": "beatgrid"
+                }
+              }
+            ]
+          },
+          "trk_MLJK7HHNW3JR6FK7XCWLUNEOFY": {
+            "automation": [],
+            "clips": [
+              {
+                "asset": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "fadeCurve": "equal_power",
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "gainDb": 0.0,
+                "id": "clp_ZLPLE3Q7PFLGTMRL5TCJA3AYMB",
+                "pitchSemitones": 0.0,
+                "provenance": {
+                  "createdAt": "2026-10-18T12:00:00Z",
+                  "kind": "separation"
+                },
+                "srcEnd": 288000,
+                "srcStart": 96000,
+                "start": 0,
+                "warp": {
+                  "anchors": [
+                    {
+                      "srcSample": 96000,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 192000,
+                      "tick": 3840
+                    },
+                    {
+                      "srcSample": 288000,
+                      "tick": 7680
+                    }
+                  ],
+                  "mode": "beatgrid"
+                }
+              }
+            ]
+          }
+        },
+        "lengthTicks": 7680,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        }
+      },
+      {
+        "id": "sec_K4TOZ5I65VOYWJAWI2X7IMD33U",
+        "kind": "chorus",
+        "label": "Chorus",
+        "lanes": {
+          "trk_7EH2NQECPAFHYL4IVGRLH5KLBA": {
+            "automation": [],
+            "clips": [
+              {
+                "asset": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "fadeCurve": "equal_power",
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "gainDb": 0.0,
+                "id": "clp_X6DJPAZXZNM44Y5HPWYGXINLOW",
+                "pitchSemitones": 0.0,
+                "provenance": {
+                  "createdAt": "2026-10-18T12:00:00Z",
+                  "kind": "separation"
+                },
+                "srcEnd": 480000,
+                "srcStart": 288000,
+                "start": 0,
+                "warp": {
+                  "anchors": [
+                    {
+                      "srcSample": 288000,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 384000,
+                      "tick": 3840
+                    },
+                    {
+                      "srcSample": 480000,
+                      "tick": 7680
+                    }
+                  ],
+                  "mode": "beatgrid"
+                }
+              }
+            ]
+          },
+          "trk_KBGX5OFEWOERCHREW4UVBWISSW": {
+            "automation": [],
+            "clips": [
+              {
+                "asset": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                "fadeCurve": "equal_power",
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "gainDb": 0.0,
+                "id": "clp_LRXTXWKAO6EHJ3VQVLXXRSPTOL",
+                "pitchSemitones": 0.0,
+                "provenance": {
+                  "createdAt": "2026-10-18T12:00:00Z",
+                  "kind": "separation"
+                },
+                "srcEnd": 480000,
+                "srcStart": 288000,
+                "start": 0,
+                "warp": {
+                  "anchors": [
+                    {
+                      "srcSample": 288000,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 384000,
+                      "tick": 3840
+                    },
+                    {
+                      "srcSample": 480000,
+                      "tick": 7680
+                    }
+                  ],
+                  "mode": "beatgrid"
+                }
+              }
+            ]
+          },
+          "trk_KVIK5JXXSFNPDGE7NQQXHZZDH2": {
+            "automation": [],
+            "clips": [
+              {
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "fadeCurve": "equal_power",
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "gainDb": 0.0,
+                "id": "clp_R2J2S3EDS3LWTIL5JD5UN2PE5X",
+                "pitchSemitones": 0.0,
+                "provenance": {
+                  "createdAt": "2026-10-18T12:00:00Z",
+                  "kind": "transform"
+                },
+                "srcEnd": 480000,
+                "srcStart": 288000,
+                "start": 0,
+                "warp": {
+                  "anchors": [
+                    {
+                      "srcSample": 288000,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 384000,
+                      "tick": 3840
+                    },
+                    {
+                      "srcSample": 480000,
+                      "tick": 7680
+                    }
+                  ],
+                  "mode": "beatgrid"
+                }
+              }
+            ]
+          },
+          "trk_MLJK7HHNW3JR6FK7XCWLUNEOFY": {
+            "automation": [],
+            "clips": [
+              {
+                "asset": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "fadeCurve": "equal_power",
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "gainDb": 0.0,
+                "id": "clp_PI5LNEFY2GHHHTW4AVJHC43YKF",
+                "pitchSemitones": 0.0,
+                "provenance": {
+                  "createdAt": "2026-10-18T12:00:00Z",
+                  "kind": "separation"
+                },
+                "srcEnd": 480000,
+                "srcStart": 288000,
+                "start": 0,
+                "warp": {
+                  "anchors": [
+                    {
+                      "srcSample": 288000,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 384000,
+                      "tick": 3840
+                    },
+                    {
+                      "srcSample": 480000,
+                      "tick": 7680
+                    }
+                  ],
+                  "mode": "beatgrid"
+                }
+              }
+            ]
+          }
+        },
+        "lengthTicks": 7680,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        }
+      }
+    ],
+    "timebase": {
+      "ppq": 960,
+      "tempoMap": [
+        {
+          "bpm": 120.0,
+          "curve": "step",
+          "tick": 0
+        }
+      ],
+      "timeSignatures": [
+        {
+          "bar": 0,
+          "denominator": 4,
+          "numerator": 4
+        }
+      ]
+    }
+  },
+  "id": "prj_01",
+  "meta": {
+    "createdAt": "2026-10-18T12:00:00Z",
+    "description": "A nocturnal synthwave drive.",
+    "tags": [
+      "synthwave",
+      "nostalgic"
+    ],
+    "title": "Fixture"
+  },
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "channels": 2,
+      "durationSamples": 480000,
+      "id": "src_01",
+      "kind": "upload",
+      "label": "song.wav",
+      "originalAsset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "provenance": {
+        "createdAt": "2026-10-18T12:00:00Z",
+        "kind": "user"
+      },
+      "workingAsset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "tracks": [
+    {
+      "color": "#8A8F98",
+      "fx": [],
+      "gainDb": 0.0,
+      "hidden": true,
+      "id": "trk_KVIK5JXXSFNPDGE7NQQXHZZDH2",
+      "mute": false,
+      "name": "Original mix",
+      "origin": {
+        "sourceId": "src_01",
+        "stem": "full_mix"
+      },
+      "pan": 0.0,
+      "role": "full_mix",
+      "solo": false
+    },
+    {
+      "color": "#FB766A",
+      "fx": [],
+      "gainDb": 0.0,
+      "hidden": false,
+      "id": "trk_MLJK7HHNW3JR6FK7XCWLUNEOFY",
+      "mute": false,
+      "name": "Vocals",
+      "origin": {
+        "sourceId": "src_01",
+        "stem": "vocals"
+      },
+      "pan": 0.0,
+      "role": "vocals",
+      "solo": false
+    },
+    {
+      "color": "#FFAB46",
+      "fx": [],
+      "gainDb": 0.0,
+      "hidden": false,
+      "id": "trk_KBGX5OFEWOERCHREW4UVBWISSW",
+      "mute": false,
+      "name": "Drums",
+      "origin": {
+        "sourceId": "src_01",
+        "stem": "drums"
+      },
+      "pan": 0.0,
+      "role": "drums",
+      "solo": false
+    },
+    {
+      "color": "#808693",
+      "fx": [],
+      "gainDb": 0.0,
+      "hidden": true,
+      "id": "trk_7EH2NQECPAFHYL4IVGRLH5KLBA",
+      "mute": false,
+      "name": "Residual",
+      "origin": {
+        "sourceId": "src_01",
+        "stem": "residual"
+      },
+      "pan": 0.0,
+      "role": "residual",
+      "solo": false
+    }
+  ]
+}

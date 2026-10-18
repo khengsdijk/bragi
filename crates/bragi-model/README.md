@@ -8,11 +8,17 @@ Runs natively inside the engine and as WASM in every UI, through
 [`packages/model-wasm`](../../packages/model-wasm) — one implementation, so web and desktop cannot
 drift.
 
-Public surface planned for **WP-0.3**: `apply` (all v1 ops except `analysis.apply` and
-`region.adopt`), `validate` (every invariant in [02 §4.3](../../specs/02-song-model.md)),
+Public surface: `apply` (every v1 op, including `analysis.apply`; `region.adopt` follows in
+WP-2.1), `validate` (every invariant in [02 §4.3](../../specs/02-song-model.md)),
 `ticks_to_seconds` / `seconds_to_ticks` / `bar_beat_to_ticks` / `ticks_to_bar_beat`,
 `section_spans`, `resolve_region`, `canonical_json`, the commit hash and
-`diff(prev, next) -> EngineDelta`. `analysis.apply` follows in WP-1.8, `region.adopt` in WP-2.1.
+`diff(prev, next) -> EngineDelta`.
+
+`src/analysis.rs` implements `analysis.apply` as a reconciler: it records a stage's typed effects
+in `AnalysisRef.effects` and rebuilds the analysis-owned tracks, sections and timebase from the
+*set* of recorded effects, so every permutation of stage arrival reaches the same document, and a
+late `structure` on an edited arrangement becomes `meta.suggestedSections` instead of re-splitting
+([02 §6](../../specs/02-song-model.md)).
 
 `src/generated/mod.rs` holds the document and op types, generated from the JSON Schemas in
 `packages/schemas` by `pnpm schemas:gen` (typify, driven by `crates/bragi-schemas-codegen`). Never
@@ -24,5 +30,3 @@ cross-object and float-bound invariants live in `validate` (see
 
 Budgets: WASM bundle < 1.5 MB gzipped; `apply` of a 50-op batch on a 10-minute document < 5 ms;
 10k-iteration proptest fuzzing with no panics.
-
-**Status:** scaffold — the normative tick/sample-rate constants only.

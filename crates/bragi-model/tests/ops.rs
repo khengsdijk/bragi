@@ -534,17 +534,13 @@ fn region_clear_trims_and_fades() {
 
 #[test]
 fn unsupported_ops_are_rejected_structurally() {
+    // `analysis.apply` was WP-1.8's and now has its own test module (`tests/analysis.rs`).
     let doc = fixture();
-    for op in [
-        json!({ "op": "analysis.apply", "sourceId": "src_1", "stage": "rhythm",
-        "blob": common::HASH, "effects": [] }),
-        json!({ "op": "region.adopt", "fromCommit": "cmt_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
-        "region": { "startTick": 0, "endTick": 30720, "tracks": "all" } }),
-    ] {
-        let err = apply(&doc, &user_batch(vec![op]), &assets()).unwrap_err();
-        assert_eq!(err.code(), ValidationCode::UnsupportedOp);
-        assert_eq!(err.errors()[0].op_index, 0);
-    }
+    let op = json!({ "op": "region.adopt", "fromCommit": "cmt_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "region": { "startTick": 0, "endTick": 30720, "tracks": "all" } });
+    let err = apply(&doc, &user_batch(vec![op]), &assets()).unwrap_err();
+    assert_eq!(err.code(), ValidationCode::UnsupportedOp);
+    assert_eq!(err.errors()[0].op_index, 0);
 }
 
 #[test]

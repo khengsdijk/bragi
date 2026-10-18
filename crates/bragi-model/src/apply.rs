@@ -114,11 +114,14 @@ fn apply_op(
         Op::TempoSetOp(payload) => apply_tempo_set(doc, payload),
         Op::KeyTransposeOp(payload) => apply_key_transpose(doc, payload, assets),
         Op::RegionClearOp(payload) => apply_region_clear(doc, payload, assets),
-        // Out of scope for WP-0.3 (specs/12-roadmap.md): the analysis/planner work packages own them.
-        Op::AnalysisApplyOp(_) | Op::RegionAdoptOp(_) => Err(invalid(
+        Op::AnalysisApplyOp(payload) => {
+            crate::analysis::apply_analysis_apply(doc, payload, assets, op_index)
+        }
+        // Out of scope for WP-0.3 (specs/12-roadmap.md): WP-2.1 owns `region.adopt`.
+        Op::RegionAdoptOp(_) => Err(invalid(
             op_index,
             ValidationCode::UnsupportedOp,
-            "analysis.apply and region.adopt are not implemented by WP-0.3",
+            "region.adopt is not implemented yet (WP-2.1)",
         )),
     }
 }
@@ -137,6 +140,14 @@ fn apply_set_meta(doc: &mut Project, op: &ProjectSetMetaOp) -> Result<(), ApplyE
     }
     if let Some(color) = &op.color {
         doc.meta.color = Some(color.clone());
+    }
+    if let Some(suggestions) = &op.suggested_sections {
+        // An empty list clears the analysis suggestions (02 §6.3).
+        doc.meta.suggested_sections = if suggestions.0.is_empty() {
+            None
+        } else {
+            Some(suggestions.clone())
+        };
     }
     Ok(())
 }

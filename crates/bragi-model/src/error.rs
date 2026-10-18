@@ -36,8 +36,10 @@ pub enum ValidationCode {
     MissingTarget,
     /// An op gives an index beyond the end of its list.
     IndexOutOfRange,
-    /// The op is valid but not implemented by this work package (`analysis.apply`, `region.adopt`).
+    /// The op is valid but not implemented by this work package (`region.adopt`, WP-2.1).
     UnsupportedOp,
+    /// An `analysis.apply` effect does not match its stage, or its payload is unusable (02 §6).
+    AnalysisEffects,
 }
 
 impl ValidationCode {
@@ -57,6 +59,7 @@ impl ValidationCode {
             Self::MissingTarget => "missing_target",
             Self::IndexOutOfRange => "index_out_of_range",
             Self::UnsupportedOp => "unsupported_op",
+            Self::AnalysisEffects => "analysis_effects",
         }
     }
 }
