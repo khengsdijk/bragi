@@ -37,6 +37,7 @@
     "schemas:check": "node packages/schemas/codegen/gen.mjs --check",
     "test:e2e": "pnpm --filter @bragi/web test:e2e",
     "test:e2e:desktop": "pnpm --filter @bragi/desktop test:e2e",
+    "test:integration": "pnpm --filter @bragi/api test:integration",
     "test:conformance": "node scripts/not-yet.mjs test:conformance 1.1 'Engine WASM vs native parity'",
     "eval:analysis": "node scripts/not-yet.mjs eval:analysis 1.2 'Analysis quality evaluation'",
     "bench:planner": "node scripts/not-yet.mjs bench:planner 2.6 'Planner benchmark (costs API credits)'"

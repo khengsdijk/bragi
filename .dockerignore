@@ -1,0 +1,18 @@
+# Build context for the local `api` and `worker` images (infra/docker-compose.yml).
+# The context is the repository root, so exclude everything a build does not
+# need — especially the host's installed dependencies, which differ by platform.
+.git
+.github
+.claude
+**/node_modules
+**/dist
+**/.turbo
+**/.venv
+**/__pycache__
+**/.mypy_cache
+**/.ruff_cache
+**/.pytest_cache
+target
+fixtures/audio
+infra/.env
+.env

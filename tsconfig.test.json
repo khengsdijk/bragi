@@ -20,6 +20,7 @@
     "packages/*/.storybook/**/*",
     "packages/*/vitest.config.ts",
     "services/api/src/**/*",
+    "services/api/test/**/*",
     "scripts/**/*"
   ],
   "//": "Typechecks what the per-package builds leave out: the src/__tests__ files, the component tests and the JSDoc-annotated .mjs scripts. The generated Ajv validators are not typechecked either -- they carry `@ts-nocheck`, because their chosen surface is the typed facade in packages/schemas/src/generated/validators.ts."

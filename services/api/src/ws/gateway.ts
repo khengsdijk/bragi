@@ -1,0 +1,176 @@
+/**
+ * The WebSocket gateway (specs/05 §3).
+ *
+ * One NATS core subscription on `events.>` is fanned out to every connected,
+ * authenticated client that subscribed to the matching topic. Subscribing is
+ * authorised against the same ownership rules as REST, so a client cannot
+ * listen to somebody else's job.
+ */
+import { type JobEvent, validateJobEvent } from "@bragi/schemas";
+import type { WebSocket } from "@fastify/websocket";
+import type { Subscription } from "nats";
+
+import type { AppContext } from "../app.js";
+import { resolveSession } from "../auth/session.js";
+import { type ServerMessage, toClientMessages, topicForSubject } from "./messages.js";
+
+const decoder = new TextDecoder();
+
+interface ClientMessage {
+  t?: string;
+  topics?: unknown;
+}
+
+export class WsGateway {
+  private readonly topicsBySocket = new Map<WebSocket, Set<string>>();
+  private readonly capabilityByJob = new Map<string, string>();
+  private readonly partialCounters = new Map<string, number>();
+  private subscription: Subscription | undefined;
+
+  constructor(private readonly ctx: AppContext) {}
+
+  /** Subscribes to `events.>` and starts fanning out. */
+  start(): void {
+    this.subscription = this.ctx.nc.subscribe("events.>");
+    void this.consume();
+  }
+
+  /** Stops the NATS subscription and closes every client. */
+  async stop(): Promise<void> {
+    this.subscription?.unsubscribe();
+    this.subscription = undefined;
+    for (const socket of this.topicsBySocket.keys()) socket.close(1001, "server shutting down");
+    this.topicsBySocket.clear();
+  }
+
+  /** Handles one upgraded connection. */
+  async handle(socket: WebSocket, request: Parameters<typeof resolveSession>[1]): Promise<void> {
+    const session = await resolveSession(this.ctx.auth.api, request);
+    if (!session) {
+      socket.close(4401, "AUTH_REQUIRED");
+      return;
+    }
+    this.topicsBySocket.set(socket, new Set());
+    socket.on("message", (raw: unknown) => {
+      void this.onMessage(socket, session.user.id, raw);
+    });
+    socket.on("close", () => {
+      this.topicsBySocket.delete(socket);
+    });
+    socket.send(JSON.stringify({ t: "hello", userId: session.user.id }));
+  }
+
+  private async consume(): Promise<void> {
+    const subscription = this.subscription;
+    if (!subscription) return;
+    for await (const message of subscription) {
+      void this.dispatch(message.subject, message.data);
+    }
+  }
+
+  private async onMessage(socket: WebSocket, userId: string, raw: unknown): Promise<void> {
+    let parsed: ClientMessage;
+    try {
+      parsed = JSON.parse(toText(raw)) as ClientMessage;
+    } catch {
+      return;
+    }
+    if (parsed.t !== "sub" && parsed.t !== "unsub") return;
+    const topics = Array.isArray(parsed.topics)
+      ? parsed.topics.filter((topic): topic is string => typeof topic === "string")
+      : [];
+    const subscribed = this.topicsBySocket.get(socket);
+    if (!subscribed) return;
+    for (const topic of topics) {
+      if (parsed.t === "sub") {
+        if (await this.canSubscribe(userId, topic)) subscribed.add(topic);
+        else socket.send(JSON.stringify({ t: "error", code: "FORBIDDEN", topic }));
+      } else {
+        subscribed.delete(topic);
+      }
+    }
+  }
+
+  private async canSubscribe(userId: string, topic: string): Promise<boolean> {
+    const separator = topic.indexOf(":");
+    if (separator < 0) return false;
+    const kind = topic.slice(0, separator);
+    const id = topic.slice(separator + 1);
+    if (kind === "job") {
+      return this.exists("SELECT 1 FROM jobs WHERE id = $1 AND user_id = $2", [id, userId]);
+    }
+    if (kind === "asset") {
+      return this.exists("SELECT 1 FROM user_assets WHERE hash = $1 AND user_id = $2", [
+        id,
+        userId,
+      ]);
+    }
+    if (kind === "project") {
+      return this.exists("SELECT 1 FROM projects WHERE id = $1 AND user_id = $2", [id, userId]);
+    }
+    return false;
+  }
+
+  private async exists(sql: string, params: unknown[]): Promise<boolean> {
+    const { rowCount } = await this.ctx.pool.query(sql, params);
+    return rowCount !== null && rowCount > 0;
+  }
+
+  private async capabilityFor(jobId: string): Promise<string> {
+    const cached = this.capabilityByJob.get(jobId);
+    if (cached !== undefined) return cached;
+    const { rows } = await this.ctx.pool.query<{ capability: string }>(
+      "SELECT capability FROM jobs WHERE id = $1",
+      [jobId],
+    );
+    const capability = rows[0]?.capability ?? "";
+    this.capabilityByJob.set(jobId, capability);
+    return capability;
+  }
+
+  private async dispatch(subject: string, data: Uint8Array): Promise<void> {
+    const topic = topicForSubject(subject);
+    if (topic === undefined) return;
+    const recipients = [...this.topicsBySocket].filter(([, topics]) => topics.has(topic));
+    if (recipients.length === 0) return;
+
+    const messages = await this.messagesFor(topic, data);
+    if (messages.length === 0) return;
+    for (const [socket] of recipients) {
+      for (const message of messages) socket.send(JSON.stringify(message));
+    }
+  }
+
+  private async messagesFor(topic: string, data: Uint8Array): Promise<ServerMessage[]> {
+    let payload: unknown;
+    try {
+      payload = JSON.parse(decoder.decode(data));
+    } catch {
+      return [];
+    }
+    if (topic.startsWith("job:")) {
+      if (!validateJobEvent(payload)) return [];
+      const event = payload as JobEvent;
+      const capability = await this.capabilityFor(event.jobId);
+      const prior = this.partialCounters.get(event.jobId) ?? 0;
+      const index = event.type === "partial" ? prior + 1 : prior;
+      if (event.type === "partial") this.partialCounters.set(event.jobId, index);
+      return toClientMessages(event, capability, index);
+    }
+    if (topic.startsWith("asset:")) {
+      const analysis = payload as { assetHash?: unknown; stage?: unknown; blob?: unknown };
+      const { assetHash, stage, blob } = analysis;
+      if (typeof assetHash !== "string" || typeof stage !== "string" || typeof blob !== "string") {
+        return [];
+      }
+      return [{ t: "analysis.partial", assetHash, stage, blob }];
+    }
+    return [];
+  }
+}
+
+function toText(raw: unknown): string {
+  if (typeof raw === "string") return raw;
+  if (raw instanceof Uint8Array) return decoder.decode(raw);
+  return String(raw);
+}

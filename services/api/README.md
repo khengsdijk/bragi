@@ -15,5 +15,19 @@ Notes:
 - LLM inputs containing user text are untrusted; the planner may only emit schema-validated ops
   ([06 §7](../../specs/06-ai-planner.md)).
 
-**Status:** scaffold only. Filled by **WP-0.7**, together with `api-orchestrator` and the
-`bragi_common` worker framework.
+## Running it
+
+```bash
+pnpm infra:up                     # postgres, minio, nats, mailpit (shared, never torn down by tests)
+pnpm build                        # builds @bragi/schemas then @bragi/api into dist/
+node services/api/dist/db/migrate-cli.js
+node services/api/dist/server.js          # api-http
+node services/api/dist/orchestrator.js    # api-orchestrator
+```
+
+Or through compose: `docker compose -f infra/docker-compose.yml up -d --build api` (the container
+runs migrations, then both entrypoints). `pnpm test:integration` exercises the whole path; see
+[`docs/wp/0.7.md`](../../docs/wp/0.7.md).
+
+**Status:** built by **WP-0.7**. The projects/sync, planner, search and usage endpoints of
+[05 §2](../../specs/05-backend-and-jobs.md) land in WP-1.10/WP-2.x, on the same app.
