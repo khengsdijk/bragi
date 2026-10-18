@@ -1,0 +1,45 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+license = "UNLICENSED"
+publish = false
+repository = "https://github.com/koenhengsdijk/bragi"
+
+[workspace.dependencies]
+thiserror = "2.0"
+
+# Lints apply to every crate via `[lints] workspace = true`.
+# CI runs `cargo clippy --workspace --all-targets -- -D warnings`, so these
+# warnings are errors there.
+[workspace.lints.rust]
+missing_docs = "warn"
+unreachable_pub = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+# specs/13-agent-guide.md §3: no unwrap() outside tests. Test modules opt out
+# explicitly with #[allow(clippy::unwrap_used)].
+unwrap_used = "warn"
+expect_used = "warn"
+# The audio thread is sacred (specs/13-agent-guide.md §1): no panics, no I/O.
+panic = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+todo = "warn"
+undocumented_unsafe_blocks = "warn"
+
+# Debug builds of the DSP and engine crates are unusably slow without this, and
+# the conformance tests (WP-1.1) run in debug.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
