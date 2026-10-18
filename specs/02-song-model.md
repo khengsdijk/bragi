@@ -59,7 +59,10 @@ TypeScript-style notation is used for readability. JSON Schema is the source of 
 interface Project {
   schemaVersion: 1;
   id: ProjectId;
-  meta: { title: string; createdAt: ISODate; tags: string[]; description?: string; color?: HexColor };
+  meta: {
+    title: string; createdAt: ISODate; tags: string[]; description?: string; color?: HexColor;
+    suggestedSections?: SectionSuggestion[];   // analysed sections the user has not accepted yet (02 §6.3)
+  };
   sources: Source[];
   analyses: Record<SourceId, AnalysisRef>;
   tracks: Track[];
@@ -99,10 +102,12 @@ interface AnalysisRef {
   profile: "quick" | "standard" | "deep";
   status: Record<AnalysisStage, "pending" | "running" | "done" | "failed">;
   blobs: Partial<Record<AnalysisStage, AssetHash>>;   // e.g. rhythm → sha256:…
+  effects?: AnalysisEffect[];     // the projection of those blobs the arrangement is built from (02 §6, Q12)
   stems?: Partial<Record<StemRole, AssetHash>>;       // separated stems (working assets)
   summary?: { bpm: number; key: string; durationSec: number; genres: string[]; moods: string[] };
 }
 ```
+`blobs` is a *reference* to the full result, and `effects` is the small, typed projection of it that `analysis.apply` records. `bragi-model` never reads a blob (it has no I/O), so the facts the arrangement is derived from have to live in the document; `summary` needs `key`, which no effect carries, so it is written by the flow that owns the blobs.
 
 ### 3.4 Track
 ```ts
@@ -243,8 +248,8 @@ A batch is atomic: it applies fully or not at all.
 
 | Op | Payload (summary) | Notes |
 |---|---|---|
-| `project.set_meta` | title?, tags?, description?, color? | |
-| `analysis.apply` | sourceId, stage, blob, effects[] | System op. Expands analysis into tracks/sections, e.g. creates stem tracks and splits the arrangement into analysed sections. See §6. |
+| `project.set_meta` | title?, tags?, description?, color?, suggestedSections? | An empty `suggestedSections` clears the analysis suggestions (02 §6.3) |
+| `analysis.apply` | sourceId, stage, blob, effects[] | System op. Records an analysis stage and reconciles the document with it: creates the full-mix track and section, sets the tempo map, splits the arrangement into analysed sections, creates stem tracks and fills lanes. Deterministic and order-independent. See §6. |
 | `track.add` | track, index? | |
 | `track.remove` | trackId | Also removes its lanes |
 | `track.update` | trackId, patch (name, color, gainDb, pan, mute, solo, hidden) | |
@@ -313,23 +318,79 @@ If the section structure differs between commits, the region is matched **by abs
 
 ## 6. Applying analysis (`analysis.apply`)
 
-Analysis arrives progressively. Each stage's `analysis.apply` op has defined effects:
+Analysis arrives progressively, one `analysis.apply` op per finished stage ([01 §6](01-architecture.md), [04](04-analysis-pipeline.md)). The op carries the stage's result `blob` and the **effects** — the facts from that blob the document needs, in typed form. That indirection is deliberate: `bragi-model` never reads blobs (it has no I/O, §1.6), so the producer projects the blob into the handful of facts the arrangement is built from, and `bragi-model` records them in `analyses[sourceId].effects`.
 
-| Stage | Effect on document |
-|---|---|
-| `ingest` | Creates the `full_mix` track and a single `custom` section spanning the song, with one clip (warp `none`) |
-| `rhythm` | Sets the tempo map and time signatures from the beat grid. The full-mix clip becomes `beatgrid`-warped with anchors at downbeats (playback is unchanged because the map matches the source). |
-| `structure` | Splits the single section into analysed sections (kind, label) at bar-aligned boundaries, splitting clips accordingly |
-| `separation` | Hides `full_mix`, creates stem tracks + `residual`, and populates each section's lanes with stem clips aligned to the same ranges |
-| `harmony`, `loudness_energy`, `energy_stems`, `stem_activity`, `preview`, `tag`, `embed_full`, `section_embed`, `stem_embed`, `describe`, `drum_split`, `transcribe`, `lyrics` | No arrangement change. Updates `analyses[src]` and, for `describe`/`tag`, `meta` (tags/description). |
+`effects[]` is a list of tagged facts, at most one per kind, and each kind belongs to exactly one stage:
+
+| Stage | Effect kind | Payload |
+|---|---|---|
+| `ingest` | — (empty list) | Starts the source's block: the full-mix track and one section spanning the song |
+| `rhythm` | `tempo` | `tempoMap`, `timeSignatures` — the beat grid as a musical grid |
+| `structure` | `sections` | `sections[]` — boundaries and labels, the same `StructureSection` the blob holds |
+| `separation` | `separation` | `stems[] {role, asset}`, `residual` |
+| `tag` | `tags` | `genres[]`, `moods[]` (scores stay in the blob) |
+| `describe` | `description` | the plain-language paragraph |
+| `harmony`, `loudness_energy`, `energy_stems`, `stem_activity`, `preview`, `embed_full`, `section_embed`, `stem_embed`, `drum_split`, `transcribe`, `lyrics` | — (empty list) | No arrangement change; the op only updates `analyses[src]` |
+
+An effect payload that does not match its stage, two effects of the same kind, or an empty/unsorted `sections`/`stems` list is rejected with `{ opIndex, code: "analysis_effects", message }` (§4.3).
 
 The stage names in the left column are the `AnalysisStage` enum, and they are the **same** names as the capabilities in [05 §4.1](05-backend-and-jobs.md) and the stage sections of [04](04-analysis-pipeline.md): `loudness_energy` (not "energy"), `tag` (not "tags"), `embed_full`/`section_embed`/`stem_embed` (not "embeddings"), `describe` (not "description"). One name per stage across the specs, the schemas and the capability catalogue.
 
-The `analysis.apply` payload is `{ op: "analysis.apply", sourceId, stage, blob, effects }`, where `blob` is the stage's result blob in `packages/schemas/analysis/` and `effects` lists what the system wants applied. The `effects` entries are free-form objects for now — a typed shape arrives with WP-1.8, which implements `analysis.apply`.
+### 6.1 What each stage builds
 
-**Order-independence requirement:** `separation` may arrive before `structure`. `apply` must produce the same final document regardless of arrival order (property test: all permutations of stage arrival yield identical documents).
+`build(source, effects)` is a pure function of the source (`workingAsset`, `durationSamples`) and the **set** of recorded effects. It yields the source's tempo map, its tracks and its sections. Sources are laid out in `sources` order, each block after the previous one (v1's flow has one source). Every analysis-owned entity gets a deterministic ID from `derived_id` (§4.2, Q14), parented on the source or section, so a re-delivered stage produces the same IDs and can never collide with a user's own:
 
-If the user has already edited the document when a late stage arrives, `analysis.apply` is applied as a new commit on top of HEAD. When it conflicts (for example, the user already split sections manually), structure is applied **as suggestions only** (`meta.suggestedSections`) instead of re-splitting.
+| Entity | ID | Notes |
+|---|---|---|
+| full-mix track | `trk_` · `derive:<src>:full_mix` | role `full_mix`, hidden once `separation` is recorded |
+| stem track | `trk_` · `derive:<src>:stem:<role>` | one per `separation` stem; name and role colour from the design palette |
+| residual track | `trk_` · `derive:<src>:residual` | role `residual`, hidden |
+| section *i* | `sec_` · `derive:<src>:section:<i>` | `i` is the index in the recorded `sections` effect |
+| clip | `clp_` · `derive:<sectionId>:<trackId>` | one per (section, analysis track) |
+
+- **`ingest`** — the block starts with one `custom` section, "Song", spanning the source, and the full-mix clip over the whole working asset.
+- **`rhythm`** — sets the block's tempo map and time signatures; analysis clips become `beatgrid`-warped (§6.2). Playback is unchanged because the map matches the source.
+- **`structure`** — the section starts become boundaries: seconds → ticks under the block's tempo map, then snapped to the **nearest bar** (§2.2). The first boundary is 0 and the last section runs to the end of the source, rounded **up** to a whole bar so nothing is cut off. Boundaries that snap together merge; a label is the kind plus its recurrence index ("Verse 1", "Verse 2"; "Intro" when the kind occurs once).
+- **`separation`** — hides the full-mix track, creates the stem tracks and the residual, each with one clip per section.
+- **`tag`/`describe`** — merge into `meta` (§6.3), no arrangement change.
+
+### 6.2 Clip geometry
+
+Each analysis clip covers its section: `start` is 0 because lanes are section-relative, and `srcStart`/`srcEnd` are the section's absolute span in samples of the 48 kHz working asset, clamped to the asset. With a tempo effect the clip is `beatgrid`-warped with anchors at the clip start, every downbeat strictly inside the section, and the clip end — always at least two monotonic anchors, so the scale is defined; without one it is `warp: none`. `provenance.kind` is `transform` for the full-mix clip and `separation` for stem clips, timestamped with the source's provenance date (or the project's `createdAt`), so applying the same stages in any order stamps identical values.
+
+### 6.3 Progressive merge and conflicts
+
+The op records `status[stage] = "done"`, `blobs[stage] = blob` and the merged `effects` (kept in a fixed kind order, so the list is a set and not an arrival log), updates `analyses[src].stems` from a `separation` effect, merges a `tags` effect into `meta.tags` (union, existing order first) and sets `meta.description` from a `describe` effect only when it is absent. Re-delivering a stage whose effects are unchanged is a no-op.
+
+`build` runs over the effects recorded **before** the op and **after** it:
+
+- **Pristine** — `arrangement.sections` and `timebase` still equal the before-baseline, so nothing has touched the arrangement. The block is replaced with the after-baseline. Since every intermediate document is `build(prefix)` merged into the untouched rest, the final document depends only on the final set: **every permutation of stage arrival yields the same document** (property test in `crates/bragi-model/tests/analysis.rs`).
+- **Edited** — the user has changed the arrangement (split, moved, resized, relabelled, added or locked a section, added a clip), so the block no longer matches. Then:
+  - the arrangement is **never** touched: no re-split, no reorder, no re-time, no lane overwritten;
+  - `structure` writes `meta.suggestedSections` instead of re-splitting, replacing that source's previous suggestions; a later pristine `structure` clears them;
+  - `ingest`/`separation` still add the missing tracks and fill **empty** lanes of the existing sections with clips clipped to the source's span, so the song stays playable;
+  - the UI accepts a suggestion by turning it into `section.split`/`section.insert` ops, and dismisses it with `project.set_meta`'s `suggestedSections` (an empty list clears them).
+
+`analysis.apply` is applied as a new commit on top of HEAD, like any other op. It is a **system** op, so invariant 6 (AI may not modify locked sections) does not reject it; a locked section is a user edit, though, so it routes the block down the edited path above.
+
+```ts
+type AnalysisEffect =
+  | { kind: "tempo"; tempoMap: TempoPoint[]; timeSignatures: TimeSig[] }
+  | { kind: "sections"; sections: StructureSection[] }
+  | { kind: "separation"; stems: { role: StemRole; asset: AssetHash; rmsDb?: number }[]; residual: AssetHash }
+  | { kind: "tags"; genres: string[]; moods: string[] }
+  | { kind: "description"; description: string };
+
+interface SectionSuggestion {          // meta.suggestedSections, Q13
+  sourceId: SourceId;
+  startSec: number; endSec: number;    // the analysis truth
+  startTick: number; endTick: number;  // the same span on the arrangement's tick grid
+  kind: SectionKind;
+  label: string;
+  confidence?: number;
+  repeatGroup?: string;
+}
+```
 
 ## 7. Versioning: the commit DAG
 

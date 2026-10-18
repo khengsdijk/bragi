@@ -1,11 +1,50 @@
 {
   "profile": "standard",
   "status": {
-    "rhythm": "done"
+    "rhythm": "done",
+    "separation": "done",
+    "structure": "done"
   },
   "blobs": {
-    "rhythm": "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+    "rhythm": "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+    "separation": "sha256:e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5",
+    "structure": "sha256:f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6"
   },
+  "effects": [
+    {
+      "kind": "tempo",
+      "tempoMap": [{ "tick": 0, "bpm": 118, "curve": "step" }],
+      "timeSignatures": [{ "bar": 0, "numerator": 4, "denominator": 4 }]
+    },
+    {
+      "kind": "sections",
+      "sections": [
+        { "startSec": 0, "endSec": 12.5, "kind": "intro", "confidence": 0.92 },
+        { "startSec": 12.5, "endSec": 45, "kind": "verse", "confidence": 0.88, "repeatGroup": "A" },
+        { "startSec": 45, "endSec": 78, "kind": "chorus", "confidence": 0.9, "repeatGroup": "B" }
+      ]
+    },
+    {
+      "kind": "separation",
+      "stems": [
+        {
+          "role": "vocals",
+          "asset": "sha256:d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4",
+          "rmsDb": -19.5
+        }
+      ],
+      "residual": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    {
+      "kind": "tags",
+      "genres": ["synthwave"],
+      "moods": ["nostalgic"]
+    },
+    {
+      "kind": "description",
+      "description": "A nocturnal synthwave drive with a wide, nostalgic chorus."
+    }
+  ],
   "stems": {
     "vocals": "sha256:d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
   },

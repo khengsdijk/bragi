@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnalysisApplyOp",
-  "description": "`analysis.apply` (02 §4.2). System op: expand an analysis stage result into the document (02 §6).",
+  "description": "`analysis.apply` (02 §4.2). System op: record one analysis stage's result and reconcile the document with it (02 §6). The op is order-independent: the document depends on the set of recorded stages, not their arrival order.",
   "type": "object",
   "additionalProperties": false,
   "required": ["op", "sourceId", "stage", "blob", "effects"],
@@ -14,6 +14,7 @@
       "$ref": "../common.schema.json#/$defs/SourceId"
     },
     "stage": {
+      "description": "The stage that finished. Each stage owns at most one effect kind; stages that change no arrangement carry an empty `effects` list (02 §6).",
       "$ref": "../common.schema.json#/$defs/AnalysisStage"
     },
     "blob": {
@@ -21,16 +22,8 @@
       "$ref": "../common.schema.json#/$defs/AssetHash"
     },
     "effects": {
-      "$ref": "#/$defs/AnalysisEffects"
-    }
-  },
-  "$defs": {
-    "AnalysisEffects": {
-      "description": "Stage effects to apply. Shape not yet specified (open question for WP-1.8); each entry is an object.",
-      "type": "array",
-      "items": {
-        "$ref": "../asset-meta.schema.json#/$defs/FreeformParams"
-      }
+      "description": "The facts the document takes from the blob, in typed form. `bragi-model` cannot read blobs, so the producer projects them here (02 §6, Q12).",
+      "$ref": "../analysis-ref.schema.json#/$defs/AnalysisEffectList"
     }
   }
 }

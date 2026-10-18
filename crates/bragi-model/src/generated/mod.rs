@@ -115,16 +115,18 @@ impl ::std::convert::TryFrom<::std::string::String> for All {
         value.parse()
     }
 }
-///`analysis.apply` (02 §4.2). System op: expand an analysis stage result into the document (02 §6).
+///`analysis.apply` (02 §4.2). System op: record one analysis stage's result and reconcile the document with it (02 §6). The op is order-independent: the document depends on the set of recorded stages, not their arrival order.
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct AnalysisApplyOp {
     ///The stage's result blob.
     pub blob: AssetHash,
-    pub effects: AnalysisEffects,
+    ///The facts the document takes from the blob, in typed form. `bragi-model` cannot read blobs, so the producer projects them here (02 §6, Q12).
+    pub effects: AnalysisEffectList,
     pub op: AnalysisApplyOpOp,
     #[serde(rename = "sourceId")]
     pub source_id: SourceId,
+    ///The stage that finished. Each stage owns at most one effect kind; stages that change no arrangement carry an empty `effects` list (02 §6).
     pub stage: AnalysisStage,
 }
 ///`AnalysisApplyOpOp`
@@ -198,23 +200,58 @@ impl ::std::convert::From<::std::collections::HashMap<AnalysisStage, AssetHash>>
         Self(value)
     }
 }
-///Stage effects to apply. Shape not yet specified (open question for WP-1.8); each entry is an object.
+///One analysed fact the arrangement is built from. Each kind is owned by exactly one stage (02 §6).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(untagged)]
+pub enum AnalysisEffect {
+    TempoEffect(TempoEffect),
+    SectionsEffect(SectionsEffect),
+    SeparationEffect(SeparationEffect),
+    TagsEffect(TagsEffect),
+    DescriptionEffect(DescriptionEffect),
+}
+impl ::std::convert::From<TempoEffect> for AnalysisEffect {
+    fn from(value: TempoEffect) -> Self {
+        Self::TempoEffect(value)
+    }
+}
+impl ::std::convert::From<SectionsEffect> for AnalysisEffect {
+    fn from(value: SectionsEffect) -> Self {
+        Self::SectionsEffect(value)
+    }
+}
+impl ::std::convert::From<SeparationEffect> for AnalysisEffect {
+    fn from(value: SeparationEffect) -> Self {
+        Self::SeparationEffect(value)
+    }
+}
+impl ::std::convert::From<TagsEffect> for AnalysisEffect {
+    fn from(value: TagsEffect) -> Self {
+        Self::TagsEffect(value)
+    }
+}
+impl ::std::convert::From<DescriptionEffect> for AnalysisEffect {
+    fn from(value: DescriptionEffect) -> Self {
+        Self::DescriptionEffect(value)
+    }
+}
+///The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description) so the list is a set rather than an arrival log (02 §6).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(transparent)]
-pub struct AnalysisEffects(pub ::std::vec::Vec<FreeformParams>);
-impl ::std::ops::Deref for AnalysisEffects {
-    type Target = ::std::vec::Vec<FreeformParams>;
-    fn deref(&self) -> &::std::vec::Vec<FreeformParams> {
+pub struct AnalysisEffectList(pub ::std::vec::Vec<AnalysisEffect>);
+impl ::std::ops::Deref for AnalysisEffectList {
+    type Target = ::std::vec::Vec<AnalysisEffect>;
+    fn deref(&self) -> &::std::vec::Vec<AnalysisEffect> {
         &self.0
     }
 }
-impl ::std::convert::From<AnalysisEffects> for ::std::vec::Vec<FreeformParams> {
-    fn from(value: AnalysisEffects) -> Self {
+impl ::std::convert::From<AnalysisEffectList> for ::std::vec::Vec<AnalysisEffect> {
+    fn from(value: AnalysisEffectList) -> Self {
         value.0
     }
 }
-impl ::std::convert::From<::std::vec::Vec<FreeformParams>> for AnalysisEffects {
-    fn from(value: ::std::vec::Vec<FreeformParams>) -> Self {
+impl ::std::convert::From<::std::vec::Vec<AnalysisEffect>> for AnalysisEffectList {
+    fn from(value: ::std::vec::Vec<AnalysisEffect>) -> Self {
         Self(value)
     }
 }
@@ -273,11 +310,14 @@ impl ::std::convert::TryFrom<::std::string::String> for AnalysisProfile {
         value.parse()
     }
 }
-///What the document knows about one source's analysis: stage statuses and refs to the result blobs (02 §3.3). The blobs' shapes are in packages/schemas/analysis/.
+///What the document knows about one source's analysis: stage statuses, refs to the result blobs and the projection of those results the arrangement is built from (02 §3.3, §6). The blobs' full shapes are in packages/schemas/analysis/.
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct AnalysisRef {
     pub blobs: AnalysisBlobMap,
+    ///The effects `analysis.apply` has recorded, merged by kind. `bragi-model` rebuilds the analysis-owned arrangement from this list, which is why the document does not need to read the blobs (02 §6, Q12).
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub effects: ::std::option::Option<AnalysisEffectList>,
     pub profile: AnalysisProfile,
     pub status: AnalysisStatusMap,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -2127,6 +2167,110 @@ impl ::std::convert::TryFrom<String> for Confidence {
 pub struct CurvePoint {
     pub tick: u64,
     pub value: f64,
+}
+///`describe`: the plain-language description for `meta.description` (04 §6.3).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct DescriptionEffect {
+    pub description: DescriptionEffectDescription,
+    pub kind: DescriptionEffectKind,
+}
+///`DescriptionEffectDescription`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DescriptionEffectDescription(::std::string::String);
+impl ::std::ops::Deref for DescriptionEffectDescription {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DescriptionEffectDescription> for ::std::string::String {
+    fn from(value: DescriptionEffectDescription) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DescriptionEffectDescription {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DescriptionEffectDescription {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DescriptionEffectDescription {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DescriptionEffectDescription {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`DescriptionEffectKind`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum DescriptionEffectKind {
+    #[serde(rename = "description")]
+    Description,
+}
+impl ::std::fmt::Display for DescriptionEffectKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Description => f.write_str("description"),
+        }
+    }
+}
+impl ::std::str::FromStr for DescriptionEffectKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "description" => Ok(Self::Description),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for DescriptionEffectKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DescriptionEffectKind {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
 }
 ///The `describe` stage result: the LLM-written, feature-grounded description (specs/04-analysis-pipeline.md §6.3).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
@@ -5568,6 +5712,12 @@ pub struct ProjectMeta {
     pub created_at: IsoDate,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub description: ::std::option::Option<::std::string::String>,
+    ///Sections the analysis proposes but did not apply, because the user had already edited the arrangement (02 §6, Q13). The UI accepts or dismisses them; an empty list clears them.
+    #[serde(
+        rename = "suggestedSections",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub suggested_sections: ::std::option::Option<SectionSuggestionList>,
     pub tags: TagList,
     pub title: ::std::string::String,
 }
@@ -5614,6 +5764,12 @@ pub struct ProjectSetMetaOp {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub description: ::std::option::Option<::std::string::String>,
     pub op: ProjectSetMetaOpOp,
+    ///Replace the analysis section suggestions (02 §6, Q13). An empty list clears them.
+    #[serde(
+        rename = "suggestedSections",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub suggested_sections: ::std::option::Option<SectionSuggestionList>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub tags: ::std::option::Option<TagList>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -6992,6 +7148,50 @@ impl ::std::convert::TryFrom<::std::string::String> for SectionSplitOpOp {
         value.parse()
     }
 }
+///One analysed section that was not applied. `startSec`/`endSec` are the analysis truth; `startTick`/`endTick` are the same span on the arrangement's tick grid, for the canvas (02 §6).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct SectionSuggestion {
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub confidence: ::std::option::Option<f64>,
+    #[serde(rename = "endSec")]
+    pub end_sec: f64,
+    #[serde(rename = "endTick")]
+    pub end_tick: u64,
+    pub kind: SectionKind,
+    pub label: ::std::string::String,
+    #[serde(
+        rename = "repeatGroup",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub repeat_group: ::std::option::Option<::std::string::String>,
+    #[serde(rename = "sourceId")]
+    pub source_id: SourceId,
+    #[serde(rename = "startSec")]
+    pub start_sec: f64,
+    #[serde(rename = "startTick")]
+    pub start_tick: u64,
+}
+///`SectionSuggestionList`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct SectionSuggestionList(pub ::std::vec::Vec<SectionSuggestion>);
+impl ::std::ops::Deref for SectionSuggestionList {
+    type Target = ::std::vec::Vec<SectionSuggestion>;
+    fn deref(&self) -> &::std::vec::Vec<SectionSuggestion> {
+        &self.0
+    }
+}
+impl ::std::convert::From<SectionSuggestionList> for ::std::vec::Vec<SectionSuggestion> {
+    fn from(value: SectionSuggestionList) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<SectionSuggestion>> for SectionSuggestionList {
+    fn from(value: ::std::vec::Vec<SectionSuggestion>) -> Self {
+        Self(value)
+    }
+}
 ///The compact per-section record used by the UI and the planner (specs/04-analysis-pipeline.md §5.6). A pipeline-side join of several stage blobs, not a stage result of its own.
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
@@ -7129,6 +7329,115 @@ impl ::std::convert::TryFrom<::std::string::String> for SectionUpdateOpOp {
         value.parse()
     }
 }
+///`structure`: the analysed section boundaries and labels, exactly as the structure blob reports them (04 §5.2).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct SectionsEffect {
+    pub kind: SectionsEffectKind,
+    pub sections: StructureSectionList,
+}
+///`SectionsEffectKind`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum SectionsEffectKind {
+    #[serde(rename = "sections")]
+    Sections,
+}
+impl ::std::fmt::Display for SectionsEffectKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Sections => f.write_str("sections"),
+        }
+    }
+}
+impl ::std::str::FromStr for SectionsEffectKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "sections" => Ok(Self::Sections),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for SectionsEffectKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for SectionsEffectKind {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`separation`: one working asset per stem plus the residual (04 §4, 02 §3.4).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct SeparationEffect {
+    pub kind: SeparationEffectKind,
+    pub residual: AssetHash,
+    pub stems: StemAssetList,
+}
+///`SeparationEffectKind`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum SeparationEffectKind {
+    #[serde(rename = "separation")]
+    Separation,
+}
+impl ::std::fmt::Display for SeparationEffectKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Separation => f.write_str("separation"),
+        }
+    }
+}
+impl ::std::str::FromStr for SeparationEffectKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "separation" => Ok(Self::Separation),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for SeparationEffectKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for SeparationEffectKind {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 ///The `separation` stage result: one working asset per stem plus the residual (specs/04-analysis-pipeline.md §4, 02 §3.4).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
@@ -7140,7 +7449,7 @@ pub struct SeparationResult {
     #[serde(rename = "schemaVersion")]
     pub schema_version: SeparationResultSchemaVersion,
     ///Stems whose RMS stayed above −60 dBFS; silent stems are dropped so no empty ribbons appear (04 §4).
-    pub stems: ::std::vec::Vec<StemAsset>,
+    pub stems: StemAssetList,
 }
 ///Stage version string, e.g. "htdemucs_6s-1" (04 §1).
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -7425,6 +7734,26 @@ pub struct StemAsset {
     pub rms_db: ::std::option::Option<f64>,
     pub role: StemRole,
 }
+///At least one stem. Also the `separation` effect `analysis.apply` records (02 §6).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct StemAssetList(pub ::std::vec::Vec<StemAsset>);
+impl ::std::ops::Deref for StemAssetList {
+    type Target = ::std::vec::Vec<StemAsset>;
+    fn deref(&self) -> &::std::vec::Vec<StemAsset> {
+        &self.0
+    }
+}
+impl ::std::convert::From<StemAssetList> for ::std::vec::Vec<StemAsset> {
+    fn from(value: StemAssetList) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<StemAsset>> for StemAssetList {
+    fn from(value: ::std::vec::Vec<StemAsset>) -> Self {
+        Self(value)
+    }
+}
 ///Separated stems (working assets) by role.
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(transparent)]
@@ -7634,7 +7963,7 @@ pub struct StructureResult {
     pub low_confidence: ::std::option::Option<bool>,
     #[serde(rename = "schemaVersion")]
     pub schema_version: StructureResultSchemaVersion,
-    pub sections: ::std::vec::Vec<StructureSection>,
+    pub sections: StructureSectionList,
 }
 ///Blob schema version (01 §7).
 #[derive(::serde::Serialize, Clone, Debug)]
@@ -7686,6 +8015,26 @@ pub struct StructureSection {
     pub repeat_group: ::std::option::Option<::std::string::String>,
     #[serde(rename = "startSec")]
     pub start_sec: f64,
+}
+///At least one section, ordered by time. Also the `sections` effect `analysis.apply` records (02 §6).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct StructureSectionList(pub ::std::vec::Vec<StructureSection>);
+impl ::std::ops::Deref for StructureSectionList {
+    type Target = ::std::vec::Vec<StructureSection>;
+    fn deref(&self) -> &::std::vec::Vec<StructureSection> {
+        &self.0
+    }
+}
+impl ::std::convert::From<StructureSectionList> for ::std::vec::Vec<StructureSection> {
+    fn from(value: StructureSectionList) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<StructureSection>> for StructureSectionList {
+    fn from(value: ::std::vec::Vec<StructureSection>) -> Self {
+        Self(value)
+    }
 }
 ///`SystemAuthor`
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
@@ -7885,6 +8234,61 @@ impl ::std::convert::From<::std::vec::Vec<TagScore>> for TagScoreList {
         Self(value)
     }
 }
+///`tag`: the labels to merge into `meta.tags`, split the way the taxonomy reports them (04 §6.2). Scores stay in the blob.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct TagsEffect {
+    pub genres: TagList,
+    pub kind: TagsEffectKind,
+    pub moods: TagList,
+}
+///`TagsEffectKind`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum TagsEffectKind {
+    #[serde(rename = "tags")]
+    Tags,
+}
+impl ::std::fmt::Display for TagsEffectKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Tags => f.write_str("tags"),
+        }
+    }
+}
+impl ::std::str::FromStr for TagsEffectKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "tags" => Ok(Self::Tags),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for TagsEffectKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for TagsEffectKind {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 ///How tempo moves from this point to the next.
 #[derive(
     ::serde::Deserialize,
@@ -7942,6 +8346,63 @@ impl ::std::convert::TryFrom<::std::string::String> for TempoCurve {
 pub struct TempoCurvePoint {
     pub beat: u64,
     pub bpm: f64,
+}
+///`rhythm`: the beat grid as a tempo map and time signatures (02 §6).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct TempoEffect {
+    pub kind: TempoEffectKind,
+    #[serde(rename = "tempoMap")]
+    pub tempo_map: TempoMap,
+    #[serde(rename = "timeSignatures")]
+    pub time_signatures: TimeSignatureList,
+}
+///`TempoEffectKind`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum TempoEffectKind {
+    #[serde(rename = "tempo")]
+    Tempo,
+}
+impl ::std::fmt::Display for TempoEffectKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Tempo => f.write_str("tempo"),
+        }
+    }
+}
+impl ::std::str::FromStr for TempoEffectKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "tempo" => Ok(Self::Tempo),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for TempoEffectKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for TempoEffectKind {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
 }
 ///Sorted by tick, first entry at tick 0 (02 §2.2, invariant 4.3.4).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
@@ -8078,6 +8539,26 @@ impl<'de> ::serde::Deserialize<'de> for TimeSigDenominator {
             .map_err(|e| <D::Error as ::serde::de::Error>::custom(e.to_string()))
     }
 }
+///At least one time signature, ordered by bar; a bar keeps the last signature that starts at or before it (02 §2.2).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct TimeSignatureList(pub ::std::vec::Vec<TimeSig>);
+impl ::std::ops::Deref for TimeSignatureList {
+    type Target = ::std::vec::Vec<TimeSig>;
+    fn deref(&self) -> &::std::vec::Vec<TimeSig> {
+        &self.0
+    }
+}
+impl ::std::convert::From<TimeSignatureList> for ::std::vec::Vec<TimeSig> {
+    fn from(value: TimeSignatureList) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<TimeSig>> for TimeSignatureList {
+    fn from(value: ::std::vec::Vec<TimeSig>) -> Self {
+        Self(value)
+    }
+}
 ///`Timebase`
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
@@ -8086,7 +8567,7 @@ pub struct Timebase {
     #[serde(rename = "tempoMap")]
     pub tempo_map: TempoMap,
     #[serde(rename = "timeSignatures")]
-    pub time_signatures: ::std::vec::Vec<TimeSig>,
+    pub time_signatures: TimeSignatureList,
 }
 ///Pulses per quarter note. Fixed at 960 (02 §2.2).
 #[derive(::serde::Serialize, Clone, Debug)]

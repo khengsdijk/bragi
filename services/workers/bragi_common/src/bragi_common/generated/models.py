@@ -223,6 +223,10 @@ class CurvePoint(BaseModel):
     value: Annotated[float, Field(ge=0.0, le=1.0)]
 
 
+class DescriptionEffectKind(StrEnum):
+    description = 'description'
+
+
 type WhatMakesItWork = Annotated[str, Field(min_length=1)]
 
 
@@ -834,6 +838,14 @@ class SectionUpdateOpOp(StrEnum):
     section_update = 'section.update'
 
 
+class SectionsEffectKind(StrEnum):
+    sections = 'sections'
+
+
+class SeparationEffectKind(StrEnum):
+    separation = 'separation'
+
+
 class SeparationResultSchemaVersion(IntEnum):
     """
     Blob schema version (01 §7).
@@ -939,6 +951,19 @@ class StructureSection(BaseModel):
     ] = None
 
 
+type StructureSectionList = Annotated[
+    list[StructureSection],
+    Field(
+        description='At least one section, ordered by time. Also the `sections` effect `analysis.apply` records (02 §6).',
+        min_length=1,
+        title='StructureSectionList',
+    ),
+]
+"""
+At least one section, ordered by time. Also the `sections` effect `analysis.apply` records (02 §6).
+"""
+
+
 class SystemAuthorKind(StrEnum):
     system = 'system'
 
@@ -969,6 +994,10 @@ class TagScore(BaseModel):
 type TagScoreList = Annotated[list[TagScore], Field(title='TagScoreList')]
 
 
+class TagsEffectKind(StrEnum):
+    tags = 'tags'
+
+
 class TempoCurve(StrEnum):
     """
     How tempo moves from this point to the next.
@@ -984,6 +1013,10 @@ class TempoCurvePoint(BaseModel):
     )
     beat: Annotated[int, Field(ge=0)]
     bpm: Annotated[float, Field(gt=0.0)]
+
+
+class TempoEffectKind(StrEnum):
+    tempo = 'tempo'
 
 
 class TempoPoint(BaseModel):
@@ -1158,18 +1191,6 @@ type AnalysisBlobMap = Annotated[
 ]
 
 
-type AnalysisEffects = Annotated[
-    list[FreeformParams],
-    Field(
-        description='Stage effects to apply. Shape not yet specified (open question for WP-1.8); each entry is an object.',
-        title='AnalysisEffects',
-    ),
-]
-"""
-Stage effects to apply. Shape not yet specified (open question for WP-1.8); each entry is an object.
-"""
-
-
 class AnalysisSummary(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1298,6 +1319,18 @@ class ClipSplitOp(BaseModel):
         ),
     ]
     newId: Annotated[ClipId, Field(description='ID of the second half.')]
+
+
+class DescriptionEffect(BaseModel):
+    """
+    `describe`: the plain-language description for `meta.description` (04 §6.3).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: DescriptionEffectKind
+    description: Annotated[str, Field(min_length=1)]
 
 
 class DescriptionResult(BaseModel):
@@ -1626,32 +1659,6 @@ class PreviewResult(BaseModel):
     endSec: Annotated[float, Field(gt=0.0)]
 
 
-class ProjectMeta(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    title: str
-    createdAt: IsoDate
-    tags: TagList
-    description: str | None = None
-    color: HexColor | None = None
-
-
-class ProjectSetMetaOp(BaseModel):
-    """
-    `project.set_meta` (02 §4.2). Patch project metadata. Absent fields are unchanged.
-    """
-
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    op: ProjectSetMetaOpOp
-    title: str | None = None
-    tags: TagList | None = None
-    description: str | None = None
-    color: HexColor | None = None
-
-
 class Provenance(BaseModel):
     """
     Where a source or clip came from (02 §3.2).
@@ -1790,6 +1797,30 @@ class SectionSplitOp(BaseModel):
     newId: Annotated[SectionId, Field(description='ID of the second half.')]
 
 
+class SectionSuggestion(BaseModel):
+    """
+    One analysed section that was not applied. `startSec`/`endSec` are the analysis truth; `startTick`/`endTick` are the same span on the arrangement's tick grid, for the canvas (02 §6).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    sourceId: SourceId
+    startSec: Annotated[float, Field(ge=0.0)]
+    endSec: Annotated[float, Field(ge=0.0)]
+    startTick: Annotated[int, Field(ge=0)]
+    endTick: Annotated[int, Field(ge=0)]
+    kind: SectionKind
+    label: str
+    confidence: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
+    repeatGroup: str | None = None
+
+
+type SectionSuggestionList = Annotated[
+    list[SectionSuggestion], Field(title='SectionSuggestionList')
+]
+
+
 class SectionSummary(BaseModel):
     """
     The compact per-section record used by the UI and the planner (specs/04-analysis-pipeline.md §5.6). A pipeline-side join of several stage blobs, not a stage result of its own.
@@ -1825,6 +1856,18 @@ class SectionUpdateOp(BaseModel):
     op: SectionUpdateOpOp
     sectionId: SectionId
     patch: SectionPatch
+
+
+class SectionsEffect(BaseModel):
+    """
+    `structure`: the analysed section boundaries and labels, exactly as the structure blob reports them (04 §5.2).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: SectionsEffectKind
+    sections: StructureSectionList
 
 
 class Source(BaseModel):
@@ -1900,6 +1943,19 @@ class StemAsset(BaseModel):
     ] = None
 
 
+type StemAssetList = Annotated[
+    list[StemAsset],
+    Field(
+        description='At least one stem. Also the `separation` effect `analysis.apply` records (02 §6).',
+        min_length=1,
+        title='StemAssetList',
+    ),
+]
+"""
+At least one stem. Also the `separation` effect `analysis.apply` records (02 §6).
+"""
+
+
 class StemEnergy(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1949,7 +2005,7 @@ class StructureResult(BaseModel):
         extra='forbid',
     )
     schemaVersion: StructureResultSchemaVersion
-    sections: Annotated[list[StructureSection], Field(min_length=1)]
+    sections: StructureSectionList
     lowConfidence: Annotated[
         bool | None,
         Field(
@@ -1980,6 +2036,19 @@ class TagResult(BaseModel):
     instruments: TagScoreList
     descriptors: TagScoreList
     era: TagScore | None = None
+
+
+class TagsEffect(BaseModel):
+    """
+    `tag`: the labels to merge into `meta.tags`, split the way the taxonomy reports them (04 §6.2). Scores stay in the blob.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: TagsEffectKind
+    genres: TagList
+    moods: TagList
 
 
 type TempoMap = Annotated[
@@ -2016,13 +2085,26 @@ class TimeSig(BaseModel):
     denominator: TimeSigDenominator
 
 
+type TimeSignatureList = Annotated[
+    list[TimeSig],
+    Field(
+        description='At least one time signature, ordered by bar; a bar keeps the last signature that starts at or before it (02 §2.2).',
+        min_length=1,
+        title='TimeSignatureList',
+    ),
+]
+"""
+At least one time signature, ordered by bar; a bar keeps the last signature that starts at or before it (02 §2.2).
+"""
+
+
 class Timebase(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
     ppq: TimebasePpq
     tempoMap: TempoMap
-    timeSignatures: Annotated[list[TimeSig], Field(min_length=1)]
+    timeSignatures: TimeSignatureList
 
 
 class TrackFxScope(BaseModel):
@@ -2127,45 +2209,6 @@ class WarpStretch(BaseModel):
     )
     mode: WarpStretchMode
     ratio: Annotated[float, Field(gt=0.0)]
-
-
-class AnalysisApplyOp(BaseModel):
-    """
-    `analysis.apply` (02 §4.2). System op: expand an analysis stage result into the document (02 §6).
-    """
-
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    op: AnalysisApplyOpOp
-    sourceId: SourceId
-    stage: AnalysisStage
-    blob: Annotated[AssetHash, Field(description="The stage's result blob.")]
-    effects: AnalysisEffects
-
-
-class AnalysisRef(BaseModel):
-    """
-    What the document knows about one source's analysis: stage statuses and refs to the result blobs (02 §3.3). The blobs' shapes are in packages/schemas/analysis/.
-    """
-
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    profile: AnalysisProfile
-    status: AnalysisStatusMap
-    blobs: AnalysisBlobMap
-    stems: StemAssetMap | None = None
-    summary: AnalysisSummary | None = None
-
-
-type AnalysisRefMap = Annotated[
-    dict[SourceId, AnalysisRef],
-    Field(
-        description='Per-source analysis results, keyed by SourceId (02 §3.1).',
-        title='AnalysisRefMap',
-    ),
-]
 
 
 class ApiError(BaseModel):
@@ -2298,6 +2341,44 @@ class Master(BaseModel):
     gainDb: float
 
 
+class ProjectMeta(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    title: str
+    createdAt: IsoDate
+    tags: TagList
+    description: str | None = None
+    color: HexColor | None = None
+    suggestedSections: Annotated[
+        SectionSuggestionList | None,
+        Field(
+            description='Sections the analysis proposes but did not apply, because the user had already edited the arrangement (02 §6, Q13). The UI accepts or dismisses them; an empty list clears them.'
+        ),
+    ] = None
+
+
+class ProjectSetMetaOp(BaseModel):
+    """
+    `project.set_meta` (02 §4.2). Patch project metadata. Absent fields are unchanged.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    op: ProjectSetMetaOpOp
+    title: str | None = None
+    tags: TagList | None = None
+    description: str | None = None
+    color: HexColor | None = None
+    suggestedSections: Annotated[
+        SectionSuggestionList | None,
+        Field(
+            description='Replace the analysis section suggestions (02 §6, Q13). An empty list clears them.'
+        ),
+    ] = None
+
+
 class Region(BaseModel):
     """
     The universal selection: what the lasso, paint brush and AI prompt target (02 §3.8).
@@ -2392,6 +2473,19 @@ class SectionSetTransitionOp(BaseModel):
     transition: Transition
 
 
+class SeparationEffect(BaseModel):
+    """
+    `separation`: one working asset per stem plus the residual (04 §4, 02 §3.4).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: SeparationEffectKind
+    stems: StemAssetList
+    residual: AssetHash
+
+
 class SeparationResult(BaseModel):
     """
     The `separation` stage result: one working asset per stem plus the residual (specs/04-analysis-pipeline.md §4, 02 §3.4).
@@ -2409,16 +2503,28 @@ class SeparationResult(BaseModel):
         ),
     ]
     stems: Annotated[
-        list[StemAsset],
+        StemAssetList,
         Field(
-            description='Stems whose RMS stayed above −60 dBFS; silent stems are dropped so no empty ribbons appear (04 §4).',
-            min_length=1,
+            description='Stems whose RMS stayed above −60 dBFS; silent stems are dropped so no empty ribbons appear (04 §4).'
         ),
     ]
     residual: Annotated[
         AssetHash,
         Field(description='working mix − Σ stems, computed by the worker (02 §3.4).'),
     ]
+
+
+class TempoEffect(BaseModel):
+    """
+    `rhythm`: the beat grid as a tempo map and time signatures (02 §6).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: TempoEffectKind
+    tempoMap: TempoMap
+    timeSignatures: TimeSignatureList
 
 
 class Track(BaseModel):
@@ -2468,6 +2574,57 @@ type TransposeScope = Annotated[All | Region, Field(title='TransposeScope')]
 type Warp = Annotated[
     WarpNone | WarpBeatgrid | WarpStretch,
     Field(description='Maps source samples to ticks.', title='Warp'),
+]
+
+
+type AnalysisEffect = Annotated[
+    TempoEffect | SectionsEffect | SeparationEffect | TagsEffect | DescriptionEffect,
+    Field(
+        description='One analysed fact the arrangement is built from. Each kind is owned by exactly one stage (02 §6).',
+        title='AnalysisEffect',
+    ),
+]
+
+
+type AnalysisEffectList = Annotated[
+    list[AnalysisEffect],
+    Field(
+        description='The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description) so the list is a set rather than an arrival log (02 §6).',
+        title='AnalysisEffectList',
+    ),
+]
+"""
+The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description) so the list is a set rather than an arrival log (02 §6).
+"""
+
+
+class AnalysisRef(BaseModel):
+    """
+    What the document knows about one source's analysis: stage statuses, refs to the result blobs and the projection of those results the arrangement is built from (02 §3.3, §6). The blobs' full shapes are in packages/schemas/analysis/.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    profile: AnalysisProfile
+    status: AnalysisStatusMap
+    blobs: AnalysisBlobMap
+    effects: Annotated[
+        AnalysisEffectList | None,
+        Field(
+            description='The effects `analysis.apply` has recorded, merged by kind. `bragi-model` rebuilds the analysis-owned arrangement from this list, which is why the document does not need to read the blobs (02 §6, Q12).'
+        ),
+    ] = None
+    stems: StemAssetMap | None = None
+    summary: AnalysisSummary | None = None
+
+
+type AnalysisRefMap = Annotated[
+    dict[SourceId, AnalysisRef],
+    Field(
+        description='Per-source analysis results, keyed by SourceId (02 §3.1).',
+        title='AnalysisRefMap',
+    ),
 ]
 
 
@@ -2652,6 +2809,31 @@ class SectionInstance(BaseModel):
         bool | None,
         Field(description='AI-authored batches may not modify locked sections.'),
     ] = None
+
+
+class AnalysisApplyOp(BaseModel):
+    """
+    `analysis.apply` (02 §4.2). System op: record one analysis stage's result and reconcile the document with it (02 §6). The op is order-independent: the document depends on the set of recorded stages, not their arrival order.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    op: AnalysisApplyOpOp
+    sourceId: SourceId
+    stage: Annotated[
+        AnalysisStage,
+        Field(
+            description='The stage that finished. Each stage owns at most one effect kind; stages that change no arrangement carry an empty `effects` list (02 §6).'
+        ),
+    ]
+    blob: Annotated[AssetHash, Field(description="The stage's result blob.")]
+    effects: Annotated[
+        AnalysisEffectList,
+        Field(
+            description='The facts the document takes from the blob, in typed form. `bragi-model` cannot read blobs, so the producer projects them here (02 §6, Q12).'
+        ),
+    ]
 
 
 class Arrangement(BaseModel):

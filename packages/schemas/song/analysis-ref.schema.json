@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnalysisRef",
-  "description": "What the document knows about one source's analysis: stage statuses and refs to the result blobs (02 §3.3). The blobs' shapes are in packages/schemas/analysis/.",
+  "description": "What the document knows about one source's analysis: stage statuses, refs to the result blobs and the projection of those results the arrangement is built from (02 §3.3, §6). The blobs' full shapes are in packages/schemas/analysis/.",
   "type": "object",
   "additionalProperties": false,
   "required": ["profile", "status", "blobs"],
@@ -9,6 +9,10 @@
     "profile": { "$ref": "common.schema.json#/$defs/AnalysisProfile" },
     "status": { "$ref": "#/$defs/AnalysisStatusMap" },
     "blobs": { "$ref": "#/$defs/AnalysisBlobMap" },
+    "effects": {
+      "description": "The effects `analysis.apply` has recorded, merged by kind. `bragi-model` rebuilds the analysis-owned arrangement from this list, which is why the document does not need to read the blobs (02 §6, Q12).",
+      "$ref": "#/$defs/AnalysisEffectList"
+    },
     "stems": { "$ref": "#/$defs/StemAssetMap" },
     "summary": { "$ref": "#/$defs/AnalysisSummary" }
   },
@@ -45,6 +49,74 @@
         "durationSec": { "type": "number", "minimum": 0 },
         "genres": { "$ref": "common.schema.json#/$defs/TagList" },
         "moods": { "$ref": "common.schema.json#/$defs/TagList" }
+      }
+    },
+    "AnalysisEffectList": {
+      "description": "The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description) so the list is a set rather than an arrival log (02 §6).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/AnalysisEffect" }
+    },
+    "AnalysisEffect": {
+      "description": "One analysed fact the arrangement is built from. Each kind is owned by exactly one stage (02 §6).",
+      "oneOf": [
+        { "$ref": "#/$defs/TempoEffect" },
+        { "$ref": "#/$defs/SectionsEffect" },
+        { "$ref": "#/$defs/SeparationEffect" },
+        { "$ref": "#/$defs/TagsEffect" },
+        { "$ref": "#/$defs/DescriptionEffect" }
+      ]
+    },
+    "TempoEffect": {
+      "description": "`rhythm`: the beat grid as a tempo map and time signatures (02 §6).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "tempoMap", "timeSignatures"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["tempo"] },
+        "tempoMap": { "$ref": "arrangement.schema.json#/$defs/TempoMap" },
+        "timeSignatures": { "$ref": "arrangement.schema.json#/$defs/TimeSignatureList" }
+      }
+    },
+    "SectionsEffect": {
+      "description": "`structure`: the analysed section boundaries and labels, exactly as the structure blob reports them (04 §5.2).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sections"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["sections"] },
+        "sections": { "$ref": "../analysis/structure.schema.json#/$defs/StructureSectionList" }
+      }
+    },
+    "SeparationEffect": {
+      "description": "`separation`: one working asset per stem plus the residual (04 §4, 02 §3.4).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "stems", "residual"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["separation"] },
+        "stems": { "$ref": "../analysis/separation.schema.json#/$defs/StemAssetList" },
+        "residual": { "$ref": "common.schema.json#/$defs/AssetHash" }
+      }
+    },
+    "TagsEffect": {
+      "description": "`tag`: the labels to merge into `meta.tags`, split the way the taxonomy reports them (04 §6.2). Scores stay in the blob.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "genres", "moods"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["tags"] },
+        "genres": { "$ref": "common.schema.json#/$defs/TagList" },
+        "moods": { "$ref": "common.schema.json#/$defs/TagList" }
+      }
+    },
+    "DescriptionEffect": {
+      "description": "`describe`: the plain-language description for `meta.description` (04 §6.3).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "description"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["description"] },
+        "description": { "type": "string", "minLength": 1 }
       }
     }
   }

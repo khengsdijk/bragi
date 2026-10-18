@@ -26,12 +26,14 @@
           "enum": [960]
         },
         "tempoMap": { "$ref": "#/$defs/TempoMap" },
-        "timeSignatures": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "$ref": "#/$defs/TimeSig" }
-        }
+        "timeSignatures": { "$ref": "#/$defs/TimeSignatureList" }
       }
+    },
+    "TimeSignatureList": {
+      "description": "At least one time signature, ordered by bar; a bar keeps the last signature that starts at or before it (02 §2.2).",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/TimeSig" }
     },
     "TempoMap": {
       "description": "Sorted by tick, first entry at tick 0 (02 §2.2, invariant 4.3.4).",

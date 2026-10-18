@@ -55,3 +55,19 @@ rows.
 |---|---|---|---|---|
 | Q21 | `section.move` cannot express "smooth the transitions" (02 §5.1 says the moved section and its successor become a 1-beat `crossfade` *if smoothing is requested*, but the op payload has no flag). Should the planner/UI add a flag, make smoothing unconditional, or drop 02 §5.1's rule? WP-0.3 leaves transitions alone and only re-anchors master automation. | WP-1.8 (planner) | Agent | [02 §5.1](02-song-model.md), `packages/schemas/song/ops/section.move.schema.json` |
 | Q22 | `crates/bragi-dsp/fx_catalog.json` (03 §6) did not exist; WP-0.3 created it so `validate` can enforce invariant 5 (FX param ranges). WP-0.4/1.1 own `bragi-dsp` and may extend it (non-numeric params such as `sidechain_duck.sourceTrack`, `match_eq.bands` are in the file but not yet validated, because `FxParams` only holds numbers). Confirm the ranges and the missing structural validation. | WP-0.4 / WP-1.1 | Agent | [03 §6](03-audio-engine.md), `crates/bragi-dsp/fx_catalog.json` |
+
+## Resolved by WP-1.8
+
+Appended rather than folded into the tables above, so parallel work packages never edit the same
+rows.
+
+| # | Question | Answer | Reference |
+|---|---|---|---|
+| Q12 | Shape of `analysis.apply`'s `effects[]` | A list of **tagged facts**, at most one per kind, each owned by exactly one stage: `tempo` (rhythm), `sections` (structure), `separation` (separation), `tags` (tag), `description` (describe); every other stage sends `[]`. The op also records the merged list in the new `AnalysisRef.effects`, because `bragi-model` cannot read blobs and the arrangement is rebuilt from the *set* of recorded effects — which is what makes stage arrival order-independent. An effect/stage mismatch or a duplicate kind is rejected with the new `analysis_effects` code. | [02 §6](02-song-model.md), [`packages/schemas/song/analysis-ref.schema.json`](../packages/schemas/song/analysis-ref.schema.json), [`docs/wp/1.8.md`](../docs/wp/1.8.md) |
+| Q13 | Shape of `meta.suggestedSections` | `SectionSuggestion[]`, each `{ sourceId, startSec, endSec, startTick, endTick, kind, label, confidence?, repeatGroup? }`: the analysis truth in seconds plus the same span on the arrangement's tick grid for the canvas. Written by the conflict path of a late `structure`, replaced wholesale per source, cleared by a pristine `structure` or by `project.set_meta` with an empty list. | [02 §6.3](02-song-model.md), [`packages/schemas/song/project.schema.json`](../packages/schemas/song/project.schema.json) |
+
+## Added by WP-1.8
+
+| # | Question | Needed by | Owner | Notes |
+|---|---|---|---|---|
+| Q26 | `AnalysisRef.summary` (`bpm`, `key`, `durationSec`, `genres`, `moods`) is not written by `analysis.apply`: `key` is not among the typed effects, and the model cannot read the `harmony` blob. Should a `harmony` effect kind carry the key (and a `summary` be derived once all five parts are known), or does the API/job flow write `summary` from the blobs directly? Until then `summary` stays absent and the canvas gets bpm and duration from the tempo effect and the source. | WP-1.10 | Agent | [02 §3.3](02-song-model.md), [02 §6](02-song-model.md) |

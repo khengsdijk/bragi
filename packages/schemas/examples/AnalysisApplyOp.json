@@ -1,7 +1,16 @@
 {
   "op": "analysis.apply",
   "sourceId": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
-  "stage": "rhythm",
+  "stage": "structure",
   "blob": "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
-  "effects": []
+  "effects": [
+    {
+      "kind": "sections",
+      "sections": [
+        { "startSec": 0, "endSec": 12.5, "kind": "intro", "confidence": 0.92 },
+        { "startSec": 12.5, "endSec": 45, "kind": "verse", "confidence": 0.88, "repeatGroup": "A" },
+        { "startSec": 45, "endSec": 78, "kind": "chorus", "confidence": 0.9, "repeatGroup": "B" }
+      ]
+    }
+  ]
 }

@@ -21,6 +21,10 @@
     },
     "color": {
       "$ref": "../common.schema.json#/$defs/HexColor"
+    },
+    "suggestedSections": {
+      "description": "Replace the analysis section suggestions (02 §6, Q13). An empty list clears them.",
+      "$ref": "../project.schema.json#/$defs/SectionSuggestionList"
     }
   }
 }

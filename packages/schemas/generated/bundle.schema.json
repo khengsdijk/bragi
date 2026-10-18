@@ -41,7 +41,7 @@
     },
     "AnalysisApplyOp": {
       "title": "AnalysisApplyOp",
-      "description": "`analysis.apply` (02 §4.2). System op: expand an analysis stage result into the document (02 §6).",
+      "description": "`analysis.apply` (02 §4.2). System op: record one analysis stage's result and reconcile the document with it (02 §6). The op is order-independent: the document depends on the set of recorded stages, not their arrival order.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -59,6 +59,7 @@
           "$ref": "#/$defs/SourceId"
         },
         "stage": {
+          "description": "The stage that finished. Each stage owns at most one effect kind; stages that change no arrangement carry an empty `effects` list (02 §6).",
           "$ref": "#/$defs/AnalysisStage"
         },
         "blob": {
@@ -66,7 +67,8 @@
           "$ref": "#/$defs/AssetHash"
         },
         "effects": {
-          "$ref": "#/$defs/AnalysisEffects"
+          "description": "The facts the document takes from the blob, in typed form. `bragi-model` cannot read blobs, so the producer projects them here (02 §6, Q12).",
+          "$ref": "#/$defs/AnalysisEffectList"
         }
       }
     },
@@ -88,12 +90,33 @@
         "$ref": "#/$defs/AssetHash"
       }
     },
-    "AnalysisEffects": {
-      "title": "AnalysisEffects",
-      "description": "Stage effects to apply. Shape not yet specified (open question for WP-1.8); each entry is an object.",
+    "AnalysisEffect": {
+      "title": "AnalysisEffect",
+      "description": "One analysed fact the arrangement is built from. Each kind is owned by exactly one stage (02 §6).",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TempoEffect"
+        },
+        {
+          "$ref": "#/$defs/SectionsEffect"
+        },
+        {
+          "$ref": "#/$defs/SeparationEffect"
+        },
+        {
+          "$ref": "#/$defs/TagsEffect"
+        },
+        {
+          "$ref": "#/$defs/DescriptionEffect"
+        }
+      ]
+    },
+    "AnalysisEffectList": {
+      "title": "AnalysisEffectList",
+      "description": "The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description) so the list is a set rather than an arrival log (02 §6).",
       "type": "array",
       "items": {
-        "$ref": "#/$defs/FreeformParams"
+        "$ref": "#/$defs/AnalysisEffect"
       }
     },
     "AnalysisProfile": {
@@ -108,7 +131,7 @@
     },
     "AnalysisRef": {
       "title": "AnalysisRef",
-      "description": "What the document knows about one source's analysis: stage statuses and refs to the result blobs (02 §3.3). The blobs' shapes are in packages/schemas/analysis/.",
+      "description": "What the document knows about one source's analysis: stage statuses, refs to the result blobs and the projection of those results the arrangement is built from (02 §3.3, §6). The blobs' full shapes are in packages/schemas/analysis/.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -125,6 +148,10 @@
         },
         "blobs": {
           "$ref": "#/$defs/AnalysisBlobMap"
+        },
+        "effects": {
+          "description": "The effects `analysis.apply` has recorded, merged by kind. `bragi-model` rebuilds the analysis-owned arrangement from this list, which is why the document does not need to read the blobs (02 §6, Q12).",
+          "$ref": "#/$defs/AnalysisEffectList"
         },
         "stems": {
           "$ref": "#/$defs/StemAssetMap"
@@ -967,6 +994,32 @@
           "maximum": 1
         }
       }
+    },
+    "DescriptionEffect": {
+      "title": "DescriptionEffect",
+      "description": "`describe`: the plain-language description for `meta.description` (04 §6.3).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "description"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/DescriptionEffectKind"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "DescriptionEffectKind": {
+      "title": "DescriptionEffectKind",
+      "type": "string",
+      "enum": [
+        "description"
+      ]
     },
     "DescriptionResult": {
       "title": "DescriptionResult",
@@ -2430,6 +2483,10 @@
         },
         "color": {
           "$ref": "#/$defs/HexColor"
+        },
+        "suggestedSections": {
+          "description": "Sections the analysis proposes but did not apply, because the user had already edited the arrangement (02 §6, Q13). The UI accepts or dismisses them; an empty list clears them.",
+          "$ref": "#/$defs/SectionSuggestionList"
         }
       }
     },
@@ -2464,6 +2521,10 @@
         },
         "color": {
           "$ref": "#/$defs/HexColor"
+        },
+        "suggestedSections": {
+          "description": "Replace the analysis section suggestions (02 §6, Q13). An empty list clears them.",
+          "$ref": "#/$defs/SectionSuggestionList"
         }
       }
     },
@@ -3216,6 +3277,63 @@
         "section.split"
       ]
     },
+    "SectionSuggestion": {
+      "title": "SectionSuggestion",
+      "description": "One analysed section that was not applied. `startSec`/`endSec` are the analysis truth; `startTick`/`endTick` are the same span on the arrangement's tick grid, for the canvas (02 §6).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "startSec",
+        "endSec",
+        "startTick",
+        "endTick",
+        "kind",
+        "label"
+      ],
+      "properties": {
+        "sourceId": {
+          "$ref": "#/$defs/SourceId"
+        },
+        "startSec": {
+          "type": "number",
+          "minimum": 0
+        },
+        "endSec": {
+          "type": "number",
+          "minimum": 0
+        },
+        "startTick": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "endTick": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "$ref": "#/$defs/SectionKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "repeatGroup": {
+          "type": "string"
+        }
+      }
+    },
+    "SectionSuggestionList": {
+      "title": "SectionSuggestionList",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SectionSuggestion"
+      }
+    },
     "SectionSummary": {
       "title": "SectionSummary",
       "description": "The compact per-section record used by the UI and the planner (specs/04-analysis-pipeline.md §5.6). A pipeline-side join of several stage blobs, not a stage result of its own.",
@@ -3313,6 +3431,60 @@
         "section.update"
       ]
     },
+    "SectionsEffect": {
+      "title": "SectionsEffect",
+      "description": "`structure`: the analysed section boundaries and labels, exactly as the structure blob reports them (04 §5.2).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "sections"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SectionsEffectKind"
+        },
+        "sections": {
+          "$ref": "#/$defs/StructureSectionList"
+        }
+      }
+    },
+    "SectionsEffectKind": {
+      "title": "SectionsEffectKind",
+      "type": "string",
+      "enum": [
+        "sections"
+      ]
+    },
+    "SeparationEffect": {
+      "title": "SeparationEffect",
+      "description": "`separation`: one working asset per stem plus the residual (04 §4, 02 §3.4).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "stems",
+        "residual"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SeparationEffectKind"
+        },
+        "stems": {
+          "$ref": "#/$defs/StemAssetList"
+        },
+        "residual": {
+          "$ref": "#/$defs/AssetHash"
+        }
+      }
+    },
+    "SeparationEffectKind": {
+      "title": "SeparationEffectKind",
+      "type": "string",
+      "enum": [
+        "separation"
+      ]
+    },
     "SeparationResult": {
       "title": "SeparationResult",
       "description": "The `separation` stage result: one working asset per stem plus the residual (specs/04-analysis-pipeline.md §4, 02 §3.4).",
@@ -3335,11 +3507,7 @@
         },
         "stems": {
           "description": "Stems whose RMS stayed above −60 dBFS; silent stems are dropped so no empty ribbons appear (04 §4).",
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "$ref": "#/$defs/StemAsset"
-          }
+          "$ref": "#/$defs/StemAssetList"
         },
         "residual": {
           "description": "working mix − Σ stems, computed by the worker (02 §3.4).",
@@ -3496,6 +3664,15 @@
         }
       }
     },
+    "StemAssetList": {
+      "title": "StemAssetList",
+      "description": "At least one stem. Also the `separation` effect `analysis.apply` records (02 §6).",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/StemAsset"
+      }
+    },
     "StemAssetMap": {
       "title": "StemAssetMap",
       "description": "Separated stems (working assets) by role.",
@@ -3625,11 +3802,7 @@
           "$ref": "#/$defs/StructureResultSchemaVersion"
         },
         "sections": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "$ref": "#/$defs/StructureSection"
-          }
+          "$ref": "#/$defs/StructureSectionList"
         },
         "lowConfidence": {
           "description": "Set when the boundary model was unsure: the UI keeps sections but disables grid snapping (04 §10).",
@@ -3674,6 +3847,15 @@
           "description": "Sections that share a group are repetitions of the same material (Chorus 1/2/3) (04 §5.2).",
           "type": "string"
         }
+      }
+    },
+    "StructureSectionList": {
+      "title": "StructureSectionList",
+      "description": "At least one section, ordered by time. Also the `sections` effect `analysis.apply` records (02 §6).",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/StructureSection"
       }
     },
     "SystemAuthor": {
@@ -3774,6 +3956,35 @@
         "$ref": "#/$defs/TagScore"
       }
     },
+    "TagsEffect": {
+      "title": "TagsEffect",
+      "description": "`tag`: the labels to merge into `meta.tags`, split the way the taxonomy reports them (04 §6.2). Scores stay in the blob.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "genres",
+        "moods"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/TagsEffectKind"
+        },
+        "genres": {
+          "$ref": "#/$defs/TagList"
+        },
+        "moods": {
+          "$ref": "#/$defs/TagList"
+        }
+      }
+    },
+    "TagsEffectKind": {
+      "title": "TagsEffectKind",
+      "type": "string",
+      "enum": [
+        "tags"
+      ]
+    },
     "TempoCurve": {
       "title": "TempoCurve",
       "description": "How tempo moves from this point to the next.",
@@ -3801,6 +4012,35 @@
           "exclusiveMinimum": 0
         }
       }
+    },
+    "TempoEffect": {
+      "title": "TempoEffect",
+      "description": "`rhythm`: the beat grid as a tempo map and time signatures (02 §6).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "tempoMap",
+        "timeSignatures"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/TempoEffectKind"
+        },
+        "tempoMap": {
+          "$ref": "#/$defs/TempoMap"
+        },
+        "timeSignatures": {
+          "$ref": "#/$defs/TimeSignatureList"
+        }
+      }
+    },
+    "TempoEffectKind": {
+      "title": "TempoEffectKind",
+      "type": "string",
+      "enum": [
+        "tempo"
+      ]
     },
     "TempoMap": {
       "title": "TempoMap",
@@ -3916,6 +4156,15 @@
         32
       ]
     },
+    "TimeSignatureList": {
+      "title": "TimeSignatureList",
+      "description": "At least one time signature, ordered by bar; a bar keeps the last signature that starts at or before it (02 §2.2).",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/TimeSig"
+      }
+    },
     "Timebase": {
       "title": "Timebase",
       "type": "object",
@@ -3933,11 +4182,7 @@
           "$ref": "#/$defs/TempoMap"
         },
         "timeSignatures": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "$ref": "#/$defs/TimeSig"
-          }
+          "$ref": "#/$defs/TimeSignatureList"
         }
       }
     },

@@ -33,15 +33,94 @@ export type AnalysisStage =
  */
 export type AssetHash = string;
 /**
- * Stage effects to apply. Shape not yet specified (open question for WP-1.8); each entry is an object.
+ * One analysed fact the arrangement is built from. Each kind is owned by exactly one stage (02 §6).
  */
-export type AnalysisEffects = FreeformParams[];
+export type AnalysisEffect = TempoEffect | SectionsEffect | SeparationEffect | TagsEffect | DescriptionEffect;
+export type TempoEffectKind = "tempo";
+/**
+ * Sorted by tick, first entry at tick 0 (02 §2.2, invariant 4.3.4).
+ *
+ * @minItems 1
+ */
+export type TempoMap = [TempoPoint, ...TempoPoint[]];
+/**
+ * How tempo moves from this point to the next.
+ */
+export type TempoCurve = "step" | "linear";
+/**
+ * At least one time signature, ordered by bar; a bar keeps the last signature that starts at or before it (02 §2.2).
+ *
+ * @minItems 1
+ */
+export type TimeSignatureList = [TimeSig, ...TimeSig[]];
+/**
+ * Note value that gets the beat: 1, 2, 4, 8, 16 or 32.
+ */
+export type TimeSigDenominator = 1 | 2 | 4 | 8 | 16 | 32;
+export type SectionsEffectKind = "sections";
+/**
+ * At least one section, ordered by time. Also the `sections` effect `analysis.apply` records (02 §6).
+ *
+ * @minItems 1
+ */
+export type StructureSectionList = [StructureSection, ...StructureSection[]];
+/**
+ * The musical function of a section (02 §3.5).
+ */
+export type SectionKind =
+  | "intro"
+  | "verse"
+  | "pre_chorus"
+  | "chorus"
+  | "post_chorus"
+  | "bridge"
+  | "breakdown"
+  | "build"
+  | "drop"
+  | "solo"
+  | "interlude"
+  | "outro"
+  | "custom";
+/**
+ * A model's self-reported confidence in 0..1.
+ */
+export type Confidence = number;
+export type SeparationEffectKind = "separation";
+/**
+ * At least one stem. Also the `separation` effect `analysis.apply` records (02 §6).
+ *
+ * @minItems 1
+ */
+export type StemAssetList = [StemAsset, ...StemAsset[]];
+/**
+ * What a track (or stem) carries (02 §3.4).
+ */
+export type StemRole =
+  | "vocals"
+  | "drums"
+  | "bass"
+  | "guitar"
+  | "piano"
+  | "synth"
+  | "strings"
+  | "other"
+  | "residual"
+  | "full_mix"
+  | "generated"
+  | "fx"
+  | "recorded";
+export type TagsEffectKind = "tags";
+export type TagList = string[];
+export type DescriptionEffectKind = "description";
+/**
+ * The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description) so the list is a set rather than an arrival log (02 §6).
+ */
+export type AnalysisEffectList = AnalysisEffect[];
 /**
  * How much analysis to run (04 §3).
  */
 export type AnalysisProfile = "quick" | "standard" | "deep";
 export type AnalysisStageStatus = "pending" | "running" | "done" | "failed";
-export type TagList = string[];
 /**
  * The stable error codes, mirrored in `packages/schemas/api/errors.json` (05 §2). `pnpm schemas:gen` fails if the two lists drift.
  */
@@ -69,40 +148,9 @@ export type ErrorCode =
  */
 export type TimebasePpq = 960;
 /**
- * Sorted by tick, first entry at tick 0 (02 §2.2, invariant 4.3.4).
- *
- * @minItems 1
- */
-export type TempoMap = [TempoPoint, ...TempoPoint[]];
-/**
- * How tempo moves from this point to the next.
- */
-export type TempoCurve = "step" | "linear";
-/**
- * Note value that gets the beat: 1, 2, 4, 8, 16 or 32.
- */
-export type TimeSigDenominator = 1 | 2 | 4 | 8 | 16 | 32;
-/**
  * Section ID: `sec_` + ULID (02 §2.1).
  */
 export type SectionId = string;
-/**
- * The musical function of a section (02 §3.5).
- */
-export type SectionKind =
-  | "intro"
-  | "verse"
-  | "pre_chorus"
-  | "chorus"
-  | "post_chorus"
-  | "bridge"
-  | "breakdown"
-  | "build"
-  | "drop"
-  | "solo"
-  | "interlude"
-  | "outro"
-  | "custom";
 /**
  * Clip ID: `clp_` + ULID (02 §2.1).
  */
@@ -234,24 +282,8 @@ export type ProjectSetMetaOpOp = "project.set_meta";
  * An sRGB colour as `#RRGGBB`.
  */
 export type HexColor = string;
+export type SectionSuggestionList = SectionSuggestion[];
 export type TrackAddOpOp = "track.add";
-/**
- * What a track (or stem) carries (02 §3.4).
- */
-export type StemRole =
-  | "vocals"
-  | "drums"
-  | "bass"
-  | "guitar"
-  | "piano"
-  | "synth"
-  | "strings"
-  | "other"
-  | "residual"
-  | "full_mix"
-  | "generated"
-  | "fx"
-  | "recorded";
 export type TrackRemoveOpOp = "track.remove";
 export type TrackUpdateOpOp = "track.update";
 export type FxAddOpOp = "fx.add";
@@ -324,10 +356,6 @@ export type NumberSeries = number[];
  */
 export type HarmonyResultSchemaVersion = 1;
 export type KeyMode = "major" | "minor";
-/**
- * A model's self-reported confidence in 0..1.
- */
-export type Confidence = number;
 export type KeyChangeList = KeyChange[];
 /**
  * Per-section derived progressions; `index` matches the structure stage's section index.
@@ -422,28 +450,92 @@ export type TagScoreList = TagScore[];
 export type TranscribeResultSchemaVersion = 1;
 
 /**
- * `analysis.apply` (02 §4.2). System op: expand an analysis stage result into the document (02 §6).
+ * `analysis.apply` (02 §4.2). System op: record one analysis stage's result and reconcile the document with it (02 §6). The op is order-independent: the document depends on the set of recorded stages, not their arrival order.
  */
 export interface AnalysisApplyOp {
   op: AnalysisApplyOpOp;
   sourceId: SourceId;
   stage: AnalysisStage;
   blob: AssetHash;
-  effects: AnalysisEffects;
+  effects: AnalysisEffectList;
 }
 /**
- * Process- or capability-specific parameters; their shape is owned by the process. Explicitly open: any key is allowed, and a generator must keep whatever it is given (an object that silently dropped unknown keys would not round-trip).
+ * `rhythm`: the beat grid as a tempo map and time signatures (02 §6).
  */
-export interface FreeformParams {
-  [k: string]: unknown;
+export interface TempoEffect {
+  kind: TempoEffectKind;
+  tempoMap: TempoMap;
+  timeSignatures: TimeSignatureList;
+}
+export interface TempoPoint {
+  tick: number;
+  bpm: number;
+  curve: TempoCurve;
+}
+export interface TimeSig {
+  /**
+   * Zero-based bar index.
+   */
+  bar: number;
+  numerator: number;
+  denominator: TimeSigDenominator;
 }
 /**
- * What the document knows about one source's analysis: stage statuses and refs to the result blobs (02 §3.3). The blobs' shapes are in packages/schemas/analysis/.
+ * `structure`: the analysed section boundaries and labels, exactly as the structure blob reports them (04 §5.2).
+ */
+export interface SectionsEffect {
+  kind: SectionsEffectKind;
+  sections: StructureSectionList;
+}
+export interface StructureSection {
+  startSec: number;
+  endSec: number;
+  kind: SectionKind;
+  confidence: Confidence;
+  /**
+   * Sections that share a group are repetitions of the same material (Chorus 1/2/3) (04 §5.2).
+   */
+  repeatGroup?: string;
+}
+/**
+ * `separation`: one working asset per stem plus the residual (04 §4, 02 §3.4).
+ */
+export interface SeparationEffect {
+  kind: SeparationEffectKind;
+  stems: StemAssetList;
+  residual: AssetHash;
+}
+export interface StemAsset {
+  role: StemRole;
+  asset: AssetHash;
+  /**
+   * Whole-song gated RMS of the stem, in dBFS.
+   */
+  rmsDb?: number;
+}
+/**
+ * `tag`: the labels to merge into `meta.tags`, split the way the taxonomy reports them (04 §6.2). Scores stay in the blob.
+ */
+export interface TagsEffect {
+  kind: TagsEffectKind;
+  genres: TagList;
+  moods: TagList;
+}
+/**
+ * `describe`: the plain-language description for `meta.description` (04 §6.3).
+ */
+export interface DescriptionEffect {
+  kind: DescriptionEffectKind;
+  description: string;
+}
+/**
+ * What the document knows about one source's analysis: stage statuses, refs to the result blobs and the projection of those results the arrangement is built from (02 §3.3, §6). The blobs' full shapes are in packages/schemas/analysis/.
  */
 export interface AnalysisRef {
   profile: AnalysisProfile;
   status: AnalysisStatusMap;
   blobs: AnalysisBlobMap;
+  effects?: AnalysisEffectList;
   stems?: StemAssetMap;
   summary?: AnalysisSummary;
 }
@@ -490,6 +582,12 @@ export interface ErrorBody {
   details?: FreeformParams;
 }
 /**
+ * Process- or capability-specific parameters; their shape is owned by the process. Explicitly open: any key is allowed, and a generator must keep whatever it is given (an object that silently dropped unknown keys would not round-trip).
+ */
+export interface FreeformParams {
+  [k: string]: unknown;
+}
+/**
  * Timebase, the ordered sections and the master bus (02 §3.5). Absolute section positions are derived, never stored.
  */
 export interface Arrangement {
@@ -503,23 +601,7 @@ export interface Arrangement {
 export interface Timebase {
   ppq: TimebasePpq;
   tempoMap: TempoMap;
-  /**
-   * @minItems 1
-   */
-  timeSignatures: [TimeSig, ...TimeSig[]];
-}
-export interface TempoPoint {
-  tick: number;
-  bpm: number;
-  curve: TempoCurve;
-}
-export interface TimeSig {
-  /**
-   * Zero-based bar index.
-   */
-  bar: number;
-  numerator: number;
-  denominator: TimeSigDenominator;
+  timeSignatures: TimeSignatureList;
 }
 /**
  * One section in the arrangement. Lane content is positioned RELATIVE to the section start (02 §3.5).
@@ -850,6 +932,21 @@ export interface ProjectSetMetaOp {
   tags?: TagList;
   description?: string;
   color?: HexColor;
+  suggestedSections?: SectionSuggestionList;
+}
+/**
+ * One analysed section that was not applied. `startSec`/`endSec` are the analysis truth; `startTick`/`endTick` are the same span on the arrangement's tick grid, for the canvas (02 §6).
+ */
+export interface SectionSuggestion {
+  sourceId: SourceId;
+  startSec: number;
+  endSec: number;
+  startTick: number;
+  endTick: number;
+  kind: SectionKind;
+  label: string;
+  confidence?: number;
+  repeatGroup?: string;
 }
 /**
  * `track.add` (02 §4.2). Add a track, at index or appended.
@@ -1389,6 +1486,7 @@ export interface ProjectMeta {
   tags: TagList;
   description?: string;
   color?: HexColor;
+  suggestedSections?: SectionSuggestionList;
 }
 /**
  * An original input: an upload, a generation, a recording or an imported stem (02 §3.2).
@@ -1493,21 +1591,8 @@ export interface SeparationResult {
    * Stage version string, e.g. "htdemucs_6s-1" (04 §1).
    */
   model: string;
-  /**
-   * Stems whose RMS stayed above −60 dBFS; silent stems are dropped so no empty ribbons appear (04 §4).
-   *
-   * @minItems 1
-   */
-  stems: [StemAsset, ...StemAsset[]];
+  stems: StemAssetList;
   residual: AssetHash;
-}
-export interface StemAsset {
-  role: StemRole;
-  asset: AssetHash;
-  /**
-   * Whole-song gated RMS of the stem, in dBFS.
-   */
-  rmsDb?: number;
 }
 /**
  * The `stem_activity` stage result: where each stem is audible, and how present it is per section (specs/04-analysis-pipeline.md §5.4).
@@ -1559,24 +1644,11 @@ export interface StemEnergy {
  */
 export interface StructureResult {
   schemaVersion: StructureResultSchemaVersion;
-  /**
-   * @minItems 1
-   */
-  sections: [StructureSection, ...StructureSection[]];
+  sections: StructureSectionList;
   /**
    * Set when the boundary model was unsure: the UI keeps sections but disables grid snapping (04 §10).
    */
   lowConfidence?: boolean;
-}
-export interface StructureSection {
-  startSec: number;
-  endSec: number;
-  kind: SectionKind;
-  confidence: Confidence;
-  /**
-   * Sections that share a group are repetitions of the same material (Chorus 1/2/3) (04 §5.2).
-   */
-  repeatGroup?: string;
 }
 /**
  * The `tag` stage result: scored labels from the controlled taxonomy (specs/04-analysis-pipeline.md §6.2).

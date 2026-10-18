@@ -18,9 +18,7 @@
     },
     "stems": {
       "description": "Stems whose RMS stayed above −60 dBFS; silent stems are dropped so no empty ribbons appear (04 §4).",
-      "type": "array",
-      "minItems": 1,
-      "items": { "$ref": "#/$defs/StemAsset" }
+      "$ref": "#/$defs/StemAssetList"
     },
     "residual": {
       "description": "working mix − Σ stems, computed by the worker (02 §3.4).",
@@ -28,6 +26,12 @@
     }
   },
   "$defs": {
+    "StemAssetList": {
+      "description": "At least one stem. Also the `separation` effect `analysis.apply` records (02 §6).",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/StemAsset" }
+    },
     "StemAsset": {
       "type": "object",
       "additionalProperties": false,
