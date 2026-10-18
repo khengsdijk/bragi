@@ -234,9 +234,8 @@ pub fn hit_report(
         if sec_out >= FLAM_SECONDARY_DB {
             flams += 1;
         }
-        worst_sec = worst_sec.max(
-            sec_out - secondary_attack_db(&env_in, src_ms + ENVELOPE_LAG_MS as usize),
-        );
+        worst_sec = worst_sec
+            .max(sec_out - secondary_attack_db(&env_in, src_ms + ENVELOPE_LAG_MS as usize));
         let pi = pre_echo_db(&fine_in, src_ms + 2);
         let po = pre_echo_db(&fine_out, pk);
         if pi.is_finite() && po.is_finite() {
