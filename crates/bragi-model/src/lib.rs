@@ -20,7 +20,7 @@
 //! - [`diff`] — the delta handed to the audio engine.
 #![forbid(unsafe_code)]
 
-pub mod analysis;
+mod analysis;
 pub mod apply;
 pub mod assets;
 pub mod canonical;
