@@ -1,0 +1,196 @@
+# 05 — Backend, Jobs & Sync
+
+Status: Draft v0.1 · Code: `services/api`, `services/workers` · Infra: `infra/`
+
+## 1. Services
+
+| Service | Language | Process(es) | Responsibility |
+|---|---|---|---|
+| `api` | TypeScript (Fastify) | `api-http` | REST + WebSocket, auth, projects/sync, assets, search, planner endpoint |
+| | | `api-orchestrator` | Same codebase, separate entrypoint. Consumes job events, schedules dependent DAG stages, writes job state to Postgres, fans events out to WebSocket via NATS. |
+| `workers/analysis` | Python | one process per stage type (scalable independently) | Analysis stages ([04](04-analysis-pipeline.md)) |
+| `workers/embed` | Python | `embed`, `project` | Embeddings, map projection, constellations ([08](08-universe.md)) |
+| `workers/generate` | Python | one process per generation capability | Generation and transform ([09](09-generation.md), [10](10-fusion.md)) |
+| Postgres + pgvector | — | — | Relational state, op log, vectors |
+| NATS JetStream | — | — | Job queues and events |
+| S3 / MinIO | — | — | Content-addressed blobs |
+
+## 2. REST API (v1)
+
+All endpoints are under `/v1`, JSON, and authenticated (session cookie on web, bearer token on desktop). Route schemas are defined with TypeBox/zod and exported to OpenAPI 3.1 → `packages/api-client`.
+
+| Method & path | Purpose |
+|---|---|
+| `GET /meta` | `{ apiVersion, minClientVersion, features }` |
+| `/auth/*` | Better Auth routes (magic link, OAuth, session, desktop PKCE) |
+| `POST /assets/presign` | `{ hash, bytes, mime }` → `{ exists: true }` or `{ uploadUrl, headers }` (presigned PUT, 15 min) |
+| `POST /assets/{hash}/complete` | Server verifies size + hash (S3 checksum), records ownership in `user_assets` |
+| `GET /assets/{hash}/url` | Presigned GET (1 h) if the user owns or derived the asset |
+| `GET /library` | Paged library items with summaries |
+| `POST /library/import` | `{ items: [{ assetHash, filename, title?, artist?, album? }] }` → creates library items and enqueues `quick` analysis |
+| `PATCH /library/{id}` / `DELETE /library/{id}` | Edit metadata / remove from library (assets GC'd if unreferenced) |
+| `POST /analyses` | `{ assetHash, profile }` → `{ stages: [{ stage, status, blob? }] }` (cached stages return immediately) |
+| `GET /analyses/{assetHash}` | Current stage statuses + blob refs |
+| `GET /projects` / `POST /projects` | List / create (client-generated IDs accepted) |
+| `GET /projects/{id}` | Metadata + refs |
+| `DELETE /projects/{id}` | Soft delete (30-day recovery) |
+| `GET /projects/{id}/commits?since={cursor}` | Commits after cursor (sync pull) |
+| `POST /projects/{id}/commits` | Push commits (sync push). Snapshots uploaded as assets first. |
+| `PUT /projects/{id}/refs` | Compare-and-swap ref update: `{ expected, next }` |
+| `POST /plans` | Planner: `{ projectId, commitId, region?, prompt, uiContext }` → `EditPlan` ([06](06-ai-planner.md)) |
+| `POST /plans/{id}/execute` | Runs the plan's generative steps as jobs and returns `{ jobIds }` |
+| `POST /jobs` | Direct job submission for UI actions that skip the planner (e.g. "Extend 16 bars") |
+| `GET /jobs/{id}` / `DELETE /jobs/{id}` | Status / cancel |
+| `POST /search` | `{ query: { text } \| { audioAsset } \| { hum: assetHash }, scope: "song"\|"section"\|"stem", k, filters }` |
+| `GET /universe/layout?lens=` | Current 2D/3D layout for a lens ([08](08-universe.md)) |
+| `GET /universe/constellations?type=` | Relationship edges |
+| `POST /universe/path` | `{ from, to, mode: "playlist"\|"generate", steps }` |
+| `GET /usage` | Credits used/remaining |
+
+Error format: `{ error: { code: "QUOTA_EXCEEDED", message, details? } }`. Codes are stable and listed in `packages/schemas/api/errors.json`.
+
+## 3. WebSocket protocol
+
+`GET /v1/ws`, authenticated on connect. JSON messages:
+
+Client → server:
+```json
+{ "t": "sub", "topics": ["job:job_01…", "asset:sha256:…", "project:prj_01…"] }
+{ "t": "unsub", "topics": [...] }
+```
+Server → client:
+```json
+{ "t": "job.progress",  "jobId": "job_…", "stage": "separation", "pct": 0.42, "etaSec": 18 }
+{ "t": "job.partial",   "jobId": "job_…", "index": 1, "output": { "asset": "sha256:…", "kind": "preview" } }
+{ "t": "job.completed", "jobId": "job_…", "outputs": {...} }
+{ "t": "job.failed",    "jobId": "job_…", "code": "MODEL_ERROR", "retryable": true }
+{ "t": "analysis.partial", "assetHash": "sha256:…", "stage": "rhythm", "blob": "sha256:…" }
+{ "t": "sync.remote",   "projectId": "prj_…", "commits": ["cmt_…"] }
+```
+The client reconnects with exponential backoff and re-subscribes. After reconnecting it calls `GET /jobs/{id}` to fetch any missed final states.
+
+## 4. Jobs & events (NATS JetStream)
+
+### 4.1 Streams and subjects
+| Stream | Subjects | Retention | Consumers |
+|---|---|---|---|
+| `JOBS` | `jobs.<capability>.<priority>`, e.g. `jobs.analysis.separation.interactive`, `jobs.generate.extend.background` | Work-queue | One durable pull consumer per capability group (workers) |
+| `EVENTS` | `events.job.<jobId>`, `events.asset.<hash>`, `events.project.<id>` | Limits (24 h) | Orchestrator, WebSocket gateway |
+
+Capabilities (v1): `analysis.{ingest,rhythm,structure,separation,harmony,stem_activity,loudness_energy,energy_stems,embed_full,section_embed,stem_embed,tag,describe,drum_split,transcribe,lyrics}`, `embed.project`, `embed.constellations`, `generate.{extend,inpaint,stem,text2music,fx,transition,variation}`, `transform.{timbre,style,stem_resynth}`, `fusion.{align,mashup_plan}`.
+
+### 4.2 Envelopes (`packages/schemas/jobs/`)
+```ts
+interface JobRequest {
+  jobId: JobId; capability: string; priority: "interactive" | "background";
+  userId: UserId; projectId?: ProjectId;
+  inputs: { assets: Record<string, AssetHash>; blobs?: Record<string, AssetHash>; params: object };  // params schema per capability
+  idempotencyKey: string;        // hash(capability, inputs, stageVersion), used for result caching
+  attempt: number; deadline: ISODate; traceparent: string; createdAt: ISODate;
+}
+interface JobEvent {
+  jobId: JobId; type: "started" | "progress" | "partial" | "completed" | "failed";
+  pct?: number; etaSec?: number;
+  outputs?: { assets?: Record<string, AssetHash>; blobs?: Record<string, AssetHash> };
+  error?: { code: string; message: string; retryable: boolean };
+  metrics?: { gpuSeconds: number; model: string; modelVersion: string; worker: string };
+}
+```
+
+### 4.3 Worker contract (`bragi_common`)
+1. Pull a message from its capability subject (interactive subjects are polled first).
+2. Check the **result cache** (`job_results` by `idempotencyKey`). On a hit, publish `completed` immediately.
+3. Download inputs from S3 to local scratch (verifying hashes).
+4. Run. Publish `progress` at most 2×/s and `partial` outputs when available. Send JetStream in-progress acks every 10 s.
+5. Upload outputs (content-addressed), publish `completed`, and ack.
+6. On exception: publish `failed{retryable}`. A NAK with delay is a retry. The orchestrator owns the retry count.
+
+Workers are stateless, run one job per GPU at a time (configurable), and handle SIGTERM gracefully (finish or NAK within 30 s).
+
+### 4.4 Orchestration
+- `api-orchestrator` holds the **analysis DAG definitions** ([04 §2](04-analysis-pipeline.md)) and generation multi-step plans ([06 §5](06-ai-planner.md)).
+- When a job completes, it records the result, publishes `analysis.partial`/`job.completed` on `events.*`, and enqueues dependents whose inputs are ready.
+- **Cancellation:** `DELETE /jobs/{id}` marks the job cancelled. Workers check a cancel flag (NATS KV `cancel.<jobId>`) between chunks.
+
+## 5. Database schema (Postgres)
+
+```sql
+users(id, email, name, created_at, plan, settings jsonb)                    -- + Better Auth tables
+assets(hash pk, mime, bytes, sample_rate, channels, duration_samples, derived_from jsonb, created_at)
+user_assets(user_id, hash, role text, created_at, primary key(user_id, hash)) -- ownership / access
+library_items(id, user_id, asset_hash, filename, title, artist, album, imported_at, project_id null, hidden bool)
+analyses(asset_hash, stage, stage_version, status, blob_hash, error jsonb, updated_at, primary key(asset_hash, stage, stage_version))
+projects(id, user_id, title, created_at, updated_at, deleted_at)
+commits(id pk, project_id, parents text[], batch jsonb, snapshot_hash, state, candidate_group, device_id, created_at, seq bigserial)
+refs(project_id, name, commit_id, updated_at, primary key(project_id, name))  -- 'head:<deviceId>', 'branch:<name>', 'star:<commit>'
+jobs(id, user_id, project_id, capability, priority, status, params jsonb, outputs jsonb, error jsonb, gpu_seconds, created_at, finished_at)
+job_results(idempotency_key pk, outputs jsonb, created_at)
+embeddings(id, asset_hash, scope text /*song|section|stem*/, scope_ref text, model text, vec vector(512))  -- HNSW index on vec
+library_layouts(user_id, lens, version, blob_hash, updated_at, primary key(user_id, lens))
+usage_ledger(id, user_id, job_id, credits numeric, reason, created_at)
+```
+- Embeddings are keyed by **asset**, not by user, so identical audio is embedded once. Access is controlled through `user_assets`.
+- Search queries join `embeddings` → `user_assets` (user's own) → `library_items`.
+
+## 6. Object storage layout
+
+```
+s3://bragi-blobs/sha256/<aa>/<bb>/<full-hash>          # all assets & blobs, immutable
+```
+- Ownership lives in `user_assets`. Blobs are **never** publicly readable.
+- **GC:** a nightly job deletes blobs not referenced by any `user_assets`, `analyses`, `commits.snapshot_hash`, `job_results` or `library_layouts` for 30 days. Discarded AI candidates naturally fall out this way.
+- Uploads over 64 MB use multipart presigned uploads.
+
+## 7. Sync protocol (local-first)
+
+The client is the primary editor. The server is a durable replica plus the cross-device hub.
+
+**Push** (client → server), whenever online and there are unsynced commits:
+1. Upload any missing snapshot and asset blobs (`/assets/presign`, skip if exists).
+2. `POST /projects/{id}/commits` with the commits in topological order. The server validates parents exist, computes `seq`, and ignores duplicates (idempotent by commit ID).
+3. `PUT /projects/{id}/refs` with CAS for `head:<deviceId>` and any branch refs.
+
+**Pull**: `GET /projects/{id}/commits?since=<seq>` on project open, on reconnect, and on `sync.remote` WS events.
+
+**Conflicts:** commits never conflict (immutable, content-addressed). Only **refs** can diverge. Each device has its own `head:<deviceId>` ref. Named branches use CAS. On CAS failure, the client fetches and shows "This branch changed on another device", then lets the user pick or create a new branch name. Bragi never auto-merges document content ([02 §7](02-song-model.md)).
+
+**Local DB schema** (SQLite, shared by both platforms) mirrors `projects`, `commits`, `refs`, `library_items`, `analyses` (cache), `assets` (cache metadata + `local_path`/OPFS path), `embeddings` (cached vectors for the Universe as raw f32 blobs), `sync_state(project_id, last_seq, dirty)` and `outbox(commit_id)`. Migrations live in `packages/schemas/sqlite/migrations/NNN_name.sql` and are applied by both `rusqlite` and sqlite-wasm.
+
+## 8. Auth & accounts
+
+- **Better Auth** with email magic link + Google + GitHub OAuth.
+- **Desktop:** opens the system browser at `/v1/auth/desktop/start?code_challenge=…`, which redirects to `bragi://auth/callback?code=…`. The app exchanges the code for a long-lived refresh token and short-lived access token, and stores the refresh token in the OS keychain.
+- **Anonymous / offline use:** the desktop app works without an account for local playback and editing of non-AI features (no analysis beyond what can run locally, see §10). The web app requires sign-in for uploads (storage costs money).
+- **Account deletion:** removes the user's rows. Unreferenced blobs are GC'd. Analysis results keyed by hash may survive if another user owns the same asset, but they are not linked to the deleted user.
+
+## 9. GPU cost and scaling
+
+GPU inference cost is the core business risk (R6), so it's designed in from the start.
+
+| Lever | Spec |
+|---|---|
+| **Result caching** | `idempotencyKey` cache for every job. Analysis is deduped across users by asset hash. |
+| **Priority queues** | `interactive` (the user is waiting) is always served before `background` (library imports, prefetch). |
+| **Preview tiers** | Generation produces a fast low-quality preview first, then the HQ result only for the accepted candidate ([09 §5](09-generation.md)). |
+| **Lazy upgrade** | Library songs get `quick` analysis. `standard` runs only on first open. |
+| **Autoscaling** | Scale GPU workers per capability on queue depth and age. Generation pools scale to zero after 10 idle minutes. Analysis keeps one warm worker in prod. |
+| **Provider** | Containers are provider-agnostic. Evaluate serverless GPU platforms vs. AWS GPU instances in ADR-0005. The worker image must run on both. |
+| **Credits** | Each capability has a credit cost (`config/credits.toml`), e.g. `quick` analysis = 0, `standard` = 1, extend 30 s = 2, full text2music = 10. `usage_ledger` records each job. A free tier gets N credits/day. |
+| **Budget guard** | Global daily GPU-seconds cap per environment. When exceeded, background jobs pause and interactive jobs get a "busy" message. |
+
+## 10. Bring-your-own-backend and local compute (post-v1, but designed for now)
+
+- Desktop Settings → "Compute server" accepts any Bragi API base URL. The full stack runs via `infra/docker-compose.yml` on a user's own GPU box, which fits users with local AI setups.
+- Later, a **lightweight local mode** could run a subset of workers (ingest, rhythm, tag) as a Python sidecar bundled with the desktop app. This is out of scope for v1, but the job protocol must not assume cloud-only features.
+
+## 11. Observability and limits
+
+- OpenTelemetry traces propagate `traceparent` from HTTP → NATS headers → worker spans. Metrics: queue depth, job latency per capability, GPU seconds, cache hit rate, WebSocket connections.
+- Rate limits per user: 10 interactive jobs concurrent, 100 req/min API, 500 library imports/hour.
+- Structured JSON logs. No audio content or lyrics in logs.
+
+## 12. Privacy
+
+- User audio, stems, lyrics and projects are **private** by default and never used to train models.
+- Third-party LLM calls (planner, describe) send **features and text summaries, never audio**. This is documented in the privacy notice.
+- Users can export everything (projects as JSON + assets zip) and delete everything.
