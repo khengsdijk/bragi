@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SectionInsertOp",
+  "description": "`section.insert` (02 §4.2). Insert a section at index.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "index",
+    "section"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "section.insert"
+      ]
+    },
+    "index": {
+      "description": "Position in arrangement.sections.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "section": {
+      "$ref": "../section.schema.json"
+    }
+  }
+}

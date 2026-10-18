@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FxUpdateOp",
+  "description": "`fx.update` (02 §4.2). Patch an effect's parameters and/or bypass.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "fxId",
+    "paramsPatch"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "fx.update"
+      ]
+    },
+    "fxId": {
+      "$ref": "../common.schema.json#/$defs/FxId"
+    },
+    "paramsPatch": {
+      "$ref": "../fx.schema.json#/$defs/FxParams"
+    },
+    "bypass": {
+      "type": "boolean"
+    }
+  }
+}

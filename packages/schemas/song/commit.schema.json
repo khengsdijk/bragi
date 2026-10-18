@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Commit",
+  "description": "A node in the version DAG: one op batch plus a full snapshot of the document after it (02 §7).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "projectId", "parents", "batch", "snapshot", "state", "deviceId", "createdAt"],
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/CommitId" },
+    "projectId": { "$ref": "common.schema.json#/$defs/ProjectId" },
+    "parents": {
+      "description": "Empty for the root commit, one parent otherwise. Never two in v1: there are no true merges (region.adopt instead).",
+      "type": "array",
+      "maxItems": 1,
+      "items": { "$ref": "common.schema.json#/$defs/CommitId" }
+    },
+    "batch": { "$ref": "op-batch.schema.json" },
+    "snapshot": {
+      "description": "zstd-compressed canonical JSON of the full document after this commit.",
+      "$ref": "common.schema.json#/$defs/AssetHash"
+    },
+    "state": { "$ref": "#/$defs/CommitState" },
+    "candidateGroup": {
+      "description": "Candidates produced by one AI request share a group.",
+      "type": "string"
+    },
+    "deviceId": { "type": "string", "minLength": 1 },
+    "createdAt": { "$ref": "common.schema.json#/$defs/IsoDate" }
+  },
+  "$defs": {
+    "CommitState": {
+      "type": "string",
+      "enum": ["committed", "candidate", "discarded"]
+    }
+  }
+}

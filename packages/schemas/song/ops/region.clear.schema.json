@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RegionClearOp",
+  "description": "`region.clear` (02 §4.2). Remove or trim clip content in a region, adding short fades.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "region"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "region.clear"
+      ]
+    },
+    "region": {
+      "$ref": "../region.schema.json"
+    }
+  }
+}

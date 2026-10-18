@@ -14,8 +14,12 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "json-schema-to-typescript": "^16.0.0",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0"
   }
 }

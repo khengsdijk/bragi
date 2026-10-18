@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TrackUpdateOp",
+  "description": "`track.update` (02 §4.2). Patch a track's mixer and display fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "trackId",
+    "patch"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "track.update"
+      ]
+    },
+    "trackId": {
+      "$ref": "../common.schema.json#/$defs/TrackId"
+    },
+    "patch": {
+      "$ref": "#/$defs/TrackPatch"
+    }
+  },
+  "$defs": {
+    "TrackPatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "color": {
+          "$ref": "../common.schema.json#/$defs/HexColor"
+        },
+        "gainDb": {
+          "type": "number"
+        },
+        "pan": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1
+        },
+        "mute": {
+          "type": "boolean"
+        },
+        "solo": {
+          "type": "boolean"
+        },
+        "hidden": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

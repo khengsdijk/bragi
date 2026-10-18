@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SectionSetTransitionOp",
+  "description": "`section.set_transition` (02 §4.2). Replace how a section is entered.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "sectionId",
+    "transition"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "section.set_transition"
+      ]
+    },
+    "sectionId": {
+      "$ref": "../common.schema.json#/$defs/SectionId"
+    },
+    "transition": {
+      "$ref": "../section.schema.json#/$defs/Transition"
+    }
+  }
+}

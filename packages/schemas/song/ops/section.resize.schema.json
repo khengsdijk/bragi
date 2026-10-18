@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SectionResizeOp",
+  "description": "`section.resize` (02 §4.2). Change a section's length (02 §5.2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "sectionId",
+    "lengthTicks",
+    "mode"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "section.resize"
+      ]
+    },
+    "sectionId": {
+      "$ref": "../common.schema.json#/$defs/SectionId"
+    },
+    "lengthTicks": {
+      "type": "integer",
+      "exclusiveMinimum": 0
+    },
+    "mode": {
+      "$ref": "#/$defs/SectionResizeMode"
+    }
+  },
+  "$defs": {
+    "SectionResizeMode": {
+      "type": "string",
+      "enum": [
+        "trim",
+        "loop",
+        "stretch"
+      ]
+    }
+  }
+}

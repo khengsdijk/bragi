@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Refs",
+  "description": "Named pointers into a project's commit DAG (02 §7).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["head", "branches", "starred"],
+  "properties": {
+    "head": { "$ref": "common.schema.json#/$defs/CommitId" },
+    "branches": { "$ref": "#/$defs/BranchMap" },
+    "starred": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/CommitId" }
+    }
+  },
+  "$defs": {
+    "BranchMap": {
+      "description": "Branch tips by user-chosen name, e.g. \"Club version\".",
+      "type": "object",
+      "additionalProperties": { "$ref": "common.schema.json#/$defs/CommitId" }
+    }
+  }
+}

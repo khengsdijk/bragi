@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TrackAddOp",
+  "description": "`track.add` (02 §4.2). Add a track, at index or appended.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "track"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "track.add"
+      ]
+    },
+    "track": {
+      "$ref": "../track.schema.json"
+    },
+    "index": {
+      "description": "Position in tracks; appended when absent.",
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

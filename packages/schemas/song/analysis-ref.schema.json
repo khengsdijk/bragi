@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnalysisRef",
+  "description": "What the document knows about one source's analysis: stage statuses and refs to the result blobs (02 §3.3). The blobs' shapes are in packages/schemas/analysis/.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile", "status", "blobs"],
+  "properties": {
+    "profile": { "$ref": "common.schema.json#/$defs/AnalysisProfile" },
+    "status": { "$ref": "#/$defs/AnalysisStatusMap" },
+    "blobs": { "$ref": "#/$defs/AnalysisBlobMap" },
+    "stems": { "$ref": "#/$defs/StemAssetMap" },
+    "summary": { "$ref": "#/$defs/AnalysisSummary" }
+  },
+  "$defs": {
+    "AnalysisStageStatus": {
+      "type": "string",
+      "enum": ["pending", "running", "done", "failed"]
+    },
+    "AnalysisStatusMap": {
+      "description": "Status per stage. Stages not yet requested are absent.",
+      "type": "object",
+      "propertyNames": { "$ref": "common.schema.json#/$defs/AnalysisStage" },
+      "additionalProperties": { "$ref": "#/$defs/AnalysisStageStatus" }
+    },
+    "AnalysisBlobMap": {
+      "description": "Result blob per finished stage, e.g. rhythm → sha256:….",
+      "type": "object",
+      "propertyNames": { "$ref": "common.schema.json#/$defs/AnalysisStage" },
+      "additionalProperties": { "$ref": "common.schema.json#/$defs/AssetHash" }
+    },
+    "StemAssetMap": {
+      "description": "Separated stems (working assets) by role.",
+      "type": "object",
+      "propertyNames": { "$ref": "common.schema.json#/$defs/StemRole" },
+      "additionalProperties": { "$ref": "common.schema.json#/$defs/AssetHash" }
+    },
+    "AnalysisSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bpm", "key", "durationSec", "genres", "moods"],
+      "properties": {
+        "bpm": { "type": "number", "exclusiveMinimum": 0 },
+        "key": { "description": "Human-readable key, e.g. \"F# minor\".", "type": "string" },
+        "durationSec": { "type": "number", "minimum": 0 },
+        "genres": { "$ref": "common.schema.json#/$defs/TagList" },
+        "moods": { "$ref": "common.schema.json#/$defs/TagList" }
+      }
+    }
+  }
+}

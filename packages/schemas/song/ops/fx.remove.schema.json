@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FxRemoveOp",
+  "description": "`fx.remove` (02 §4.2). Remove an effect from whichever chain holds it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "fxId"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "fx.remove"
+      ]
+    },
+    "fxId": {
+      "$ref": "../common.schema.json#/$defs/FxId"
+    }
+  }
+}

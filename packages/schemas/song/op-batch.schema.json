@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpBatch",
+  "description": "An atomic group of ops: it applies fully or not at all (02 §4.1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "author", "label", "ops", "createdAt"],
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/BatchId" },
+    "author": { "$ref": "#/$defs/BatchAuthor" },
+    "intent": {
+      "description": "The user's words, e.g. \"make the drums half-time\".",
+      "type": "string"
+    },
+    "label": {
+      "description": "Short human label for history: \"Half-time drums (verse 2)\".",
+      "type": "string"
+    },
+    "ops": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "op.schema.json" }
+    },
+    "createdAt": { "$ref": "common.schema.json#/$defs/IsoDate" }
+  },
+  "$defs": {
+    "BatchAuthor": {
+      "oneOf": [
+        { "$ref": "#/$defs/UserAuthor" },
+        { "$ref": "#/$defs/AiAuthor" },
+        { "$ref": "#/$defs/SystemAuthor" }
+      ]
+    },
+    "UserAuthor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["user"] }
+      }
+    },
+    "AiAuthor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "planId", "model"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["ai"] },
+        "planId": { "$ref": "common.schema.json#/$defs/PlanId" },
+        "model": { "type": "string" }
+      }
+    },
+    "SystemAuthor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "reason"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["system"] },
+        "reason": { "type": "string" }
+      }
+    }
+  }
+}

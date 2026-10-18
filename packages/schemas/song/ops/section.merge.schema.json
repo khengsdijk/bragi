@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SectionMergeOp",
+  "description": "`section.merge` (02 §4.2). Merge two adjacent sections.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "sectionIdA",
+    "sectionIdB"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "section.merge"
+      ]
+    },
+    "sectionIdA": {
+      "$ref": "../common.schema.json#/$defs/SectionId"
+    },
+    "sectionIdB": {
+      "$ref": "../common.schema.json#/$defs/SectionId"
+    }
+  }
+}

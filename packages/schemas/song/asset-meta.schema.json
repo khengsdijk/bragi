@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AssetMeta",
+  "description": "Metadata of a content-addressed asset. Stored in the DB and local cache, never in the document (02 §3.2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["hash", "mime", "bytes", "sampleRate", "channels", "durationSamples"],
+  "properties": {
+    "hash": { "$ref": "common.schema.json#/$defs/AssetHash" },
+    "mime": { "type": "string", "minLength": 1 },
+    "bytes": { "type": "integer", "minimum": 0 },
+    "sampleRate": { "type": "integer", "minimum": 1 },
+    "channels": { "type": "integer", "minimum": 1 },
+    "durationSamples": { "type": "integer", "minimum": 0 },
+    "derivedFrom": { "$ref": "#/$defs/AssetDerivation" }
+  },
+  "$defs": {
+    "AssetDerivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assets", "process", "processVersion", "params"],
+      "properties": {
+        "assets": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/AssetHash" }
+        },
+        "process": { "type": "string" },
+        "processVersion": { "type": "string" },
+        "params": { "$ref": "#/$defs/FreeformParams" }
+      }
+    },
+    "FreeformParams": {
+      "description": "Process- or capability-specific parameters; their shape is owned by the process.",
+      "type": "object"
+    }
+  }
+}

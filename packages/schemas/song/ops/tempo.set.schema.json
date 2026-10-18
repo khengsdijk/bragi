@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TempoSetOp",
+  "description": "`tempo.set` (02 §4.2). Replace the tempo map. Beatgrid-warped clips follow it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "tempoMap"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "tempo.set"
+      ]
+    },
+    "tempoMap": {
+      "$ref": "../arrangement.schema.json#/$defs/TempoMap"
+    }
+  }
+}

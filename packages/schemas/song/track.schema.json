@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Track",
+  "description": "An instrument lane: a stem, a generated part or an fx track (02 §3.4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "role", "color", "gainDb", "pan", "mute", "solo", "hidden", "fx"],
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/TrackId" },
+    "name": { "description": "E.g. \"Drums\", \"Generated strings\".", "type": "string" },
+    "role": { "$ref": "common.schema.json#/$defs/StemRole" },
+    "color": { "$ref": "common.schema.json#/$defs/HexColor" },
+    "gainDb": { "type": "number" },
+    "pan": { "type": "number", "minimum": -1, "maximum": 1 },
+    "mute": { "type": "boolean" },
+    "solo": { "type": "boolean" },
+    "hidden": {
+      "description": "E.g. the full_mix reference track after separation. Hidden tracks are still summed.",
+      "type": "boolean"
+    },
+    "fx": { "$ref": "fx.schema.json#/$defs/FxChain" },
+    "origin": { "$ref": "#/$defs/TrackOrigin" }
+  },
+  "$defs": {
+    "TrackOrigin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceId"],
+      "properties": {
+        "sourceId": { "$ref": "common.schema.json#/$defs/SourceId" },
+        "stem": { "$ref": "common.schema.json#/$defs/StemRole" }
+      }
+    }
+  }
+}

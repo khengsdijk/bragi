@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AutomationClearOp",
+  "description": "`automation.clear` (02 §4.2). Remove a target's points, optionally only within a range.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "scope",
+    "target"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "automation.clear"
+      ]
+    },
+    "scope": {
+      "$ref": "../ops/automation.set.schema.json#/$defs/AutomationScope"
+    },
+    "target": {
+      "type": "string",
+      "minLength": 1
+    },
+    "range": {
+      "$ref": "../common.schema.json#/$defs/TickRange"
+    }
+  }
+}

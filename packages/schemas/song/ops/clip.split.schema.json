@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClipSplitOp",
+  "description": "`clip.split` (02 §4.2). Split a clip in two.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "clipId",
+    "atTick",
+    "newId"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "clip.split"
+      ]
+    },
+    "clipId": {
+      "$ref": "../common.schema.json#/$defs/ClipId"
+    },
+    "atTick": {
+      "description": "Ticks relative to the section start (the frame of clip.start).",
+      "type": "integer"
+    },
+    "newId": {
+      "description": "ID of the second half.",
+      "$ref": "../common.schema.json#/$defs/ClipId"
+    }
+  }
+}

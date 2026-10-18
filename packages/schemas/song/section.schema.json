@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SectionInstance",
+  "description": "One section in the arrangement. Lane content is positioned RELATIVE to the section start (02 §3.5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "kind", "label", "lengthTicks", "lanes", "transitionIn"],
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/SectionId" },
+    "kind": { "$ref": "common.schema.json#/$defs/SectionKind" },
+    "label": {
+      "description": "E.g. \"Chorus 2\" (auto-numbered unless user-renamed).",
+      "type": "string"
+    },
+    "lengthTicks": {
+      "description": "Must be > 0, normally a whole number of bars.",
+      "type": "integer",
+      "exclusiveMinimum": 0
+    },
+    "lanes": { "$ref": "#/$defs/LaneMap" },
+    "transitionIn": { "$ref": "#/$defs/Transition" },
+    "derivedFrom": {
+      "description": "Set on duplicate, so the UI can show \"copy of Chorus 1\".",
+      "$ref": "common.schema.json#/$defs/SectionId"
+    },
+    "energyTarget": { "$ref": "#/$defs/EnergyTarget" },
+    "locked": {
+      "description": "AI-authored batches may not modify locked sections.",
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "LaneMap": {
+      "description": "Content per track, keyed by TrackId.",
+      "type": "object",
+      "propertyNames": { "$ref": "common.schema.json#/$defs/TrackId" },
+      "additionalProperties": { "$ref": "#/$defs/Lane" }
+    },
+    "Lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clips", "automation"],
+      "properties": {
+        "clips": {
+          "type": "array",
+          "items": { "$ref": "clip.schema.json" }
+        },
+        "automation": {
+          "description": "Lane automation is relative to the section start.",
+          "$ref": "automation.schema.json#/$defs/AutomationList"
+        }
+      }
+    },
+    "Transition": {
+      "description": "How playback enters this section from the previous one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "lengthTicks"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/TransitionKind" },
+        "lengthTicks": { "description": "0 for cut.", "type": "integer", "minimum": 0 },
+        "asset": {
+          "description": "For \"generated\": the bridging audio piece.",
+          "$ref": "common.schema.json#/$defs/AssetHash"
+        }
+      }
+    },
+    "TransitionKind": {
+      "type": "string",
+      "enum": ["cut", "crossfade", "generated"]
+    },
+    "EnergyTarget": {
+      "description": "Optional user-drawn energy target from skyline editing.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/CurvePoint" }
+    },
+    "CurvePoint": {
+      "description": "A point on a section-relative curve: tick relative to the section start, value 0..1.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tick", "value"],
+      "properties": {
+        "tick": { "type": "integer", "minimum": 0 },
+        "value": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

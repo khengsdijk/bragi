@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClipReplaceOp",
+  "description": "`clip.replace` (02 §4.2). Replace one clip with N clips (AI results).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "clipId",
+    "clips"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "clip.replace"
+      ]
+    },
+    "clipId": {
+      "$ref": "../common.schema.json#/$defs/ClipId"
+    },
+    "clips": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "../clip.schema.json"
+      }
+    }
+  }
+}

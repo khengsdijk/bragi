@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TrackRemoveOp",
+  "description": "`track.remove` (02 §4.2). Remove a track and its lanes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "trackId"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "track.remove"
+      ]
+    },
+    "trackId": {
+      "$ref": "../common.schema.json#/$defs/TrackId"
+    }
+  }
+}

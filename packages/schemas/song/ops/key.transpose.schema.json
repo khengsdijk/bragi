@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KeyTransposeOp",
+  "description": "`key.transpose` (02 §4.2). Set clip pitchSemitones in scope.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "semitones",
+    "scope"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "key.transpose"
+      ]
+    },
+    "semitones": {
+      "type": "number"
+    },
+    "scope": {
+      "$ref": "#/$defs/TransposeScope"
+    }
+  },
+  "$defs": {
+    "TransposeScope": {
+      "oneOf": [
+        {
+          "$ref": "../common.schema.json#/$defs/All"
+        },
+        {
+          "$ref": "../region.schema.json"
+        }
+      ]
+    }
+  }
+}

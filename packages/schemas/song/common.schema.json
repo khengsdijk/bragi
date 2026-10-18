@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SongCommon",
+  "description": "Shared primitives of the song model (specs/02-song-model.md §2, §3). This file's root is not a type; only its $defs are.",
+  "$defs": {
+    "ProjectId": {
+      "description": "Project ID: `prj_` + ULID (02 §2.1). The schema checks prefix and charset; ULID is the generation rule.",
+      "type": "string",
+      "pattern": "^prj_[0-9A-Za-z]{1,64}$"
+    },
+    "SourceId": {
+      "description": "Source ID: `src_` + ULID (02 §2.1).",
+      "type": "string",
+      "pattern": "^src_[0-9A-Za-z]{1,64}$"
+    },
+    "TrackId": {
+      "description": "Track ID: `trk_` + ULID (02 §2.1).",
+      "type": "string",
+      "pattern": "^trk_[0-9A-Za-z]{1,64}$"
+    },
+    "SectionId": {
+      "description": "Section ID: `sec_` + ULID (02 §2.1).",
+      "type": "string",
+      "pattern": "^sec_[0-9A-Za-z]{1,64}$"
+    },
+    "ClipId": {
+      "description": "Clip ID: `clp_` + ULID (02 §2.1).",
+      "type": "string",
+      "pattern": "^clp_[0-9A-Za-z]{1,64}$"
+    },
+    "FxId": {
+      "description": "FX instance ID: `fx_` + ULID (02 §2.1).",
+      "type": "string",
+      "pattern": "^fx_[0-9A-Za-z]{1,64}$"
+    },
+    "BatchId": {
+      "description": "Op batch ID: `bat_` + ULID (02 §2.1).",
+      "type": "string",
+      "pattern": "^bat_[0-9A-Za-z]{1,64}$"
+    },
+    "CommitId": {
+      "description": "Commit ID: `cmt_` + the first 26 chars of the base32 SHA-256 of the commit's canonical JSON (02 §2.1).",
+      "type": "string",
+      "pattern": "^cmt_[0-9A-Za-z]{1,64}$"
+    },
+    "JobId": {
+      "description": "Job ID: `job_` + ULID (02 §2.1, 05 §3).",
+      "type": "string",
+      "pattern": "^job_[0-9A-Za-z]{1,64}$"
+    },
+    "PlanId": {
+      "description": "AI edit plan ID: `pln_` + ULID (02 §2.1, 06).",
+      "type": "string",
+      "pattern": "^pln_[0-9A-Za-z]{1,64}$"
+    },
+    "MacroId": {
+      "description": "Macro ID: `mac_` + ULID (02 §2.1).",
+      "type": "string",
+      "pattern": "^mac_[0-9A-Za-z]{1,64}$"
+    },
+    "UserId": {
+      "description": "User ID. Opaque: the auth library (Better Auth, 05 §8) owns its format.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "AssetHash": {
+      "description": "Content address of an asset or blob: `sha256:` + lowercase hex of the file bytes (02 §2.1).",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "IsoDate": {
+      "description": "A timestamp: RFC 3339 in UTC with a `Z` suffix and optional fractional seconds (02 §2.2). Kept as a string so it round-trips byte for byte.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$"
+    },
+    "HexColor": {
+      "description": "An sRGB colour as `#RRGGBB`.",
+      "type": "string",
+      "pattern": "^#[0-9A-Fa-f]{6}$"
+    },
+    "StemRole": {
+      "description": "What a track (or stem) carries (02 §3.4).",
+      "type": "string",
+      "enum": [
+        "vocals",
+        "drums",
+        "bass",
+        "guitar",
+        "piano",
+        "synth",
+        "strings",
+        "other",
+        "residual",
+        "full_mix",
+        "generated",
+        "fx",
+        "recorded"
+      ]
+    },
+    "SectionKind": {
+      "description": "The musical function of a section (02 §3.5).",
+      "type": "string",
+      "enum": [
+        "intro",
+        "verse",
+        "pre_chorus",
+        "chorus",
+        "post_chorus",
+        "bridge",
+        "breakdown",
+        "build",
+        "drop",
+        "solo",
+        "interlude",
+        "outro",
+        "custom"
+      ]
+    },
+    "AnalysisStage": {
+      "description": "An analysis pipeline stage (04 §2, §3, §7; the `analysis.*` capabilities in 05 §4.1).",
+      "type": "string",
+      "enum": [
+        "ingest",
+        "rhythm",
+        "structure",
+        "separation",
+        "harmony",
+        "stem_activity",
+        "loudness_energy",
+        "energy_stems",
+        "preview",
+        "embed_full",
+        "section_embed",
+        "stem_embed",
+        "tag",
+        "describe",
+        "drum_split",
+        "transcribe",
+        "lyrics"
+      ]
+    },
+    "AnalysisProfile": {
+      "description": "How much analysis to run (04 §3).",
+      "type": "string",
+      "enum": ["quick", "standard", "deep"]
+    },
+    "Provenance": {
+      "description": "Where a source or clip came from (02 §3.2).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "createdAt"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/ProvenanceKind" },
+        "jobId": { "$ref": "#/$defs/JobId" },
+        "model": { "type": "string" },
+        "modelVersion": { "type": "string" },
+        "prompt": { "type": "string" },
+        "createdAt": { "$ref": "#/$defs/IsoDate" }
+      }
+    },
+    "ProvenanceKind": {
+      "type": "string",
+      "enum": ["user", "separation", "generation", "transform", "render"]
+    },
+    "TickRange": {
+      "description": "A half-open tick range [startTick, endTick).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startTick", "endTick"],
+      "properties": {
+        "startTick": { "type": "integer" },
+        "endTick": { "type": "integer" }
+      }
+    },
+    "All": {
+      "description": "The literal `\"all\"`, used where a scope may be everything (e.g. Region.tracks, key.transpose).",
+      "type": "string",
+      "enum": ["all"]
+    },
+    "TrackIdList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/TrackId" }
+    },
+    "TagList": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

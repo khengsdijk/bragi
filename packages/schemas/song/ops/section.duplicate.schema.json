@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SectionDuplicateOp",
+  "description": "`section.duplicate` (02 §4.2). Deep-copy a section with new IDs and set derivedFrom (02 §5.1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "sectionId",
+    "toIndex",
+    "newId"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "section.duplicate"
+      ]
+    },
+    "sectionId": {
+      "$ref": "../common.schema.json#/$defs/SectionId"
+    },
+    "toIndex": {
+      "description": "Position of the copy.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "newId": {
+      "$ref": "../common.schema.json#/$defs/SectionId"
+    }
+  }
+}

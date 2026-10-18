@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AutomationSetOp",
+  "description": "`automation.set` (02 §4.2). Replace the points of a target within the tick range the given points span.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "scope",
+    "target",
+    "points"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "automation.set"
+      ]
+    },
+    "scope": {
+      "$ref": "#/$defs/AutomationScope"
+    },
+    "target": {
+      "type": "string",
+      "minLength": 1
+    },
+    "points": {
+      "$ref": "../automation.schema.json#/$defs/AutomationPoints"
+    }
+  },
+  "$defs": {
+    "AutomationScope": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/LaneAutomationScope"
+        },
+        {
+          "$ref": "#/$defs/MasterAutomationScope"
+        }
+      ]
+    },
+    "LaneAutomationScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "sectionId",
+        "trackId"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "lane"
+          ]
+        },
+        "sectionId": {
+          "$ref": "../common.schema.json#/$defs/SectionId"
+        },
+        "trackId": {
+          "$ref": "../common.schema.json#/$defs/TrackId"
+        }
+      }
+    },
+    "MasterAutomationScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "master"
+          ]
+        }
+      }
+    }
+  }
+}

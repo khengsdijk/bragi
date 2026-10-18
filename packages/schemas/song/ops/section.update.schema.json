@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SectionUpdateOp",
+  "description": "`section.update` (02 §4.2). Patch a section's kind, label, energy target or lock.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "sectionId",
+    "patch"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "section.update"
+      ]
+    },
+    "sectionId": {
+      "$ref": "../common.schema.json#/$defs/SectionId"
+    },
+    "patch": {
+      "$ref": "#/$defs/SectionPatch"
+    }
+  },
+  "$defs": {
+    "SectionPatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "kind": {
+          "$ref": "../common.schema.json#/$defs/SectionKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "energyTarget": {
+          "$ref": "../section.schema.json#/$defs/EnergyTarget"
+        },
+        "locked": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

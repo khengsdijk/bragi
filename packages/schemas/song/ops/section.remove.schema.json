@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SectionRemoveOp",
+  "description": "`section.remove` (02 §4.2). Remove a section; the gap closes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "sectionId",
+    "closeGap"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "section.remove"
+      ]
+    },
+    "sectionId": {
+      "$ref": "../common.schema.json#/$defs/SectionId"
+    },
+    "closeGap": {
+      "description": "Always true in v1.",
+      "type": "boolean",
+      "enum": [
+        true
+      ]
+    }
+  }
+}

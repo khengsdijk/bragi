@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Clip",
+  "description": "A window onto an asset, placed in a lane (02 §3.6). The clip's end tick is derived from its warp.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "asset",
+    "srcStart",
+    "srcEnd",
+    "start",
+    "warp",
+    "gainDb",
+    "pitchSemitones",
+    "fadeInTicks",
+    "fadeOutTicks",
+    "fadeCurve",
+    "provenance"
+  ],
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/ClipId" },
+    "asset": {
+      "description": "Working asset (stem, generated audio, …).",
+      "$ref": "common.schema.json#/$defs/AssetHash"
+    },
+    "srcStart": { "description": "Samples into the asset.", "type": "integer", "minimum": 0 },
+    "srcEnd": {
+      "description": "Samples into the asset; srcStart < srcEnd (invariant 4.3.2).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "start": { "description": "Ticks, relative to the section start.", "type": "integer" },
+    "warp": { "$ref": "#/$defs/Warp" },
+    "gainDb": { "type": "number" },
+    "pitchSemitones": {
+      "description": "Pitch shift without tempo change.",
+      "type": "number"
+    },
+    "fadeInTicks": { "type": "integer", "minimum": 0 },
+    "fadeOutTicks": { "type": "integer", "minimum": 0 },
+    "fadeCurve": { "$ref": "#/$defs/FadeCurve" },
+    "reverse": { "type": "boolean" },
+    "fx": {
+      "description": "Clip-level fx (rare, mostly paint-mode results).",
+      "$ref": "fx.schema.json#/$defs/FxChain"
+    },
+    "provenance": { "$ref": "common.schema.json#/$defs/Provenance" }
+  },
+  "$defs": {
+    "FadeCurve": {
+      "type": "string",
+      "enum": ["linear", "equal_power", "s_curve"]
+    },
+    "Warp": {
+      "description": "Maps source samples to ticks.",
+      "oneOf": [
+        { "$ref": "#/$defs/WarpNone" },
+        { "$ref": "#/$defs/WarpBeatgrid" },
+        { "$ref": "#/$defs/WarpStretch" }
+      ]
+    },
+    "WarpNone": {
+      "description": "Play at source speed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["none"] }
+      }
+    },
+    "WarpBeatgrid": {
+      "description": "Follow the tempo map through anchors.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "anchors"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["beatgrid"] },
+        "anchors": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/WarpAnchor" }
+        }
+      }
+    },
+    "WarpAnchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["srcSample", "tick"],
+      "properties": {
+        "srcSample": { "type": "integer", "minimum": 0 },
+        "tick": { "type": "integer" }
+      }
+    },
+    "WarpStretch": {
+      "description": "A fixed time-stretch ratio.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "ratio"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["stretch"] },
+        "ratio": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    }
+  }
+}

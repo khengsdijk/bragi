@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RegionAdoptOp",
+  "description": "`region.adopt` (02 §4.2). Copy a region's content from another commit (02 §5.4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "fromCommit",
+    "region"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "region.adopt"
+      ]
+    },
+    "fromCommit": {
+      "$ref": "../common.schema.json#/$defs/CommitId"
+    },
+    "region": {
+      "$ref": "../region.schema.json"
+    }
+  }
+}

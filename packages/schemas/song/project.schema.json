@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Project",
+  "description": "A song document: the single source of truth for a project (specs/02-song-model.md §2, §3.1). Changed only through bragi-model ops.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "meta", "sources", "analyses", "tracks", "arrangement"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Document schema version. Additive changes bump the minor version of the schema, removals and renames need `migrate` (02 §9).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "id": { "$ref": "common.schema.json#/$defs/ProjectId" },
+    "meta": { "$ref": "#/$defs/ProjectMeta" },
+    "sources": {
+      "type": "array",
+      "items": { "$ref": "source.schema.json" }
+    },
+    "analyses": { "$ref": "#/$defs/AnalysisRefMap" },
+    "tracks": {
+      "type": "array",
+      "items": { "$ref": "track.schema.json" }
+    },
+    "arrangement": { "$ref": "arrangement.schema.json" }
+  },
+  "$defs": {
+    "ProjectMeta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "createdAt", "tags"],
+      "properties": {
+        "title": { "type": "string" },
+        "createdAt": { "$ref": "common.schema.json#/$defs/IsoDate" },
+        "tags": { "$ref": "common.schema.json#/$defs/TagList" },
+        "description": { "type": "string" },
+        "color": { "$ref": "common.schema.json#/$defs/HexColor" }
+      }
+    },
+    "AnalysisRefMap": {
+      "description": "Per-source analysis results, keyed by SourceId (02 §3.1).",
+      "type": "object",
+      "propertyNames": { "$ref": "common.schema.json#/$defs/SourceId" },
+      "additionalProperties": { "$ref": "analysis-ref.schema.json" }
+    }
+  }
+}

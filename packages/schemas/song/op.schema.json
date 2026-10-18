@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Op",
+  "description": "One concrete edit operation (02 §4). Every op is an object whose `op` field names it; the rest is its payload (02 §4.2).",
+  "oneOf": [
+    {
+      "$ref": "ops/project.set_meta.schema.json"
+    },
+    {
+      "$ref": "ops/analysis.apply.schema.json"
+    },
+    {
+      "$ref": "ops/track.add.schema.json"
+    },
+    {
+      "$ref": "ops/track.remove.schema.json"
+    },
+    {
+      "$ref": "ops/track.update.schema.json"
+    },
+    {
+      "$ref": "ops/fx.add.schema.json"
+    },
+    {
+      "$ref": "ops/fx.remove.schema.json"
+    },
+    {
+      "$ref": "ops/fx.reorder.schema.json"
+    },
+    {
+      "$ref": "ops/fx.update.schema.json"
+    },
+    {
+      "$ref": "ops/section.duplicate.schema.json"
+    },
+    {
+      "$ref": "ops/section.insert.schema.json"
+    },
+    {
+      "$ref": "ops/section.merge.schema.json"
+    },
+    {
+      "$ref": "ops/section.move.schema.json"
+    },
+    {
+      "$ref": "ops/section.remove.schema.json"
+    },
+    {
+      "$ref": "ops/section.resize.schema.json"
+    },
+    {
+      "$ref": "ops/section.set_transition.schema.json"
+    },
+    {
+      "$ref": "ops/section.split.schema.json"
+    },
+    {
+      "$ref": "ops/section.update.schema.json"
+    },
+    {
+      "$ref": "ops/clip.add.schema.json"
+    },
+    {
+      "$ref": "ops/clip.remove.schema.json"
+    },
+    {
+      "$ref": "ops/clip.replace.schema.json"
+    },
+    {
+      "$ref": "ops/clip.split.schema.json"
+    },
+    {
+      "$ref": "ops/clip.update.schema.json"
+    },
+    {
+      "$ref": "ops/automation.clear.schema.json"
+    },
+    {
+      "$ref": "ops/automation.set.schema.json"
+    },
+    {
+      "$ref": "ops/tempo.set.schema.json"
+    },
+    {
+      "$ref": "ops/key.transpose.schema.json"
+    },
+    {
+      "$ref": "ops/region.adopt.schema.json"
+    },
+    {
+      "$ref": "ops/region.clear.schema.json"
+    }
+  ]
+}

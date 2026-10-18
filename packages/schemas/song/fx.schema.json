@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FxInstance",
+  "description": "One effect in a chain (02 §3.7). Parameter ranges and defaults per type are in crates/bragi-dsp/fx_catalog.json (03 §6).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "type", "params", "bypass"],
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/FxId" },
+    "type": { "$ref": "#/$defs/FxType" },
+    "params": { "$ref": "#/$defs/FxParams" },
+    "bypass": { "type": "boolean" },
+    "macroOwned": { "$ref": "common.schema.json#/$defs/MacroId" }
+  },
+  "$defs": {
+    "FxType": {
+      "description": "match_eq is system-generated; limiter is master-only.",
+      "type": "string",
+      "enum": [
+        "eq3",
+        "filter",
+        "compressor",
+        "saturation",
+        "reverb",
+        "delay",
+        "width",
+        "gain",
+        "transient",
+        "lofi",
+        "chorus",
+        "sidechain_duck",
+        "match_eq",
+        "limiter"
+      ]
+    },
+    "FxParams": {
+      "description": "Parameter values by name, e.g. { \"cutoffHz\": 800 }.",
+      "type": "object",
+      "additionalProperties": { "type": "number" }
+    },
+    "FxChain": {
+      "description": "An ordered effect chain.",
+      "type": "array",
+      "items": { "$ref": "#" }
+    }
+  }
+}

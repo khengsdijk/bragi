@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Automation",
+  "description": "A parameter curve (02 §3.7). Lane automation is section-relative, master automation uses absolute arrangement ticks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["target", "points"],
+  "properties": {
+    "target": {
+      "description": "Parameter path, e.g. \"track:trk_…/gainDb\", \"fx:fx_…/cutoffHz\".",
+      "type": "string",
+      "minLength": 1
+    },
+    "points": { "$ref": "#/$defs/AutomationPoints" }
+  },
+  "$defs": {
+    "AutomationList": {
+      "type": "array",
+      "items": { "$ref": "#" }
+    },
+    "AutomationPoints": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/AutomationPoint" }
+    },
+    "AutomationPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tick", "value", "curve"],
+      "properties": {
+        "tick": { "type": "integer" },
+        "value": { "type": "number" },
+        "curve": { "$ref": "#/$defs/AutomationCurve" }
+      }
+    },
+    "AutomationCurve": {
+      "type": "string",
+      "enum": ["step", "linear", "exp"]
+    }
+  }
+}

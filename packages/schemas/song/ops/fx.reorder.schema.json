@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FxReorderOp",
+  "description": "`fx.reorder` (02 §4.2). Move an effect within its chain.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "fxId",
+    "newIndex"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "fx.reorder"
+      ]
+    },
+    "fxId": {
+      "$ref": "../common.schema.json#/$defs/FxId"
+    },
+    "newIndex": {
+      "description": "New position in the chain.",
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

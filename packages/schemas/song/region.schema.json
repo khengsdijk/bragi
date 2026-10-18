@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Region",
+  "description": "The universal selection: what the lasso, paint brush and AI prompt target (02 §3.8).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["startTick", "endTick", "tracks"],
+  "properties": {
+    "startTick": { "description": "ABSOLUTE arrangement ticks.", "type": "integer" },
+    "endTick": { "description": "ABSOLUTE arrangement ticks.", "type": "integer" },
+    "tracks": { "$ref": "#/$defs/RegionTracks" },
+    "freqRange": { "$ref": "#/$defs/FreqRange" }
+  },
+  "$defs": {
+    "RegionTracks": {
+      "oneOf": [
+        { "$ref": "common.schema.json#/$defs/TrackIdList" },
+        { "$ref": "common.schema.json#/$defs/All" }
+      ]
+    },
+    "FreqRange": {
+      "description": "[lowHz, highHz], for paint and spectral edits.",
+      "type": "array",
+      "items": { "type": "number", "minimum": 0 },
+      "minItems": 2,
+      "maxItems": 2
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClipUpdateOp",
+  "description": "`clip.update` (02 §4.2). Patch a clip: move, trim, gain, fades, pitch, warp.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "clipId",
+    "patch"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "clip.update"
+      ]
+    },
+    "clipId": {
+      "$ref": "../common.schema.json#/$defs/ClipId"
+    },
+    "patch": {
+      "$ref": "#/$defs/ClipPatch"
+    }
+  },
+  "$defs": {
+    "ClipPatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "srcStart": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "srcEnd": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start": {
+          "type": "integer"
+        },
+        "warp": {
+          "$ref": "../clip.schema.json#/$defs/Warp"
+        },
+        "gainDb": {
+          "type": "number"
+        },
+        "pitchSemitones": {
+          "type": "number"
+        },
+        "fadeInTicks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fadeOutTicks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fadeCurve": {
+          "$ref": "../clip.schema.json#/$defs/FadeCurve"
+        },
+        "reverse": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

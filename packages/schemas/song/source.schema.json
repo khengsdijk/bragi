@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Source",
+  "description": "An original input: an upload, a generation, a recording or an imported stem (02 §3.2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "kind",
+    "originalAsset",
+    "workingAsset",
+    "durationSamples",
+    "channels",
+    "label"
+  ],
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/SourceId" },
+    "kind": { "$ref": "#/$defs/SourceKind" },
+    "originalAsset": {
+      "description": "The exact bytes the user provided (or that were generated).",
+      "$ref": "common.schema.json#/$defs/AssetHash"
+    },
+    "workingAsset": {
+      "description": "The 48 kHz 24-bit FLAC produced by ingest.",
+      "$ref": "common.schema.json#/$defs/AssetHash"
+    },
+    "durationSamples": {
+      "description": "Length of the working asset in samples at 48 kHz.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "channels": { "type": "integer", "enum": [1, 2] },
+    "label": {
+      "description": "E.g. the original filename, or \"Generated: dreamy outro\".",
+      "type": "string"
+    },
+    "provenance": { "$ref": "common.schema.json#/$defs/Provenance" }
+  },
+  "$defs": {
+    "SourceKind": {
+      "type": "string",
+      "enum": ["upload", "generated", "recorded", "imported_stem"]
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClipRemoveOp",
+  "description": "`clip.remove` (02 §4.2). Remove a clip.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "clipId"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "clip.remove"
+      ]
+    },
+    "clipId": {
+      "$ref": "../common.schema.json#/$defs/ClipId"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnalysisApplyOp",
+  "description": "`analysis.apply` (02 §4.2). System op: expand an analysis stage result into the document (02 §6).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "sourceId",
+    "stage",
+    "blob",
+    "effects"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "analysis.apply"
+      ]
+    },
+    "sourceId": {
+      "$ref": "../common.schema.json#/$defs/SourceId"
+    },
+    "stage": {
+      "$ref": "../common.schema.json#/$defs/AnalysisStage"
+    },
+    "blob": {
+      "description": "The stage's result blob.",
+      "$ref": "../common.schema.json#/$defs/AssetHash"
+    },
+    "effects": {
+      "$ref": "#/$defs/AnalysisEffects"
+    }
+  },
+  "$defs": {
+    "AnalysisEffects": {
+      "description": "Stage effects to apply. Shape not yet specified (open question for WP-1.8); each entry is an object.",
+      "type": "array",
+      "items": {
+        "$ref": "../asset-meta.schema.json#/$defs/FreeformParams"
+      }
+    }
+  }
+}

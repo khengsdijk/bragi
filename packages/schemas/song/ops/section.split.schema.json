@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SectionSplitOp",
+  "description": "`section.split` (02 §4.2). Split a section in two at a section-relative tick.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "op",
+    "sectionId",
+    "atTick",
+    "newId"
+  ],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": [
+        "section.split"
+      ]
+    },
+    "sectionId": {
+      "$ref": "../common.schema.json#/$defs/SectionId"
+    },
+    "atTick": {
+      "description": "Ticks relative to the section start; 0 < atTick < lengthTicks.",
+      "type": "integer",
+      "exclusiveMinimum": 0
+    },
+    "newId": {
+      "description": "ID of the second half.",
+      "$ref": "../common.schema.json#/$defs/SectionId"
+    }
+  }
+}
