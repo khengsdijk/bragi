@@ -25,6 +25,13 @@ export const configSchema = z.object({
   natsUrl: z.string().min(1).default("nats://127.0.0.1:4222"),
 
   s3Endpoint: z.string().url().default("http://127.0.0.1:9000"),
+  /**
+   * Endpoint clients reach MinIO on, used only to *sign* presigned URLs. When the
+   * API runs in Docker, `S3_ENDPOINT` is the internal network name (`minio:9000`)
+   * which an out-of-network client cannot resolve, so presigned URLs must use a
+   * public address. Defaults to `s3Endpoint`.
+   */
+  s3PublicEndpoint: z.string().url().optional(),
   s3Region: z.string().min(1).default("us-east-1"),
   s3Bucket: z.string().min(1).default("bragi-blobs"),
   s3AccessKeyId: z.string().min(1).default("bragi"),
@@ -72,6 +79,7 @@ const ENV_KEYS: Record<keyof ConfigInput, string> = {
   databaseUrl: "DATABASE_URL",
   natsUrl: "NATS_URL",
   s3Endpoint: "S3_ENDPOINT",
+  s3PublicEndpoint: "S3_PUBLIC_ENDPOINT",
   s3Region: "S3_REGION",
   s3Bucket: "S3_BUCKET",
   s3AccessKeyId: "S3_ACCESS_KEY_ID",

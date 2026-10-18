@@ -36,15 +36,29 @@ export function objectKey(hash: string): string {
 
 /** Creates the S3 client and the helpers that use it. */
 export function createObjectStore(config: Config): ObjectStore {
+  const credentials = {
+    accessKeyId: config.s3AccessKeyId,
+    secretAccessKey: config.s3SecretAccessKey,
+  };
   const client = new S3Client({
     endpoint: config.s3Endpoint,
     region: config.s3Region,
     forcePathStyle: config.s3ForcePathStyle,
-    credentials: {
-      accessKeyId: config.s3AccessKeyId,
-      secretAccessKey: config.s3SecretAccessKey,
-    },
+    credentials,
   });
+  // Presigned URLs are signed against the *public* endpoint, so the returned URL
+  // is reachable by the client (a browser, or a host-side test) rather than the
+  // API's internal network name (`minio:9000` inside Docker). 05 §6.
+  const publicEndpoint = config.s3PublicEndpoint ?? config.s3Endpoint;
+  const presignClient =
+    publicEndpoint === config.s3Endpoint
+      ? client
+      : new S3Client({
+          endpoint: publicEndpoint,
+          region: config.s3Region,
+          forcePathStyle: config.s3ForcePathStyle,
+          credentials,
+        });
   const bucket = config.s3Bucket;
 
   return {
@@ -52,7 +66,7 @@ export function createObjectStore(config: Config): ObjectStore {
     bucket,
     async presignPut(hash, mime, ttlSec) {
       return getSignedUrl(
-        client,
+        presignClient,
         new PutObjectCommand({
           Bucket: bucket,
           Key: objectKey(hash),
@@ -62,9 +76,11 @@ export function createObjectStore(config: Config): ObjectStore {
       );
     },
     async presignGet(hash, ttlSec) {
-      return getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: objectKey(hash) }), {
-        expiresIn: ttlSec,
-      });
+      return getSignedUrl(
+        presignClient,
+        new GetObjectCommand({ Bucket: bucket, Key: objectKey(hash) }),
+        { expiresIn: ttlSec },
+      );
     },
     async head(hash) {
       try {

@@ -181,6 +181,10 @@ describe("WP-0.7 acceptance", () => {
     expect(new Set(trace.map((span) => span.service))).toEqual(
       new Set(["bragi-api", "bragi-worker"]),
     );
+    const publish = trace.find((span) => span.name === "jobs.publish");
+    const consume = trace.find((span) => span.name === "jobs.consume");
+    expect(publish).toBeDefined();
+    expect(consume?.parentSpanId).toBe(publish?.spanId);
   });
 });
 
