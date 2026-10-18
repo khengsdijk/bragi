@@ -119,11 +119,14 @@ jobs:
           # pgvector and pgcrypto, and the vector type is usable (01 §1, 05 §5).
           docker compose -f infra/docker-compose.yml exec -T postgres \
             psql -U bragi -d bragi -tAc "select '[1,2,3]'::vector <-> '[1,2,4]'::vector" | grep -q 1
-          # The blob bucket exists and is private (05 §6).
-          docker compose -f infra/docker-compose.yml exec -T minio sh -c \
+          # The blob bucket exists and is private (05 §6). The MinIO image ships
+          # no grep, so the matching happens here on the runner.
+          minio=$(docker compose -f infra/docker-compose.yml exec -T minio sh -c \
             'mc alias set ci http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null \
-             && mc ls ci | grep -q bragi-blobs \
-             && mc anonymous get ci/bragi-blobs | grep -q private'
+             && mc ls ci && mc anonymous get ci/bragi-blobs')
+          echo "$minio"
+          echo "$minio" | grep -q bragi-blobs
+          echo "$minio" | grep -q private
           # NATS JetStream is enabled (05 §4).
           curl -sf http://127.0.0.1:8222/healthz | grep -q ok
           curl -sf "http://127.0.0.1:8222/jsz?config=1" | grep -q store_dir

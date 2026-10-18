@@ -237,4 +237,7 @@ The Rust engine (0.3/0.4/1.1) and the analysis workers (0.7/1.x) are independent
 
 | WP | Status | Notes |
 |---|---|---|
-| All | Not started | Specs v0.1 written 2026-10-18 |
+| 0.1 Monorepo scaffold & CI | **Done** (2026-10-18) | Plan: [`docs/wp/0.1.md`](../docs/wp/0.1.md). `pnpm i && pnpm build && pnpm test` green; `docker compose up -d --wait` brings Postgres+pgvector, MinIO, NATS JetStream and Mailpit to healthy. CI matrix covers Ubuntu, macOS and Windows for TS and Rust. |
+| 0.2, 0.4, 0.5, 0.6 | Ready to start | Their only dependency (0.1) is Done, and they have none on each other, so they can run in parallel |
+| 0.7 | Blocked on 0.2 | |
+| All others | Not started | Specs v0.1 written 2026-10-18 |

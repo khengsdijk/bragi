@@ -6,7 +6,7 @@ Bragi is an AI-native music editor for people who have never opened a DAW. You d
 
 Bragi runs as a **desktop app (macOS, Windows, Linux)** and in the **browser**, from one codebase.
 
-This repository currently contains **specifications only**. No code has been written yet. The specs are written so that humans or coding agents can implement Bragi one work package at a time.
+The specs are the source of truth, and they are written so that humans or coding agents can implement Bragi **one work package at a time**. Implementation has started: the repository is scaffolded and Phase 0 is under way (see [Status](#status)).
 
 ## Reading order
 
@@ -36,5 +36,23 @@ Architecture decisions are recorded in [`specs/decisions/`](specs/decisions/). C
 | Area | Status |
 |---|---|
 | Specs | Draft v0.1 (2026-10-18) |
-| Code | Not started |
-| Next step | Phase 0 work packages in [12-roadmap.md](specs/12-roadmap.md) |
+| Code | Phase 0 started — [WP-0.1](specs/12-roadmap.md) (monorepo scaffold & CI) is Done |
+| Next step | WP-0.2 (schemas & codegen), 0.4 (stretch spike), 0.5 (platform shell) and 0.6 (design tokens) are unblocked and can run in parallel |
+
+## Getting started
+
+```bash
+pnpm install        # TypeScript workspace
+pnpm build          # build every package
+pnpm test           # TS unit tests
+pnpm lint           # Biome + the 01 §4 layout guard
+pnpm infra:up       # Postgres+pgvector, MinIO, NATS JetStream, Mailpit
+
+pnpm test:all       # TS + Rust + Python
+pnpm lint:all       # Biome + rustfmt/clippy + ruff/mypy
+```
+
+The Rust toolchain is pinned by `rust-toolchain.toml` and the Python one by
+`services/workers/.python-version`, so `cargo` and `uv` fetch what they need.
+Commands that belong to a work package that has not landed yet fail with a
+message naming that work package.
