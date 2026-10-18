@@ -1,0 +1,75 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  /* 24 px minimum target (11 §6.4). */
+  min-height: var(--size-hit-target);
+  max-width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+}
+
+button.chip {
+  cursor: pointer;
+}
+
+button.chip:hover {
+  background: var(--color-surface-hover);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* A section chip wears its own family colour; the label colour is checked against every fill
+   (tokens.json → contrast.pairs). */
+.chip[data-section] {
+  border-color: transparent;
+  background: var(--chip-fill);
+  color: var(--section-label);
+  font-weight: var(--weight-medium);
+}
+
+.chip[data-selected="true"] {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+.chip[data-tone="accent"] {
+  border-color: transparent;
+  background: var(--color-accent-quiet);
+  color: var(--color-text);
+}
+
+.chip[data-tone="danger"] {
+  border-color: transparent;
+  background: var(--color-danger-quiet);
+  color: var(--color-text);
+}
+
+.swatch {
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: var(--radius-full);
+  background: var(--swatch, var(--color-line-strong));
+  box-shadow: 0 0 0 1px var(--color-surface);
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

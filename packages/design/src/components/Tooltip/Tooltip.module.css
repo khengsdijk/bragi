@@ -1,0 +1,36 @@
+.content {
+  z-index: 60;
+  max-width: 22rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 35%);
+}
+
+.content[data-state="delayed-open"],
+.content[data-state="instant-open"] {
+  animation: fade-in var(--motion-fast) var(--ease-standard);
+}
+
+.arrow {
+  fill: var(--color-surface-raised);
+  stroke: var(--color-line-strong);
+  stroke-width: 1px;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content[data-state] {
+    animation: none;
+  }
+}

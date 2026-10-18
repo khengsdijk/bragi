@@ -1,0 +1,44 @@
+.content {
+  z-index: 50;
+  min-width: 12rem;
+  max-width: 30rem;
+  padding: var(--space-3);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 40%);
+}
+
+.content:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.content[data-state="open"] {
+  animation: appear var(--motion-fast) var(--ease-standard);
+}
+
+.content[data-state="closed"] {
+  animation: disappear var(--motion-fast) var(--ease-standard);
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes disappear {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content[data-state] {
+    animation: none;
+  }
+}

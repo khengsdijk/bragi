@@ -1,0 +1,88 @@
+.content {
+  z-index: 50;
+  min-width: 12rem;
+  max-width: 24rem;
+  padding: var(--space-1);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 40%);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* 24 px minimum target (11 §6.4). */
+  min-height: var(--size-hit-target);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  cursor: pointer;
+  outline-offset: -2px;
+  user-select: none;
+}
+
+.item[data-highlighted] {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.item[data-disabled] {
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+/* A menu in a song editor can delete work; that item reads as dangerous before it is hovered. */
+.item[data-tone="danger"] {
+  color: var(--color-danger);
+}
+
+.item[data-tone="danger"][data-highlighted] {
+  background: var(--color-danger);
+  color: var(--color-text-on-accent);
+}
+
+.itemIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+}
+
+.itemLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcut {
+  flex: none;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.item[data-highlighted] .shortcut {
+  color: inherit;
+}
+
+.separator {
+  height: 1px;
+  margin: var(--space-1) 0;
+  background: var(--color-line);
+}
+
+.groupLabel {
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}

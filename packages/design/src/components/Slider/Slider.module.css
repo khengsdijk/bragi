@@ -1,0 +1,116 @@
+.field {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.label {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+  font-size: var(--text-xs);
+}
+
+/* The root is the pointer target for the whole track (>= 24 px tall, 11 §6.4). */
+.root {
+  --thumb-size: 1.5rem;
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: var(--size-control-md);
+  touch-action: none;
+  user-select: none;
+}
+
+.root[data-disabled] {
+  opacity: 0.55;
+}
+
+/* `display: flex` + `align-items: center` also centres Radix's absolutely positioned thumb
+   wrapper, whose own `top` is `auto` (CSS resolves its static position with the flex
+   properties of the container). */
+.track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  height: 0.25rem;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-active);
+}
+
+.track > span:not([class]) {
+  top: 50%;
+  margin-top: calc(var(--thumb-size) / -2);
+}
+
+.fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: var(--fill-start, 0%);
+  inset-inline-end: var(--fill-end, 100%);
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+}
+
+/* The centre line of a bipolar slider: the zero point is visible, not implied. */
+.centre {
+  position: absolute;
+  inset-block: -0.1875rem;
+  inset-inline-start: 50%;
+  width: 1px;
+  background: var(--color-line-strong);
+}
+
+.thumb {
+  display: block;
+  width: var(--thumb-size);
+  height: var(--thumb-size);
+  padding: 0.375rem;
+  border: none;
+  border-radius: var(--radius-full);
+  background-color: var(--color-text);
+  background-clip: content-box;
+  box-shadow: 0 0 0 1px var(--color-surface);
+  cursor: grab;
+}
+
+.thumb:active {
+  cursor: grabbing;
+}
+
+.thumb:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.root[data-disabled] .thumb {
+  background-color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+
+/* The two ends of a bipolar slider. Words, never numbers (11 §5, Simple mode). */
+.ends {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.endActive {
+  color: var(--color-text);
+}
