@@ -1,6 +1,6 @@
 # 01 — System Architecture
 
-Status: Draft v0.1 · Decision record: [ADR-0001](decisions/ADR-0001-tech-stack.md)
+Status: Draft v0.2 · Decision record: [ADR-0001](decisions/ADR-0001-tech-stack.md)
 
 ## 1. Stack at a glance
 
@@ -175,10 +175,11 @@ Rules:
 | Song document + ops | `packages/schemas/song/*.schema.json` | TS (UI), Rust (`bragi-model`, `bragi-engine`), Python (workers read context) |
 | Analysis results | `packages/schemas/analysis/*.schema.json` | Python (producer), TS/Rust (consumer) |
 | Job & event envelopes | `packages/schemas/jobs/*.schema.json` | API, workers |
+| API error code registry | `packages/schemas/api/errors.json` + `error.schema.json` | API (`services/api`), `packages/api-client`, TS/Python/Pydantic clients |
 | REST API | OpenAPI 3.1 generated from Fastify route schemas | `packages/api-client` |
 | Engine commands | Rust enum in `bragi-engine`, exported via `ts-rs` | `packages/platform` |
 
-Every schema carries a `schemaVersion`. Breaking changes require a migration in `bragi-model` (`migrate(doc) -> doc`) and an ADR.
+**Versioning rule.** A **document or envelope that travels on its own** carries `schemaVersion` (currently `1`): the project document, every analysis result blob, and the job request and event envelopes. **Ops, op batches and commits do not**: they only ever exist as part of a document's history, so they inherit the project's version, and a new op is an additive change to the op catalogue ([02 §4.2](02-song-model.md)) rather than a new version number. Breaking changes require a migration in `bragi-model` (`migrate(doc) -> doc`) and an ADR.
 
 ## 8. Environments
 

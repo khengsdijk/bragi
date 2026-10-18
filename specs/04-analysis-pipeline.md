@@ -1,6 +1,6 @@
 # 04 — Analysis Pipeline
 
-Status: Draft v0.1 · Code: `services/workers/analysis`, `services/workers/embed` · Schemas: `packages/schemas/analysis/`
+Status: Draft v0.2 · Code: `services/workers/analysis`, `services/workers/embed` · Schemas: `packages/schemas/analysis/`
 
 The analysis pipeline turns one stereo file into everything Bragi shows: stems, beat grid, sections, chords, key, energy, tags, embeddings and a plain-language description.
 
@@ -11,6 +11,7 @@ The analysis pipeline turns one stereo file into everything Bragi shows: stems, 
 3. **Every stage degrades gracefully.** A failed chord stage results in a canvas without a harmony strip and a quiet "couldn't detect chords" note. It never blocks the rest.
 4. **All times in analysis blobs are in seconds of the working asset.** Conversion to ticks happens in `analysis.apply` ([02-song-model.md §6](02-song-model.md)).
 5. **Models are swappable.** Each stage declares a `stageVersion` (e.g. `separation@htdemucs_6s-1`). Changing the model bumps the version, and old results remain valid for old projects.
+6. **Every stage result has a JSON Schema** in `packages/schemas/analysis/` (WP-0.2), so the worker that produces a blob and the TS/Rust code that consumes it share one contract. Where this document leaves a shape open (the loudness series' hop, the embedding windowing and vector layout), the schema records the current best guess and [15-open-questions.md](15-open-questions.md) names the work package that will settle it.
 
 ## 2. Stage DAG
 

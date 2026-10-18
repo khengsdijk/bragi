@@ -1,6 +1,6 @@
 # 05 — Backend, Jobs & Sync
 
-Status: Draft v0.1 · Code: `services/api`, `services/workers` · Infra: `infra/`
+Status: Draft v0.2 · Code: `services/api`, `services/workers` · Infra: `infra/`
 
 ## 1. Services
 
@@ -82,13 +82,14 @@ Capabilities (v1): `analysis.{ingest,rhythm,structure,separation,harmony,stem_ac
 ### 4.2 Envelopes (`packages/schemas/jobs/`)
 ```ts
 interface JobRequest {
-  jobId: JobId; capability: string; priority: "interactive" | "background";
-  userId: UserId; projectId?: ProjectId;
+  schemaVersion: 1; capability: string; priority: "interactive" | "background";
+  jobId: JobId; userId: UserId; projectId?: ProjectId;
   inputs: { assets: Record<string, AssetHash>; blobs?: Record<string, AssetHash>; params: object };  // params schema per capability
   idempotencyKey: string;        // hash(capability, inputs, stageVersion), used for result caching
   attempt: number; deadline: ISODate; traceparent: string; createdAt: ISODate;
 }
 interface JobEvent {
+  schemaVersion: 1;
   jobId: JobId; type: "started" | "progress" | "partial" | "completed" | "failed";
   pct?: number; etaSec?: number;
   outputs?: { assets?: Record<string, AssetHash>; blobs?: Record<string, AssetHash> };
@@ -96,6 +97,7 @@ interface JobEvent {
   metrics?: { gpuSeconds: number; model: string; modelVersion: string; worker: string };
 }
 ```
+Both carry `schemaVersion: 1` because they travel on their own ([01 §7](01-architecture.md)) — a request sits in NATS and an event goes over the WebSocket, with no project document to version them. `traceparent` is the W3C Trace Context header, propagated HTTP → NATS → worker spans (§11). `capability` is one of §4.1's, and `params` is the capability's own schema.
 
 ### 4.3 Worker contract (`bragi_common`)
 1. Pull a message from its capability subject (interactive subjects are polled first).

@@ -1,6 +1,6 @@
 # 02 — Song Model & Versioning
 
-Status: Draft v0.1 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
+Status: Draft v0.2 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
 
 This is the **architectural heart** of Bragi. Every feature (canvas, AI edits, generation, fusion, export) reads and writes this model, and nothing else. If a feature can't be expressed as operations on this model, the model is extended here first (with an ADR).
 
@@ -30,7 +30,9 @@ Project
 
 ### 2.1 Identifiers
 - All entity IDs are **ULIDs** prefixed by type: `prj_…`, `src_…`, `trk_…`, `sec_…`, `clp_…`, `fx_…`, `op_…`, `bat_…`.
-- Assets are identified by **`sha256:<hex>`** of the file bytes.
+- The schema enforces the **prefix and the character set** (`^prj_[0-9A-Za-z]{1,64}$`), not the ULID layout: ULID is the *generation* rule, and `bragi-model` is where generation lives. That is why the hand-written `trk_mix`, `sec_01` and `clp_01` in §10 and §2.2 are valid, and why a schema test fixture never has to look like a real ULID.
+- Job, plan and macro IDs use the same rule: `job_…` ([05 §3](05-backend-and-jobs.md)), `pln_…` (edit plans, [06](06-ai-planner.md)), `mac_…` (macros). **User IDs are opaque strings**: Better Auth owns their format ([05 §8](05-backend-and-jobs.md)), so the schema only bounds the length.
+- Assets are identified by **`sha256:<hex>`** of the file bytes: `sha256:` plus exactly 64 lowercase hex characters.
 - Commits are identified by `cmt_` + the first 26 chars of the base32 SHA-256 of the canonical JSON of `(parents, batch, snapshotHash)`.
 
 ### 2.2 Time
@@ -44,6 +46,9 @@ Project
 - **Tempo map**: `[{ tick, bpm, curve: "step" | "linear" }]`, sorted, first entry at tick 0.
 - **Time signatures**: `[{ bar, numerator, denominator }]`.
 - `bragi-model` provides `ticks_to_seconds`, `seconds_to_ticks`, `bar_beat_to_ticks` and `ticks_to_bar_beat`, which are the only allowed conversions.
+- **Timestamps** (`ISODate`) are RFC 3339 in UTC with a `Z` suffix and optional fractional seconds: `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$`. The schema uses a *pattern*, not `format: date-time`, so that no language parses a timestamp into a date type that would re-format it — timestamps therefore round-trip byte for byte.
+- **Colours** (`HexColor`) are `#RRGGBB`: sRGB, six hex digits, no alpha.
+- Every schema follows the same authoring conventions — `title` on every named type, one file per root type, a named `$def` for every object and multi-value enum, `additionalProperties: false` on every object, no `format`, no `\d` and no look-around in patterns — because they have to generate types and validators for three languages. The rules and the reasons are in [`packages/schemas/README.md`](../packages/schemas/README.md).
 
 ## 3. Entities (normative field lists)
 
@@ -145,6 +150,11 @@ interface SectionInstance {
 
 interface Lane { clips: Clip[]; automation: Automation[] }
 
+interface CurvePoint {
+  tick: number;                 // relative to the section start
+  value: number;                // 0..1
+}
+
 interface Transition {
   kind: "cut" | "crossfade" | "generated";
   lengthTicks: number;          // 0 for cut
@@ -190,6 +200,12 @@ interface Automation {
 ```
 - The parameter ranges and defaults for each `FxType` are defined in `crates/bragi-dsp/fx_catalog.json`, which is shared with the UI and planner. See [03-audio-engine.md §6](03-audio-engine.md).
 - **Lane automation** is relative to its section. **Master automation** uses absolute arrangement ticks (used for global fades) and is re-anchored by `section.move` ops (see §5.3).
+- `fx.add` and `automation.set`/`automation.clear` carry a **scope**, because an effect or curve can live in three different places:
+  ```ts
+  type FxScope    = { kind: "track"; trackId: TrackId } | { kind: "clip"; clipId: ClipId } | { kind: "master" };
+  type AutomationScope = { kind: "lane"; sectionId: SectionId; trackId: TrackId } | { kind: "master" };
+  ```
+  `kind` is the discriminator; `fx.remove`, `fx.reorder` and `fx.update` take only an `fxId`, because an FX id is unique within the document.
 
 ### 3.8 Region (the universal selection)
 A region is what the lasso, paint brush and AI prompt target.
@@ -217,6 +233,10 @@ interface OpBatch {
   createdAt: ISODate;
 }
 ```
+An `Op` is a **closed** object: `{ "op": "<name>", …payload }`, where `op` is the discriminator and the rest of the object is exactly the payload in the catalogue below. No op carries a field it does not define, so an unknown field is rejected rather than silently dropped (which is what keeps JSON → typed → JSON lossless in three languages). `ops` has at least one entry.
+
+`JobId`, `PlanId` and `MacroId` appear in payloads; their formats are in §2.1.
+
 A batch is atomic: it applies fully or not at all.
 
 ### 4.2 Op catalogue (v1)
@@ -265,6 +285,8 @@ Each op has a JSON Schema in `packages/schemas/song/ops/<op>.schema.json` and a 
 
 A batch that violates an invariant is rejected with a structured error `{ opIndex, code, message }`.
 
+The schema enforces what a *document* can express: types, enums, ID and hash shapes, ranges, required fields and the closed-object rule. The invariants above span several objects at once (a `TrackId` in a lane must exist; clips must fit their asset; the tempo map must be sorted and start at tick 0), so they are `bragi-model::validate`'s job in WP-0.3, not the schema's. Where a bound is a single-field range (invariant 4's `bpm`, `pan`, `lengthTicks > 0`) the schema declares it too, and TypeScript and Python enforce it; `typify` generates the plain numeric type, so Rust checks it in `validate`.
+
 ## 5. Semantics of tricky ops
 
 ### 5.1 `section.move` / `section.duplicate`
@@ -295,7 +317,11 @@ Analysis arrives progressively. Each stage's `analysis.apply` op has defined eff
 | `rhythm` | Sets the tempo map and time signatures from the beat grid. The full-mix clip becomes `beatgrid`-warped with anchors at downbeats (playback is unchanged because the map matches the source). |
 | `structure` | Splits the single section into analysed sections (kind, label) at bar-aligned boundaries, splitting clips accordingly |
 | `separation` | Hides `full_mix`, creates stem tracks + `residual`, and populates each section's lanes with stem clips aligned to the same ranges |
-| `harmony`, `energy`, `tags`, `embeddings`, `description` | No arrangement change. Updates `analyses[src]` and `meta` (tags/description) only. |
+| `harmony`, `loudness_energy`, `energy_stems`, `stem_activity`, `preview`, `tag`, `embed_full`, `section_embed`, `stem_embed`, `describe`, `drum_split`, `transcribe`, `lyrics` | No arrangement change. Updates `analyses[src]` and, for `describe`/`tag`, `meta` (tags/description). |
+
+The stage names in the left column are the `AnalysisStage` enum, and they are the **same** names as the capabilities in [05 §4.1](05-backend-and-jobs.md) and the stage sections of [04](04-analysis-pipeline.md): `loudness_energy` (not "energy"), `tag` (not "tags"), `embed_full`/`section_embed`/`stem_embed` (not "embeddings"), `describe` (not "description"). One name per stage across the specs, the schemas and the capability catalogue.
+
+The `analysis.apply` payload is `{ op: "analysis.apply", sourceId, stage, blob, effects }`, where `blob` is the stage's result blob in `packages/schemas/analysis/` and `effects` lists what the system wants applied. The `effects` entries are free-form objects for now — a typed shape arrives with WP-1.8, which implements `analysis.apply`.
 
 **Order-independence requirement:** `separation` may arrive before `structure`. `apply` must produce the same final document regardless of arrival order (property test: all permutations of stage arrival yield identical documents).
 
@@ -347,31 +373,148 @@ The WASM wrapper passes documents as JSON strings or `Uint8Array` (MessagePack).
 - **Real-time collaboration (post-v1):** stable IDs and fine-grained ops make a later move to a CRDT (e.g. Loro or Automerge) feasible, with sections, tracks and clips mapping to CRDT maps and lists. Do not rely on array indices as identity anywhere except `sections` order (moves are explicit ops).
 - **New FX/ops:** additive changes bump the minor schema version. Removing or renaming anything requires `migrate`.
 
-## 10. Example document (abridged)
+## 10. Example document
+
+[`fixtures/projects/example-02-10.json`](../fixtures/projects/example-02-10.json) is this document. WP-0.2's
+contract test extracts the block below and asserts the two are equal, and the fixture is what proves
+the acceptance criteria: it validates against `Project` in TypeScript, Rust and Python, and
+JSON → typed → JSON round-trips losslessly in all three.
+
+`trk_mix`, `sec_01` and `clp_01` are hand-written for readability; §2.1 explains why they are valid
+IDs even though they are not ULIDs.
 
 ```json
 {
   "schemaVersion": 1,
-  "id": "prj_01JAB3...",
-  "meta": { "title": "Midnight Drive", "createdAt": "2026-10-18T12:00:00Z", "tags": ["synthwave", "nocturnal"] },
-  "sources": [{ "id": "src_01JAB4...", "kind": "upload", "originalAsset": "sha256:9f2c...", "workingAsset": "sha256:11ab...",
-                "durationSamples": 11520000, "channels": 2, "label": "midnight_drive.mp3" }],
-  "analyses": { "src_01JAB4...": { "profile": "standard", "status": { "rhythm": "done", "separation": "running" },
-                "blobs": { "rhythm": "sha256:aa01..." }, "summary": { "bpm": 118, "key": "F# minor", "durationSec": 240,
-                "genres": ["synthwave"], "moods": ["nostalgic", "driving"] } } },
-  "tracks": [{ "id": "trk_mix", "name": "Original mix", "role": "full_mix", "color": "#8A8F98", "gainDb": 0, "pan": 0,
-               "mute": false, "solo": false, "hidden": false, "fx": [] }],
+  "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+  "meta": {
+    "title": "Midnight Drive",
+    "createdAt": "2026-10-18T12:00:00Z",
+    "tags": [
+      "synthwave",
+      "nocturnal"
+    ]
+  },
+  "sources": [
+    {
+      "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+      "kind": "upload",
+      "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+      "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+      "durationSamples": 11520000,
+      "channels": 2,
+      "label": "midnight_drive.mp3"
+    }
+  ],
+  "analyses": {
+    "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+      "profile": "standard",
+      "status": {
+        "rhythm": "done",
+        "separation": "running"
+      },
+      "blobs": {
+        "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+      },
+      "summary": {
+        "bpm": 118,
+        "key": "F# minor",
+        "durationSec": 240,
+        "genres": [
+          "synthwave"
+        ],
+        "moods": [
+          "nostalgic",
+          "driving"
+        ]
+      }
+    }
+  },
+  "tracks": [
+    {
+      "id": "trk_mix",
+      "name": "Original mix",
+      "role": "full_mix",
+      "color": "#8A8F98",
+      "gainDb": 0,
+      "pan": 0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    }
+  ],
   "arrangement": {
-    "timebase": { "ppq": 960, "tempoMap": [{ "tick": 0, "bpm": 118, "curve": "step" }], "timeSignatures": [{ "bar": 0, "numerator": 4, "denominator": 4 }] },
-    "sections": [{
-      "id": "sec_01", "kind": "intro", "label": "Intro", "lengthTicks": 30720,
-      "transitionIn": { "kind": "cut", "lengthTicks": 0 },
-      "lanes": { "trk_mix": { "clips": [{ "id": "clp_01", "asset": "sha256:11ab...", "srcStart": 0, "srcEnd": 780000, "start": 0,
-                  "warp": { "mode": "beatgrid", "anchors": [{ "srcSample": 0, "tick": 0 }, { "srcSample": 97627, "tick": 3840 }] },
-                  "gainDb": 0, "pitchSemitones": 0, "fadeInTicks": 0, "fadeOutTicks": 0, "fadeCurve": "equal_power",
-                  "provenance": { "kind": "user", "createdAt": "2026-10-18T12:00:00Z" } }], "automation": [] } }
-    }],
-    "master": { "fx": [], "automation": [], "gainDb": 0 }
+    "timebase": {
+      "ppq": 960,
+      "tempoMap": [
+        {
+          "tick": 0,
+          "bpm": 118,
+          "curve": "step"
+        }
+      ],
+      "timeSignatures": [
+        {
+          "bar": 0,
+          "numerator": 4,
+          "denominator": 4
+        }
+      ]
+    },
+    "sections": [
+      {
+        "id": "sec_01",
+        "kind": "intro",
+        "label": "Intro",
+        "lengthTicks": 30720,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_mix": {
+            "clips": [
+              {
+                "id": "clp_01",
+                "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                "srcStart": 0,
+                "srcEnd": 780000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 97627,
+                      "tick": 3840
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-18T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        }
+      }
+    ],
+    "master": {
+      "fx": [],
+      "automation": [],
+      "gainDb": 0
+    }
   }
 }
 ```

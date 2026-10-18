@@ -135,7 +135,7 @@ naming that work package, so the surface is discoverable without pretending to w
 
 | Command | Does |
 |---|---|
-| `pnpm verify` | **The gate** (§4, §6): lint + build + typecheck + test, all three languages |
+| `pnpm verify` | **The gate** (§4, §6): lint + generated-code check + build + typecheck + test, all three languages |
 | `pnpm lint` / `pnpm lint:rust` / `pnpm lint:py` / `pnpm lint:all` | Biome + the 01 §4 layout guard / rustfmt + clippy / ruff + mypy / all three |
 | `pnpm test:rust` / `pnpm test:py` / `pnpm test:all` | `cargo test` / pytest / plus `pnpm test` |
 | `pnpm build:wasm` | `wasm32-unknown-unknown` build of every non-native crate |
@@ -144,6 +144,7 @@ naming that work package, so the surface is discoverable without pretending to w
 | `pnpm dev:desktop` | Tauri dev |
 | `pnpm dev:backend` | docker compose infra + API + orchestrator + CPU workers |
 | `pnpm schemas:gen` | Regenerate TS/Rust/Python from JSON Schemas |
+| `pnpm schemas:check` | Fail if the generated code does not match the JSON Schemas (runs first in `pnpm verify`) |
 | `pnpm test` | TypeScript unit tests (`test:all` adds Rust and Python) |
 | `pnpm test:e2e` | Playwright web e2e |
 | `pnpm test:conformance` | Engine WASM vs native parity |
