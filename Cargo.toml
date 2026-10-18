@@ -35,6 +35,26 @@ prettyplease = "0.2"
 # FFT for the bragi-dsp phase vocoder (WP-0.4 → ADR-0002). Pure Rust, no_std-friendly,
 # compiles for wasm32-unknown-unknown. rustfft comes in transitively.
 realfft = "3.5"
+# Audio decoding for WP-1.1: one pure-Rust decoder for native and wasm32
+# (specs/01-architecture.md §1). Default features off, so only the containers and
+# codecs the spec lists (FLAC/WAV/MP3/AAC/OGG/M4A) are compiled in.
+symphonia = { version = "0.5.4", default-features = false, features = [
+    "aac",
+    "flac",
+    "isomp4",
+    "mp3",
+    "ogg",
+    "pcm",
+    "vorbis",
+    "wav",
+] }
+# Memory-mapped PCM cache on desktop (specs/03-audio-engine.md §3.2). Native only.
+memmap2 = "0.9"
+# Desktop audio output (specs/03-audio-engine.md §3.2). Native only.
+cpal = "0.15"
+# Lock-free plan swap on the desktop audio thread (`ArcSwap::load` is one atomic op and never
+# allocates). Native only; the wasm host uses the epoch slot in `bragi-engine::rt`.
+arc-swap = "1.7"
 
 # Lints apply to every crate via `[lints] workspace = true`.
 # CI runs `cargo clippy --workspace --all-targets -- -D warnings`, so these
@@ -61,6 +81,19 @@ undocumented_unsafe_blocks = "warn"
 # because the conformance tests run in debug. `[profile.dev.package."*"]` does
 # NOT do that — Cargo applies it to non-workspace members only — so WP-1.1 picks
 # the shape it needs (per-crate overrides, or `[profile.dev] opt-level`).
+
+# WP-1.1: the conformance, stress and no-allocation tests run in the dev profile, so the hot
+# paths must be optimised there. `[profile.dev.package."*"]` does not cover workspace members
+# (see the NOTE above), hence the explicit per-crate overrides for the two crates whose loops
+# matter, and opt-level 2 for the third-party decoders.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev.package.bragi-engine]
+opt-level = 3
+
+[profile.dev.package.bragi-dsp]
+opt-level = 3
 
 [profile.release]
 lto = "thin"

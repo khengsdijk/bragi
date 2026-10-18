@@ -8,6 +8,15 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+bragi-model = { path = "../bragi-model" }
+bragi-dsp = { path = "../bragi-dsp" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+insta.workspace = true
 
 [lints]
 workspace = true
