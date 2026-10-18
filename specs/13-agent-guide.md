@@ -96,7 +96,7 @@ WP that cannot test a platform says so in its PR instead of implying coverage.
 | Engine conformance (WASM vs native null test) | custom harness (`pnpm test:conformance`) | Linux, macOS, Windows |
 | TS unit | Vitest | Linux |
 | Web e2e | Playwright: Chromium, Firefox, WebKit | Linux (+ WebKit on macOS) |
-| Desktop e2e | Playwright/WebDriver against the Tauri app | macOS, Windows, Linux |
+| Desktop e2e | The app's own `selftest` build driven in-page (WKWebView has no WebDriver, so `tauri-driver` cannot reach macOS); `tauri-driver` where it exists | macOS, Windows, Linux |
 | Visual regression | Playwright screenshots with WebGPU on and off | Linux |
 | Python | pytest (CPU smoke with tiny inputs) | Linux |
 | Integration | docker compose stack + API/worker tests | Linux |
@@ -131,7 +131,10 @@ WP that cannot test a platform says so in its PR instead of implying coverage.
 ## 9. Commands
 
 Created in WP-0.1. A command whose owning work package has not landed yet exists but fails,
-naming that work package, so the surface is discoverable without pretending to work.
+naming that work package, so the surface is discoverable without pretending to work. From WP-0.5
+on, `dev:web`, `dev:desktop`, `test:e2e` and `test:e2e:desktop` are real; what has actually been
+run on which platform is recorded per work package (see [12 §8](12-roadmap.md) and the work
+package's plan in `docs/wp/`).
 
 | Command | Does |
 |---|---|
@@ -146,6 +149,7 @@ naming that work package, so the surface is discoverable without pretending to w
 | `pnpm schemas:gen` | Regenerate TS/Rust/Python from JSON Schemas |
 | `pnpm schemas:check` | Fail if the generated code does not match the JSON Schemas (runs first in `pnpm verify`) |
 | `pnpm test` | TypeScript unit tests (`test:all` adds Rust and Python) |
-| `pnpm test:e2e` | Playwright web e2e |
+| `pnpm test:e2e` | Playwright web e2e: Chromium, Firefox and Playwright WebKit, each against the dev server and a production preview |
+| `pnpm test:e2e:desktop` | Tauri desktop e2e: builds the app with `--features selftest` and drives the shipped bundle in the webview through two process launches |
 | `pnpm test:conformance` | Engine WASM vs native parity |
 | `pnpm eval:analysis` / `pnpm bench:planner` | Quality evaluations |
