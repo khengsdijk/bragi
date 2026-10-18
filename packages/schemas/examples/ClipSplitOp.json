@@ -1,0 +1,6 @@
+{
+  "op": "clip.split",
+  "clipId": "clp_01",
+  "atTick": 15360,
+  "newId": "clp_02"
+}

@@ -1,0 +1,10 @@
+{
+  "op": "tempo.set",
+  "tempoMap": [
+    {
+      "tick": 0,
+      "bpm": 118,
+      "curve": "step"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "op": "region.adopt",
+  "fromCommit": "cmt_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+  "region": {
+    "startTick": 0,
+    "endTick": 30720,
+    "tracks": "all"
+  }
+}

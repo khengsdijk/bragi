@@ -1,0 +1,7 @@
+{
+  "op": "track.update",
+  "trackId": "trk_mix",
+  "patch": {
+    "gainDb": -3.0
+  }
+}

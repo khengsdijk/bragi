@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "model": "basic-pitch-1",
+  "stems": [
+    {
+      "role": "bass",
+      "notes": [
+        {
+          "pitch": 40,
+          "startSec": 0.0,
+          "endSec": 0.5,
+          "velocity": 100
+        }
+      ]
+    }
+  ]
+}

@@ -4,17 +4,11 @@
   "description": "`section.move` (02 §4.2). Move a section; its content moves with it (02 §5.1).",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "sectionId",
-    "toIndex"
-  ],
+  "required": ["op", "sectionId", "toIndex"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "section.move"
-      ]
+      "enum": ["section.move"]
     },
     "sectionId": {
       "$ref": "../common.schema.json#/$defs/SectionId"

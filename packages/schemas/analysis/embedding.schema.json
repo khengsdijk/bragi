@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EmbeddingResult",
+  "description": "The result of `embed_full`, `section_embed` or `stem_embed`: pooled CLAP-family vectors (specs/04-analysis-pipeline.md §6.1). The exact windowing and vector layout are an open question for the embedding work package.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "scope", "model", "dim", "vectors"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "scope": { "$ref": "common.schema.json#/$defs/EmbeddingScope" },
+    "model": {
+      "description": "Model and checkpoint, e.g. \"laion-clap-music-1\".",
+      "type": "string",
+      "minLength": 1
+    },
+    "dim": {
+      "description": "Vector length; 512 for the v1 CLAP checkpoints (04 §6.1).",
+      "type": "integer",
+      "minimum": 1
+    },
+    "vectors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/EmbeddingVector" }
+    }
+  },
+  "$defs": {
+    "EmbeddingVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vector"],
+      "properties": {
+        "scopeRef": {
+          "description": "Section id (for `scope: \"section\"`) or stem role (for `scope: \"stem\"`); absent for a song-level vector.",
+          "type": "string",
+          "minLength": 1
+        },
+        "vector": {
+          "description": "L2-normalised embedding.",
+          "$ref": "common.schema.json#/$defs/NumberSeries"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "profile": "standard",
+  "status": {
+    "rhythm": "done"
+  },
+  "blobs": {
+    "rhythm": "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+  },
+  "stems": {
+    "vocals": "sha256:d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
+  },
+  "summary": {
+    "bpm": 118,
+    "key": "F# minor",
+    "durationSec": 240,
+    "genres": ["synthwave"],
+    "moods": ["nostalgic"]
+  }
+}

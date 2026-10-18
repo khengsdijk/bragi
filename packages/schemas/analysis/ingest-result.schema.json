@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IngestResult",
+  "description": "The `ingest` stage result (specs/04-analysis-pipeline.md §3.1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "workingAsset",
+    "durationSec",
+    "channelsOriginal",
+    "sampleRateOriginal",
+    "codec",
+    "fingerprint"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "workingAsset": {
+      "description": "The 48 kHz 24-bit FLAC working copy.",
+      "$ref": "../song/common.schema.json#/$defs/AssetHash"
+    },
+    "durationSec": { "type": "number", "exclusiveMinimum": 0 },
+    "channelsOriginal": {
+      "description": "Channel count before downmixing; mono is duplicated for the working asset and more than two channels are downmixed, so this may be larger than 2.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "sampleRateOriginal": { "type": "integer", "minimum": 1 },
+    "codec": { "type": "string", "minLength": 1 },
+    "fingerprint": {
+      "description": "Chromaprint fingerprint, used only for duplicate detection in the user's own library (04 §3.1).",
+      "type": "string",
+      "minLength": 1
+    },
+    "peakPyramid": {
+      "description": "Level-of-detail peak pyramid for the Universe thumbnails, present when the worker computed it.",
+      "$ref": "../song/asset-meta.schema.json#/$defs/FreeformParams"
+    }
+  }
+}

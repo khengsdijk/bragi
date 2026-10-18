@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "summary": "A nocturnal synthwave drive.",
+  "sectionNotes": [
+    {
+      "index": 0,
+      "text": "Sparse filtered piano opens."
+    }
+  ],
+  "whatMakesItWorks": ["The drums drop out before each chorus."]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "trk_mix",
+  "name": "Original mix",
+  "role": "full_mix",
+  "color": "#8A8F98",
+  "gainDb": 0,
+  "pan": 0,
+  "mute": false,
+  "solo": false,
+  "hidden": false,
+  "fx": []
+}

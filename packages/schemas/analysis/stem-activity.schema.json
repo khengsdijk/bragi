@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StemActivityResult",
+  "description": "The `stem_activity` stage result: where each stem is audible, and how present it is per section (specs/04-analysis-pipeline.md §5.4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "stems"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "stems": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/StemActivity" }
+    }
+  },
+  "$defs": {
+    "StemActivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "active", "presence"],
+      "properties": {
+        "role": { "$ref": "../song/common.schema.json#/$defs/StemRole" },
+        "active": {
+          "description": "Gate-open regions from a −45 dBFS gate with a 250 ms hop (04 §5.4).",
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/SecRange" }
+        },
+        "presence": {
+          "description": "How present the stem is in each section, 0..1; `index` matches the structure stage.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/SectionPresence" }
+        }
+      }
+    },
+    "SectionPresence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "presence"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "presence": { "$ref": "common.schema.json#/$defs/Confidence" }
+      }
+    }
+  }
+}

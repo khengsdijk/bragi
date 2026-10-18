@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RhythmResult",
+  "description": "The `rhythm` stage result: beats, downbeats, tempo and time signature (specs/04-analysis-pipeline.md \u00a75.1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "bpm",
+    "beats",
+    "downbeats",
+    "tempoCurve",
+    "timeSignature",
+    "confidence",
+    "isTempoStable"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 \u00a77).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "bpm": {
+      "description": "Global tempo. Half/double-time ambiguity is resolved in favour of 70..180 BPM (04 \u00a75.1).",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "alternativeBpm": {
+      "description": "The half/double-time alternative, when the tracker reported one.",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "beats": {
+      "$ref": "#/$defs/BeatTimes"
+    },
+    "downbeats": {
+      "$ref": "#/$defs/BeatTimes"
+    },
+    "tempoCurve": {
+      "$ref": "#/$defs/RhythmTempoCurve"
+    },
+    "timeSignature": {
+      "$ref": "#/$defs/RhythmTimeSignature"
+    },
+    "confidence": {
+      "$ref": "common.schema.json#/$defs/Confidence"
+    },
+    "isTempoStable": {
+      "description": "True when the BPM standard deviation is below 1%, so the map is treated as constant tempo (04 \u00a75.1).",
+      "type": "boolean"
+    },
+    "lowConfidence": {
+      "description": "Set when confidence is below 0.4: the UI enters free-time mode (04 \u00a710).",
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "BeatTimes": {
+      "description": "Beat or downbeat onsets in seconds of the working asset.",
+      "type": "array",
+      "items": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
+    "TempoCurvePoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["beat", "bpm"],
+      "properties": {
+        "beat": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bpm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "RhythmTimeSignature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numerator", "denominator"],
+      "properties": {
+        "numerator": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "denominator": {
+          "$ref": "../song/arrangement.schema.json#/$defs/TimeSigDenominator"
+        }
+      }
+    },
+    "RhythmTempoCurve": {
+      "description": "Smoothed BPM per beat (04 \u00a75.1).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TempoCurvePoint"
+      }
+    }
+  }
+}

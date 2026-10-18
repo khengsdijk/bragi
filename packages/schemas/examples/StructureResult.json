@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "sections": [
+    {
+      "startSec": 0.0,
+      "endSec": 16.25,
+      "kind": "intro",
+      "confidence": 0.81,
+      "repeatGroup": "A"
+    }
+  ]
+}

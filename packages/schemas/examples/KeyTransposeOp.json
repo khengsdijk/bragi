@@ -1,0 +1,5 @@
+{
+  "op": "key.transpose",
+  "semitones": 2,
+  "scope": "all"
+}

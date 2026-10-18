@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JobRequest",
+  "description": "A unit of work submitted to a worker capability (specs/05-backend-and-jobs.md §4.2). The API publishes it on the capability's NATS subject; workers pull, cache by idempotencyKey and report through JobEvent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "jobId",
+    "capability",
+    "priority",
+    "userId",
+    "inputs",
+    "idempotencyKey",
+    "attempt",
+    "deadline",
+    "traceparent",
+    "createdAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "description": "Envelope schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "jobId": { "$ref": "../song/common.schema.json#/$defs/JobId" },
+    "capability": {
+      "description": "One of the capabilities in 05 §4.1, e.g. \"analysis.separation\" or \"generate.extend\". Open vocabulary: new capabilities land in the API's catalogue first.",
+      "type": "string",
+      "minLength": 1
+    },
+    "priority": { "$ref": "#/$defs/JobPriority" },
+    "userId": { "$ref": "../song/common.schema.json#/$defs/UserId" },
+    "projectId": { "$ref": "../song/common.schema.json#/$defs/ProjectId" },
+    "inputs": { "$ref": "#/$defs/JobInputs" },
+    "idempotencyKey": {
+      "description": "hash(capability, inputs, stageVersion); the result cache is keyed by it (05 §4.3).",
+      "type": "string",
+      "minLength": 1
+    },
+    "attempt": {
+      "description": "Retry count, owned by the orchestrator (05 §4.3).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "deadline": { "$ref": "../song/common.schema.json#/$defs/IsoDate" },
+    "traceparent": {
+      "description": "W3C Trace Context header, propagated HTTP → NATS → worker spans (05 §11).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$"
+    },
+    "createdAt": { "$ref": "../song/common.schema.json#/$defs/IsoDate" }
+  },
+  "$defs": {
+    "JobPriority": {
+      "description": "\"interactive\" (the user is waiting) is polled before \"background\" (05 §4.1, §9).",
+      "type": "string",
+      "enum": ["interactive", "background"]
+    },
+    "JobInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assets", "params"],
+      "properties": {
+        "assets": { "$ref": "#/$defs/NamedAssetMap" },
+        "blobs": { "$ref": "#/$defs/NamedAssetMap" },
+        "params": { "$ref": "../song/asset-meta.schema.json#/$defs/FreeformParams" }
+      }
+    },
+    "NamedAssetMap": {
+      "description": "Content-addressed inputs by role or name, e.g. { \"mix\": \"sha256:…\" }.",
+      "type": "object",
+      "additionalProperties": { "$ref": "../song/common.schema.json#/$defs/AssetHash" }
+    }
+  }
+}

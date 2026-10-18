@@ -4,17 +4,11 @@
   "description": "`section.update` (02 §4.2). Patch a section's kind, label, energy target or lock.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "sectionId",
-    "patch"
-  ],
+  "required": ["op", "sectionId", "patch"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "section.update"
-      ]
+      "enum": ["section.update"]
     },
     "sectionId": {
       "$ref": "../common.schema.json#/$defs/SectionId"

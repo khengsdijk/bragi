@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StructureResult",
+  "description": "The `structure` stage result: section boundaries with functional labels (specs/04-analysis-pipeline.md §5.2). Drives the canvas sections and `analysis.apply` (02 §6).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "sections"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "sections": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/StructureSection" }
+    },
+    "lowConfidence": {
+      "description": "Set when the boundary model was unsure: the UI keeps sections but disables grid snapping (04 §10).",
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "StructureSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startSec", "endSec", "kind", "confidence"],
+      "properties": {
+        "startSec": { "type": "number", "minimum": 0 },
+        "endSec": { "type": "number", "minimum": 0 },
+        "kind": { "$ref": "../song/common.schema.json#/$defs/SectionKind" },
+        "confidence": { "$ref": "common.schema.json#/$defs/Confidence" },
+        "repeatGroup": {
+          "description": "Sections that share a group are repetitions of the same material (Chorus 1/2/3) (04 §5.2).",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

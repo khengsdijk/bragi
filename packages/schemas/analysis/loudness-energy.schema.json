@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LoudnessEnergyResult",
+  "description": "The `loudness_energy` stage result: EBU R128 loudness and the energy curve that feeds the skyline (specs/04-analysis-pipeline.md \u00a75.5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "hopSec",
+    "lufsIntegrated",
+    "lra",
+    "truePeakDb",
+    "shortTermLufs",
+    "energy"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 \u00a77).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "hopSec": {
+      "description": "Hop of both the short-term loudness and the energy curve; 0.5 s (04 \u00a75.5).",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "lufsIntegrated": {
+      "description": "EBU R128 integrated loudness in LUFS.",
+      "type": "number"
+    },
+    "lra": {
+      "description": "Loudness range in LU.",
+      "type": "number",
+      "minimum": 0
+    },
+    "truePeakDb": {
+      "description": "True peak in dBTP.",
+      "type": "number"
+    },
+    "shortTermLufs": {
+      "$ref": "common.schema.json#/$defs/NumberSeries"
+    },
+    "energy": {
+      "description": "The song's own energy curve, normalised to 0..1 (04 \u00a75.5).",
+      "$ref": "common.schema.json#/$defs/NumberSeries"
+    },
+    "absoluteEnergy": {
+      "description": "Library-wide comparable energy in 0..1, present once normalisation constants exist (04 \u00a75.5).",
+      "$ref": "common.schema.json#/$defs/NumberSeries"
+    },
+    "sections": {
+      "$ref": "#/$defs/SectionEnergyList"
+    }
+  },
+  "$defs": {
+    "SectionEnergy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "meanEnergy", "peakEnergy", "energySlope"],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "meanEnergy": {
+          "$ref": "common.schema.json#/$defs/Confidence"
+        },
+        "peakEnergy": {
+          "$ref": "common.schema.json#/$defs/Confidence"
+        },
+        "energySlope": {
+          "description": "Fitted slope across the section: positive rises, negative falls (04 \u00a75.5).",
+          "type": "number"
+        },
+        "loudnessLufs": {
+          "type": "number"
+        }
+      }
+    },
+    "SectionEnergyList": {
+      "description": "Per-section aggregates; `index` matches the structure stage.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SectionEnergy"
+      }
+    }
+  }
+}

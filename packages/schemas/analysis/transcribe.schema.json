@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TranscribeResult",
+  "description": "The deep `transcribe` stage result: notes per stem from polyphonic transcription (specs/04-analysis-pipeline.md §7).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "model", "stems"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "model": { "type": "string", "minLength": 1 },
+    "stems": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/StemNotes" }
+    }
+  },
+  "$defs": {
+    "StemNotes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "notes"],
+      "properties": {
+        "role": { "$ref": "../song/common.schema.json#/$defs/StemRole" },
+        "notes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Note" }
+        }
+      }
+    },
+    "Note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pitch", "startSec", "endSec", "velocity"],
+      "properties": {
+        "pitch": {
+          "description": "MIDI note number 0..127.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 127
+        },
+        "startSec": { "type": "number", "minimum": 0 },
+        "endSec": { "type": "number", "minimum": 0 },
+        "velocity": { "type": "integer", "minimum": 0, "maximum": 127 }
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "model": "whisper-1",
+  "words": [
+    {
+      "text": "drive",
+      "startSec": 0.0,
+      "endSec": 0.4
+    }
+  ],
+  "lines": [
+    {
+      "text": "Midnight drive",
+      "startSec": 0.0,
+      "endSec": 1.2
+    }
+  ]
+}

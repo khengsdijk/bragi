@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StemEnergyResult",
+  "description": "The `energy_stems` stage result: the loudness-energy curve computed per stem once separation has finished (specs/04-analysis-pipeline.md §2, §5.5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "hopSec", "stems"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "hopSec": {
+      "description": "Hop of the per-stem energy curves; 0.5 s (04 §5.5).",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "stems": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/StemEnergy" }
+    }
+  },
+  "$defs": {
+    "StemEnergy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "energy"],
+      "properties": {
+        "role": { "$ref": "../song/common.schema.json#/$defs/StemRole" },
+        "energy": { "$ref": "common.schema.json#/$defs/NumberSeries" },
+        "sections": {
+          "description": "Per-section aggregates, sharing the shape of the mix-level curve.",
+          "$ref": "#/$defs/StemSectionEnergyList"
+        }
+      }
+    },
+    "StemSectionEnergyList": {
+      "description": "Per-section aggregates, sharing the shape of the mix-level curve.",
+      "type": "array",
+      "items": { "$ref": "loudness-energy.schema.json#/$defs/SectionEnergy" }
+    }
+  }
+}

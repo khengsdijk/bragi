@@ -1,0 +1,5 @@
+{
+  "op": "section.merge",
+  "sectionIdA": "sec_01",
+  "sectionIdB": "sec_02"
+}

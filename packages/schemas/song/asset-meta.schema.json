@@ -30,8 +30,9 @@
       }
     },
     "FreeformParams": {
-      "description": "Process- or capability-specific parameters; their shape is owned by the process.",
-      "type": "object"
+      "description": "Process- or capability-specific parameters; their shape is owned by the process. Explicitly open: any key is allowed, and a generator must keep whatever it is given (an object that silently dropped unknown keys would not round-trip).",
+      "type": "object",
+      "additionalProperties": true
     }
   }
 }

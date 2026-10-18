@@ -9,5 +9,6 @@ next to each file. **No copyrighted audio, ever** ([13 §1, §6](../specs/13-age
 | [`projects/`](projects) | Song documents for model and engine tests | — |
 | [`eval/`](eval) | Manifest for the larger evaluation set, referenced by hash | audio is **never** committed |
 
-**Status:** placeholder directories. Filled alongside the work packages that need them —
-WP-0.3 (project documents), WP-0.4 and WP-1.1 (audio), WP-1.2 onwards (eval manifest).
+**Status:** `projects/` holds the WP-0.2 song documents and root-type examples used by the
+cross-language contract tests; `audio/` and `eval/` are placeholder directories, filled alongside
+the work packages that need them — WP-0.4 and WP-1.1 (audio), WP-1.2 onwards (eval manifest).

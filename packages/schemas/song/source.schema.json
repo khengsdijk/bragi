@@ -29,7 +29,7 @@
       "type": "integer",
       "minimum": 0
     },
-    "channels": { "type": "integer", "enum": [1, 2] },
+    "channels": { "$ref": "common.schema.json#/$defs/ChannelCount" },
     "label": {
       "description": "E.g. the original filename, or \"Generated: dreamy outro\".",
       "type": "string"

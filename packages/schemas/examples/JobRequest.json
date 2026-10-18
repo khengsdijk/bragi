@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "jobId": "job_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+  "capability": "analysis.separation",
+  "priority": "interactive",
+  "userId": "user_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+  "projectId": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+  "inputs": {
+    "assets": {
+      "mix": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+    },
+    "params": {
+      "model": "htdemucs_6s"
+    }
+  },
+  "idempotencyKey": "sha256:idemidemidemidemidemidemidemidemidemidemidemidemidemidemidemidem",
+  "attempt": 0,
+  "deadline": "2026-10-18T12:00:00Z",
+  "traceparent": "00-11111111111111111111111111111111-2222222222222222-01",
+  "createdAt": "2026-10-18T12:00:00Z"
+}

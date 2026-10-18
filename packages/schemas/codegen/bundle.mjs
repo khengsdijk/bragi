@@ -6,8 +6,12 @@
  * all read this one bundle, so a type has the same name in TypeScript, Rust and Python.
  *
  * It also enforces the authoring conventions that keep the generated types lossless and
- * consistently named (docs/wp/0.2.md, packages/schemas/README.md). A violation throws
- * {@link SchemaConventionError} listing every problem found.
+ * consistently named (docs/wp/0.2.md, packages/schemas/README.md) and lifts every inline
+ * single-value enum (an op's `"op": "track.add"` discriminator, a warp's `"mode"`) into a named
+ * `$def` whose name is `<Owner><Property>`. That is the only way the three generators agree on a
+ * name for a discriminator: typify invents `<Owner><Property>` on its own, json-schema-to-typescript
+ * inlines it and datamodel-code-generator would otherwise name it after the bare property
+ * (which collides at `op` and `kind`). A violation throws {@link SchemaConventionError}.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, posix, relative, sep } from "node:path";
@@ -54,7 +58,8 @@ export function listSchemaFiles(root) {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (entry.name.endsWith(".schema.json")) out.push(relative(root, full).split(sep).join("/"));
+      else if (entry.name.endsWith(".schema.json"))
+        out.push(relative(root, full).split(sep).join("/"));
     }
   };
   for (const dir of SCHEMA_DIRS) walk(join(root, dir));
@@ -93,6 +98,20 @@ function rootIsType(schema) {
 }
 
 /**
+ * `foo_bar` / `fooBar` → `FooBar`.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+function pascalCase(value) {
+  return value
+    .split(/[^A-Za-z0-9]+/)
+    .filter((part) => part !== "")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+}
+
+/**
  * Bundles the given schema files.
  *
  * @param {SchemaFile[]} files
@@ -128,7 +147,8 @@ export function bundleSchemas(files) {
     const defs = schema.$defs;
     if (defs !== undefined && !isObject(defs)) problems.push(`${path}: "$defs" must be an object`);
     for (const key of Object.keys(isObject(defs) ? defs : {})) {
-      if (!/^[A-Z][A-Za-z0-9]*$/.test(key)) problems.push(`${path}: $defs/${key} is not PascalCase`);
+      if (!/^[A-Z][A-Za-z0-9]*$/.test(key))
+        problems.push(`${path}: $defs/${key} is not PascalCase`);
       names.set(`${path}#/$defs/${key}`, key);
       claim(key, `${path}#/$defs/${key}`);
     }
@@ -136,6 +156,8 @@ export function bundleSchemas(files) {
 
   /** @type {JsonObject} */
   const defs = {};
+  /** @type {JsonObject[]} hoisted single-value enums, in encounter order */
+  const hoisted = [];
 
   for (const { path, schema } of files) {
     /**
@@ -154,20 +176,42 @@ export function bundleSchemas(files) {
     };
 
     /**
+     * Lifts an inline single-value enum into a named `$def` named `<owner><Property>` and returns
+     * a `$ref` to it.
+     *
+     * @param {JsonObject} node
+     * @param {string} owner
+     * @param {string} property
+     * @param {string} where
+     */
+    const hoistEnum = (node, owner, property, where) => {
+      const name = `${owner}${pascalCase(property)}`;
+      claim(name, where);
+      hoisted.push({ title: name, ...node });
+      return { $ref: `#/$defs/${name}` };
+    };
+
+    /**
      * Copies a schema node with refs rewritten, checking the conventions.
      *
      * @param {unknown} node
      * @param {string} where JSON-pointer-ish location for messages
+     * @param {string | null} owner name of the nearest enclosing named type, or null at file level
      * @param {boolean} named whether this node is a named type (a file root or a $def)
+     * @param {boolean} asProperty whether this node is the value of an object property
      * @returns {unknown}
      */
-    const rewrite = (node, where, named) => {
+    const rewrite = (node, where, owner, named, asProperty) => {
       if (!isObject(node)) return node;
+      const isUnitEnum = Array.isArray(node.enum) && node.enum.length === 1 && !named;
+      if (isUnitEnum && !asProperty) {
+        problems.push(`${where}: an inline single-value enum must be a property of a named object`);
+      }
       checkNode(node, where, named, problems);
       /** @type {JsonObject} */
       const out = {};
       for (const [key, value] of Object.entries(node)) {
-        if (key === "$schema" || key === "$defs") continue;
+        if (key === "$schema" || key === "$defs" || key === "title") continue;
         if (key === "$ref" && typeof value === "string") {
           out.$ref = resolveRef(value, where);
         } else if (key === "properties" && isObject(value)) {
@@ -176,13 +220,18 @@ export function bundleSchemas(files) {
             Object.entries(value).map(([prop, sub]) => {
               const at = `${where}/properties/${prop}`;
               if (!required.includes(prop)) checkOptional(sub, at, problems);
-              return [prop, rewrite(sub, at, false)];
+              if (isObject(sub) && Array.isArray(sub.enum) && sub.enum.length === 1 && owner) {
+                return [prop, hoistEnum(sub, owner, prop, at)];
+              }
+              return [prop, rewrite(sub, at, owner, false, true)];
             }),
           );
         } else if (SUBSCHEMA_KEYS.includes(key)) {
-          out[key] = rewrite(value, `${where}/${key}`, false);
+          out[key] = rewrite(value, `${where}/${key}`, owner, false, false);
         } else if (SUBSCHEMA_ARRAY_KEYS.includes(key) && Array.isArray(value)) {
-          out[key] = value.map((sub, i) => rewrite(sub, `${where}/${key}/${i}`, false));
+          out[key] = value.map((sub, i) =>
+            rewrite(sub, `${where}/${key}/${i}`, owner, false, false),
+          );
         } else {
           out[key] = value;
         }
@@ -191,25 +240,38 @@ export function bundleSchemas(files) {
     };
 
     if (rootIsType(schema) && typeof schema.title === "string") {
-      defs[schema.title] = rewrite(schema, path, true);
+      const name = schema.title;
+      defs[name] = {
+        title: name,
+        .../** @type {JsonObject} */ (rewrite(schema, path, name, true, false)),
+      };
     }
     const fileDefs = isObject(schema.$defs) ? schema.$defs : {};
     for (const [key, sub] of Object.entries(fileDefs)) {
-      const def = rewrite(sub, `${path}#/$defs/${key}`, true);
+      const def = rewrite(sub, `${path}#/$defs/${key}`, key, true, false);
       defs[key] = isObject(def) ? { title: key, ...def } : def;
     }
   }
 
+  for (const def of hoisted) {
+    if (typeof def.title === "string" && !(def.title in defs)) defs[def.title] = def;
+  }
+
+  checkReachable(defs, files, problems);
+
   if (problems.length > 0) throw new SchemaConventionError(problems);
 
-  const sorted = Object.fromEntries(Object.keys(defs).sort().map((k) => [k, defs[k]]));
+  const sorted = Object.fromEntries(
+    Object.keys(defs)
+      .sort()
+      .map((k) => [k, defs[k]]),
+  );
   return {
     bundle: {
       $schema: "https://json-schema.org/draft/2020-12/schema",
       $id: BUNDLE_ID,
       $comment:
         "GENERATED by `pnpm schemas:gen` from packages/schemas/{song,analysis,jobs,api}/**/*.schema.json. Do not edit.",
-      title: "BragiSchemas",
       $defs: sorted,
     },
     rootTypes: files
@@ -217,6 +279,55 @@ export function bundleSchemas(files) {
       .map(({ schema }) => /** @type {string} */ (schema.title))
       .sort(),
   };
+}
+
+/**
+ * Walks a bundled `$def` graph and returns every `#/$defs/<Name>` it can reach.
+ *
+ * @param {JsonObject} node
+ * @param {Set<string>} seen
+ */
+function collectRefs(node, seen) {
+  if (Array.isArray(node)) {
+    for (const item of node) collectRefs(/** @type {JsonObject} */ (item), seen);
+    return;
+  }
+  if (!isObject(node)) return;
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "$ref" && typeof value === "string" && value.startsWith("#/$defs/")) {
+      seen.add(value.slice("#/$defs/".length));
+    } else {
+      collectRefs(/** @type {JsonObject} */ (value), seen);
+    }
+  }
+}
+
+/**
+ * Every `$def` must be reachable from at least one file root, otherwise some generators (which
+ * start at a root) would silently omit it and the three languages would disagree.
+ *
+ * @param {JsonObject} defs
+ * @param {SchemaFile[]} files
+ * @param {string[]} problems
+ */
+function checkReachable(defs, files, problems) {
+  const roots = files
+    .filter(({ schema }) => rootIsType(schema) && typeof schema.title === "string")
+    .map(({ schema }) => /** @type {string} */ (schema.title));
+  const reachable = new Set();
+  const queue = [...roots];
+  while (queue.length > 0) {
+    const name = queue.pop();
+    if (name === undefined || reachable.has(name)) continue;
+    reachable.add(name);
+    /** @type {Set<string>} */
+    const refs = new Set();
+    if (isObject(defs[name])) collectRefs(/** @type {JsonObject} */ (defs[name]), refs);
+    for (const ref of refs) if (!reachable.has(ref)) queue.push(ref);
+  }
+  for (const name of Object.keys(defs)) {
+    if (!reachable.has(name)) problems.push(`$defs/${name}: unreachable from any file root type`);
+  }
 }
 
 /**
@@ -230,20 +341,37 @@ export function bundleSchemas(files) {
 function checkNode(node, where, named, problems) {
   if ("$ref" in node) {
     const extra = Object.keys(node).filter((k) => !REF_SIBLINGS.has(k));
-    if (extra.length > 0) problems.push(`${where}: "$ref" may only sit next to "description", found ${extra.join(", ")}`);
+    if (extra.length > 0)
+      problems.push(
+        `${where}: "$ref" may only sit next to "description", found ${extra.join(", ")}`,
+      );
     return;
   }
-  if ("const" in node) problems.push(`${where}: use "enum": [value] instead of "const" (typify only enforces enum)`);
-  if ("format" in node) problems.push(`${where}: no "format" — use a "pattern" so every language keeps the string as is`);
+  if ("const" in node)
+    problems.push(`${where}: use "enum": [value] instead of "const" (typify only enforces enum)`);
+  if ("format" in node)
+    problems.push(
+      `${where}: no "format" — use a "pattern" so every language keeps the string as is`,
+    );
   if ("properties" in node) {
     if (!named) problems.push(`${where}: inline object type — move it to a named $def`);
-    if (node.additionalProperties !== false) problems.push(`${where}: an object with properties needs "additionalProperties": false`);
+    if (node.additionalProperties !== false)
+      problems.push(`${where}: an object with properties needs "additionalProperties": false`);
+  } else if (node.type === "object" && !("additionalProperties" in node)) {
+    // A bare `{ "type": "object" }` is a free-form object: generated typed languages would drop its
+    // keys, so the intent must be explicit. `true` keeps it open (and generators must keep the
+    // keys); a subschema makes it a typed map.
+    problems.push(
+      `${where}: an object must declare "additionalProperties" — false to reject unknown fields, a schema for a typed map, true to stay open`,
+    );
   }
   if (Array.isArray(node.enum) && node.enum.length > 1 && !named) {
     problems.push(`${where}: inline multi-value enum — move it to a named $def`);
   }
-  if (("oneOf" in node || "anyOf" in node) && !named) problems.push(`${where}: inline union — move it to a named $def`);
-  if ("anyOf" in node || "allOf" in node) problems.push(`${where}: use "oneOf" (anyOf/allOf are not generated consistently)`);
+  if (("oneOf" in node || "anyOf" in node) && !named)
+    problems.push(`${where}: inline union — move it to a named $def`);
+  if ("anyOf" in node || "allOf" in node)
+    problems.push(`${where}: use "oneOf" (anyOf/allOf are not generated consistently)`);
   if (Array.isArray(node.oneOf)) {
     for (const [i, branch] of node.oneOf.entries()) {
       if (!isObject(branch) || typeof branch.$ref !== "string") {
@@ -252,7 +380,8 @@ function checkNode(node, where, named, problems) {
     }
   }
   if (typeof node.pattern === "string") {
-    if (/\\d/.test(node.pattern)) problems.push(`${where}: use [0-9] instead of \\d (Rust and Python match Unicode digits)`);
+    if (/\\d/.test(node.pattern))
+      problems.push(`${where}: use [0-9] instead of \\d (Rust and Python match Unicode digits)`);
     if (/\(\?[=!<]/.test(node.pattern)) problems.push(`${where}: no look-around in patterns`);
   }
 }
@@ -267,6 +396,8 @@ function checkNode(node, where, named, problems) {
  */
 function checkOptional(sub, where, problems) {
   if (isObject(sub) && (sub.type === "array" || sub.type === "object")) {
-    problems.push(`${where}: optional ${sub.type} must be a named $def (so it is not dropped when empty)`);
+    problems.push(
+      `${where}: optional ${sub.type} must be a named $def (so it is not dropped when empty)`,
+    );
   }
 }

@@ -4,18 +4,11 @@
   "description": "`section.split` (02 §4.2). Split a section in two at a section-relative tick.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "sectionId",
-    "atTick",
-    "newId"
-  ],
+  "required": ["op", "sectionId", "atTick", "newId"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "section.split"
-      ]
+      "enum": ["section.split"]
     },
     "sectionId": {
       "$ref": "../common.schema.json#/$defs/SectionId"

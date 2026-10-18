@@ -4,17 +4,11 @@
   "description": "`track.update` (02 §4.2). Patch a track's mixer and display fields.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "trackId",
-    "patch"
-  ],
+  "required": ["op", "trackId", "patch"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "track.update"
-      ]
+      "enum": ["track.update"]
     },
     "trackId": {
       "$ref": "../common.schema.json#/$defs/TrackId"

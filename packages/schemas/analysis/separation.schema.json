@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SeparationResult",
+  "description": "The `separation` stage result: one working asset per stem plus the residual (specs/04-analysis-pipeline.md §4, 02 §3.4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "model", "stems", "residual"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "model": {
+      "description": "Stage version string, e.g. \"htdemucs_6s-1\" (04 §1).",
+      "type": "string",
+      "minLength": 1
+    },
+    "stems": {
+      "description": "Stems whose RMS stayed above −60 dBFS; silent stems are dropped so no empty ribbons appear (04 §4).",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/StemAsset" }
+    },
+    "residual": {
+      "description": "working mix − Σ stems, computed by the worker (02 §3.4).",
+      "$ref": "../song/common.schema.json#/$defs/AssetHash"
+    }
+  },
+  "$defs": {
+    "StemAsset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "asset"],
+      "properties": {
+        "role": { "$ref": "../song/common.schema.json#/$defs/StemRole" },
+        "asset": { "$ref": "../song/common.schema.json#/$defs/AssetHash" },
+        "rmsDb": {
+          "description": "Whole-song gated RMS of the stem, in dBFS.",
+          "type": "number"
+        }
+      }
+    }
+  }
+}

@@ -4,18 +4,11 @@
   "description": "`section.resize` (02 §4.2). Change a section's length (02 §5.2).",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "sectionId",
-    "lengthTicks",
-    "mode"
-  ],
+  "required": ["op", "sectionId", "lengthTicks", "mode"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "section.resize"
-      ]
+      "enum": ["section.resize"]
     },
     "sectionId": {
       "$ref": "../common.schema.json#/$defs/SectionId"
@@ -31,11 +24,7 @@
   "$defs": {
     "SectionResizeMode": {
       "type": "string",
-      "enum": [
-        "trim",
-        "loop",
-        "stretch"
-      ]
+      "enum": ["trim", "loop", "stretch"]
     }
   }
 }

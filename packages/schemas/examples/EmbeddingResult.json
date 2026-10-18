@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "scope": "song",
+  "model": "laion-clap-music-1",
+  "dim": 3,
+  "vectors": [
+    {
+      "vector": [0.1, 0.2, 0.3]
+    }
+  ]
+}

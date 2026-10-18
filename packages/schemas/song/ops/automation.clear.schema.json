@@ -4,17 +4,11 @@
   "description": "`automation.clear` (02 §4.2). Remove a target's points, optionally only within a range.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "scope",
-    "target"
-  ],
+  "required": ["op", "scope", "target"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "automation.clear"
-      ]
+      "enum": ["automation.clear"]
     },
     "scope": {
       "$ref": "../ops/automation.set.schema.json#/$defs/AutomationScope"

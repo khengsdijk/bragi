@@ -61,8 +61,13 @@
       "properties": {
         "bar": { "description": "Zero-based bar index.", "type": "integer", "minimum": 0 },
         "numerator": { "type": "integer", "minimum": 1, "maximum": 64 },
-        "denominator": { "type": "integer", "enum": [1, 2, 4, 8, 16, 32] }
+        "denominator": { "$ref": "#/$defs/TimeSigDenominator" }
       }
+    },
+    "TimeSigDenominator": {
+      "description": "Note value that gets the beat: 1, 2, 4, 8, 16 or 32.",
+      "type": "integer",
+      "enum": [1, 2, 4, 8, 16, 32]
     },
     "Master": {
       "type": "object",

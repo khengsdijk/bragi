@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "genres": [
+    {
+      "label": "synthwave",
+      "score": 0.71
+    }
+  ],
+  "moods": [
+    {
+      "label": "nostalgic",
+      "score": 0.64
+    }
+  ],
+  "instruments": [
+    {
+      "label": "synth",
+      "score": 0.58
+    }
+  ],
+  "descriptors": [
+    {
+      "label": "wide",
+      "score": 0.42
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "bat_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+  "author": {
+    "kind": "user"
+  },
+  "label": "Set the tempo",
+  "ops": [
+    {
+      "op": "tempo.set",
+      "tempoMap": [
+        {
+          "tick": 0,
+          "bpm": 118,
+          "curve": "step"
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-10-18T12:00:00Z"
+}

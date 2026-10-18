@@ -1,6 +1,13 @@
 /**
- * Package identity. The scaffold (WP-0.1) ships this so that the lint, build
- * and test chain runs against real code in every package; the work package
- * named in this package's README replaces it with the real surface.
+ * The Bragi cross-language contracts (specs/01-architecture.md §7).
+ *
+ * This package holds the JSON Schemas that define the song document, the v1 ops, the analysis
+ * blobs, the job envelopes and the API error codes. Everything exported here is generated from
+ * them by `pnpm schemas:gen`; see `packages/schemas/README.md`. Generated code is never edited by
+ * hand (specs/13-agent-guide.md §1).
+ *
+ * The validators are precompiled rather than built with `new Function` at runtime, because the UI
+ * runs under a strict CSP (specs/01-architecture.md §10).
  */
-export const PACKAGE_NAME = "@bragi/schemas";
+export * from "./generated/types.js";
+export * from "./generated/validators.js";

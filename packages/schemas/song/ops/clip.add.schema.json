@@ -4,18 +4,11 @@
   "description": "`clip.add` (02 §4.2). Add a clip to a section's lane for a track.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "sectionId",
-    "trackId",
-    "clip"
-  ],
+  "required": ["op", "sectionId", "trackId", "clip"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "clip.add"
-      ]
+      "enum": ["clip.add"]
     },
     "sectionId": {
       "$ref": "../common.schema.json#/$defs/SectionId"

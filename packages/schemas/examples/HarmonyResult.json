@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "key": {
+    "tonic": "F#",
+    "mode": "minor",
+    "confidence": 0.88
+  },
+  "keyChanges": [],
+  "chords": [
+    {
+      "startSec": 0.0,
+      "endSec": 1.0,
+      "symbol": "F#m7",
+      "root": "F#",
+      "quality": "min7",
+      "confidence": 0.7
+    }
+  ],
+  "sections": [
+    {
+      "index": 0,
+      "romanNumerals": ["i", "VI"],
+      "progressionFingerprint": "i-VI"
+    }
+  ]
+}

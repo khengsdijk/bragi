@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JobEvent",
+  "description": "A worker's progress report on a job (specs/05-backend-and-jobs.md \u00a74.2). Published on `events.job.<jobId>` and fanned out to the client over WebSocket.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "jobId", "type"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Envelope schema version (01 \u00a77).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "jobId": {
+      "$ref": "../song/common.schema.json#/$defs/JobId"
+    },
+    "type": {
+      "$ref": "#/$defs/JobEventType"
+    },
+    "pct": {
+      "description": "Progress in 0..1; at most two reports per second (05 \u00a74.3).",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "etaSec": {
+      "type": "number",
+      "minimum": 0
+    },
+    "outputs": {
+      "$ref": "#/$defs/JobOutputs"
+    },
+    "error": {
+      "$ref": "#/$defs/JobError"
+    },
+    "metrics": {
+      "$ref": "#/$defs/JobMetrics"
+    }
+  },
+  "$defs": {
+    "JobEventType": {
+      "type": "string",
+      "enum": ["started", "progress", "partial", "completed", "failed"]
+    },
+    "JobOutputs": {
+      "description": "Content-addressed results by role or name.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assets": {
+          "$ref": "job-request.schema.json#/$defs/NamedAssetMap"
+        },
+        "blobs": {
+          "$ref": "job-request.schema.json#/$defs/NamedAssetMap"
+        }
+      }
+    },
+    "JobError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": {
+          "description": "Stage error code, e.g. \"MODEL_ERROR\" or \"INGEST_FAILED\" (05 \u00a73, 04 \u00a710).",
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      }
+    },
+    "JobMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gpuSeconds", "model", "modelVersion", "worker"],
+      "properties": {
+        "gpuSeconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "modelVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worker": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

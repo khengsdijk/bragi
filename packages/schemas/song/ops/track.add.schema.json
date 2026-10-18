@@ -4,16 +4,11 @@
   "description": "`track.add` (02 §4.2). Add a track, at index or appended.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "track"
-  ],
+  "required": ["op", "track"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "track.add"
-      ]
+      "enum": ["track.add"]
     },
     "track": {
       "$ref": "../track.schema.json"

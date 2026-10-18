@@ -4,19 +4,11 @@
   "description": "`analysis.apply` (02 §4.2). System op: expand an analysis stage result into the document (02 §6).",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "sourceId",
-    "stage",
-    "blob",
-    "effects"
-  ],
+  "required": ["op", "sourceId", "stage", "blob", "effects"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "analysis.apply"
-      ]
+      "enum": ["analysis.apply"]
     },
     "sourceId": {
       "$ref": "../common.schema.json#/$defs/SourceId"

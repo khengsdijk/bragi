@@ -4,17 +4,11 @@
   "description": "`key.transpose` (02 §4.2). Set clip pitchSemitones in scope.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "semitones",
-    "scope"
-  ],
+  "required": ["op", "semitones", "scope"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "key.transpose"
-      ]
+      "enum": ["key.transpose"]
     },
     "semitones": {
       "type": "number"

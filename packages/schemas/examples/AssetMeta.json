@@ -1,0 +1,8 @@
+{
+  "hash": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+  "mime": "audio/flac",
+  "bytes": 1234567,
+  "sampleRate": 48000,
+  "channels": 2,
+  "durationSamples": 11520000
+}

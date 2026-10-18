@@ -1,0 +1,14 @@
+{
+  "index": 0,
+  "kind": "intro",
+  "repeatGroup": "A",
+  "startSec": 0.0,
+  "endSec": 16.25,
+  "bars": 8,
+  "meanEnergy": 0.4,
+  "energySlope": 0.02,
+  "chords": "i-VI",
+  "activeStems": ["vocals", "drums"],
+  "tags": ["sparse"],
+  "loudnessLufs": -8.4
+}

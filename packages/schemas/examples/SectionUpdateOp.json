@@ -1,0 +1,7 @@
+{
+  "op": "section.update",
+  "sectionId": "sec_01",
+  "patch": {
+    "locked": true
+  }
+}

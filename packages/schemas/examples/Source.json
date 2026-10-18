@@ -1,0 +1,9 @@
+{
+  "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+  "kind": "upload",
+  "originalAsset": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+  "workingAsset": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+  "durationSamples": 11520000,
+  "channels": 2,
+  "label": "midnight_drive.mp3"
+}

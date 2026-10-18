@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DescriptionResult",
+  "description": "The `describe` stage result: the LLM-written, feature-grounded description (specs/04-analysis-pipeline.md §6.3).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "summary", "sectionNotes", "whatMakesItWorks"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "summary": {
+      "description": "One paragraph, plain language, no jargon.",
+      "type": "string",
+      "minLength": 1
+    },
+    "sectionNotes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SectionNote" }
+    },
+    "whatMakesItWorks": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "suggestedTitle": {
+      "description": "Only for generated songs (04 §6.3).",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "SectionNote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "text"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "text": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

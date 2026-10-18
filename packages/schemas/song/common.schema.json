@@ -182,6 +182,11 @@
       "type": "array",
       "items": { "$ref": "#/$defs/TrackId" }
     },
+    "ChannelCount": {
+      "description": "Channel count of an asset or source: mono or stereo. Ingest duplicates mono and downmixes more than two channels (04 §3.1).",
+      "type": "integer",
+      "enum": [1, 2]
+    },
     "TagList": {
       "type": "array",
       "items": { "type": "string" }

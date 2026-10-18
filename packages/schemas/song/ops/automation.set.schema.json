@@ -4,18 +4,11 @@
   "description": "`automation.set` (02 §4.2). Replace the points of a target within the tick range the given points span.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "scope",
-    "target",
-    "points"
-  ],
+  "required": ["op", "scope", "target", "points"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "automation.set"
-      ]
+      "enum": ["automation.set"]
     },
     "scope": {
       "$ref": "#/$defs/AutomationScope"
@@ -42,17 +35,11 @@
     "LaneAutomationScope": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "kind",
-        "sectionId",
-        "trackId"
-      ],
+      "required": ["kind", "sectionId", "trackId"],
       "properties": {
         "kind": {
           "type": "string",
-          "enum": [
-            "lane"
-          ]
+          "enum": ["lane"]
         },
         "sectionId": {
           "$ref": "../common.schema.json#/$defs/SectionId"
@@ -65,15 +52,11 @@
     "MasterAutomationScope": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "kind"
-      ],
+      "required": ["kind"],
       "properties": {
         "kind": {
           "type": "string",
-          "enum": [
-            "master"
-          ]
+          "enum": ["master"]
         }
       }
     }

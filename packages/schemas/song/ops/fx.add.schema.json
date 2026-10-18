@@ -4,17 +4,11 @@
   "description": "`fx.add` (02 §4.2). Insert an effect into a track, clip or master chain.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "scope",
-    "fx"
-  ],
+  "required": ["op", "scope", "fx"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "fx.add"
-      ]
+      "enum": ["fx.add"]
     },
     "scope": {
       "$ref": "#/$defs/FxScope"
@@ -45,16 +39,11 @@
     "TrackFxScope": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "kind",
-        "trackId"
-      ],
+      "required": ["kind", "trackId"],
       "properties": {
         "kind": {
           "type": "string",
-          "enum": [
-            "track"
-          ]
+          "enum": ["track"]
         },
         "trackId": {
           "$ref": "../common.schema.json#/$defs/TrackId"
@@ -64,16 +53,11 @@
     "ClipFxScope": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "kind",
-        "clipId"
-      ],
+      "required": ["kind", "clipId"],
       "properties": {
         "kind": {
           "type": "string",
-          "enum": [
-            "clip"
-          ]
+          "enum": ["clip"]
         },
         "clipId": {
           "$ref": "../common.schema.json#/$defs/ClipId"
@@ -83,15 +67,11 @@
     "MasterFxScope": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "kind"
-      ],
+      "required": ["kind"],
       "properties": {
         "kind": {
           "type": "string",
-          "enum": [
-            "master"
-          ]
+          "enum": ["master"]
         }
       }
     }

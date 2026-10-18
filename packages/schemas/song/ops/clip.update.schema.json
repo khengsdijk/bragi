@@ -4,17 +4,11 @@
   "description": "`clip.update` (02 §4.2). Patch a clip: move, trim, gain, fades, pitch, warp.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "clipId",
-    "patch"
-  ],
+  "required": ["op", "clipId", "patch"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "clip.update"
-      ]
+      "enum": ["clip.update"]
     },
     "clipId": {
       "$ref": "../common.schema.json#/$defs/ClipId"

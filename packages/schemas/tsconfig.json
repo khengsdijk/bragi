@@ -1,9 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
+  "//": "allowJs is for src/generated/ajv-validators.js, precompiled by `pnpm schemas:gen` and imported by the typed facade in src/generated/validators.ts.",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
-    "tsBuildInfoFile": "dist/.tsbuildinfo"
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "allowJs": true
   },
   "include": ["src/**/*"],
   "exclude": ["src/__tests__/**"]

@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HarmonyResult",
+  "description": "The `harmony` stage result: key, key changes, chords and per-section progressions (specs/04-analysis-pipeline.md \u00a75.3).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "key", "chords"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 \u00a77).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "key": {
+      "$ref": "#/$defs/KeyEstimate"
+    },
+    "keyChanges": {
+      "$ref": "#/$defs/KeyChangeList"
+    },
+    "chords": {
+      "description": "Chord segments, aligned to beats.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Chord"
+      }
+    },
+    "sections": {
+      "$ref": "#/$defs/SectionProgressionList"
+    }
+  },
+  "$defs": {
+    "KeyEstimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tonic", "mode", "confidence"],
+      "properties": {
+        "tonic": {
+          "description": "Note name, e.g. \"F#\".",
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "$ref": "common.schema.json#/$defs/KeyMode"
+        },
+        "confidence": {
+          "$ref": "common.schema.json#/$defs/Confidence"
+        }
+      }
+    },
+    "KeyChangeList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/KeyChange"
+      }
+    },
+    "KeyChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["atSec", "tonic", "mode", "confidence"],
+      "properties": {
+        "atSec": {
+          "type": "number",
+          "minimum": 0
+        },
+        "tonic": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "$ref": "common.schema.json#/$defs/KeyMode"
+        },
+        "confidence": {
+          "$ref": "common.schema.json#/$defs/Confidence"
+        }
+      }
+    },
+    "Chord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startSec", "endSec", "symbol", "root", "quality", "confidence"],
+      "properties": {
+        "startSec": {
+          "type": "number",
+          "minimum": 0
+        },
+        "endSec": {
+          "type": "number",
+          "minimum": 0
+        },
+        "symbol": {
+          "description": "Display symbol, e.g. \"F#m7\".",
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quality": {
+          "description": "Chord-quality tag (open vocabulary: \"maj\", \"min\", \"maj7\", \"min7\", \"dim\", \"aug\", \u2026).",
+          "type": "string",
+          "minLength": 1
+        },
+        "bass": {
+          "description": "Slash bass note, when it differs from the root.",
+          "type": "string",
+          "minLength": 1
+        },
+        "confidence": {
+          "$ref": "common.schema.json#/$defs/Confidence"
+        }
+      }
+    },
+    "SectionProgression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "romanNumerals", "progressionFingerprint"],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "romanNumerals": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "progressionFingerprint": {
+          "description": "Normalised roman-numeral n-gram sequence, e.g. \"i-VI-III-VII\" (04 \u00a75.3).",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "SectionProgressionList": {
+      "description": "Per-section derived progressions; `index` matches the structure stage's section index.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SectionProgression"
+      }
+    }
+  }
+}

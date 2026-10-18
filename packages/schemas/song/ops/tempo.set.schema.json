@@ -4,16 +4,11 @@
   "description": "`tempo.set` (02 §4.2). Replace the tempo map. Beatgrid-warped clips follow it.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "tempoMap"
-  ],
+  "required": ["op", "tempoMap"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "tempo.set"
-      ]
+      "enum": ["tempo.set"]
     },
     "tempoMap": {
       "$ref": "../arrangement.schema.json#/$defs/TempoMap"

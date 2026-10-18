@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LyricsResult",
+  "description": "The deep `lyrics` stage result: transcribed and word-aligned lyrics (specs/04-analysis-pipeline.md §7, 05 §12). Shown to the user only; never logged or used for training.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "model", "words", "lines"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "model": { "type": "string", "minLength": 1 },
+    "words": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Word" }
+    },
+    "lines": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/LyricLine" }
+    }
+  },
+  "$defs": {
+    "Word": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "startSec", "endSec"],
+      "properties": {
+        "text": { "type": "string" },
+        "startSec": { "type": "number", "minimum": 0 },
+        "endSec": { "type": "number", "minimum": 0 }
+      }
+    },
+    "LyricLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "startSec", "endSec"],
+      "properties": {
+        "text": { "type": "string" },
+        "startSec": { "type": "number", "minimum": 0 },
+        "endSec": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

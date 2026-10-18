@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "comment": "The stable REST API error-code registry (specs/05-backend-and-jobs.md §2). This file is the source of truth for `ApiError.error.code`; `specs/12-roadmap.md` WP-0.2 requires that it equals the `ErrorCode` enum in `packages/schemas/api/error.schema.json`, and `pnpm schemas:gen` fails if the two drift. Codes are never renamed or reused: a removed code stays here with `\"deprecated\": true` so old clients keep working.",
+  "codes": [
+    {
+      "code": "AUTH_REQUIRED",
+      "http": 401,
+      "description": "No session or bearer token on an authenticated route (05 §2, §8)."
+    },
+    {
+      "code": "FORBIDDEN",
+      "http": 403,
+      "description": "Authenticated, but not allowed to touch this project, asset or job."
+    },
+    {
+      "code": "NOT_FOUND",
+      "http": 404,
+      "description": "The project, asset, analysis, job, plan or library item does not exist (or the user cannot see it)."
+    },
+    {
+      "code": "VALIDATION_FAILED",
+      "http": 400,
+      "description": "The request body failed its route schema, or an op batch failed validation (02 §4.3)."
+    },
+    {
+      "code": "CONFLICT",
+      "http": 409,
+      "description": "Compare-and-swap on refs failed: the branch changed on another device (05 §7)."
+    },
+    {
+      "code": "RATE_LIMITED",
+      "http": 429,
+      "description": "Per-user rate limit hit: 100 req/min API, 500 library imports/hour (05 §11)."
+    },
+    {
+      "code": "QUOTA_EXCEEDED",
+      "http": 429,
+      "description": "The user is out of credits for this capability (05 §9)."
+    },
+    {
+      "code": "PAYLOAD_TOO_LARGE",
+      "http": 413,
+      "description": "Upload above the configured size limit (500 MB) or a body above the route's limit (04 §3.1)."
+    },
+    {
+      "code": "UNSUPPORTED_MEDIA_TYPE",
+      "http": 415,
+      "description": "The asset is not audio the pipeline can decode (04 §3.1)."
+    },
+    {
+      "code": "ASSET_TOO_LONG",
+      "http": 422,
+      "description": "Audio above the configured duration limit (30 minutes) (04 §3.1, §10)."
+    },
+    {
+      "code": "ASSET_CORRUPT",
+      "http": 422,
+      "description": "The file is damaged or is not audio at all; ingest failed with a user-facing reason (04 §10)."
+    },
+    {
+      "code": "JOB_NOT_FOUND",
+      "http": 404,
+      "description": "GET/DELETE /jobs/{id} for an unknown job (05 §2)."
+    },
+    {
+      "code": "JOB_CANCELLED",
+      "http": 409,
+      "description": "The job was cancelled (DELETE /jobs/{id}, 05 §4.4)."
+    },
+    {
+      "code": "MODEL_ERROR",
+      "http": 502,
+      "description": "A model or worker failed. Retryable per the job event's `retryable` flag (05 §3, §4.3)."
+    },
+    {
+      "code": "UPSTREAM_UNAVAILABLE",
+      "http": 503,
+      "description": "A dependency (Postgres, NATS, S3, an LLM call) is unavailable."
+    },
+    {
+      "code": "BUDGET_EXCEEDED",
+      "http": 503,
+      "description": "The global daily GPU-seconds cap is hit: background jobs pause, interactive jobs get \"busy\" (05 §9)."
+    },
+    {
+      "code": "COMMIT_PARENT_MISSING",
+      "http": 409,
+      "description": "A pushed commit names a parent the server has not seen (05 §7)."
+    },
+    {
+      "code": "INTERNAL",
+      "http": 500,
+      "description": "An unhandled server error. The message is generic; the detail goes to Sentry/OTel (05 §11)."
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "model": "htdemucs_6s-1",
+  "stems": [
+    {
+      "role": "vocals",
+      "asset": "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+      "rmsDb": -18.2
+    }
+  ],
+  "residual": "sha256:d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
+}

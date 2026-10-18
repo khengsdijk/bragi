@@ -1,0 +1,7 @@
+{
+  "op": "clip.update",
+  "clipId": "clp_01",
+  "patch": {
+    "gainDb": -2.5
+  }
+}

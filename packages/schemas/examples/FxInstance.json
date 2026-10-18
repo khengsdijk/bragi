@@ -1,0 +1,8 @@
+{
+  "id": "fx_01",
+  "type": "filter",
+  "params": {
+    "cutoffHz": 800
+  },
+  "bypass": false
+}

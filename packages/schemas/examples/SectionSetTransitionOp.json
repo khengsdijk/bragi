@@ -1,0 +1,8 @@
+{
+  "op": "section.set_transition",
+  "sectionId": "sec_01",
+  "transition": {
+    "kind": "cut",
+    "lengthTicks": 0
+  }
+}

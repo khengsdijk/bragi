@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SectionSummary",
+  "description": "The compact per-section record used by the UI and the planner (specs/04-analysis-pipeline.md §5.6). A pipeline-side join of several stage blobs, not a stage result of its own.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "index",
+    "kind",
+    "startSec",
+    "endSec",
+    "bars",
+    "meanEnergy",
+    "energySlope",
+    "chords",
+    "activeStems",
+    "tags"
+  ],
+  "properties": {
+    "index": { "type": "integer", "minimum": 0 },
+    "kind": { "$ref": "../song/common.schema.json#/$defs/SectionKind" },
+    "repeatGroup": { "type": "string" },
+    "startSec": { "type": "number", "minimum": 0 },
+    "endSec": { "type": "number", "minimum": 0 },
+    "bars": { "type": "integer", "minimum": 1 },
+    "meanEnergy": { "$ref": "common.schema.json#/$defs/Confidence" },
+    "energySlope": { "type": "number" },
+    "chords": {
+      "description": "Roman-numeral summary, e.g. \"i-VI-III-VII\".",
+      "type": "string"
+    },
+    "activeStems": {
+      "type": "array",
+      "items": { "$ref": "../song/common.schema.json#/$defs/StemRole" }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "loudnessLufs": { "type": "number" }
+  }
+}

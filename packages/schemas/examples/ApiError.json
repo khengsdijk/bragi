@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "QUOTA_EXCEEDED",
+    "message": "Out of credits.",
+    "details": {
+      "capability": "analysis.standard"
+    }
+  }
+}

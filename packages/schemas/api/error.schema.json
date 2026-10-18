@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ApiError",
+  "description": "The REST API error envelope: `{ \"error\": { \"code\", \"message\", \"details?\" } }` (specs/05-backend-and-jobs.md §2). `code` is one of the stable codes in `packages/schemas/api/errors.json`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["error"],
+  "properties": {
+    "error": { "$ref": "#/$defs/ErrorBody" }
+  },
+  "$defs": {
+    "ErrorBody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "$ref": "#/$defs/ErrorCode" },
+        "message": {
+          "description": "Human-readable, safe to show. Never contains audio content, lyrics or prompts (05 §12).",
+          "type": "string",
+          "minLength": 1
+        },
+        "details": { "$ref": "../song/asset-meta.schema.json#/$defs/FreeformParams" }
+      }
+    },
+    "ErrorCode": {
+      "description": "The stable error codes, mirrored in `packages/schemas/api/errors.json` (05 §2). `pnpm schemas:gen` fails if the two lists drift.",
+      "type": "string",
+      "enum": [
+        "AUTH_REQUIRED",
+        "FORBIDDEN",
+        "NOT_FOUND",
+        "VALIDATION_FAILED",
+        "CONFLICT",
+        "RATE_LIMITED",
+        "QUOTA_EXCEEDED",
+        "PAYLOAD_TOO_LARGE",
+        "UNSUPPORTED_MEDIA_TYPE",
+        "ASSET_TOO_LONG",
+        "ASSET_CORRUPT",
+        "JOB_NOT_FOUND",
+        "JOB_CANCELLED",
+        "MODEL_ERROR",
+        "UPSTREAM_UNAVAILABLE",
+        "BUDGET_EXCEEDED",
+        "COMMIT_PARENT_MISSING",
+        "INTERNAL"
+      ]
+    }
+  }
+}

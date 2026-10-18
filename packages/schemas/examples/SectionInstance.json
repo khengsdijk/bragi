@@ -1,0 +1,36 @@
+{
+  "id": "sec_01",
+  "kind": "intro",
+  "label": "Intro",
+  "lengthTicks": 30720,
+  "lanes": {
+    "trk_mix": {
+      "clips": [
+        {
+          "id": "clp_01",
+          "asset": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+          "srcStart": 0,
+          "srcEnd": 780000,
+          "start": 0,
+          "warp": {
+            "mode": "none"
+          },
+          "gainDb": 0,
+          "pitchSemitones": 0,
+          "fadeInTicks": 0,
+          "fadeOutTicks": 0,
+          "fadeCurve": "equal_power",
+          "provenance": {
+            "kind": "user",
+            "createdAt": "2026-10-18T12:00:00Z"
+          }
+        }
+      ],
+      "automation": []
+    }
+  },
+  "transitionIn": {
+    "kind": "cut",
+    "lengthTicks": 0
+  }
+}

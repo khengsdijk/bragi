@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PreviewResult",
+  "description": "The `preview` stage result: the highest-energy 12 s window, encoded as Opus for hover-to-hear (specs/04-analysis-pipeline.md §5.7).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "asset", "startSec", "endSec"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "asset": {
+      "description": "The 96 kbps stereo Opus snippet.",
+      "$ref": "../song/common.schema.json#/$defs/AssetHash"
+    },
+    "startSec": { "type": "number", "minimum": 0 },
+    "endSec": { "type": "number", "exclusiveMinimum": 0 }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "op": "automation.clear",
+  "scope": {
+    "kind": "master"
+  },
+  "target": "master/gainDb"
+}

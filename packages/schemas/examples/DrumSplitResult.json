@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "model": "drumsep-1",
+  "components": [
+    {
+      "component": "kick",
+      "asset": "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+    }
+  ]
+}

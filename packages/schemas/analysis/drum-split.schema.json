@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DrumSplitResult",
+  "description": "The deep `drum_split` stage result: sub-stems of the drum stem (specs/04-analysis-pipeline.md §7).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "model", "components"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "model": { "type": "string", "minLength": 1 },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/DrumComponentAsset" }
+    }
+  },
+  "$defs": {
+    "DrumComponentAsset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component", "asset"],
+      "properties": {
+        "component": { "$ref": "common.schema.json#/$defs/DrumComponent" },
+        "asset": { "$ref": "../song/common.schema.json#/$defs/AssetHash" }
+      }
+    }
+  }
+}

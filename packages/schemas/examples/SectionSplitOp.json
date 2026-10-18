@@ -1,0 +1,6 @@
+{
+  "op": "section.split",
+  "sectionId": "sec_01",
+  "atTick": 15360,
+  "newId": "sec_02"
+}

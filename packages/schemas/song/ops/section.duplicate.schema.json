@@ -4,18 +4,11 @@
   "description": "`section.duplicate` (02 §4.2). Deep-copy a section with new IDs and set derivedFrom (02 §5.1).",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "sectionId",
-    "toIndex",
-    "newId"
-  ],
+  "required": ["op", "sectionId", "toIndex", "newId"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "section.duplicate"
-      ]
+      "enum": ["section.duplicate"]
     },
     "sectionId": {
       "$ref": "../common.schema.json#/$defs/SectionId"

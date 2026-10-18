@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "bpm": 118,
+  "beats": [0.0, 0.5085, 1.0169],
+  "downbeats": [0.0],
+  "tempoCurve": [
+    {
+      "beat": 0,
+      "bpm": 118
+    }
+  ],
+  "timeSignature": {
+    "numerator": 4,
+    "denominator": 4
+  },
+  "confidence": 0.92,
+  "isTempoStable": true
+}

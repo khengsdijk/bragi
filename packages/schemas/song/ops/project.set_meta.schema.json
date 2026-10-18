@@ -4,15 +4,11 @@
   "description": "`project.set_meta` (02 §4.2). Patch project metadata. Absent fields are unchanged.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op"
-  ],
+  "required": ["op"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "project.set_meta"
-      ]
+      "enum": ["project.set_meta"]
     },
     "title": {
       "type": "string"

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TagResult",
+  "description": "The `tag` stage result: scored labels from the controlled taxonomy (specs/04-analysis-pipeline.md §6.2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "genres", "moods", "instruments", "descriptors"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "genres": { "$ref": "#/$defs/TagScoreList" },
+    "moods": { "$ref": "#/$defs/TagScoreList" },
+    "instruments": { "$ref": "#/$defs/TagScoreList" },
+    "descriptors": { "$ref": "#/$defs/TagScoreList" },
+    "era": { "$ref": "common.schema.json#/$defs/TagScore" }
+  },
+  "$defs": {
+    "TagScoreList": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/TagScore" }
+    }
+  }
+}

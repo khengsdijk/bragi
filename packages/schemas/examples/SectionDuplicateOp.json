@@ -1,0 +1,6 @@
+{
+  "op": "section.duplicate",
+  "sectionId": "sec_01",
+  "toIndex": 1,
+  "newId": "sec_02"
+}

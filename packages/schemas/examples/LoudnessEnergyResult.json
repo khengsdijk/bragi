@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "hopSec": 0.5,
+  "lufsIntegrated": -8.4,
+  "lra": 6.2,
+  "truePeakDb": -0.3,
+  "shortTermLufs": [-9.1, -8.7],
+  "energy": [0.31, 0.44],
+  "sections": [
+    {
+      "index": 0,
+      "meanEnergy": 0.4,
+      "peakEnergy": 0.5,
+      "energySlope": 0.02,
+      "loudnessLufs": -8.4
+    }
+  ]
+}

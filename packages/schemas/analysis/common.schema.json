@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnalysisCommon",
+  "description": "Shared primitives of the analysis result blobs (specs/04-analysis-pipeline.md). This file's root is not a type; only its $defs are. All times are in seconds of the working asset (04 §1).",
+  "$defs": {
+    "SecRange": {
+      "description": "A half-open range [startSec, endSec) in seconds of the working asset.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startSec", "endSec"],
+      "properties": {
+        "startSec": { "type": "number", "minimum": 0 },
+        "endSec": { "type": "number", "minimum": 0 }
+      }
+    },
+    "Confidence": {
+      "description": "A model's self-reported confidence in 0..1.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "NumberSeries": {
+      "description": "A dense series of numbers, e.g. a per-hop energy curve or an embedding vector.",
+      "type": "array",
+      "items": { "type": "number" }
+    },
+    "EmbeddingScope": {
+      "description": "What an embedding vector describes (04 §6.1).",
+      "type": "string",
+      "enum": ["song", "section", "stem"]
+    },
+    "KeyMode": {
+      "type": "string",
+      "enum": ["major", "minor"]
+    },
+    "DrumComponent": {
+      "description": "A drum sub-stem produced by the deep `drum_split` stage (04 §7).",
+      "type": "string",
+      "enum": ["kick", "snare", "toms", "hihat", "cymbals"]
+    },
+    "TagScore": {
+      "description": "One taxonomy label with the model's score in 0..1 (04 §6.2). The label vocabulary lives in the tagging model's head, not in the schema.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "score"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "score": { "$ref": "#/$defs/Confidence" }
+      }
+    }
+  }
+}

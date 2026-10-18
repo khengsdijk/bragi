@@ -1,0 +1,1678 @@
+{
+  "comment": "Invalid documents, each a mutation of packages/schemas/examples/{Project,OpBatch}.json. Every language's test asserts that `checkedBy` lists it. Ajv and Pydantic check every constraint; typify checks types, enums, IDs, patterns, string lengths and integer bounds, but **not float bounds**, so the `checkedBy` of the two float-range cases names only Ajv and Pydantic \u2014 `bragi-model::validate` rejects those in WP-0.3. `document` is the whole mutated document, so no test needs a patch engine.",
+  "cases": [
+    {
+      "name": "unknown-root-field",
+      "type": "Project",
+      "why": "An unknown root field is rejected, never dropped (additionalProperties: false keeps the three languages lossless).",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "schemaVersion": 1,
+        "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18T12:00:00Z",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": {
+          "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+            "profile": "standard",
+            "status": {
+              "rhythm": "done",
+              "separation": "running"
+            },
+            "blobs": {
+              "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+            },
+            "summary": {
+              "bpm": 118,
+              "key": "F# minor",
+              "durationSec": 240,
+              "genres": ["synthwave"],
+              "moods": ["nostalgic", "driving"]
+            }
+          }
+        },
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "Original mix",
+            "role": "full_mix",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": 0,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": []
+          }
+        ],
+        "arrangement": {
+          "timebase": {
+            "ppq": 960,
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ],
+            "timeSignatures": [
+              {
+                "bar": 0,
+                "numerator": 4,
+                "denominator": 4
+              }
+            ]
+          },
+          "sections": [
+            {
+              "id": "sec_01",
+              "kind": "intro",
+              "label": "Intro",
+              "lengthTicks": 30720,
+              "transitionIn": {
+                "kind": "cut",
+                "lengthTicks": 0
+              },
+              "lanes": {
+                "trk_mix": {
+                  "clips": [
+                    {
+                      "id": "clp_01",
+                      "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                      "srcStart": 0,
+                      "srcEnd": 780000,
+                      "start": 0,
+                      "warp": {
+                        "mode": "beatgrid",
+                        "anchors": [
+                          {
+                            "srcSample": 0,
+                            "tick": 0
+                          },
+                          {
+                            "srcSample": 97627,
+                            "tick": 3840
+                          }
+                        ]
+                      },
+                      "gainDb": 0,
+                      "pitchSemitones": 0,
+                      "fadeInTicks": 0,
+                      "fadeOutTicks": 0,
+                      "fadeCurve": "equal_power",
+                      "provenance": {
+                        "kind": "user",
+                        "createdAt": "2026-10-18T12:00:00Z"
+                      }
+                    }
+                  ],
+                  "automation": []
+                }
+              }
+            }
+          ],
+          "master": {
+            "fx": [],
+            "automation": [],
+            "gainDb": 0
+          }
+        },
+        "nope": true
+      }
+    },
+    {
+      "name": "unknown-nested-field",
+      "type": "Project",
+      "why": "An unknown field on a nested object is rejected too.",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "schemaVersion": 1,
+        "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18T12:00:00Z",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": {
+          "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+            "profile": "standard",
+            "status": {
+              "rhythm": "done",
+              "separation": "running"
+            },
+            "blobs": {
+              "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+            },
+            "summary": {
+              "bpm": 118,
+              "key": "F# minor",
+              "durationSec": 240,
+              "genres": ["synthwave"],
+              "moods": ["nostalgic", "driving"]
+            }
+          }
+        },
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "Original mix",
+            "role": "full_mix",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": 0,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": [],
+            "nope": 1
+          }
+        ],
+        "arrangement": {
+          "timebase": {
+            "ppq": 960,
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ],
+            "timeSignatures": [
+              {
+                "bar": 0,
+                "numerator": 4,
+                "denominator": 4
+              }
+            ]
+          },
+          "sections": [
+            {
+              "id": "sec_01",
+              "kind": "intro",
+              "label": "Intro",
+              "lengthTicks": 30720,
+              "transitionIn": {
+                "kind": "cut",
+                "lengthTicks": 0
+              },
+              "lanes": {
+                "trk_mix": {
+                  "clips": [
+                    {
+                      "id": "clp_01",
+                      "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                      "srcStart": 0,
+                      "srcEnd": 780000,
+                      "start": 0,
+                      "warp": {
+                        "mode": "beatgrid",
+                        "anchors": [
+                          {
+                            "srcSample": 0,
+                            "tick": 0
+                          },
+                          {
+                            "srcSample": 97627,
+                            "tick": 3840
+                          }
+                        ]
+                      },
+                      "gainDb": 0,
+                      "pitchSemitones": 0,
+                      "fadeInTicks": 0,
+                      "fadeOutTicks": 0,
+                      "fadeCurve": "equal_power",
+                      "provenance": {
+                        "kind": "user",
+                        "createdAt": "2026-10-18T12:00:00Z"
+                      }
+                    }
+                  ],
+                  "automation": []
+                }
+              }
+            }
+          ],
+          "master": {
+            "fx": [],
+            "automation": [],
+            "gainDb": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "bad-hash-length",
+      "type": "Project",
+      "why": "An asset hash that is not `sha256:` + 64 lowercase hex.",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "schemaVersion": 1,
+        "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18T12:00:00Z",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:zz",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": {
+          "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+            "profile": "standard",
+            "status": {
+              "rhythm": "done",
+              "separation": "running"
+            },
+            "blobs": {
+              "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+            },
+            "summary": {
+              "bpm": 118,
+              "key": "F# minor",
+              "durationSec": 240,
+              "genres": ["synthwave"],
+              "moods": ["nostalgic", "driving"]
+            }
+          }
+        },
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "Original mix",
+            "role": "full_mix",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": 0,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": []
+          }
+        ],
+        "arrangement": {
+          "timebase": {
+            "ppq": 960,
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ],
+            "timeSignatures": [
+              {
+                "bar": 0,
+                "numerator": 4,
+                "denominator": 4
+              }
+            ]
+          },
+          "sections": [
+            {
+              "id": "sec_01",
+              "kind": "intro",
+              "label": "Intro",
+              "lengthTicks": 30720,
+              "transitionIn": {
+                "kind": "cut",
+                "lengthTicks": 0
+              },
+              "lanes": {
+                "trk_mix": {
+                  "clips": [
+                    {
+                      "id": "clp_01",
+                      "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                      "srcStart": 0,
+                      "srcEnd": 780000,
+                      "start": 0,
+                      "warp": {
+                        "mode": "beatgrid",
+                        "anchors": [
+                          {
+                            "srcSample": 0,
+                            "tick": 0
+                          },
+                          {
+                            "srcSample": 97627,
+                            "tick": 3840
+                          }
+                        ]
+                      },
+                      "gainDb": 0,
+                      "pitchSemitones": 0,
+                      "fadeInTicks": 0,
+                      "fadeOutTicks": 0,
+                      "fadeCurve": "equal_power",
+                      "provenance": {
+                        "kind": "user",
+                        "createdAt": "2026-10-18T12:00:00Z"
+                      }
+                    }
+                  ],
+                  "automation": []
+                }
+              }
+            }
+          ],
+          "master": {
+            "fx": [],
+            "automation": [],
+            "gainDb": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "bad-id-prefix",
+      "type": "Project",
+      "why": "A project ID without its `prj_` type prefix (02 \u00a72.1).",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "schemaVersion": 1,
+        "id": "xyz_01",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18T12:00:00Z",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": {
+          "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+            "profile": "standard",
+            "status": {
+              "rhythm": "done",
+              "separation": "running"
+            },
+            "blobs": {
+              "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+            },
+            "summary": {
+              "bpm": 118,
+              "key": "F# minor",
+              "durationSec": 240,
+              "genres": ["synthwave"],
+              "moods": ["nostalgic", "driving"]
+            }
+          }
+        },
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "Original mix",
+            "role": "full_mix",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": 0,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": []
+          }
+        ],
+        "arrangement": {
+          "timebase": {
+            "ppq": 960,
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ],
+            "timeSignatures": [
+              {
+                "bar": 0,
+                "numerator": 4,
+                "denominator": 4
+              }
+            ]
+          },
+          "sections": [
+            {
+              "id": "sec_01",
+              "kind": "intro",
+              "label": "Intro",
+              "lengthTicks": 30720,
+              "transitionIn": {
+                "kind": "cut",
+                "lengthTicks": 0
+              },
+              "lanes": {
+                "trk_mix": {
+                  "clips": [
+                    {
+                      "id": "clp_01",
+                      "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                      "srcStart": 0,
+                      "srcEnd": 780000,
+                      "start": 0,
+                      "warp": {
+                        "mode": "beatgrid",
+                        "anchors": [
+                          {
+                            "srcSample": 0,
+                            "tick": 0
+                          },
+                          {
+                            "srcSample": 97627,
+                            "tick": 3840
+                          }
+                        ]
+                      },
+                      "gainDb": 0,
+                      "pitchSemitones": 0,
+                      "fadeInTicks": 0,
+                      "fadeOutTicks": 0,
+                      "fadeCurve": "equal_power",
+                      "provenance": {
+                        "kind": "user",
+                        "createdAt": "2026-10-18T12:00:00Z"
+                      }
+                    }
+                  ],
+                  "automation": []
+                }
+              }
+            }
+          ],
+          "master": {
+            "fx": [],
+            "automation": [],
+            "gainDb": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "bad-enum",
+      "type": "Project",
+      "why": "A track role outside `StemRole`.",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "schemaVersion": 1,
+        "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18T12:00:00Z",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": {
+          "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+            "profile": "standard",
+            "status": {
+              "rhythm": "done",
+              "separation": "running"
+            },
+            "blobs": {
+              "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+            },
+            "summary": {
+              "bpm": 118,
+              "key": "F# minor",
+              "durationSec": 240,
+              "genres": ["synthwave"],
+              "moods": ["nostalgic", "driving"]
+            }
+          }
+        },
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "Original mix",
+            "role": "kazoo",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": 0,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": []
+          }
+        ],
+        "arrangement": {
+          "timebase": {
+            "ppq": 960,
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ],
+            "timeSignatures": [
+              {
+                "bar": 0,
+                "numerator": 4,
+                "denominator": 4
+              }
+            ]
+          },
+          "sections": [
+            {
+              "id": "sec_01",
+              "kind": "intro",
+              "label": "Intro",
+              "lengthTicks": 30720,
+              "transitionIn": {
+                "kind": "cut",
+                "lengthTicks": 0
+              },
+              "lanes": {
+                "trk_mix": {
+                  "clips": [
+                    {
+                      "id": "clp_01",
+                      "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                      "srcStart": 0,
+                      "srcEnd": 780000,
+                      "start": 0,
+                      "warp": {
+                        "mode": "beatgrid",
+                        "anchors": [
+                          {
+                            "srcSample": 0,
+                            "tick": 0
+                          },
+                          {
+                            "srcSample": 97627,
+                            "tick": 3840
+                          }
+                        ]
+                      },
+                      "gainDb": 0,
+                      "pitchSemitones": 0,
+                      "fadeInTicks": 0,
+                      "fadeOutTicks": 0,
+                      "fadeCurve": "equal_power",
+                      "provenance": {
+                        "kind": "user",
+                        "createdAt": "2026-10-18T12:00:00Z"
+                      }
+                    }
+                  ],
+                  "automation": []
+                }
+              }
+            }
+          ],
+          "master": {
+            "fx": [],
+            "automation": [],
+            "gainDb": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "missing-required",
+      "type": "Project",
+      "why": "A required root field is missing.",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "schemaVersion": 1,
+        "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18T12:00:00Z",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": {
+          "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+            "profile": "standard",
+            "status": {
+              "rhythm": "done",
+              "separation": "running"
+            },
+            "blobs": {
+              "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+            },
+            "summary": {
+              "bpm": 118,
+              "key": "F# minor",
+              "durationSec": 240,
+              "genres": ["synthwave"],
+              "moods": ["nostalgic", "driving"]
+            }
+          }
+        },
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "Original mix",
+            "role": "full_mix",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": 0,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "wrong-schema-version",
+      "type": "Project",
+      "why": "`schemaVersion` is fixed at 1 (02 \u00a79: removals and renames need `migrate`).",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "schemaVersion": 2,
+        "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18T12:00:00Z",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": {
+          "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+            "profile": "standard",
+            "status": {
+              "rhythm": "done",
+              "separation": "running"
+            },
+            "blobs": {
+              "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+            },
+            "summary": {
+              "bpm": 118,
+              "key": "F# minor",
+              "durationSec": 240,
+              "genres": ["synthwave"],
+              "moods": ["nostalgic", "driving"]
+            }
+          }
+        },
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "Original mix",
+            "role": "full_mix",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": 0,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": []
+          }
+        ],
+        "arrangement": {
+          "timebase": {
+            "ppq": 960,
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ],
+            "timeSignatures": [
+              {
+                "bar": 0,
+                "numerator": 4,
+                "denominator": 4
+              }
+            ]
+          },
+          "sections": [
+            {
+              "id": "sec_01",
+              "kind": "intro",
+              "label": "Intro",
+              "lengthTicks": 30720,
+              "transitionIn": {
+                "kind": "cut",
+                "lengthTicks": 0
+              },
+              "lanes": {
+                "trk_mix": {
+                  "clips": [
+                    {
+                      "id": "clp_01",
+                      "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                      "srcStart": 0,
+                      "srcEnd": 780000,
+                      "start": 0,
+                      "warp": {
+                        "mode": "beatgrid",
+                        "anchors": [
+                          {
+                            "srcSample": 0,
+                            "tick": 0
+                          },
+                          {
+                            "srcSample": 97627,
+                            "tick": 3840
+                          }
+                        ]
+                      },
+                      "gainDb": 0,
+                      "pitchSemitones": 0,
+                      "fadeInTicks": 0,
+                      "fadeOutTicks": 0,
+                      "fadeCurve": "equal_power",
+                      "provenance": {
+                        "kind": "user",
+                        "createdAt": "2026-10-18T12:00:00Z"
+                      }
+                    }
+                  ],
+                  "automation": []
+                }
+              }
+            }
+          ],
+          "master": {
+            "fx": [],
+            "automation": [],
+            "gainDb": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "bad-timestamp",
+      "type": "Project",
+      "why": "A timestamp that is not RFC 3339 UTC with a `Z` (02 \u00a72.2).",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "schemaVersion": 1,
+        "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18 12:00:00",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": {
+          "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+            "profile": "standard",
+            "status": {
+              "rhythm": "done",
+              "separation": "running"
+            },
+            "blobs": {
+              "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+            },
+            "summary": {
+              "bpm": 118,
+              "key": "F# minor",
+              "durationSec": 240,
+              "genres": ["synthwave"],
+              "moods": ["nostalgic", "driving"]
+            }
+          }
+        },
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "Original mix",
+            "role": "full_mix",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": 0,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": []
+          }
+        ],
+        "arrangement": {
+          "timebase": {
+            "ppq": 960,
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ],
+            "timeSignatures": [
+              {
+                "bar": 0,
+                "numerator": 4,
+                "denominator": 4
+              }
+            ]
+          },
+          "sections": [
+            {
+              "id": "sec_01",
+              "kind": "intro",
+              "label": "Intro",
+              "lengthTicks": 30720,
+              "transitionIn": {
+                "kind": "cut",
+                "lengthTicks": 0
+              },
+              "lanes": {
+                "trk_mix": {
+                  "clips": [
+                    {
+                      "id": "clp_01",
+                      "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                      "srcStart": 0,
+                      "srcEnd": 780000,
+                      "start": 0,
+                      "warp": {
+                        "mode": "beatgrid",
+                        "anchors": [
+                          {
+                            "srcSample": 0,
+                            "tick": 0
+                          },
+                          {
+                            "srcSample": 97627,
+                            "tick": 3840
+                          }
+                        ]
+                      },
+                      "gainDb": 0,
+                      "pitchSemitones": 0,
+                      "fadeInTicks": 0,
+                      "fadeOutTicks": 0,
+                      "fadeCurve": "equal_power",
+                      "provenance": {
+                        "kind": "user",
+                        "createdAt": "2026-10-18T12:00:00Z"
+                      }
+                    }
+                  ],
+                  "automation": []
+                }
+              }
+            }
+          ],
+          "master": {
+            "fx": [],
+            "automation": [],
+            "gainDb": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "wrong-bass-type",
+      "type": "Project",
+      "why": "An array where the schema requires a string map.",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "schemaVersion": 1,
+        "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18T12:00:00Z",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": [],
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "Original mix",
+            "role": "full_mix",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": 0,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": []
+          }
+        ],
+        "arrangement": {
+          "timebase": {
+            "ppq": 960,
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ],
+            "timeSignatures": [
+              {
+                "bar": 0,
+                "numerator": 4,
+                "denominator": 4
+              }
+            ]
+          },
+          "sections": [
+            {
+              "id": "sec_01",
+              "kind": "intro",
+              "label": "Intro",
+              "lengthTicks": 30720,
+              "transitionIn": {
+                "kind": "cut",
+                "lengthTicks": 0
+              },
+              "lanes": {
+                "trk_mix": {
+                  "clips": [
+                    {
+                      "id": "clp_01",
+                      "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                      "srcStart": 0,
+                      "srcEnd": 780000,
+                      "start": 0,
+                      "warp": {
+                        "mode": "beatgrid",
+                        "anchors": [
+                          {
+                            "srcSample": 0,
+                            "tick": 0
+                          },
+                          {
+                            "srcSample": 97627,
+                            "tick": 3840
+                          }
+                        ]
+                      },
+                      "gainDb": 0,
+                      "pitchSemitones": 0,
+                      "fadeInTicks": 0,
+                      "fadeOutTicks": 0,
+                      "fadeCurve": "equal_power",
+                      "provenance": {
+                        "kind": "user",
+                        "createdAt": "2026-10-18T12:00:00Z"
+                      }
+                    }
+                  ],
+                  "automation": []
+                }
+              }
+            }
+          ],
+          "master": {
+            "fx": [],
+            "automation": [],
+            "gainDb": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown-op",
+      "type": "OpBatch",
+      "why": "An op whose `op` names nothing in the v1 catalogue is rejected: the union only accepts the 29 known discriminators.",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "id": "bat_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "author": {
+          "kind": "user"
+        },
+        "label": "Set the tempo",
+        "ops": [
+          {
+            "op": "tempo.fast",
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ]
+          }
+        ],
+        "createdAt": "2026-10-18T12:00:00Z"
+      }
+    },
+    {
+      "name": "op-extra-field",
+      "type": "OpBatch",
+      "why": "An op with a field its payload does not define is rejected (an op is a closed object).",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "id": "bat_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "author": {
+          "kind": "user"
+        },
+        "label": "Set the tempo",
+        "ops": [
+          {
+            "op": "tempo.set",
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ],
+            "semitones": 2
+          }
+        ],
+        "createdAt": "2026-10-18T12:00:00Z"
+      }
+    },
+    {
+      "name": "pan-out-of-range",
+      "type": "Project",
+      "why": "`pan` outside [-1, 1]. Numeric *float* ranges are checked by Ajv and Pydantic; typify generates `f64` and does not range-check it, so Rust accepts this and `bragi-model::validate` rejects it in WP-0.3. (Integer bounds, by contrast, typify does check.)",
+      "checkedBy": ["typescript", "python"],
+      "document": {
+        "schemaVersion": 1,
+        "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18T12:00:00Z",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": {
+          "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+            "profile": "standard",
+            "status": {
+              "rhythm": "done",
+              "separation": "running"
+            },
+            "blobs": {
+              "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+            },
+            "summary": {
+              "bpm": 118,
+              "key": "F# minor",
+              "durationSec": 240,
+              "genres": ["synthwave"],
+              "moods": ["nostalgic", "driving"]
+            }
+          }
+        },
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "Original mix",
+            "role": "full_mix",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": -2,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": []
+          }
+        ],
+        "arrangement": {
+          "timebase": {
+            "ppq": 960,
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ],
+            "timeSignatures": [
+              {
+                "bar": 0,
+                "numerator": 4,
+                "denominator": 4
+              }
+            ]
+          },
+          "sections": [
+            {
+              "id": "sec_01",
+              "kind": "intro",
+              "label": "Intro",
+              "lengthTicks": 30720,
+              "transitionIn": {
+                "kind": "cut",
+                "lengthTicks": 0
+              },
+              "lanes": {
+                "trk_mix": {
+                  "clips": [
+                    {
+                      "id": "clp_01",
+                      "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                      "srcStart": 0,
+                      "srcEnd": 780000,
+                      "start": 0,
+                      "warp": {
+                        "mode": "beatgrid",
+                        "anchors": [
+                          {
+                            "srcSample": 0,
+                            "tick": 0
+                          },
+                          {
+                            "srcSample": 97627,
+                            "tick": 3840
+                          }
+                        ]
+                      },
+                      "gainDb": 0,
+                      "pitchSemitones": 0,
+                      "fadeInTicks": 0,
+                      "fadeOutTicks": 0,
+                      "fadeCurve": "equal_power",
+                      "provenance": {
+                        "kind": "user",
+                        "createdAt": "2026-10-18T12:00:00Z"
+                      }
+                    }
+                  ],
+                  "automation": []
+                }
+              }
+            }
+          ],
+          "master": {
+            "fx": [],
+            "automation": [],
+            "gainDb": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "bpm-out-of-range",
+      "type": "Project",
+      "why": "BPM outside [20, 400] (02 \u00a74.3 invariant 4).",
+      "checkedBy": ["typescript", "python"],
+      "document": {
+        "schemaVersion": 1,
+        "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18T12:00:00Z",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": {
+          "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+            "profile": "standard",
+            "status": {
+              "rhythm": "done",
+              "separation": "running"
+            },
+            "blobs": {
+              "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+            },
+            "summary": {
+              "bpm": 118,
+              "key": "F# minor",
+              "durationSec": 240,
+              "genres": ["synthwave"],
+              "moods": ["nostalgic", "driving"]
+            }
+          }
+        },
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "Original mix",
+            "role": "full_mix",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": 0,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": []
+          }
+        ],
+        "arrangement": {
+          "timebase": {
+            "ppq": 960,
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 900,
+                "curve": "step"
+              }
+            ],
+            "timeSignatures": [
+              {
+                "bar": 0,
+                "numerator": 4,
+                "denominator": 4
+              }
+            ]
+          },
+          "sections": [
+            {
+              "id": "sec_01",
+              "kind": "intro",
+              "label": "Intro",
+              "lengthTicks": 30720,
+              "transitionIn": {
+                "kind": "cut",
+                "lengthTicks": 0
+              },
+              "lanes": {
+                "trk_mix": {
+                  "clips": [
+                    {
+                      "id": "clp_01",
+                      "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                      "srcStart": 0,
+                      "srcEnd": 780000,
+                      "start": 0,
+                      "warp": {
+                        "mode": "beatgrid",
+                        "anchors": [
+                          {
+                            "srcSample": 0,
+                            "tick": 0
+                          },
+                          {
+                            "srcSample": 97627,
+                            "tick": 3840
+                          }
+                        ]
+                      },
+                      "gainDb": 0,
+                      "pitchSemitones": 0,
+                      "fadeInTicks": 0,
+                      "fadeOutTicks": 0,
+                      "fadeCurve": "equal_power",
+                      "provenance": {
+                        "kind": "user",
+                        "createdAt": "2026-10-18T12:00:00Z"
+                      }
+                    }
+                  ],
+                  "automation": []
+                }
+              }
+            }
+          ],
+          "master": {
+            "fx": [],
+            "automation": [],
+            "gainDb": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "non-positive-section-length",
+      "type": "Project",
+      "why": "`lengthTicks` must be > 0 (02 \u00a74.3 invariant 2). typify does enforce integer bounds (it generates a checked newtype), unlike float bounds and string lengths.",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "schemaVersion": 1,
+        "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18T12:00:00Z",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": {
+          "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+            "profile": "standard",
+            "status": {
+              "rhythm": "done",
+              "separation": "running"
+            },
+            "blobs": {
+              "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+            },
+            "summary": {
+              "bpm": 118,
+              "key": "F# minor",
+              "durationSec": 240,
+              "genres": ["synthwave"],
+              "moods": ["nostalgic", "driving"]
+            }
+          }
+        },
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "Original mix",
+            "role": "full_mix",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": 0,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": []
+          }
+        ],
+        "arrangement": {
+          "timebase": {
+            "ppq": 960,
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ],
+            "timeSignatures": [
+              {
+                "bar": 0,
+                "numerator": 4,
+                "denominator": 4
+              }
+            ]
+          },
+          "sections": [
+            {
+              "id": "sec_01",
+              "kind": "intro",
+              "label": "Intro",
+              "lengthTicks": 0,
+              "transitionIn": {
+                "kind": "cut",
+                "lengthTicks": 0
+              },
+              "lanes": {
+                "trk_mix": {
+                  "clips": [
+                    {
+                      "id": "clp_01",
+                      "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                      "srcStart": 0,
+                      "srcEnd": 780000,
+                      "start": 0,
+                      "warp": {
+                        "mode": "beatgrid",
+                        "anchors": [
+                          {
+                            "srcSample": 0,
+                            "tick": 0
+                          },
+                          {
+                            "srcSample": 97627,
+                            "tick": 3840
+                          }
+                        ]
+                      },
+                      "gainDb": 0,
+                      "pitchSemitones": 0,
+                      "fadeInTicks": 0,
+                      "fadeOutTicks": 0,
+                      "fadeCurve": "equal_power",
+                      "provenance": {
+                        "kind": "user",
+                        "createdAt": "2026-10-18T12:00:00Z"
+                      }
+                    }
+                  ],
+                  "automation": []
+                }
+              }
+            }
+          ],
+          "master": {
+            "fx": [],
+            "automation": [],
+            "gainDb": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "empty-string",
+      "type": "Project",
+      "why": "A `minLength: 1` string (`Automation.target`) must not be empty. typify counts code points, like Pydantic.",
+      "checkedBy": ["typescript", "rust", "python"],
+      "document": {
+        "schemaVersion": 1,
+        "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+        "meta": {
+          "title": "Midnight Drive",
+          "createdAt": "2026-10-18T12:00:00Z",
+          "tags": ["synthwave", "nocturnal"]
+        },
+        "sources": [
+          {
+            "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+            "kind": "upload",
+            "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+            "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+            "durationSamples": 11520000,
+            "channels": 2,
+            "label": "midnight_drive.mp3"
+          }
+        ],
+        "analyses": {
+          "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+            "profile": "standard",
+            "status": {
+              "rhythm": "done",
+              "separation": "running"
+            },
+            "blobs": {
+              "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+            },
+            "summary": {
+              "bpm": 118,
+              "key": "F# minor",
+              "durationSec": 240,
+              "genres": ["synthwave"],
+              "moods": ["nostalgic", "driving"]
+            }
+          }
+        },
+        "tracks": [
+          {
+            "id": "trk_mix",
+            "name": "",
+            "role": "full_mix",
+            "color": "#8A8F98",
+            "gainDb": 0,
+            "pan": 0,
+            "mute": false,
+            "solo": false,
+            "hidden": false,
+            "fx": []
+          }
+        ],
+        "arrangement": {
+          "timebase": {
+            "ppq": 960,
+            "tempoMap": [
+              {
+                "tick": 0,
+                "bpm": 118,
+                "curve": "step"
+              }
+            ],
+            "timeSignatures": [
+              {
+                "bar": 0,
+                "numerator": 4,
+                "denominator": 4
+              }
+            ]
+          },
+          "sections": [
+            {
+              "id": "sec_01",
+              "kind": "intro",
+              "label": "Intro",
+              "lengthTicks": 30720,
+              "transitionIn": {
+                "kind": "cut",
+                "lengthTicks": 0
+              },
+              "lanes": {
+                "trk_mix": {
+                  "clips": [
+                    {
+                      "id": "clp_01",
+                      "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                      "srcStart": 0,
+                      "srcEnd": 780000,
+                      "start": 0,
+                      "warp": {
+                        "mode": "beatgrid",
+                        "anchors": [
+                          {
+                            "srcSample": 0,
+                            "tick": 0
+                          },
+                          {
+                            "srcSample": 97627,
+                            "tick": 3840
+                          }
+                        ]
+                      },
+                      "gainDb": 0,
+                      "pitchSemitones": 0,
+                      "fadeInTicks": 0,
+                      "fadeOutTicks": 0,
+                      "fadeCurve": "equal_power",
+                      "provenance": {
+                        "kind": "user",
+                        "createdAt": "2026-10-18T12:00:00Z"
+                      }
+                    }
+                  ],
+                  "automation": [
+                    {
+                      "target": "",
+                      "points": []
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "master": {
+            "fx": [],
+            "automation": [],
+            "gainDb": 0
+          }
+        }
+      }
+    }
+  ]
+}

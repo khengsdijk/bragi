@@ -4,17 +4,11 @@
   "description": "`section.insert` (02 §4.2). Insert a section at index.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "op",
-    "index",
-    "section"
-  ],
+  "required": ["op", "index", "section"],
   "properties": {
     "op": {
       "type": "string",
-      "enum": [
-        "section.insert"
-      ]
+      "enum": ["section.insert"]
     },
     "index": {
       "description": "Position in arrangement.sections.",
