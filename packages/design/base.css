@@ -1,0 +1,98 @@
+/* biome-ignore-all lint/complexity/noImportantStyles: the reduced-motion override below has to
+   beat a component's own transition list — that is the point of a user preference. */
+
+/**
+ * Bragi's global baseline: tokens, self-hosted fonts, a minimal reset, focus defaults and the
+ * motion policy. Import this once per app; components assume nothing more than the tokens.
+ *
+ * Spec: specs/11-ux-and-accessibility.md §3 (visual language), §6.4 (contrast, scaling, targets).
+ */
+
+@import "./tokens.css";
+@import "./fonts.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  /* The theme is set on <html> (data-theme="dark" | "light"); tokens.css carries a dark
+     default so an app that never sets the attribute still gets a working theme. */
+  font-family: var(--font-sans);
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Times, BPM and every other value that must not jump when it changes (11 §3). */
+[data-numeric],
+.numeric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* One focus ring for everything focusable. Components may tighten the offset, never the colour:
+   the ring is checked against every surface it can land on (tokens.json → contrast.pairs). */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    /* Lens morphs and springs collapse to a short cross-fade (11 §3). */
+    --motion-lens: var(--motion-fast);
+    --ease-spring: var(--ease-standard);
+  }
+}
+
+[data-motion="reduced"] {
+  --motion-lens: var(--motion-fast);
+  --ease-spring: var(--ease-standard);
+}
+
+/**
+ * With reduced motion (OS preference or the app's own setting, 11 §9), transitions keep going
+ * but only on properties that cannot move anything: transforms, widths and offsets are dropped
+ * and what remains reads as a cross-fade. `!important` is deliberate — this is a user
+ * preference that a component's own transition list must not be able to override.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-property:
+      opacity, color, background-color, border-color, outline-color, box-shadow !important;
+    transition-duration: var(--motion-fast) !important;
+    animation-duration: 150ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+[data-motion="reduced"],
+[data-motion="reduced"] *,
+[data-motion="reduced"] *::before,
+[data-motion="reduced"] *::after {
+  transition-property:
+    opacity, color, background-color, border-color, outline-color, box-shadow !important;
+  transition-duration: var(--motion-fast) !important;
+  scroll-behavior: auto !important;
+}
