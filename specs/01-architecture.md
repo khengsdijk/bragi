@@ -29,7 +29,7 @@ Status: Draft v0.2 · Decision record: [ADR-0001](decisions/ADR-0001-tech-stack.
 | LLM | **Anthropic Claude API** (model IDs in config) | Planner, descriptions, labelling |
 | Schemas | **JSON Schema (2020-12)** as source of truth → codegen to TS, Rust (`typify`) and Python (Pydantic v2) | One contract across three languages |
 | Monorepo | **pnpm workspaces + Turborepo**, **Cargo workspace**, **uv workspace** | Standard tools per language, one repo |
-| Testing | Vitest, Playwright (web + Tauri via WebDriver), `cargo test` + `insta` snapshots, pytest | See [13-agent-guide.md](13-agent-guide.md) |
+| Testing | Vitest, Playwright (web; desktop e2e via the in-page `selftest` harness on macOS and WebDriver on Windows/Linux), `cargo test` + `insta` snapshots, pytest | See [13-agent-guide.md](13-agent-guide.md) |
 | Observability | OpenTelemetry (traces across API → NATS → workers), Sentry for client crashes | Debugging async pipelines |
 
 > **Rule:** Agents must not introduce a new framework, language or major dependency without adding an ADR in `specs/decisions/`.
