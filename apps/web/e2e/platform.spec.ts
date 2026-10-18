@@ -56,11 +56,14 @@ const test = base.extend<Fixtures>({
     if (project.startsWith("webkit")) {
       const profile = mkdtempSync(join(tmpdir(), `bragi-webkit-${project}-`));
       const context = await playwright.webkit.launchPersistentContext(profile, contextOptions);
+      const page = context.pages()[0] ?? (await context.newPage());
       try {
-        const page = context.pages()[0] ?? (await context.newPage());
         await resetAppStorage(page);
         await use(page);
       } finally {
+        // Leave no database behind — see reset-storage.ts: WebKit's website data
+        // belongs to the browser installation, not to the profile directory.
+        await resetAppStorage(page).catch(() => undefined);
         await context.close();
         rmSync(profile, { recursive: true, force: true });
       }
@@ -68,11 +71,12 @@ const test = base.extend<Fixtures>({
     }
 
     const context = await browser.newContext(contextOptions);
+    const page = await context.newPage();
     try {
-      const page = await context.newPage();
       await resetAppStorage(page);
       await use(page);
     } finally {
+      await resetAppStorage(page).catch(() => undefined);
       await context.close();
     }
   },
