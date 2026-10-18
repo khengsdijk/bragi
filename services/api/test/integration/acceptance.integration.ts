@@ -78,7 +78,7 @@ describe("WP-0.7 acceptance", () => {
       const put = await fetch(String(presign.uploadUrl), {
         method: "PUT",
         headers: { "content-type": "audio/wav" },
-        body: wav,
+        body: new Uint8Array(wav),
       });
       expect(put.ok).toBe(true);
     }
