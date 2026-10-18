@@ -1,0 +1,137 @@
+# CI for Bragi (specs/13-agent-guide.md §6).
+#
+# The WP-0.1 gate is that `pnpm i && pnpm build && pnpm test` passes on Ubuntu,
+# macOS and Windows, that each language's lint and tests pass, and that the
+# local infrastructure comes up healthy. Later work packages add e2e
+# (Playwright), engine conformance, visual regression, integration and the
+# quality evals.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  typescript:
+    name: TypeScript (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  lint-typescript:
+    name: Lint TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Biome formatting and lint, plus the repository layout guard for 01 §4.
+      - run: pnpm lint
+
+  rust:
+    name: Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      # rust-toolchain.toml pins the channel, components and the wasm32 target,
+      # and rustup on the runner honours it.
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  lint-rust:
+    name: Lint Rust & wasm32 build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      # Every library crate must build for the browser except the *-native one
+      # (13 §3).
+      - run: cargo build --target wasm32-unknown-unknown -p bragi-model -p bragi-dsp -p bragi-engine -p bragi-engine-wasm
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/workers
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+          # .python-version pins 3.12; uv fetches it.
+          python-version-file: services/workers/.python-version
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy .
+      - run: uv run pytest
+
+  infra:
+    name: Infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: docker compose up (waits for healthy)
+        run: docker compose -f infra/docker-compose.yml up -d --wait
+      - name: Services do what the specs need
+        run: |
+          set -euo pipefail
+          # pgvector and pgcrypto, and the vector type is usable (01 §1, 05 §5).
+          docker compose -f infra/docker-compose.yml exec -T postgres \
+            psql -U bragi -d bragi -tAc "select '[1,2,3]'::vector <-> '[1,2,4]'::vector" | grep -q 1
+          # The blob bucket exists and is private (05 §6).
+          docker compose -f infra/docker-compose.yml exec -T minio sh -c \
+            'mc alias set ci http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null \
+             && mc ls ci | grep -q bragi-blobs \
+             && mc anonymous get ci/bragi-blobs | grep -q private'
+          # NATS JetStream is enabled (05 §4).
+          curl -sf http://127.0.0.1:8222/healthz | grep -q ok
+          curl -sf "http://127.0.0.1:8222/jsz?config=1" | grep -q store_dir
+          # Mailpit answers, so magic-link email works locally (05 §8).
+          curl -sf http://127.0.0.1:8025/api/v1/info | grep -q Version
+      - name: Service logs
+        if: failure()
+        run: docker compose -f infra/docker-compose.yml logs --no-color
+      - name: Tear down
+        if: always()
+        run: docker compose -f infra/docker-compose.yml down -v
