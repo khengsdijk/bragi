@@ -1,0 +1,22 @@
+[package]
+name = "bragi-model-wasm"
+description = "wasm-bindgen bindings for bragi-model: the handle-based API the UI calls (WP-0.3)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[lib]
+# `cdylib` is what `wasm-bindgen` consumes; `rlib` lets the crate be a normal Rust dependency so
+# `cargo test --workspace` and `cargo clippy --workspace` build and lint it natively too.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+bragi-model = { path = "../bragi-model" }
+serde_json.workspace = true
+wasm-bindgen.workspace = true
+
+[lints]
+workspace = true

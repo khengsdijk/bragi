@@ -8,14 +8,44 @@
 //!
 //! The crate must compile for `wasm32-unknown-unknown`.
 //!
-//! # Status
+//! # Layout
 //!
-//! Scaffold (WP-0.1). The normative time constants below are in place; the
-//! document types, `apply`, `validate`, `section_spans`, `resolve_region`,
-//! `canonical_json`, the commit hash and `diff` arrive with **WP-0.3**.
+//! - [`generated`] — the types WP-0.2 generated from the JSON Schemas. Never edited by hand.
+//! - [`time`] — ticks ⇄ seconds ⇄ bar/beat.
+//! - [`assets`] — the `AssetMeta` index the invariants need.
+//! - [`clipmath`] — clip end ticks and the sample ⇄ tick mapping.
+//! - [`spans`], [`region`] — derived arrangement geometry.
+//! - [`validate`], [`apply`] — the invariants and the op interpreter.
+//! - [`canonical`] — stable bytes and the commit hash.
+//! - [`diff`] — the delta handed to the audio engine.
 #![forbid(unsafe_code)]
 
+pub mod apply;
+pub mod assets;
+pub mod canonical;
+pub mod clipmath;
+pub mod diff;
+pub mod error;
 pub mod generated;
+mod ids;
+pub mod region;
+pub mod spans;
+pub mod time;
+pub mod validate;
+
+pub use apply::apply;
+pub use assets::AssetIndex;
+pub use canonical::{base32, canonical_json, canonical_value, commit_id, derived_id, sha256};
+pub use clipmath::{clip_end_local, local_at_src_sample, src_sample_at_local};
+pub use diff::{EngineDelta, diff};
+pub use error::{ApplyError, ValidationCode, ValidationError};
+pub use region::{RegionSlice, ResolvedRegion, resolve_region};
+pub use spans::{SectionSpan, section_spans};
+pub use time::{
+    MAX_BPM, MIN_BPM, TempoCtx, bar_beat_to_ticks, seconds_to_ticks, ticks_to_bar_beat,
+    ticks_to_seconds,
+};
+pub use validate::validate;
 
 /// Pulses per quarter note: the resolution of every musical position in a song
 /// document. Fixed for all projects (`specs/02-song-model.md` §2.2).

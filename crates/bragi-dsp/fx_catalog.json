@@ -1,0 +1,112 @@
+{
+  "$comment": "The DSP catalogue (specs/03-audio-engine.md §6). One source shared by the UI (control ranges), the planner (allowed params) and bragi-model::validate (invariant 5 in specs/02-song-model.md §4.3). A param with \"type\": \"number\" has a min/max the validator enforces; \"type\": \"trackId\" and \"type\": \"number[]\" are not representable in FxParams and are validated structurally elsewhere.",
+  "version": 1,
+  "fx": {
+    "gain": {
+      "params": {
+        "db": { "type": "number", "min": -60, "max": 12, "default": 0 }
+      }
+    },
+    "eq3": {
+      "params": {
+        "lowDb": { "type": "number", "min": -18, "max": 18, "default": 0 },
+        "midDb": { "type": "number", "min": -18, "max": 18, "default": 0 },
+        "highDb": { "type": "number", "min": -18, "max": 18, "default": 0 },
+        "lowHz": { "type": "number", "min": 40, "max": 400, "default": 120 },
+        "midHz": { "type": "number", "min": 300, "max": 5000, "default": 1000 },
+        "highHz": { "type": "number", "min": 2000, "max": 12000, "default": 6000 },
+        "midQ": { "type": "number", "min": 0.3, "max": 4, "default": 0.7 }
+      }
+    },
+    "filter": {
+      "params": {
+        "mode": { "type": "number", "min": 0, "max": 2, "default": 0 },
+        "cutoffHz": { "type": "number", "min": 20, "max": 20000, "default": 20000 },
+        "resonance": { "type": "number", "min": 0, "max": 1, "default": 0.2 }
+      }
+    },
+    "compressor": {
+      "params": {
+        "thresholdDb": { "type": "number", "min": -60, "max": 0, "default": -18 },
+        "ratio": { "type": "number", "min": 1, "max": 20, "default": 3 },
+        "attackMs": { "type": "number", "min": 0.1, "max": 100, "default": 10 },
+        "releaseMs": { "type": "number", "min": 10, "max": 1000, "default": 120 },
+        "makeupDb": { "type": "number", "min": 0, "max": 24, "default": 0 },
+        "mix": { "type": "number", "min": 0, "max": 1, "default": 1 }
+      }
+    },
+    "saturation": {
+      "params": {
+        "drive": { "type": "number", "min": 0, "max": 1, "default": 0.2 },
+        "tone": { "type": "number", "min": -1, "max": 1, "default": 0 },
+        "mix": { "type": "number", "min": 0, "max": 1, "default": 1 }
+      }
+    },
+    "reverb": {
+      "params": {
+        "size": { "type": "number", "min": 0, "max": 1, "default": 0.5 },
+        "decaySec": { "type": "number", "min": 0.2, "max": 12, "default": 2 },
+        "predelayMs": { "type": "number", "min": 0, "max": 200, "default": 20 },
+        "damping": { "type": "number", "min": 0, "max": 1, "default": 0.5 },
+        "mix": { "type": "number", "min": 0, "max": 1, "default": 0.2 }
+      }
+    },
+    "delay": {
+      "params": {
+        "timeBeats": { "type": "number", "min": 0.0625, "max": 2, "default": 0.25 },
+        "feedback": { "type": "number", "min": 0, "max": 0.95, "default": 0.35 },
+        "tone": { "type": "number", "min": 0, "max": 1, "default": 0.5 },
+        "pingPong": { "type": "number", "min": 0, "max": 1, "default": 0 },
+        "mix": { "type": "number", "min": 0, "max": 1, "default": 0.2 }
+      }
+    },
+    "width": {
+      "params": {
+        "width": { "type": "number", "min": 0, "max": 2, "default": 1 }
+      }
+    },
+    "transient": {
+      "params": {
+        "attack": { "type": "number", "min": -1, "max": 1, "default": 0 },
+        "sustain": { "type": "number", "min": -1, "max": 1, "default": 0 }
+      }
+    },
+    "lofi": {
+      "params": {
+        "bits": { "type": "number", "min": 4, "max": 16, "default": 16 },
+        "rateHz": { "type": "number", "min": 2000, "max": 48000, "default": 48000 },
+        "wow": { "type": "number", "min": 0, "max": 1, "default": 0 },
+        "noise": { "type": "number", "min": 0, "max": 1, "default": 0 },
+        "mix": { "type": "number", "min": 0, "max": 1, "default": 1 }
+      }
+    },
+    "chorus": {
+      "params": {
+        "rateHz": { "type": "number", "min": 0.05, "max": 5, "default": 0.6 },
+        "depth": { "type": "number", "min": 0, "max": 1, "default": 0.3 },
+        "mix": { "type": "number", "min": 0, "max": 1, "default": 0.3 }
+      }
+    },
+    "sidechain_duck": {
+      "params": {
+        "sourceTrack": { "type": "trackId" },
+        "amountDb": { "type": "number", "min": 0, "max": 24, "default": 6 },
+        "releaseMs": { "type": "number", "min": 20, "max": 800, "default": 150 }
+      }
+    },
+    "match_eq": {
+      "system": true,
+      "params": {
+        "bands": { "type": "number[]" },
+        "amount": { "type": "number", "min": 0, "max": 1, "default": 1 }
+      }
+    },
+    "limiter": {
+      "masterOnly": true,
+      "params": {
+        "ceilingDb": { "type": "number", "min": -6, "max": 0, "default": -1 },
+        "releaseMs": { "type": "number", "min": 1, "max": 500, "default": 50 }
+      }
+    }
+  }
+}
