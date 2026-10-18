@@ -69,6 +69,8 @@ Server → client:
 ```
 The client reconnects with exponential backoff and re-subscribes. After reconnecting it calls `GET /jobs/{id}` to fetch any missed final states.
 
+> **Note (WP-0.7):** the `JobEvent` envelope (§4.2) carries neither the stage nor a partial index, so the gateway fills `stage` from the job's capability (`analysis.rhythm` → `rhythm`) and numbers `partial` messages itself, per job.
+
 ## 4. Jobs & events (NATS JetStream)
 
 ### 4.1 Streams and subjects
@@ -133,6 +135,7 @@ usage_ledger(id, user_id, job_id, credits numeric, reason, created_at)
 ```
 - Embeddings are keyed by **asset**, not by user, so identical audio is embedded once. Access is controlled through `user_assets`.
 - Search queries join `embeddings` → `user_assets` (user's own) → `library_items`.
+- **Better Auth owns `user`, `session`, `account` and `verification`** (05 §8); the `users(...)` row above is Better Auth's `user` plus the application's `plan` and `settings` columns. The API's migrations create all four tables (WP-0.7).
 
 ## 6. Object storage layout
 

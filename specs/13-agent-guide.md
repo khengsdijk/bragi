@@ -151,5 +151,6 @@ package's plan in `docs/wp/`).
 | `pnpm test` | TypeScript unit tests (`test:all` adds Rust and Python) |
 | `pnpm test:e2e` | Playwright web e2e: Chromium, Firefox and Playwright WebKit, each against the dev server and a production preview |
 | `pnpm test:e2e:desktop` | Tauri desktop e2e: builds the app with `--features selftest` and drives the shipped bundle in the webview through two process launches |
+| `pnpm test:integration` | docker compose stack + the WP-0.7 acceptance test (API → NATS → worker → WebSocket + trace) |
 | `pnpm test:conformance` | Engine WASM vs native parity |
 | `pnpm eval:analysis` / `pnpm bench:planner` | Quality evaluations |
