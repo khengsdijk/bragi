@@ -88,7 +88,7 @@ Bragi is built in **phases**. Every phase ends with a demo-able milestone (match
 
 ### WP-1.8 `analysis.apply` + progressive merge · M
 - **Depends on:** 0.3 · **Specs:** [02 §6](02-song-model.md)
-- **Acceptance:** property test: all permutations of stage arrival yield identical documents. Late structure on an edited doc yields `suggestedSections` instead of re-splitting.
+- **Acceptance:** property test: all permutations of stage arrival on a *pristine* document yield identical documents. Late structure on an edited doc yields `suggestedSections` instead of re-splitting.
 
 ### WP-1.9 Song Canvas renderer v1 (view + playback) · L
 - **Depends on:** 0.5, 0.6, 1.1 · **Specs:** [07 §1, §2, §5, §8, §9](07-song-canvas.md), [11 §6.1](11-ux-and-accessibility.md)
