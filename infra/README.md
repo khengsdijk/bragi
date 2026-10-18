@@ -16,6 +16,10 @@ pnpm infra:logs    # follow logs
 pnpm infra:down    # stop and delete the volumes
 ```
 
+`postgres/init/*.sql` runs **only on an empty data volume**. After adding or changing a file there,
+run `pnpm infra:down` (which deletes the volumes) before `pnpm infra:up`, or the new SQL will never
+execute.
+
 Ports, credentials and defaults live in [`.env.example`](.env.example). The local credentials are
 deliberately weak development values; real secrets never enter this repository
 ([13 §1](../specs/13-agent-guide.md)).

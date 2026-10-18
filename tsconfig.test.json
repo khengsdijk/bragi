@@ -1,12 +1,14 @@
 {
-  "//": "Typechecks everything including tests, which the per-package builds exclude.",
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "composite": false,
     "declaration": false,
     "declarationMap": false,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "allowJs": true,
+    "checkJs": true
   },
-  "include": ["packages/*/src/**/*", "services/api/src/**/*", "scripts/**/*"]
+  "include": ["packages/*/src/**/*", "services/api/src/**/*", "scripts/**/*"],
+  "//": "Typechecks what the per-package builds leave out: the src/__tests__ files and the JSDoc-annotated .mjs scripts."
 }

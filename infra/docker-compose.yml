@@ -26,7 +26,11 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bragi} -d ${POSTGRES_DB:-bragi}"]
+      # -h forces TCP. Without it pg_isready answers over the Unix socket, where
+      # the entrypoint's temporary init server also listens, so the service would
+      # report healthy before postgres/init/*.sql had run.
+      test:
+        ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-bragi} -d ${POSTGRES_DB:-bragi}"]
       interval: 5s
       timeout: 5s
       retries: 20

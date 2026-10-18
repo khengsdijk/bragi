@@ -5,8 +5,8 @@
 //! of its own. The two thin glue crates `bragi-engine-wasm` and
 //! `bragi-engine-native` provide those, so that the same DSP runs in an
 //! AudioWorklet and natively on desktop and a conformance test can null one
-//! against the other ([`specs/01-architecture.md`] §3,
-//! [`specs/03-audio-engine.md`]).
+//! against the other (`specs/01-architecture.md` §3,
+//! `specs/03-audio-engine.md`).
 //!
 //! The crate must compile for `wasm32-unknown-unknown`.
 //!

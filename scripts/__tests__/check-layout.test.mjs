@@ -1,69 +1,117 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { checkLayout, REQUIRED_DIRS } from "../check-layout.mjs";
+import { checkLayout, EXTRA_DIRS, parseArchitectureTree, requiredDirs } from "../check-layout.mjs";
 
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 
-describe("REQUIRED_DIRS", () => {
-  it("covers every directory named in specs/01-architecture.md §4", () => {
+describe("parseArchitectureTree", () => {
+  it("turns the fenced tree under §4 into directory paths", () => {
+    const markdown = [
+      "## 3. Something else",
+      "```",
+      "not/ the tree",
+      "```",
+      "",
+      "## 4. Repository layout",
+      "",
+      "```",
+      "bragi/",
+      "├─ apps/",
+      "│  ├─ web/                    # Vite entry",
+      "│  └─ desktop/                # Tauri 2 app",
+      "│     ├─ src-tauri/           # Rust side",
+      "│     └─ (loads packages/app)",
+      "├─ infra/",
+      "│  ├─ docker-compose.yml      # postgres, minio",
+      "│  └─ deploy/                 # IaC",
+      "└─ specs/                     # These documents",
+      "```",
+      "",
+      "## 5. Next",
+    ].join("\n");
+
+    expect(parseArchitectureTree(markdown)).toEqual([
+      "apps",
+      "apps/web",
+      "apps/desktop",
+      "apps/desktop/src-tauri",
+      "infra",
+      "infra/deploy",
+      "specs",
+    ]);
+  });
+
+  it("refuses to guess when the section or its tree is missing", () => {
+    expect(() => parseArchitectureTree("# No section here\n")).toThrow(/Repository layout/);
+    expect(() => parseArchitectureTree("## 4. Repository layout\n\nno fence\n")).toThrow(/fenced/);
+  });
+});
+
+describe("requiredDirs", () => {
+  it("derives the list from specs/01-architecture.md §4 rather than restating it", () => {
+    const dirs = requiredDirs(repoRoot);
+    const spec = readFileSync(join(repoRoot, "specs", "01-architecture.md"), "utf8");
+    // Every path in the spec's tree is required...
+    for (const dir of parseArchitectureTree(spec)) {
+      expect(dirs).toContain(dir);
+    }
+    // ...plus the few directories other specs require.
+    for (const dir of EXTRA_DIRS) expect(dirs).toContain(dir);
+    expect(dirs).toHaveLength(new Set(dirs).size);
+  });
+
+  it("still contains the landmarks the repository is built around", () => {
+    const dirs = requiredDirs(repoRoot);
     for (const dir of [
       "apps/web",
       "apps/desktop/src-tauri",
       "packages/app",
-      "packages/design",
-      "packages/render-canvas",
-      "packages/render-universe",
-      "packages/platform",
       "packages/model-wasm",
       "packages/schemas",
-      "packages/api-client",
       "crates/bragi-model",
-      "crates/bragi-dsp",
-      "crates/bragi-engine",
-      "crates/bragi-engine-wasm",
       "crates/bragi-engine-native",
       "services/api",
       "services/workers/bragi_common",
-      "services/workers/analysis",
-      "services/workers/embed",
       "services/workers/generate",
       "infra/deploy",
       "fixtures",
       "specs",
+      "docs",
     ]) {
-      expect(REQUIRED_DIRS).toContain(dir);
+      expect(dirs).toContain(dir);
     }
+    // A parser that silently matched nothing would pass every `toContain`
+    // above if the list were empty, so pin the order of magnitude too.
+    expect(dirs.length).toBeGreaterThanOrEqual(30);
   });
 });
 
 describe("checkLayout", () => {
   it("reports every required directory as missing in an empty tree", () => {
     const empty = mkdtempSync(join(tmpdir(), "bragi-layout-"));
-    const problems = checkLayout(empty);
-    expect(problems).toHaveLength(REQUIRED_DIRS.length);
-    expect(problems.every((p) => p.includes("missing directory"))).toBe(true);
+    const problems = checkLayout(empty, ["apps", "crates/bragi-model"]);
+    expect(problems).toEqual(["apps: missing directory", "crates/bragi-model: missing directory"]);
   });
 
   it("reports a directory that exists but has no README", () => {
     const root = mkdtempSync(join(tmpdir(), "bragi-layout-"));
     mkdirSync(join(root, "specs"), { recursive: true });
-    const problems = checkLayout(root);
-    expect(problems).toContain("specs: missing README.md");
-    expect(problems).not.toContain("specs: missing directory");
+    const problems = checkLayout(root, ["specs"]);
+    expect(problems).toEqual(["specs: missing README.md"]);
   });
 
   it("accepts a directory with a README", () => {
     const root = mkdtempSync(join(tmpdir(), "bragi-layout-"));
     mkdirSync(join(root, "specs"), { recursive: true });
     writeFileSync(join(root, "specs", "README.md"), "# specs\n");
-    expect(checkLayout(root).filter((p) => p.startsWith("specs:"))).toEqual([]);
+    expect(checkLayout(root, ["specs"])).toEqual([]);
   });
 
   it("finds no problems in this repository", () => {
-    expect(checkLayout(repoRoot)).toEqual([]);
+    expect(checkLayout(repoRoot, requiredDirs(repoRoot))).toEqual([]);
   });
 });

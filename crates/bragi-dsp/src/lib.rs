@@ -2,7 +2,7 @@
 //! reverb, loudness measurement and crossfades.
 //!
 //! Everything here runs on the audio thread, so the house rules apply in full
-//! ([`specs/13-agent-guide.md`] §1): no allocation, locks, I/O, logging or
+//! (`specs/13-agent-guide.md` §1): no allocation, locks, I/O, logging or
 //! panics in a `process()` path. Allocation belongs in `prepare`-style setup
 //! calls that the host runs off-thread.
 //!

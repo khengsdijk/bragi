@@ -8,7 +8,7 @@ edition = "2024"
 rust-version = "1.99"
 license = "UNLICENSED"
 publish = false
-repository = "https://github.com/koenhengsdijk/bragi"
+repository = "https://github.com/khengsdijk/bragi"
 
 [workspace.dependencies]
 thiserror = "2.0"
@@ -34,10 +34,10 @@ print_stderr = "warn"
 todo = "warn"
 undocumented_unsafe_blocks = "warn"
 
-# Debug builds of the DSP and engine crates are unusably slow without this, and
-# the conformance tests (WP-1.1) run in debug.
-[profile.dev.package."*"]
-opt-level = 2
+# NOTE for WP-1.1: bragi-dsp and bragi-engine will need optimised debug builds,
+# because the conformance tests run in debug. `[profile.dev.package."*"]` does
+# NOT do that — Cargo applies it to non-workspace members only — so WP-1.1 picks
+# the shape it needs (per-crate overrides, or `[profile.dev] opt-level`).
 
 [profile.release]
 lto = "thin"

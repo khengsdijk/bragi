@@ -2,7 +2,7 @@
 //! time mapping.
 //!
 //! This crate is the **only** thing that changes a song document
-//! ([`specs/02-song-model.md`], [`specs/13-agent-guide.md`] §1). TypeScript and
+//! (`specs/02-song-model.md`, `specs/13-agent-guide.md` §1). TypeScript and
 //! Python never mutate a document; they build op batches and hand them here,
 //! through the `wasm-bindgen` wrapper in `packages/model-wasm`.
 //!

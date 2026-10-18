@@ -1,10 +1,11 @@
 # CI for Bragi (specs/13-agent-guide.md §6).
 #
-# The WP-0.1 gate is that `pnpm i && pnpm build && pnpm test` passes on Ubuntu,
-# macOS and Windows, that each language's lint and tests pass, and that the
-# local infrastructure comes up healthy. Later work packages add e2e
-# (Playwright), engine conformance, visual regression, integration and the
-# quality evals.
+# NOT THE GATE. Bragi is a solo project and verification is local: `pnpm verify`
+# plus `pnpm infra:up` (13 §4, §6). This workflow is kept ready and correct for
+# the day the project wants hosted CI — it mirrors `pnpm verify` across Ubuntu,
+# macOS and Windows — but no run has been required or observed, so treat a first
+# run as unproven. Later work packages would add e2e (Playwright), engine
+# conformance, visual regression, integration and the quality evals.
 
 name: CI
 
@@ -23,11 +24,11 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings
 
 jobs:
   typescript:
     name: TypeScript (${{ matrix.os }})
+    timeout-minutes: 20
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -47,6 +48,7 @@ jobs:
 
   lint-typescript:
     name: Lint TypeScript
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -61,6 +63,7 @@ jobs:
 
   rust:
     name: Rust (${{ matrix.os }})
+    timeout-minutes: 30
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -77,6 +80,7 @@ jobs:
 
   lint-rust:
     name: Lint Rust & wasm32 build
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -89,17 +93,20 @@ jobs:
 
   python:
     name: Python
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: services/workers
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      # setup-uv publishes point tags only: there is no moving `v10`.
+      - uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
-          # .python-version pins 3.12; uv fetches it.
-          python-version-file: services/workers/.python-version
+          # Matches services/workers/.python-version, which is what `uv sync`
+          # itself reads; this makes the runner provision the same interpreter.
+          python-version: "3.12"
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
@@ -108,11 +115,12 @@ jobs:
 
   infra:
     name: Infrastructure
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - name: docker compose up (waits for healthy)
-        run: docker compose -f infra/docker-compose.yml up -d --wait
+        run: docker compose -f infra/docker-compose.yml up -d --wait --wait-timeout 180
       - name: Services do what the specs need
         run: |
           set -euo pipefail
