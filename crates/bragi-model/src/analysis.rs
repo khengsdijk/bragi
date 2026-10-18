@@ -96,7 +96,9 @@ pub(crate) fn apply_analysis_apply(
                 &generated_at,
             );
         }
-        apply_meta_effects(doc, &next_effects);
+        // Only this op's own metadata effects, so a re-delivery of an unchanged stage cannot
+        // resurrect a tag the user removed.
+        apply_meta_effects(doc, &op.effects.0);
     }
 
     doc.analyses = AnalysisRefMap(next_analyses);

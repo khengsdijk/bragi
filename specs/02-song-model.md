@@ -362,7 +362,7 @@ Each analysis clip covers its section: `start` is 0 because lanes are section-re
 
 ### 6.3 Progressive merge and conflicts
 
-The op records `status[stage] = "done"`, `blobs[stage] = blob` and the merged `effects` (kept in a fixed kind order, so the list is a set and not an arrival log), updates `analyses[src].stems` from a `separation` effect, merges a `tags` effect into `meta.tags` (union, existing order first) and sets `meta.description` from a `describe` effect only when it is absent. Re-delivering a stage whose effects are unchanged is a no-op.
+The op records `status[stage] = "done"`, `blobs[stage] = blob` and the merged `effects` (kept in a fixed kind order, so the list is a set and not an arrival log), and updates `analyses[src].stems` from a `separation` effect. `meta` takes only the effects *this op* carries: a `tags` effect merges into `meta.tags` (union, existing order first) and a `describe` effect sets `meta.description` when it is absent — so a re-delivery of an unchanged stage cannot resurrect a tag the user removed, and re-delivering a stage whose effects are unchanged is a no-op.
 
 `build` runs over the effects recorded **before** the op and **after** it:
 

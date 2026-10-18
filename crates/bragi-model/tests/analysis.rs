@@ -43,8 +43,12 @@ fn drums_hash() -> String {
 fn residual_hash() -> String {
     hash('d')
 }
-fn blob_hash() -> String {
-    hash('e')
+/// A distinct, valid blob hash per stage, so the recorded `blobs` map is exercised too.
+fn stage_blob(stage: &str) -> String {
+    let seed = stage.bytes().fold(7_u32, |acc, byte| {
+        acc.wrapping_mul(31).wrapping_add(u32::from(byte))
+    });
+    format!("sha256:{seed:08x}{}", "e".repeat(56))
 }
 
 fn asset_index(duration_samples: u64) -> AssetIndex {
@@ -143,7 +147,7 @@ fn apply_op(stage: &str, effects: Value) -> Value {
         "op": "analysis.apply",
         "sourceId": SRC,
         "stage": stage,
-        "blob": blob_hash(),
+        "blob": stage_blob(stage),
         "effects": effects
     })
 }
@@ -705,6 +709,23 @@ fn tags_and_description_merge_into_the_metadata() {
     );
 }
 
+#[test]
+fn a_later_stage_does_not_resurrect_a_removed_tag() {
+    let assets = asset_index(DURATION);
+    let mut doc = base_doc();
+    for op in [ingest_op(), tag_op()] {
+        doc = run_op(&doc, op, &assets);
+    }
+    // The user curates the tags, then separation (which carries no tags) arrives.
+    doc = run_user_op(
+        &doc,
+        json!({ "op": "project.set_meta", "tags": ["mine"] }),
+        &assets,
+    );
+    doc = run_op(&doc, separation_op(), &assets);
+    assert_eq!(doc.meta.tags.0, vec!["mine".to_owned()]);
+}
+
 // --- errors ----------------------------------------------------------------------------------
 
 #[test]
@@ -762,7 +783,7 @@ fn effects_must_match_their_stage() {
             json!({ "kind": "system", "reason": "analysis" }),
             vec![
                 json!({ "op": "analysis.apply", "sourceId": "src_other", "stage": "tag",
-                "blob": blob_hash(), "effects": [] }),
+                "blob": stage_blob("tag"), "effects": [] }),
             ],
         ),
         &assets,
