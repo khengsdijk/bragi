@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The app window. It grants the core defaults and exactly the commands the page needs for the local database and blob cache, and nothing else: no plugin, no filesystem scope (01 §10). Every other app command is denied by default.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "allow-db-query",
+    "allow-db-run",
+    "allow-db-transaction",
+    "allow-blob-put",
+    "allow-blob-get",
+    "allow-blob-has",
+    "allow-blob-delete"
+  ]
+}

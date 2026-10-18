@@ -33,5 +33,43 @@
     "formatter": { "quoteStyle": "double", "semicolons": "always", "trailingCommas": "all" }
   },
   "json": { "formatter": { "enabled": true } },
-  "assist": { "actions": { "source": { "organizeImports": "on" } } }
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "overrides": [
+    {
+      "includes": ["packages/app/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@tauri-apps/api": "The Tauri API belongs behind @bragi/platform (13 §1 rule 9)",
+                  "@tauri-apps/api/core": "The Tauri API belongs behind @bragi/platform (13 §1 rule 9)"
+                },
+                "patterns": [
+                  {
+                    "group": ["@tauri-apps/*"],
+                    "message": "The Tauri API belongs behind @bragi/platform (13 §1 rule 9)"
+                  },
+                  {
+                    "group": [
+                      "@bragi/platform/web",
+                      "@bragi/platform/tauri",
+                      "@bragi/platform/auto"
+                    ],
+                    "message": "The host picks the adapters; packages/app only receives a Platform (13 §1 rule 9)"
+                  },
+                  {
+                    "group": ["@sqlite.org/*"],
+                    "message": "sqlite-wasm is a browser adapter detail and lives in @bragi/platform (13 §1 rule 9)"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -14,6 +14,17 @@ export interface TauriPlatformOptions {
   readonly migrations: readonly Migration[];
 }
 
+/**
+ * The raw IPC call, for tooling that has to reach a command the app itself never
+ * needs. Only the desktop end-to-end harness uses it: it reports its transcript
+ * through `selftest_report` (apps/desktop/src-tauri/src/selftest.rs), which is
+ * granted to the harness window alone. Keeping it here means `@tauri-apps/*` is
+ * still imported in exactly one place (13 §1 rule 9).
+ */
+export function createTauriIpc(): Invoke {
+  return (command, args) => invoke(command, args);
+}
+
 export async function createTauriPlatform(options: TauriPlatformOptions): Promise<Platform> {
   const ipc: Invoke = (command, args) => invoke(command, args);
   const localDb = createTauriLocalDb(ipc);

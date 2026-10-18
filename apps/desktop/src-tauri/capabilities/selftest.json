@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "selftest",
+  "description": "The end-to-end harness window (src/selftest.rs). It grants the same storage commands as the shipped window plus `allow-selftest-report`, which prints the transcript and ends the process. It is deliberately a separate capability from `default` so that nothing the shipped window may do depends on test code: the window label it names is created only when BRAGI_SELFTEST_PHASE is set, so in a normal build this grant matches no window at all.",
+  "windows": ["selftest"],
+  "permissions": [
+    "core:default",
+    "allow-db-query",
+    "allow-db-run",
+    "allow-db-transaction",
+    "allow-blob-put",
+    "allow-blob-get",
+    "allow-blob-has",
+    "allow-blob-delete",
+    "allow-selftest-report"
+  ]
+}

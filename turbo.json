@@ -17,7 +17,8 @@
         "**/*.css",
         "tokens.json",
         "snapshots/**",
-        ".storybook/**"
+        ".storybook/**",
+        "vitest.config.ts"
       ],
       "outputs": ["coverage/**"]
     }

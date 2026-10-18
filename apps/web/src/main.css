@@ -1,0 +1,125 @@
+/* Bragi's placeholder styling for WP-0.5: dark-first (11 §3) and no more. The
+   design system — tokens, Radix components, contrast checks — is WP-0.6, which
+   replaces this file with packages/design's tokens. */
+:root {
+  --bg: #0e1016;
+  --bg-raised: #171a22;
+  --fg: #e8eaf0;
+  --fg-muted: #9aa1b1;
+  --accent: #7fd3ff;
+  --danger: #ff7a6b;
+  --radius: 8px;
+  --focus: 2px solid var(--accent);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    14px / 1.5 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+a {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: var(--focus);
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip-link:focus {
+  left: 8px;
+  top: 8px;
+  background: var(--bg-raised);
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  z-index: 1;
+}
+
+.shell__header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #23262f;
+}
+
+.shell__brand {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.shell__nav {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shell__nav [aria-current="page"] {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.shell__main {
+  padding: 24px;
+  max-width: 60rem;
+}
+
+.projects__new {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 16px 0 24px;
+  padding: 16px;
+  background: var(--bg-raised);
+  border-radius: var(--radius);
+}
+
+input,
+button {
+  font: inherit;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  border: 1px solid #333846;
+  background: #10131a;
+  color: var(--fg);
+}
+
+button {
+  cursor: pointer;
+  background: #1d2430;
+}
+
+[role="alert"] {
+  color: var(--danger);
+}
+
+.projects__list {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.song__id {
+  color: var(--fg-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}

@@ -40,7 +40,10 @@ export function createTauriIpcDouble(): Invoke {
           return await db.run(args.sql, args.params);
         case "db_transaction":
           return await db.transaction(
-            args.steps.map((s): Statement => (s.params === null ? { sql: s.sql } : s)),
+            args.steps.map(
+              (step): Statement =>
+                step.params === null ? { sql: step.sql } : { sql: step.sql, params: step.params },
+            ),
           );
         case "blob_get": {
           const bytes = blobs.get(args.hash);

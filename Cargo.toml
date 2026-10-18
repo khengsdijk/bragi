@@ -1,6 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+# `apps/desktop/src-tauri` joins the workspace rather than standing alone, so it
+# gets one `Cargo.lock`, the workspace lints below and one `cargo test` run. It
+# is native-only: never part of the wasm32 target list in `pnpm build:wasm`.
+members = ["crates/*", "apps/desktop/src-tauri"]
 
 [workspace.package]
 version = "0.0.0"

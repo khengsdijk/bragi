@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "build:e2e-driver": "vite build --config e2e/selftest.vite.config.ts",
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test"

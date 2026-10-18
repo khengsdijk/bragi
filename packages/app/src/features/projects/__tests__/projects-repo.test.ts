@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { parseMigrations, type Platform } from "@bragi/platform";
+import { type Platform, parseMigrations } from "@bragi/platform";
 import { createMemoryPlatform } from "@bragi/platform/testing";
 import { beforeEach, describe, expect, it } from "vitest";
 
