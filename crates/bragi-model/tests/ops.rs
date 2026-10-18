@@ -6,10 +6,8 @@
 
 mod common;
 
-use bragi_model::generated::{
-    OpBatch, Project, SectionKind, TrackRemoveOp, TrackUpdateOp, TransitionKind,
-};
-use bragi_model::{ApplyError, AssetIndex, ValidationCode, apply, section_spans, validate};
+use bragi_model::generated::{Project, SectionKind, TransitionKind};
+use bragi_model::{ApplyError, ValidationCode, apply, section_spans, validate};
 use common::{CLIP_A, SEC_A, SEC_B, TRK_A, TRK_B, assets, batch, fixture, user_batch};
 use serde_json::{Value, json};
 
@@ -635,7 +633,3 @@ fn new_section(id: &str, length: u64) -> Value {
     json!({ "id": id, "kind": "custom", "label": id, "lengthTicks": length,
         "lanes": {}, "transitionIn": { "kind": "cut", "lengthTicks": 0 } })
 }
-
-// Keep the unused-import check honest for the generated op wrappers we pattern-match on elsewhere.
-#[allow(dead_code)]
-fn _type_check(_: &TrackRemoveOp, _: &TrackUpdateOp, _: OpBatch, _: AssetIndex) {}
