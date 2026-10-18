@@ -1,29 +1,12 @@
 ---
 source: crates/bragi-model/tests/snapshots.rs
-expression: "diff(&doc, &next)"
+expression: "serde_json::to_value(&diff(&doc, &next)).unwrap()"
 ---
 {
-  "projectId": "prj_01",
-  "timebaseChanged": false,
+  "masterChanged": false,
   "metaChanged": false,
-  "sourcesAdded": [],
-  "sourcesRemoved": [],
-  "tracksAdded": [],
-  "tracksRemoved": [],
-  "tracksUpdated": [
-    {
-      "color": "#8A8F98",
-      "fx": [],
-      "gainDb": -3.0,
-      "hidden": false,
-      "id": "trk_0",
-      "mute": false,
-      "name": "Track 0",
-      "pan": 0.0,
-      "role": "full_mix",
-      "solo": false
-    }
-  ],
+  "projectId": "prj_01",
+  "requiresFullResync": false,
   "sectionsAdded": [],
   "sectionsRemoved": [],
   "sectionsUpdated": [
@@ -166,6 +149,23 @@ expression: "diff(&doc, &next)"
       }
     }
   ],
-  "masterChanged": false,
-  "requiresFullResync": false
+  "sourcesAdded": [],
+  "sourcesRemoved": [],
+  "timebaseChanged": false,
+  "tracksAdded": [],
+  "tracksRemoved": [],
+  "tracksUpdated": [
+    {
+      "color": "#8A8F98",
+      "fx": [],
+      "gainDb": -3.0,
+      "hidden": false,
+      "id": "trk_0",
+      "mute": false,
+      "name": "Track 0",
+      "pan": 0.0,
+      "role": "full_mix",
+      "solo": false
+    }
+  ]
 }

@@ -3,7 +3,9 @@
 //
 // This is the only place the wasm-bindgen output is called: the Rust unit tests cover the model
 // logic, and this file proves the boundary (JSON in, handles out, the hot paths reused) works and
-// that a 50-op batch on a 10-minute document stays under the 5 ms budget.
+// that a 50-op batch on a 20-minute document stays under the 5 ms budget. (The fixture is
+// deliberately ~20 minutes — 60 sections × 10 bars — which is stricter than the 10-minute
+// criterion in specs/12-roadmap.md WP-0.3.)
 //
 // Prerequisite: `pnpm build:model-wasm` has run.
 import { readFileSync } from "node:fs";
@@ -20,7 +22,7 @@ const model = await import(JS.href);
 model.initSync({ module: readFileSync(fileURLToPath(WASM)) });
 
 /** A project with `tracks` tracks and `sections` 10-bar sections, JSON-serialised. */
-function tenMinuteProject(tracks = 12, sections = 60) {
+function twentyMinuteProject(tracks = 12, sections = 60) {
   const hash = `sha256:${"1".repeat(64)}`;
   let clipCounter = 0;
   /**
@@ -121,7 +123,7 @@ const batch = (ops) =>
 
 describe("model-wasm handle API", () => {
   it("loads, validates, queries, applies and frees a document", () => {
-    const handle = model.loadProject(tenMinuteProject(2, 3));
+    const handle = model.loadProject(twentyMinuteProject(2, 3));
     model.assetAdd(handle, assetMeta);
     expect(model.validateDoc(handle)).toBeUndefined();
     expect(model.docCount()).toBeGreaterThan(0);
@@ -141,7 +143,7 @@ describe("model-wasm handle API", () => {
     expect(JSON.parse(applied).meta.title).toBe("Renamed");
     expect(model.canonicalJson(handle)).toContain('"title":"Renamed"');
 
-    const other = model.loadProject(tenMinuteProject(2, 3));
+    const other = model.loadProject(twentyMinuteProject(2, 3));
     const delta = JSON.parse(model.diffDocs(other, handle));
     expect(delta.metaChanged).toBe(true);
 
@@ -162,7 +164,7 @@ describe("model-wasm handle API", () => {
   });
 
   it("returns structured errors for an invalid batch", () => {
-    const handle = model.loadProject(tenMinuteProject(1, 1));
+    const handle = model.loadProject(twentyMinuteProject(1, 1));
     model.assetAdd(handle, assetMeta);
     expect(() =>
       model.applyBatch(
@@ -173,8 +175,8 @@ describe("model-wasm handle API", () => {
     model.freeDoc(handle);
   });
 
-  it("applies a 50-op batch on a 10-minute document in under 5 ms", () => {
-    const handle = model.loadProject(tenMinuteProject());
+  it("applies a 50-op batch on a 20-minute document in under 5 ms", () => {
+    const handle = model.loadProject(twentyMinuteProject());
     model.assetAdd(handle, assetMeta);
     expect(model.validateDoc(handle)).toBeUndefined();
 
@@ -195,7 +197,7 @@ describe("model-wasm handle API", () => {
       times.push(performance.now() - start);
     }
     const best = Math.min(...times);
-    process.stdout.write(`[model-wasm] 50-op apply on a 10-minute doc: ${best.toFixed(3)} ms\n`);
+    process.stdout.write(`[model-wasm] 50-op apply on a 20-minute doc: ${best.toFixed(3)} ms\n`);
     expect(best).toBeLessThan(5);
     model.freeDoc(handle);
   });
