@@ -1,0 +1,27 @@
+{
+  "name": "@bragi/model-wasm",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "wasm-bindgen bindings for bragi-model: the handle-based song-model API (WP-0.3).",
+  "license": "UNLICENSED",
+  "main": "./generated/bragi_model_wasm.js",
+  "module": "./generated/bragi_model_wasm.js",
+  "types": "./generated/bragi_model_wasm.d.ts",
+  "exports": {
+    ".": {
+      "types": "./generated/bragi_model_wasm.d.ts",
+      "default": "./generated/bragi_model_wasm.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "./generated/bragi_model_wasm.js",
+    "./generated/bragi_model_wasm.d.ts",
+    "./generated/bragi_model_wasm_bg.wasm",
+    "./generated/bragi_model_wasm_bg.wasm.d.ts"
+  ],
+  "sideEffects": [
+    "./generated/bragi_model_wasm.js"
+  ]
+}

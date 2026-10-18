@@ -186,7 +186,7 @@ jobs:
       - run: cargo fmt --all -- --check
       # Every library crate must build for the browser except the *-native one
       # (13 §3).
-      - run: cargo build --target wasm32-unknown-unknown -p bragi-model -p bragi-dsp -p bragi-engine -p bragi-engine-wasm
+      - run: cargo build --target wasm32-unknown-unknown -p bragi-model -p bragi-dsp -p bragi-engine -p bragi-engine-wasm -p bragi-model-wasm
 
   python:
     name: Python

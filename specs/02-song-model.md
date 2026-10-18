@@ -1,6 +1,6 @@
 # 02 — Song Model & Versioning
 
-Status: Draft v0.2 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
+Status: Draft v0.3 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
 
 This is the **architectural heart** of Bragi. Every feature (canvas, AI edits, generation, fusion, export) reads and writes this model, and nothing else. If a feature can't be expressed as operations on this model, the model is extended here first (with an ADR).
 
@@ -33,7 +33,7 @@ Project
 - The schema enforces the **prefix and the character set** (`^prj_[0-9A-Za-z]{1,64}$`), not the ULID layout: ULID is the *generation* rule, and `bragi-model` is where generation lives. That is why the hand-written `trk_mix`, `sec_01` and `clp_01` in §10 and §2.2 are valid, and why a schema test fixture never has to look like a real ULID.
 - Job, plan and macro IDs use the same rule: `job_…` ([05 §3](05-backend-and-jobs.md)), `pln_…` (edit plans, [06](06-ai-planner.md)), `mac_…` (macros). **User IDs are opaque strings**: Better Auth owns their format ([05 §8](05-backend-and-jobs.md)), so the schema only bounds the length.
 - Assets are identified by **`sha256:<hex>`** of the file bytes: `sha256:` plus exactly 64 lowercase hex characters.
-- Commits are identified by `cmt_` + the first 26 chars of the base32 SHA-256 of the canonical JSON of `(parents, batch, snapshotHash)`.
+- Commits are identified by `cmt_` + the first 26 chars of the base32 SHA-256 of the canonical JSON of `(parents, batch, snapshotHash)`. The canonical JSON is `canonical_json`: keys sorted, no whitespace, and an integral `number` written without a fractional part (`0`, not `0.0`), so two logically equal documents hash the same regardless of the map iteration order of the generated types (Q15).
 
 ### 2.2 Time
 | Domain | Unit | Notes |
@@ -43,9 +43,9 @@ Project
 | Wall clock | seconds (`f64`) | Derived only, never stored |
 
 - The project's internal sample rate is **48 000 Hz**. Ingest produces a 48 kHz, 24-bit FLAC working copy of every source ([04-analysis-pipeline.md §3.1](04-analysis-pipeline.md)).
-- **Tempo map**: `[{ tick, bpm, curve: "step" | "linear" }]`, sorted, first entry at tick 0.
+- **Tempo map**: `[{ tick, bpm, curve: "step" | "linear" }]`, sorted, first entry at tick 0. `curve` is the ramp **from this point to the next**: `step` keeps this point's `bpm` until the next point (a jump), `linear` ramps linearly to the next point's `bpm`. The last point's tempo holds forever after it, and before tick 0 the first point's tempo is used.
 - **Time signatures**: `[{ bar, numerator, denominator }]`.
-- `bragi-model` provides `ticks_to_seconds`, `seconds_to_ticks`, `bar_beat_to_ticks` and `ticks_to_bar_beat`, which are the only allowed conversions.
+- `bragi-model` provides `ticks_to_seconds`, `seconds_to_ticks`, `bar_beat_to_ticks` and `ticks_to_bar_beat`, which are the only allowed conversions. `bar` is 0-based; `beat` is 0-based and fractional within the bar (`2.5` is halfway through the bar's third beat), and a beat is one `denominator`-th note, so a 6/8 bar has six eighth-note beats.
 - **Timestamps** (`ISODate`) are RFC 3339 in UTC with a `Z` suffix and optional fractional seconds: `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$`. The schema uses a *pattern*, not `format: date-time`, so that no language parses a timestamp into a date type that would re-format it — timestamps therefore round-trip byte for byte.
 - **Colours** (`HexColor`) are `#RRGGBB`: sRGB, six hex digits, no alpha.
 - Every schema follows the same authoring conventions — `title` on every named type, one file per root type, a named `$def` for every object and multi-value enum, `additionalProperties: false` on every object, no `format`, no `\d` and no look-around in patterns — because they have to generate types and validators for three languages. The rules and the reasons are in [`packages/schemas/README.md`](../packages/schemas/README.md).
@@ -183,7 +183,7 @@ type Warp =
   | { mode: "beatgrid"; anchors: { srcSample: number; tick: number }[] }   // follow tempo map
   | { mode: "stretch"; ratio: number };                    // fixed ratio
 ```
-Clip end tick is derived from the warp. Clips in a lane may overlap only if both have fades covering the overlap (validated).
+In `beatgrid` mode an anchor's `tick` is **section-relative**, the same frame as `start`: it is the tick at which that source sample plays. `none` and `stretch` need the asset's sample rate to convert seconds to ticks; `beatgrid` does not. Clip end tick is derived from the warp. Clips in a lane may overlap only if both have fades covering the overlap (validated).
 
 ### 3.7 Effects and automation
 ```ts
@@ -268,16 +268,18 @@ A batch is atomic: it applies fully or not at all.
 | `automation.set` | scope (lane or master), target, points | Replaces points in [min,max] tick range of given points |
 | `automation.clear` | scope, target, range? | |
 | `tempo.set` | tempoMap | Clips with `beatgrid` warp follow the new map |
-| `key.transpose` | semitones, scope: `all` \| Region | Sets clip `pitchSemitones` in scope |
+| `key.transpose` | semitones, scope: `all` \| Region | Adds `semitones` to each clip's `pitchSemitones` in scope (a transpose) |
 | `region.clear` | region | Removes/trims clip content in region, adding short fades |
 | `region.adopt` | fromCommit, region | Copies content of region from another commit (the "merge best bits" primitive) |
+
+`section.duplicate`, `section.split` and `region.clear` copy clips the payload does not name. Their new IDs are deterministic — `clp_`/`fx_` plus the first 26 characters of the base32 SHA-256 of `derive:<parentId>:<originalId>` — so `apply` stays reproducible and two copies never collide (Q14).
 
 Each op has a JSON Schema in `packages/schemas/song/ops/<op>.schema.json` and a Rust `apply` implementation with unit and snapshot tests.
 
 ### 4.3 Validation invariants (enforced after every batch)
 1. Every `TrackId` in any lane exists in `tracks`.
 2. `lengthTicks > 0` for all sections, `clip.srcStart < clip.srcEnd`, and all clip ranges lie within the asset's duration (asset metadata is supplied to the validator).
-3. Overlapping clips in a lane must be covered by matching fades.
+3. Overlapping clips in a lane must be covered by matching fades: for an overlap between the earlier clip *a* and the later clip *b*, `a.fadeOutTicks ≥ a.end − b.start` and `b.fadeInTicks ≥ min(a.end, b.end) − b.start`.
 4. Tempo map is sorted, starts at 0, and bpm is in [20, 400].
 5. FX params are within catalogue ranges.
 6. `locked` sections are unchanged by batches authored by `ai`.
@@ -291,6 +293,8 @@ The schema enforces what a *document* can express: types, enums, ID and hash sha
 
 ### 5.1 `section.move` / `section.duplicate`
 Content moves with the section because lanes are relative. The `transitionIn` of the moved section, and of the section that now follows its old position, are set to `crossfade` with length = 1 beat if they were `cut` **and** the planner or UI requests smoothing. The UI's default "smart transitions" setting requests it. The AI may later replace the crossfade with a `generated` transition ([09-generation.md §4.4](09-generation.md)).
+
+The v1 `section.move` payload carries no smoothing flag, so WP-0.3 does **not** change transitions on a move; it only re-anchors master automation (Q19). Master automation points carry absolute ticks: a point inside a section keeps its offset from that section's start, and a point past the arrangement scales with the total length.
 
 ### 5.2 `section.resize`
 - `trim`: shorten/lengthen the window. Clips are cut at the new end with a fade. Lengthening leaves silence.
@@ -358,7 +362,7 @@ Rules:
 pub fn validate(doc: &Project, assets: &AssetIndex) -> Result<(), Vec<ValidationError>>;
 pub fn apply(doc: &Project, batch: &OpBatch, assets: &AssetIndex) -> Result<Project, ApplyError>;
 pub fn diff(prev: &Project, next: &Project) -> EngineDelta;          // consumed by bragi-engine
-pub fn resolve_region(doc: &Project, region: &Region) -> ResolvedRegion;
+pub fn resolve_region(doc: &Project, region: &Region, assets: &AssetIndex) -> ResolvedRegion;
 pub fn section_spans(doc: &Project) -> Vec<SectionSpan>;             // absolute ticks per section
 pub fn ticks_to_seconds(doc: &Project, ticks: i64) -> f64;
 pub fn seconds_to_ticks(doc: &Project, secs: f64) -> i64;
@@ -366,6 +370,8 @@ pub fn summarize_for_llm(doc: &Project, analyses: &AnalysisBundle, focus: Option
 pub fn migrate(raw: serde_json::Value) -> Result<Project, MigrateError>;
 pub fn canonical_json(doc: &Project) -> String;                      // stable key order, for hashing
 ```
+`AssetIndex` is the `AssetHash → AssetMeta` map the invariants need, because clip ranges are in samples and the asset's length lives outside the document (02 §3.2). `ValidationError` is the structured `{ opIndex, code, message }` of 02 §4.3; `ApplyError` is either one of those (the op itself was bad) or a list of them (the batch left the document invalid). `SectionSpan` and `ResolvedRegion` are owned return shapes; `EngineDelta` (defined in `crates/bragi-model/src/diff.rs`) reports `timebaseChanged`, `metaChanged`, source/track/section adds–removes–updates, `masterChanged`, and `requiresFullResync` for a structural change the engine must rebuild its render plan for. `migrate` (there are no v0 documents yet) and `summarize_for_llm` (it needs the analysis bundle from WP-1.8) are the two entry points still to come.
+
 The WASM wrapper passes documents as JSON strings or `Uint8Array` (MessagePack). Hot paths (`section_spans`, `ticks_to_seconds`) must not re-serialize the whole document. The WASM module keeps a handle-based cache: `load(doc) -> DocHandle`, and later calls take the handle.
 
 ## 9. Forward compatibility

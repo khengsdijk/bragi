@@ -116,6 +116,7 @@ bragi/
 │  └─ api-client/             # Typed client for services/api (generated from OpenAPI)
 ├─ crates/
 │  ├─ bragi-model/            # Song model types, op application, validation, diff, time mapping
+│  ├─ bragi-model-wasm/       # wasm-bindgen bindings for bragi-model (the handle API)
 │  ├─ bragi-dsp/              # DSP primitives: stretch, pitch, filters, dynamics, reverb, loudness, crossfades
 │  ├─ bragi-engine/           # Audio graph, scheduler, renderer, playback state machine (platform-free)
 │  ├─ bragi-engine-wasm/      # wasm-bindgen + AudioWorklet glue

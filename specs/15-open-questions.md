@@ -29,9 +29,26 @@ Questions that need an answer before or during a specific work package. Add new 
 | R1 | Tech stack | Tauri 2 + TS/React + Rust core (WASM/native) + Python GPU services | [ADR-0001](decisions/ADR-0001-tech-stack.md) |
 | R2 | Which time-stretch library? | The pure-Rust phase vocoder in `bragi-dsp::stretch` is the shipped implementation (portable, allocation-free, exact pass-through). Signalsmith Stretch is evaluated and held for offline renders; Rubber Band is rejected on licence. The `Render`-tier recommendation is provisional until the owner's listening check. | [ADR-0002](decisions/ADR-0002-time-stretch.md) |
 
+## Resolved by WP-0.3
+
+Appended rather than folded into the tables above, so parallel work packages never edit the same
+rows.
+
+| # | Question | Answer | Reference |
+|---|---|---|---|
+| Q14 | Derived clip/fx IDs for `section.duplicate`, `section.split`, `region.clear` | Deterministic: `clp_`/`fx_` + the first 26 chars of the base32 SHA-256 of `derive:<parentId>:<originalId>`. Recorded in [02 §4.2](02-song-model.md); implemented in `crates/bragi-model/src/canonical.rs` (`derived_id`) and covered by `crates/bragi-model/tests/ops.rs`. | [02 §4.2](02-song-model.md), [`docs/wp/0.3.md`](../docs/wp/0.3.md) |
+| Q15 | Canonical JSON and number normalisation | `canonical_json` sorts keys and writes an integral `number` without a fractional part (`0`, not `0.0`), so map iteration order and `0` vs `0.0` never change the bytes. The commit hash is taken over that output. | [02 §2.1](02-song-model.md), `crates/bragi-model/src/canonical.rs` |
+
 ## Open after WP-0.4
 
 | # | Question | Needed by | Owner | Notes |
 |---|---|---|---|---|
 | Q19 | After the ±12 % drum listening check, is the vocoder's transient smearing acceptable, or should offline `Render` adopt Signalsmith Stretch (or a smaller `Render` FFT)? | WP-0.4 follow-up / WP-1.1 | Koen | Decided by [0.4-MANUAL_CHECKS](../docs/wp/0.4-MANUAL_CHECKS.md). ADR-0002 stays Proposed until answered. |
 | Q20 | If Signalsmith is adopted, do we carry its `wasm32` toolchain (wasi-sdk + 7 libc++ shims) in `pnpm verify`, or keep it native-only and use the vocoder in the browser? | WP-1.1 | Koen | Toolchain details in [ADR-0002](decisions/ADR-0002-time-stretch.md). |
+
+## Added by WP-0.3
+
+| # | Question | Needed by | Owner | Notes |
+|---|---|---|---|---|
+| Q21 | `section.move` cannot express "smooth the transitions" (02 §5.1 says the moved section and its successor become a 1-beat `crossfade` *if smoothing is requested*, but the op payload has no flag). Should the planner/UI add a flag, make smoothing unconditional, or drop 02 §5.1's rule? WP-0.3 leaves transitions alone and only re-anchors master automation. | WP-1.8 (planner) | Agent | [02 §5.1](02-song-model.md), `packages/schemas/song/ops/section.move.schema.json` |
+| Q22 | `crates/bragi-dsp/fx_catalog.json` (03 §6) did not exist; WP-0.3 created it so `validate` can enforce invariant 5 (FX param ranges). WP-0.4/1.1 own `bragi-dsp` and may extend it (non-numeric params such as `sidechain_duck.sourceTrack`, `match_eq.bands` are in the file but not yet validated, because `FxParams` only holds numbers). Confirm the ranges and the missing structural validation. | WP-0.4 / WP-1.1 | Agent | [03 §6](03-audio-engine.md), `crates/bragi-dsp/fx_catalog.json` |

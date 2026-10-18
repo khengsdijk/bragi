@@ -94,11 +94,11 @@ impl<'a> TempoCtx<'a> {
             let seg_end = next.tick as i64;
             let seg_len = (seg_end - seg_start).max(0);
             if ticks >= seg_end {
-                seconds += self.segment_seconds(point, next, seg_len);
+                seconds += self.segment_seconds(point, next, seg_len, seg_len);
                 continue;
             }
             let partial = ticks - seg_start;
-            return seconds + self.segment_seconds(point, next, partial);
+            return seconds + self.segment_seconds(point, next, seg_len, partial);
         }
         seconds
     }
@@ -122,7 +122,7 @@ impl<'a> TempoCtx<'a> {
                 return point.tick as i64 + seg_ticks.round() as i64;
             };
             let seg_len = (next.tick as i64 - point.tick as i64).max(0);
-            let seg_seconds = self.segment_seconds(point, next, seg_len);
+            let seg_seconds = self.segment_seconds(point, next, seg_len, seg_len);
             if seconds + seg_seconds <= secs {
                 seconds += seg_seconds;
                 continue;
@@ -134,8 +134,14 @@ impl<'a> TempoCtx<'a> {
         self.points.last().map_or(0, |p| p.tick as i64)
     }
 
-    /// Seconds spent over `len` ticks starting at a `curve` point with a `next` point.
-    fn segment_seconds(&self, point: &TempoPoint, next: &TempoPoint, len: i64) -> f64 {
+    /// Seconds spent over `len` ticks of a `full_len`-tick segment starting at a `curve` point.
+    fn segment_seconds(
+        &self,
+        point: &TempoPoint,
+        next: &TempoPoint,
+        full_len: i64,
+        len: i64,
+    ) -> f64 {
         if len <= 0 {
             return 0.0;
         }
@@ -143,13 +149,12 @@ impl<'a> TempoCtx<'a> {
             TempoCurve::Step => len as f64 * self.seconds_per_tick(point.bpm),
             TempoCurve::Linear => {
                 let (b0, b1) = (point.bpm, next.bpm);
-                if (b1 - b0).abs() < f64::EPSILON {
+                if (b1 - b0).abs() < f64::EPSILON || full_len <= 0 {
                     return len as f64 * self.seconds_per_tick(b0);
                 }
-                // bpm(s) = b0 + (b1 - b0) * s / len; ∫ ds / bpm(s) is a logarithm.
-                let total = len as f64;
-                let bpm_at_len = b0 + (b1 - b0);
-                (60.0 / self.ppq as f64) * total / (b1 - b0) * (bpm_at_len / b0).ln()
+                // bpm(s) = b0 + (b1 - b0) * s / full_len; ∫ ds / bpm(s) is a logarithm.
+                let bpm_at_len = b0 + (b1 - b0) * len as f64 / full_len as f64;
+                (60.0 / self.ppq as f64) * (full_len as f64 / (b1 - b0)) * (bpm_at_len / b0).ln()
             }
         }
     }
