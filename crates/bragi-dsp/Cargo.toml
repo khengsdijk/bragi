@@ -8,6 +8,8 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+thiserror.workspace = true
+realfft.workspace = true
 
 [lints]
 workspace = true

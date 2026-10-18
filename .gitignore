@@ -26,6 +26,10 @@ test-results/
 .env.local
 infra/.env
 
+# WP-0.4 stretch lab build output and listening renders — never committed.
+crates/bragi-dsp/stretch-lab/web/*.wasm
+crates/bragi-dsp/stretch-lab/renders/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -21,6 +21,9 @@ typify = "0.8"
 schemars = "0.8"
 syn = { version = "2", features = ["full"] }
 prettyplease = "0.2"
+# FFT for the bragi-dsp phase vocoder (WP-0.4 → ADR-0002). Pure Rust, no_std-friendly,
+# compiles for wasm32-unknown-unknown. rustfft comes in transitively.
+realfft = "3.5"
 
 # Lints apply to every crate via `[lints] workspace = true`.
 # CI runs `cargo clippy --workspace --all-targets -- -D warnings`, so these

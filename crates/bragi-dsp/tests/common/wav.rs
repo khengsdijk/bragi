@@ -1,6 +1,13 @@
 //! Minimal WAV I/O for tests and the stretch lab: 16-bit PCM and 32-bit float, any channel
 //! count, planar `Vec<Vec<f32>>` in memory. Deliberately tiny so no WAV crate is needed.
-#![allow(dead_code, clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    dead_code,
+    unreachable_pub,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::chunks_exact_to_as_chunks
+)]
 
 use std::fs;
 use std::path::Path;
@@ -27,7 +34,10 @@ fn u32_at(b: &[u8], i: usize) -> u32 {
 /// Reads a RIFF/WAVE file with a PCM16 or float32 `data` chunk.
 pub fn read(path: &Path) -> Audio {
     let b = fs::read(path).unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
-    assert!(&b[0..4] == b"RIFF" && &b[8..12] == b"WAVE", "not a WAV file");
+    assert!(
+        &b[0..4] == b"RIFF" && &b[8..12] == b"WAVE",
+        "not a WAV file"
+    );
     let (mut fmt, mut channels, mut rate, mut bits) = (0u16, 0usize, 0u32, 0u16);
     let mut i = 12;
     while i + 8 <= b.len() {
@@ -56,7 +66,10 @@ pub fn read(path: &Path) -> Audio {
                 }
                 _ => panic!("unsupported WAV format {fmt}/{bits}"),
             }
-            return Audio { sample_rate: rate, channels: out };
+            return Audio {
+                sample_rate: rate,
+                channels: out,
+            };
         }
         i = body + len + (len & 1);
     }

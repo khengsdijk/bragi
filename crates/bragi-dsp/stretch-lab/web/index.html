@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Bragi WP-0.4 — Stretch AudioWorklet test</title>
+  </head>
+  <body>
+    <h1>WP-0.4 stretch AudioWorklet</h1>
+    <p id="status">running…</p>
+    <pre id="out"></pre>
+    <script type="module">
+      // Renders fixtures/audio/drums_120.wav through the wasm stretcher inside an
+      // OfflineAudioContext and checks the hits land where latency + ratio·t says. Result is
+      // exposed on `window.__result` for the headless runner.
+      const SR = 48000;
+      const HIT_TIMES_MS = [500, 1000, 1500, 2000, 2500, 3000, 3500];
+
+      function decodePcm16Wav(buffer) {
+        const view = new DataView(buffer);
+        const channels = view.getUint16(22, true);
+        const rate = view.getUint32(24, true);
+        let pos = 12;
+        let data = null;
+        while (pos + 8 <= buffer.byteLength) {
+          const id = String.fromCharCode(view.getUint8(pos), view.getUint8(pos + 1), view.getUint8(pos + 2), view.getUint8(pos + 3));
+          const len = view.getUint32(pos + 4, true);
+          if (id === "data") {
+            data = { offset: pos + 8, len };
+            break;
+          }
+          pos += 8 + len + (len & 1);
+        }
+        const frames = data.len / 2 / channels;
+        const out = Array.from({ length: channels }, () => new Float32Array(frames));
+        for (let f = 0; f < frames; f++) {
+          for (let c = 0; c < channels; c++) {
+            const i = data.offset + (f * channels + c) * 2;
+            out[c][f] = view.getInt16(i, true) / 32768;
+          }
+        }
+        return { rate, channels: out };
+      }
+
+      function envelopeDb(channels, winMs) {
+        const hop = SR / 1000;
+        const win = hop * winMs;
+        const frames = channels[0].length;
+        const n = Math.floor(frames / hop);
+        const env = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+          const start = Math.max(0, i * hop - win / 2);
+          const end = Math.min(frames, start + win);
+          let acc = 0;
+          for (let c = 0; c < channels.length; c++) {
+            for (let k = start; k < end; k++) acc += channels[c][k] * channels[c][k];
+          }
+          const ms = acc / Math.max(1, end - start) / channels.length;
+          env[i] = 10 * Math.log10(ms + 1e-12);
+        }
+        return env;
+      }
+
+      async function run() {
+        const ratio = 1.12;
+        const res = await fetch("/fixtures/drums_120.wav");
+        const { rate, channels } = decodePcm16Wav(await res.arrayBuffer());
+        const srcFrames = channels[0].length;
+
+        const module = await WebAssembly.compile(await (await fetch("bragi_stretch_worklet.wasm")).arrayBuffer());
+
+        // Read the shim's latency cheaply by instantiating once on the main thread.
+        const probe = new WebAssembly.Instance(module, {}).exports;
+        const h = probe.pv_new(channels.length, rate);
+        probe.pv_configure(h, ratio, 0, 0);
+        const latency = probe.pv_latency(h);
+
+        const total = latency + Math.floor(srcFrames * ratio) + 4096;
+        const ctx = new OfflineAudioContext(channels.length, total, rate);
+        await ctx.audioWorklet.addModule("processor.js");
+        const node = new AudioWorkletNode(ctx, "stretch", {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [channels.length],
+          processorOptions: { module, ratio, semitones: 0, quality: 0, channels, sampleRate: rate },
+        });
+        node.port.postMessage({ type: "source", channels, sampleRate: rate });
+        node.connect(ctx.destination);
+        const rendered = await ctx.startRendering();
+        const out = Array.from({ length: channels.length }, (_, c) => rendered.getChannelData(c));
+
+        let finite = true;
+        let peak = 0;
+        let rms = 0;
+        for (let c = 0; c < out.length; c++) {
+          for (let i = 0; i < out[c].length; i++) {
+            const v = out[c][i];
+            if (!Number.isFinite(v)) finite = false;
+            const a = Math.abs(v);
+            if (a > peak) peak = a;
+            rms += v * v;
+          }
+        }
+        rms = Math.sqrt(rms / (out[0].length * out.length));
+
+        // Hits: the envelope peak near latency + ratio·t must be within 12 ms.
+        const env = envelopeDb(out, 20);
+        const latMs = (latency / rate) * 1000;
+        const hits = [];
+        for (const t of HIT_TIMES_MS) {
+          const target = latMs + t * ratio + 10; // +10 ms envelope group delay
+          const lo = Math.max(0, Math.round(target - 30));
+          const hi = Math.min(env.length - 1, Math.round(target + 60));
+          let pk = lo;
+          for (let j = lo; j <= hi; j++) if (env[j] > env[pk]) pk = j;
+          hits.push(Math.abs(pk - target));
+        }
+        const worstTimingMs = Math.max(...hits);
+        return {
+          ratio,
+          srcFrames,
+          latency,
+          expectedFrames: latency + Math.floor(srcFrames * ratio),
+          renderedFrames: out[0].length,
+          channels: out.length,
+          finite,
+          peak,
+          rms,
+          worstTimingMs,
+          hits: hits.length,
+          ok: finite && rms > 1e-3 && peak > 0.05 && worstTimingMs <= 12,
+        };
+      }
+
+      run()
+        .then((r) => {
+          window.__result = r;
+          document.getElementById("status").textContent = r.ok ? "PASS" : "FAIL";
+          document.getElementById("out").textContent = JSON.stringify(r, null, 2);
+        })
+        .catch((e) => {
+          window.__error = String(e?.stack ? e.stack : e);
+          document.getElementById("status").textContent = "ERROR";
+          document.getElementById("out").textContent = window.__error;
+        });
+    </script>
+  </body>
+</html>

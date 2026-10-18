@@ -1,6 +1,6 @@
 # 03 — Audio Engine
 
-Status: Draft v0.1 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
+Status: Draft v0.2 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
 
 ## 1. Responsibilities
 
@@ -147,13 +147,46 @@ v1 macros: `brightness`, `space` (reverb + width), `punch` (transient + compress
 
 ## 7. Time-stretch and pitch-shift
 
-- Behind a trait: `trait Stretcher { fn configure(&mut self, ratio: f64, semitones: f32, quality: Quality); fn process(&mut self, input: &[f32], out: &mut [f32]); fn latency(&self) -> usize; }`
+Behind a trait in `bragi-dsp::stretch`; the implementation chosen in
+[ADR-0002](decisions/ADR-0002-time-stretch.md) is the pure-Rust phase vocoder `PhaseVocoder`
+(Signalsmith Stretch is evaluated and held for offline renders; Rubber Band is rejected on
+licence). The trait is:
+
+```rust
+pub trait Stretcher: Send {
+    fn configure(&mut self, ratio: f64, semitones: f32, quality: Quality) -> Result<(), StretchError>;
+    fn input_required(&self, out_frames: usize) -> usize;
+    fn process(&mut self, input: &[&[f32]], out: &mut [&mut [f32]]);
+    fn latency(&self) -> usize;
+    fn look_ahead(&self) -> usize;
+    fn reset(&mut self);
+    fn ratio(&self) -> f64;
+}
+```
+
+The clarifications WP-0.4 pinned down:
+
+- **Ratio direction:** `ratio` is *time ratio = output duration / input duration*. `ratio > 1` is
+  longer/slower. `semitones` shifts pitch at constant duration; the two are independent.
+- **Channels go together.** `process` takes every channel at once (`&[&[f32]]` →
+  `&mut [&mut [f32]]`). A mono-per-instance API cannot hold a stereo image, because transient
+  detection and phase propagation must be shared across channels; a left/right pair would drift.
+- **Pull model.** `input_required(out_frames)` is exactly how many input frames the next `process`
+  call consumes. It depends only on the ratio/pitch history, never on how the caller slices its
+  blocks, so 128-frame (AudioWorklet), 256-frame (cpal) and the offline renderer agree. Feeding
+  silence past the end of the source is the caller's job; `look_ahead()` bounds the read-ahead for
+  prefetching.
+- **Allocation is constructor-only.** `configure`, `process`, `input_required`, `latency`,
+  `look_ahead` and `reset` never allocate; both quality tiers are allocated in the constructor so
+  switching tier on the audio thread is free.
+- **Latency.** `latency()` is constant per quality tier (independent of `ratio` and `semitones`);
+  a click at input frame `t` appears at output frame `latency() + ratio·t`.
+- **Pass-through.** `ratio == 1.0 && semitones == 0.0` is a bit-exact copy with zero latency for
+  any block sizes, so un-warped stems bypass the vocoder entirely.
+
 - **Quality tiers:** `Preview` (real-time, low CPU, used during playback) and `Render` (high quality, used in offline renders and render caches).
-- **Candidate implementations (spike WP-0.4 → ADR-0002):**
-  1. **Signalsmith Stretch** (C++, MIT). Very good quality. The risk is compiling it to `wasm32-unknown-unknown`, which might require the emscripten target or a C++→WASM shim.
-  2. **Rubber Band** (GPL or commercial licence). Excellent quality, but the licence is a concern if Bragi is ever distributed commercially.
-  3. **Pure-Rust phase vocoder with phase locking** in `bragi-dsp`. Guaranteed portability, lower quality on transients. This is the fallback that is always present.
-- Stems with warp `beatgrid` whose tempo equals the source tempo bypass stretching entirely (ratio 1.0 must be an exact pass-through).
+- Flam proxies, CPU measurement and the listening check live in
+  [`docs/wp/0.4.md`](../docs/wp/0.4.md) and [`docs/wp/0.4-MANUAL_CHECKS.md`](../docs/wp/0.4-MANUAL_CHECKS.md).
 
 ## 8. Separation-aware mixing and seam smoothing
 
