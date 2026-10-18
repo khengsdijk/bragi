@@ -1,0 +1,12 @@
+{
+  "//": "Typechecks everything including tests, which the per-package builds exclude.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["packages/*/src/**/*", "services/api/src/**/*", "scripts/**/*"]
+}

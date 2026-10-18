@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/schemas" },
+    { "path": "packages/platform" },
+    { "path": "packages/design" },
+    { "path": "packages/render-canvas" },
+    { "path": "packages/render-universe" },
+    { "path": "packages/api-client" },
+    { "path": "packages/app" },
+    { "path": "services/api" }
+  ]
+}

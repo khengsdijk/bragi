@@ -1,0 +1,48 @@
+{
+  "name": "bragi",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Bragi \u2014 an AI-native music editor (desktop + web)",
+  "license": "UNLICENSED",
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "tsc -b && tsc -p tsconfig.test.json",
+    "test": "turbo run test && pnpm test:scripts",
+    "test:scripts": "vitest run --root scripts",
+    "test:rust": "cargo test --workspace",
+    "test:py": "uv run --directory services/workers pytest",
+    "test:all": "pnpm test && pnpm test:rust && pnpm test:py",
+    "lint": "biome check . && pnpm lint:layout",
+    "lint:fix": "biome check --write .",
+    "lint:layout": "node scripts/check-layout.mjs",
+    "lint:rust": "cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings",
+    "lint:py": "uv run --directory services/workers ruff check . && uv run --directory services/workers ruff format --check . && uv run --directory services/workers mypy .",
+    "lint:all": "pnpm lint && pnpm lint:rust && pnpm lint:py",
+    "build:rust": "cargo build --workspace",
+    "build:wasm": "cargo build --target wasm32-unknown-unknown -p bragi-model -p bragi-dsp -p bragi-engine -p bragi-engine-wasm",
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d --wait",
+    "infra:down": "docker compose -f infra/docker-compose.yml down -v",
+    "infra:logs": "docker compose -f infra/docker-compose.yml logs -f",
+    "dev:web": "node scripts/not-yet.mjs dev:web 0.5 'Vite dev server with COOP/COEP'",
+    "dev:desktop": "node scripts/not-yet.mjs dev:desktop 0.5 'Tauri dev'",
+    "dev:backend": "node scripts/not-yet.mjs dev:backend 0.7 'docker compose infra + API + orchestrator + CPU workers'",
+    "schemas:gen": "node scripts/not-yet.mjs schemas:gen 0.2 'Regenerate TS/Rust/Python from JSON Schemas'",
+    "test:e2e": "node scripts/not-yet.mjs test:e2e 0.5 'Playwright web e2e'",
+    "test:conformance": "node scripts/not-yet.mjs test:conformance 1.1 'Engine WASM vs native parity'",
+    "eval:analysis": "node scripts/not-yet.mjs eval:analysis 1.2 'Analysis quality evaluation'",
+    "bench:planner": "node scripts/not-yet.mjs bench:planner 2.6 'Planner benchmark (costs API credits)'"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@types/node": "catalog:",
+    "turbo": "^2.11.9",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,11 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'services/api'
+
+# One place for shared dependency versions (`"typescript": "catalog:"`).
+catalog:
+  '@types/node': ^26.6.5
+  typescript: ^7.0.2
+  vite: ^8.3.4
+  vitest: ^5.0.5

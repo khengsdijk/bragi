@@ -1,0 +1,31 @@
+# Node / pnpm
+node_modules/
+dist/
+*.tsbuildinfo
+.turbo/
+
+# Rust
+target/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Tooling
+coverage/
+playwright-report/
+test-results/
+.superpowers/
+
+# Local config and secrets — never commit these
+.env
+.env.local
+infra/.env
+
+# OS
+.DS_Store
+Thumbs.db
