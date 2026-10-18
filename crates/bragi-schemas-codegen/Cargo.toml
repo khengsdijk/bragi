@@ -1,0 +1,19 @@
+[package]
+name = "bragi-schemas-codegen"
+description = "Generates the bragi-model types from the bundled JSON Schema (WP-0.2)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+typify.workspace = true
+schemars.workspace = true
+syn.workspace = true
+prettyplease.workspace = true
+
+[lints]
+workspace = true

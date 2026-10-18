@@ -14,6 +14,14 @@ Public surface planned for **WP-0.3**: `apply` (all v1 ops except `analysis.appl
 `section_spans`, `resolve_region`, `canonical_json`, the commit hash and
 `diff(prev, next) -> EngineDelta`. `analysis.apply` follows in WP-1.8, `region.adopt` in WP-2.1.
 
+`src/generated/mod.rs` holds the document and op types, generated from the JSON Schemas in
+`packages/schemas` by `pnpm schemas:gen` (typify, driven by `crates/bragi-schemas-codegen`). Never
+edit it: change the schema in `packages/schemas` and regenerate
+([13 §1](../../specs/13-agent-guide.md)). `generated::ROOT_TYPES` lists every root schema type.
+Note that the generated types are *not* a validator — typify does not range-check floats, so
+cross-object and float-bound invariants live in `validate` (see
+[ADR-0006](../../specs/decisions/ADR-0006-schema-codegen.md)).
+
 Budgets: WASM bundle < 1.5 MB gzipped; `apply` of a 50-op batch on a 10-minute document < 5 ms;
 10k-iteration proptest fuzzing with no panics.
 

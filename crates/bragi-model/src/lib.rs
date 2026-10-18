@@ -15,6 +15,8 @@
 //! `canonical_json`, the commit hash and `diff` arrive with **WP-0.3**.
 #![forbid(unsafe_code)]
 
+pub mod generated;
+
 /// Pulses per quarter note: the resolution of every musical position in a song
 /// document. Fixed for all projects (`specs/02-song-model.md` §2.2).
 ///
