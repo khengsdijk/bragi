@@ -31,6 +31,9 @@ dev = [
   "mypy>=1.19",
   "pytest>=9.0",
   "ruff>=0.15",
+  # Generates bragi_common/src/bragi_common/generated/models.py from the JSON Schemas
+  # (WP-0.2). Dev-only: the generated models are committed and imported at runtime.
+  "datamodel-code-generator>=0.85",
 ]
 
 # --- Tooling (specs/13-agent-guide.md §3) -----------------------------------
@@ -39,6 +42,10 @@ dev = [
 target-version = "py312"
 line-length = 100
 src = ["bragi_common/src", "analysis/src", "embed/src", "generate/src"]
+# `pnpm schemas:gen` writes these files from packages/schemas; they are never hand-edited
+# (13 §1), and their field names deliberately mirror the JSON (mixedCase), so linting them
+# would mean linting the schemas. Regenerate with `pnpm schemas:gen`.
+extend-exclude = ["bragi_common/src/bragi_common/generated"]
 
 [tool.ruff.lint]
 select = [

@@ -3,7 +3,10 @@ name = "bragi-common"
 version = "0.0.0"
 description = "Shared worker framework: NATS client, job protocol, S3 helpers, generated models"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  # Pydantic v2 models generated from packages/schemas (01 §7, WP-0.2).
+  "pydantic>=2.11",
+]
 
 [build-system]
 requires = ["hatchling"]
