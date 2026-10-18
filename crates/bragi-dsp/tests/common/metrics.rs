@@ -210,7 +210,11 @@ pub fn hit_report(
             continue;
         }
         hits += 1;
-        let s = (t * f64::from(sr) / 1000.0) as usize;
+        // `t` is already in milliseconds; the source envelopes are 1 ms-hop, so the hit's
+        // source frame is `t` (not `t * sr / 1000`, which is a sample index and would index the
+        // envelopes far out of range). A hit at `t` peaks at `t + ENVELOPE_LAG_MS` in the 20 ms
+        // envelope and `t + 2` in the 5 ms fine envelope.
+        let src_ms = t as usize;
         let target = out_ms + ENVELOPE_LAG_MS;
         let lo = (target - 30.0) as usize;
         let hi = ((target + 60.0) as usize).min(env_out.len() - 1);
@@ -230,9 +234,10 @@ pub fn hit_report(
         if sec_out >= FLAM_SECONDARY_DB {
             flams += 1;
         }
-        worst_sec =
-            worst_sec.max(sec_out - secondary_attack_db(&env_in, s + ENVELOPE_LAG_MS as usize));
-        let pi = pre_echo_db(&fine_in, s + 2);
+        worst_sec = worst_sec.max(
+            sec_out - secondary_attack_db(&env_in, src_ms + ENVELOPE_LAG_MS as usize),
+        );
+        let pi = pre_echo_db(&fine_in, src_ms + 2);
         let po = pre_echo_db(&fine_out, pk);
         if pi.is_finite() && po.is_finite() {
             pre_incs.push(po - pi);
@@ -240,7 +245,7 @@ pub fn hit_report(
         if stereo {
             worst_img = worst_img.max(
                 (image_db(&pl_out, &pr_out, pk)
-                    - image_db(&pl_in, &pr_in, s + ENVELOPE_LAG_MS as usize))
+                    - image_db(&pl_in, &pr_in, src_ms + ENVELOPE_LAG_MS as usize))
                 .abs(),
             );
         }

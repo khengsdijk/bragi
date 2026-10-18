@@ -67,12 +67,16 @@ second of CPU.
 
 | Engine | ratio | RTF | hits | flams | 2nd attack +dB | pre-echo +dB | image ±dB | timing ms |
 |---|---|---|---|---|---|---|---|---|
-| PhaseVocoder Preview | 0.88 | ~100 | 7/7 | 0 | 1.3 | 0.0 | 0.29 | 0.7 |
-| PhaseVocoder Render | 0.88 | ~109 | 7/7 | 0 | 1.4 | 0.0 | 0.25 | 4.3 |
-| PhaseVocoder Preview | 1.12 | ~111 | 7/7 | 0 | 1.1 | 0.0 | 0.32 | 0.7 |
-| PhaseVocoder Render | 1.12 | ~108 | 7/7 | 0 | 1.1 | 0.0 | 0.32 | 1.3 |
+| PhaseVocoder Preview | 0.88 | ~100 | 7/7 | 0 | 0.0 | 41.3 | 0.04 | 0.7 |
+| PhaseVocoder Render | 0.88 | ~110 | 7/7 | 0 | 0.1 | 42.3 | 0.08 | 4.3 |
+| PhaseVocoder Preview | 1.12 | ~111 | 7/7 | 0 | 0.0 | 41.4 | 0.05 | 0.7 |
+| PhaseVocoder Render | 1.12 | ~111 | 7/7 | 0 | 0.0 | 41.3 | 0.02 | 1.3 |
 | Signalsmith Stretch (`preset_default`) | 0.88 | ~81 | — | — | — | — | — | — |
 | Signalsmith Stretch (`preset_default`) | 1.12 | ~120 | — | — | — | — | — | — |
+
+RTF is approximate and noisy on this machine (±30 % run-to-run: CPU frequency scaling dominates a
+4 s fixture, and a cold first iteration runs slow). The flam/timing/image/pre-echo figures are
+stable across runs.
 
 - **Pitch accuracy** (`--bin measure` is stretch-only; the contract test
   `pitch_shift_moves_a_sine_by_the_expected_ratio`): 880.00 Hz / 220.00 Hz for +12 / −12 semitones
@@ -84,8 +88,11 @@ second of CPU.
 - **WASM:** `cargo build --target wasm32-unknown-unknown -p bragi-dsp` succeeds; the worklet shim
   is 299 KB and runs in an AudioWorklet (`stretch-lab/web`, headless-Chrome runner passes).
 
-The objective proxies **supplement** the listening check; they do not replace it. The `2nd
-attack`/`pre-echo` increases are small, which is encouraging, but the ear decides.
+The objective proxies **supplement** the listening check; they do not replace it. They show no
+flamming — the secondary-attack increase over the source is ~0 dB and every hit stays single —
+and a preserved stereo image (≤ 0.08 dB shift). Pre-echo is the real finding: the vocoder lifts
+energy 5–35 ms before each transient by ~41 dB over the source. That transient smearing is what
+the ear must judge (see *Consequences → Transient smearing* and Q12), not an automated pass.
 
 ## Listening notes
 
