@@ -9,7 +9,8 @@ Notes:
 - Configuration comes from environment variables and is validated at boot with zod. No secrets in
   the repo ([01 §8](../../specs/01-architecture.md)).
 - Route schemas are the source of the OpenAPI 3.1 document that generates
-  [`@bragi/api-client`](../../packages/api-client).
+  [`@bragi/api-client`](../../packages/api-client). **Not yet:** WP-0.7 validates each route's input
+  directly; the OpenAPI generation lands with `packages/api-client` in WP-1.10.
 - **The API never parses audio** — uploaded audio is decoded only inside sandboxed workers
   ([01 §10](../../specs/01-architecture.md)).
 - LLM inputs containing user text are untrusted; the planner may only emit schema-validated ops
