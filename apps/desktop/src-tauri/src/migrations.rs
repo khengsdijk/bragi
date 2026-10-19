@@ -326,7 +326,10 @@ mod tests {
             .expect("count");
         assert_eq!(created, 0, "the failed batch left its table behind");
         // And the database is still usable: `apply` relies on that.
-        assert_eq!(apply(&mut connection).expect("applies"), vec![1]);
+        assert_eq!(
+            apply(&mut connection).expect("applies"),
+            MIGRATIONS.iter().map(|it| it.version).collect::<Vec<_>>()
+        );
     }
 
     #[test]
