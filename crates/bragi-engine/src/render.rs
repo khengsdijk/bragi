@@ -189,8 +189,9 @@ pub struct SegmentRuntime {
     /// The next absolute source frame to feed the vocoder.
     pub feed_cursor: u64,
     /// The local destination offset the next rendered block must start at for
-    /// the stream state to be continuous.
-    pub next_offset: u64,
+    /// the stream state to be continuous. Signed, because a section-boundary
+    /// pre-roll starts before the segment's `dst_start`.
+    pub next_offset: i64,
     /// Whether the vocoder has been primed for this activation.
     pub primed: bool,
 }
@@ -1441,28 +1442,14 @@ fn render_segment(
     offset: usize,
     frames: usize,
 ) {
-    let local = (range_start + offset as u64) - segment.dst_start;
+    let local = (range_start + offset as u64) as i64 - segment.dst_start as i64;
     let use_stretcher = runtime.stretcher.is_some() && segment.needs_stretcher();
     if use_stretcher {
         render_stretched(scratch, pcm, stats, segment, runtime, local, offset, frames);
     } else {
         render_direct(scratch, pcm, stats, segment, local, offset, frames);
     }
-    runtime.next_offset = local + frames as u64;
-}
-
-/// The source position a segment plays at local destination offset `local`.
-fn source_position(segment: &Segment, local: u64) -> f64 {
-    let pos = segment.src_map.src_at(local);
-    if segment.reverse {
-        let mirrored = segment.src_end as f64 - 1.0 - (pos - segment.src_start as f64);
-        mirrored.clamp(
-            segment.src_start as f64,
-            (segment.src_end as f64 - 1.0).max(segment.src_start as f64),
-        )
-    } else {
-        pos
-    }
+    runtime.next_offset = local + frames as i64;
 }
 
 fn render_direct(
@@ -1470,7 +1457,7 @@ fn render_direct(
     pcm: &dyn PcmSource,
     stats: &mut RenderStats,
     segment: &Segment,
-    local: u64,
+    local: i64,
     offset: usize,
     frames: usize,
 ) {
@@ -1479,7 +1466,7 @@ fn render_direct(
     let mut min_pos = f64::MAX;
     let mut max_pos = f64::MIN;
     for index in 0..frames {
-        let pos = source_position(segment, local + index as u64);
+        let pos = segment.source_position(local + index as i64);
         min_pos = min_pos.min(pos);
         max_pos = max_pos.max(pos);
     }
@@ -1499,7 +1486,7 @@ fn render_direct(
     }
 
     for index in 0..frames {
-        let pos = source_position(segment, local + index as u64);
+        let pos = segment.source_position(local + index as i64);
         let base = pos.floor() as i64;
         let frac = (pos - base as f64) as f32;
         let index0 = (base - lo as i64).clamp(0, count as i64 - 1) as usize;
@@ -1507,7 +1494,8 @@ fn render_direct(
         let source = &scratch.source;
         let mut left = source[index0 * 2] * (1.0 - frac) + source[index1 * 2] * frac;
         let mut right = source[index0 * 2 + 1] * (1.0 - frac) + source[index1 * 2 + 1] * frac;
-        let gain = segment.gain * segment.fade_gain(segment.dst_start + local + index as u64);
+        let gain = segment.gain
+            * segment.fade_gain((segment.dst_start as i64 + local + index as i64).max(0) as u64);
         left *= gain;
         right *= gain;
         let out_index = (offset + index) * 2;
@@ -1524,7 +1512,7 @@ fn render_stretched(
     stats: &mut RenderStats,
     segment: &Segment,
     runtime: &mut SegmentRuntime,
-    local: u64,
+    local: i64,
     offset: usize,
     frames: usize,
 ) {
@@ -1532,7 +1520,7 @@ fn render_stretched(
     // seek, a loop wrap, or the first block of the segment.
     let reprime = !runtime.primed || runtime.next_offset != local;
     if reprime {
-        let start = source_position(segment, local).max(0.0).round() as u64;
+        let start = segment.source_position(local).max(0.0).round() as u64;
         if let Some(stretcher) = runtime.stretcher.as_mut() {
             stretcher.reset();
             let latency = stretcher.latency();
@@ -1560,7 +1548,7 @@ fn render_stretched(
 
     let (out_left, out_right) = scratch.planar_out.split_at_mut(out_frames);
     for index in 0..frames {
-        let absolute = segment.dst_start + local + index as u64;
+        let absolute = (segment.dst_start as i64 + local + index as i64).max(0) as u64;
         let gain = segment.gain * segment.fade_gain(absolute);
         let out_index = (offset + index) * 2;
         scratch.segment[out_index] = out_left[index] * gain;

@@ -108,6 +108,11 @@ pub const NATIVE_BUFFER_FRAMES: usize = 256;
 /// Length of the crossfade at a loop point, in milliseconds (`specs/03-audio-engine.md` §5.2).
 pub const LOOP_FADE_MS: f32 = 5.0;
 
+/// Length of a `cut` section-boundary crossfade, in milliseconds
+/// (`specs/03-audio-engine.md` §5.5). Discontinuous boundaries are never hard
+/// cuts, even when the document asks for one.
+pub const BOUNDARY_FADE_MS: f32 = 5.0;
+
 /// Ramp length for mute/solo changes, in milliseconds (`specs/03-audio-engine.md` §5.2).
 pub const MUTE_RAMP_MS: f32 = 5.0;
 

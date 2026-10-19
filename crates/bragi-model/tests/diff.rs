@@ -4,7 +4,7 @@
 mod common;
 
 use bragi_model::{apply, diff};
-use common::{SEC_A, TRK_A, assets, fixture, user_batch};
+use common::{SEC_A, SEC_B, TRK_A, assets, fixture, user_batch};
 use serde_json::json;
 
 #[test]
@@ -121,4 +121,24 @@ fn a_section_edit_is_a_section_update_not_a_resync() {
     assert_eq!(delta.sections_updated.len(), 1);
     assert!(delta.sections_updated[0].label == "New");
     assert!(!delta.requires_full_resync);
+}
+
+#[test]
+fn a_section_reorder_is_structural_even_without_a_section_update() {
+    let doc = fixture();
+    let next = apply(
+        &doc,
+        &user_batch(vec![
+            json!({ "op": "section.move", "sectionId": SEC_A, "toIndex": 1 }),
+        ]),
+        &assets(),
+    )
+    .unwrap();
+    assert_eq!(next.arrangement.sections[0].id.as_str(), SEC_B);
+    let delta = diff(&doc, &next);
+    // No section object changed, but every clip's absolute position did.
+    assert!(delta.sections_added.is_empty());
+    assert!(delta.sections_removed.is_empty());
+    assert!(delta.sections_updated.is_empty());
+    assert!(delta.requires_full_resync);
 }

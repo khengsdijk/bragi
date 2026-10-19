@@ -147,6 +147,14 @@ pub fn diff(prev: &Project, next: &Project) -> EngineDelta {
             sections_removed.push(section.id.clone());
         }
     }
+    // A pure reorder changes no section object, but it moves every clip's
+    // absolute position: the engine must rebuild the plan (02 §5.1).
+    let section_order_changed = prev
+        .arrangement
+        .sections
+        .iter()
+        .map(|section| &section.id)
+        .ne(next.arrangement.sections.iter().map(|section| &section.id));
 
     let requires_full_resync = timebase_changed
         || !sources_added.is_empty()
@@ -154,7 +162,8 @@ pub fn diff(prev: &Project, next: &Project) -> EngineDelta {
         || !tracks_added.is_empty()
         || !tracks_removed.is_empty()
         || !sections_added.is_empty()
-        || !sections_removed.is_empty();
+        || !sections_removed.is_empty()
+        || section_order_changed;
 
     EngineDelta {
         project_id: next.id.clone(),

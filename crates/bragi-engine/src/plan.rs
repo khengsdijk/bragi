@@ -29,14 +29,43 @@ use bragi_dsp::stretch::Quality;
 use bragi_model::EngineDelta;
 use bragi_model::generated::{
     AssetHash, AutomationCurve, Clip, ClipId, FxId, FxInstance, Project, TempoCurve, TempoPoint,
-    Track, TrackId, Warp,
+    Track, TrackId, TransitionKind, Warp,
 };
 use bragi_model::{AssetIndex, TempoCtx, clip_end_local, section_spans};
 
 use crate::error::PlanError;
-use crate::fade::{Fade, FadeShape};
+use crate::fade::{Fade, FadeShape, curve_gain};
 use crate::srcmap::SrcMap;
-use crate::{RATIO_EPSILON, SAMPLE_RATE};
+use crate::{BOUNDARY_FADE_MS, RATIO_EPSILON, SAMPLE_RATE};
+
+/// Planner options (`specs/03-audio-engine.md` §4).
+///
+/// The defaults are the production behaviour; tests use [`PlanOptions`] to
+/// compare a render with and without the section-boundary crossfades of §5.5.
+///
+/// # Examples
+///
+/// ```
+/// use bragi_engine::plan::PlanOptions;
+/// assert!(PlanOptions::default().section_fades);
+/// let off = PlanOptions { section_fades: false };
+/// assert!(!off.section_fades);
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlanOptions {
+    /// Apply the centred section-boundary crossfades of
+    /// `specs/03-audio-engine.md` §5.5. Contiguous boundaries are never
+    /// touched, with or without this flag.
+    pub section_fades: bool,
+}
+
+impl Default for PlanOptions {
+    fn default() -> Self {
+        Self {
+            section_fades: true,
+        }
+    }
+}
 
 /// A compiled, immutable render plan (`specs/03-audio-engine.md` §4).
 #[derive(Clone, Debug)]
@@ -129,6 +158,92 @@ pub struct FxSlot {
 /// (about 171 ms at 48 kHz). A plan that would need more is clamped and warns.
 pub const MAX_COMPENSATION_FRAMES: usize = 8192;
 
+/// One side of a centred equal-power crossfade at a section boundary
+/// (`specs/03-audio-engine.md` §5.5).
+///
+/// The planner stores one of these on each segment that touches a
+/// discontinuous boundary: `boundary_in` for the fade-in of the incoming
+/// segment and `boundary_out` for the fade-out of the outgoing one. The gains of
+/// both multiply with each other and with the clip's own fades.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BoundaryFade {
+    /// Absolute output sample of the boundary, the centre of the crossfade.
+    pub center: u64,
+    /// Total crossfade length `L` in output samples.
+    pub len_samples: u64,
+    /// Whether this side has source material past the boundary. With a handle
+    /// the side fades over the full `L`; without one it fades over its own half.
+    pub has_handle: bool,
+}
+
+impl BoundaryFade {
+    /// A fade of `len_samples` centred on `center`.
+    #[must_use]
+    pub fn new(center: u64, len_samples: u64, has_handle: bool) -> Self {
+        Self {
+            center,
+            len_samples,
+            has_handle,
+        }
+    }
+
+    /// The fade-in gain at absolute output sample `dst`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bragi_engine::plan::BoundaryFade;
+    /// let fade = BoundaryFade::new(1_000, 100, true);
+    /// assert_eq!(fade.gain_in(950), 0.0);
+    /// assert!((fade.gain_in(1_000) - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-6);
+    /// assert_eq!(fade.gain_in(1_050), 1.0);
+    /// ```
+    #[must_use]
+    pub fn gain_in(&self, dst: u64) -> f32 {
+        let half = self.len_samples / 2;
+        if half == 0 {
+            return 1.0;
+        }
+        let start = if self.has_handle {
+            self.center.saturating_sub(half)
+        } else {
+            self.center
+        };
+        if dst < start {
+            return 0.0;
+        }
+        let span = if self.has_handle { 2 * half } else { half };
+        let x = ((dst - start) as f32 / span as f32).clamp(0.0, 1.0);
+        curve_gain(FadeShape::EqualPower, x)
+    }
+
+    /// The fade-out gain at absolute output sample `dst`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bragi_engine::plan::BoundaryFade;
+    /// let fade = BoundaryFade::new(1_000, 100, true);
+    /// assert_eq!(fade.gain_out(950), 1.0);
+    /// assert!((fade.gain_out(1_000) - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-6);
+    /// assert_eq!(fade.gain_out(1_050), 0.0);
+    /// ```
+    #[must_use]
+    pub fn gain_out(&self, dst: u64) -> f32 {
+        let half = self.len_samples / 2;
+        if half == 0 {
+            return 1.0;
+        }
+        let start = self.center.saturating_sub(half);
+        if dst < start {
+            return 1.0;
+        }
+        let span = if self.has_handle { 2 * half } else { half };
+        let x = ((dst - start) as f32 / span as f32).clamp(0.0, 1.0);
+        curve_gain(FadeShape::EqualPower, 1.0 - x)
+    }
+}
+
 /// One clip occurrence flattened to absolute output samples.
 #[derive(Clone, Debug)]
 pub struct Segment {
@@ -168,6 +283,20 @@ pub struct Segment {
     pub channels: u16,
     /// Source sample rate.
     pub src_rate: u32,
+    /// Asset duration in source frames, for boundary-handle bounds.
+    pub asset_frames: u64,
+    /// Output samples rendered before `dst_start` from the source handle
+    /// (a section-boundary crossfade). `0` outside a crossfade.
+    pub pre_roll: u64,
+    /// Output samples rendered after `dst_end` from the source handle
+    /// (a section-boundary crossfade). `0` outside a crossfade.
+    pub post_roll: u64,
+    /// Fade-in at the incoming section boundary, if this segment is the
+    /// incoming side of a discontinuous boundary.
+    pub boundary_in: Option<BoundaryFade>,
+    /// Fade-out at the outgoing section boundary, if this segment is the
+    /// outgoing side of a discontinuous boundary.
+    pub boundary_out: Option<BoundaryFade>,
 }
 
 impl Segment {
@@ -179,14 +308,27 @@ impl Segment {
             || self.src_rate != SAMPLE_RATE
     }
 
+    /// The first output sample this segment renders, including its pre-roll.
+    #[must_use]
+    pub fn render_start(&self) -> u64 {
+        self.dst_start.saturating_sub(self.pre_roll)
+    }
+
+    /// The last output sample this segment renders (exclusive), including its
+    /// post-roll.
+    #[must_use]
+    pub fn render_end(&self) -> u64 {
+        self.dst_end.saturating_add(self.post_roll)
+    }
+
     /// Frames this segment contributes to an output block starting at
     /// `block_start` of length `block_frames`, as `(offset, frames)` in output
     /// samples, or `None` when it is silent in that block.
     #[must_use]
     pub fn overlap(&self, block_start: u64, block_frames: usize) -> Option<(usize, usize)> {
         let block_end = block_start.saturating_add(block_frames as u64);
-        let start = self.dst_start.max(block_start);
-        let end = self.dst_end.min(block_end);
+        let start = self.render_start().max(block_start);
+        let end = self.render_end().min(block_end);
         if end <= start {
             None
         } else {
@@ -194,12 +336,55 @@ impl Segment {
         }
     }
 
-    /// The combined fade gain at absolute output sample `dst`.
+    /// The source position (in source samples) this segment plays at output
+    /// offset `local` from `dst_start`. Negative offsets are the pre-roll; the
+    /// map extrapolates before the window with its first slope.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use bragi_engine::fade::Fade;
+    /// # use bragi_engine::plan::Segment;
+    /// # use bragi_engine::srcmap::SrcMap;
+    /// let segment = Segment {
+    ///     clip_id: "clp_01".parse().unwrap(),
+    ///     asset: format!("sha256:{}", "0".repeat(64)).parse().unwrap(),
+    ///     dst_start: 0, dst_end: 100, clip_start: 0, clip_end: 100, section: 0,
+    ///     src_start: 200, src_end: 300, src_map: SrcMap::linear(100, 200, 300),
+    ///     ratio: 1.0, pitch_semitones: 0.0, gain: 1.0, fade_in: Fade::none(),
+    ///     fade_out: Fade::none(), reverse: false, channels: 2, src_rate: 48_000,
+    ///     asset_frames: 1_000, pre_roll: 0, post_roll: 0,
+    ///     boundary_in: None, boundary_out: None,
+    /// };
+    /// assert!((segment.source_position(50) - 250.0).abs() < 1e-9);
+    /// assert!((segment.source_position(-10) - 190.0).abs() < 1e-9);
+    /// ```
+    #[must_use]
+    pub fn source_position(&self, local: i64) -> f64 {
+        let pos = self.src_map.src_at_signed(local);
+        if self.reverse {
+            let mirrored = self.src_end as f64 - 1.0 - (pos - self.src_start as f64);
+            let last = self.asset_frames.saturating_sub(1) as f64;
+            mirrored.clamp(0.0, last)
+        } else {
+            pos
+        }
+    }
+
+    /// The combined fade gain at absolute output sample `dst`: the clip's own
+    /// fades and the section-boundary crossfade, multiplied.
     #[must_use]
     pub fn fade_gain(&self, dst: u64) -> f32 {
         let from_in = dst.saturating_sub(self.clip_start);
         let to_out = self.clip_end.saturating_sub(dst);
-        self.fade_in.gain_in(from_in) * self.fade_out.gain_out(to_out)
+        let mut gain = self.fade_in.gain_in(from_in) * self.fade_out.gain_out(to_out);
+        if let Some(fade) = self.boundary_in {
+            gain *= fade.gain_in(dst);
+        }
+        if let Some(fade) = self.boundary_out {
+            gain *= fade.gain_out(dst);
+        }
+        gain
     }
 }
 
@@ -415,7 +600,62 @@ pub fn compile(
     sample_rate: u32,
     plan_version: u64,
 ) -> Result<RenderPlan, PlanError> {
-    compile_with(doc, assets, sample_rate, plan_version, &HashMap::new())
+    compile_with(
+        doc,
+        assets,
+        sample_rate,
+        plan_version,
+        PlanOptions::default(),
+        &HashMap::new(),
+    )
+}
+
+/// Compiles a document with explicit planner options.
+///
+/// The only option today is whether to apply the section-boundary crossfades of
+/// `specs/03-audio-engine.md` §5.5. [`compile`] enables them; a test can turn
+/// them off to show that a discontinuity check has teeth.
+///
+/// # Errors
+/// The same errors as [`compile`].
+///
+/// # Examples
+///
+/// ```
+/// # use bragi_engine::plan::{compile_with_options, PlanOptions};
+/// # use bragi_model::{AssetIndex, generated::Project};
+/// # let doc: Project = serde_json::from_value(serde_json::json!({
+/// #   "schemaVersion": 1, "id": "prj_01",
+/// #   "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+/// #   "sources": [], "analyses": {}, "tracks": [],
+/// #   "arrangement": { "timebase": { "ppq": 960,
+/// #       "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }], "timeSignatures": [] },
+/// #       "sections": [], "master": { "fx": [], "automation": [], "gainDb": 0 } } })).unwrap();
+/// let plan = compile_with_options(
+///     &doc,
+///     &AssetIndex::new(),
+///     48_000,
+///     1,
+///     PlanOptions { section_fades: false },
+/// )
+/// .unwrap();
+/// assert_eq!(plan.length_samples, 0);
+/// ```
+pub fn compile_with_options(
+    doc: &Project,
+    assets: &AssetIndex,
+    sample_rate: u32,
+    plan_version: u64,
+    options: PlanOptions,
+) -> Result<RenderPlan, PlanError> {
+    compile_with(
+        doc,
+        assets,
+        sample_rate,
+        plan_version,
+        options,
+        &HashMap::new(),
+    )
 }
 
 /// Recompiles only the tracks an [`EngineDelta`] can have changed.
@@ -455,7 +695,14 @@ pub fn compile_delta(
         }
     }
 
-    compile_with(doc, assets, prev.sample_rate, prev.plan_version + 1, &keep)
+    compile_with(
+        doc,
+        assets,
+        prev.sample_rate,
+        prev.plan_version + 1,
+        PlanOptions::default(),
+        &keep,
+    )
 }
 
 fn compile_with(
@@ -463,6 +710,7 @@ fn compile_with(
     assets: &AssetIndex,
     sample_rate: u32,
     plan_version: u64,
+    options: PlanOptions,
     keep: &HashMap<TrackId, TrackPlan>,
 ) -> Result<RenderPlan, PlanError> {
     if sample_rate != SAMPLE_RATE {
@@ -505,8 +753,10 @@ fn compile_with(
             assets,
             &tempo,
             &spans,
+            &sections,
             sample_rate,
             length_samples,
+            options,
             &mut warnings,
             &mut unavailable,
         )?);
@@ -566,8 +816,10 @@ fn compile_track(
     assets: &AssetIndex,
     tempo: &TempoCtx<'_>,
     spans: &[bragi_model::SectionSpan],
+    sections: &[SectionSpanSamples],
     sample_rate: u32,
     length_samples: u64,
+    options: PlanOptions,
     warnings: &mut Vec<String>,
     unavailable: &mut Vec<&'static str>,
 ) -> Result<TrackPlan, PlanError> {
@@ -592,6 +844,16 @@ fn compile_track(
         }
     }
     segments.sort_by_key(|segment| segment.dst_start);
+    apply_section_boundaries(
+        &mut segments,
+        doc,
+        tempo,
+        spans,
+        sections,
+        sample_rate,
+        options,
+        warnings,
+    );
     Ok(TrackPlan {
         id: track.id.clone(),
         name: track.name.clone(),
@@ -610,6 +872,155 @@ fn compile_track(
             unavailable,
         ),
     })
+}
+
+/// Applies the section-boundary crossfades of `specs/03-audio-engine.md` §5.5
+/// to one track's compiled segments.
+///
+/// A boundary is left alone when the outgoing and incoming segment are
+/// contiguous: the same asset and the same source position at the boundary
+/// (within one source sample, after warp and ratio). Every other pair gets a
+/// centred equal-power fade; the segment keeps its own window (`dst_start` /
+/// `dst_end`), and `pre_roll` / `post_roll` only extend what the renderer reads.
+#[allow(clippy::too_many_arguments)]
+fn apply_section_boundaries(
+    segments: &mut [Segment],
+    doc: &Project,
+    tempo: &TempoCtx<'_>,
+    spans: &[bragi_model::SectionSpan],
+    sections: &[SectionSpanSamples],
+    sample_rate: u32,
+    options: PlanOptions,
+    warnings: &mut Vec<String>,
+) {
+    if !options.section_fades {
+        return;
+    }
+    for index in 1..sections.len() {
+        let boundary = sections[index].start;
+        if boundary == 0 {
+            continue;
+        }
+        let previous = &sections[index - 1];
+        let current = &sections[index];
+        let Some(section) = doc.arrangement.sections.get(index) else {
+            continue;
+        };
+        let Some(span) = spans.get(index) else {
+            continue;
+        };
+
+        let outgoing: Vec<usize> = segments
+            .iter()
+            .enumerate()
+            .filter(|(_, segment)| segment.dst_end == boundary)
+            .map(|(index, _)| index)
+            .collect();
+        let incoming: Vec<usize> = segments
+            .iter()
+            .enumerate()
+            .filter(|(_, segment)| segment.dst_start == boundary)
+            .map(|(index, _)| index)
+            .collect();
+        if outgoing.is_empty() && incoming.is_empty() {
+            continue;
+        }
+        if outgoing.len() == 1
+            && incoming.len() == 1
+            && contiguous(&segments[outgoing[0]], &segments[incoming[0]])
+        {
+            continue;
+        }
+
+        let transition = &section.transition_in;
+        let mut len_samples = match transition.kind {
+            TransitionKind::Cut => (BOUNDARY_FADE_MS * sample_rate as f32 / 1000.0).round() as u64,
+            TransitionKind::Crossfade => {
+                duration_samples(tempo, sample_rate, span.start_tick, transition.length_ticks)
+            }
+            TransitionKind::Generated => {
+                warnings.push(format!(
+                    "section {}: generated transitions are rendered as a crossfade until WP-2.7",
+                    section.id
+                ));
+                duration_samples(tempo, sample_rate, span.start_tick, transition.length_ticks)
+            }
+        };
+        // Never reach past half of either neighbouring section (03 §5.5).
+        len_samples = len_samples
+            .min((previous.end - previous.start) / 2)
+            .min((current.end - current.start) / 2);
+        let half = len_samples / 2;
+        if half == 0 {
+            continue;
+        }
+
+        // A handle only matters when there is something to crossfade with: a
+        // track that is silent on one side fades over its own half, so no
+        // material leaks into the neighbouring section.
+        let crossfade = !outgoing.is_empty() && !incoming.is_empty();
+        for &index in &outgoing {
+            let has_handle = crossfade && handle_after(&segments[index], half);
+            segments[index].post_roll = if has_handle { half } else { 0 };
+            segments[index].boundary_out =
+                Some(BoundaryFade::new(boundary, len_samples, has_handle));
+        }
+        for &index in &incoming {
+            let has_handle = crossfade && handle_before(&segments[index], half);
+            segments[index].pre_roll = if has_handle { half } else { 0 };
+            segments[index].boundary_in =
+                Some(BoundaryFade::new(boundary, len_samples, has_handle));
+        }
+    }
+}
+
+/// Whether two segments are the same material at a boundary: same asset and a
+/// source position within one source sample.
+fn contiguous(outgoing: &Segment, incoming: &Segment) -> bool {
+    if outgoing.asset != incoming.asset {
+        return false;
+    }
+    let length = (outgoing.dst_end - outgoing.dst_start) as i64;
+    let at_boundary = outgoing.source_position(length);
+    let at_start = incoming.source_position(0);
+    at_boundary.is_finite() && at_start.is_finite() && (at_boundary - at_start).abs() <= 1.0
+}
+
+/// Whether `segment` has source material to keep playing for `extra` output
+/// samples after its window.
+fn handle_after(segment: &Segment, extra: u64) -> bool {
+    if extra == 0 {
+        return false;
+    }
+    let length = (segment.dst_end - segment.dst_start) as i64;
+    let from = segment.source_position(length);
+    let to = segment.source_position(length + extra as i64);
+    handle_is_inside(from, to, segment.asset_frames)
+}
+
+/// Whether `segment` has source material to start `extra` output samples before
+/// its window.
+fn handle_before(segment: &Segment, extra: u64) -> bool {
+    if extra == 0 {
+        return false;
+    }
+    let from = segment.source_position(0);
+    let to = segment.source_position(-(extra as i64));
+    handle_is_inside(from, to, segment.asset_frames)
+}
+
+/// Whether every source sample between `from` and `to` exists in an asset of
+/// `frames` frames. A segment's map is monotone, so checking the endpoints
+/// covers the whole extension, forward or reversed.
+fn handle_is_inside(from: f64, to: f64, frames: u64) -> bool {
+    if !from.is_finite() || !to.is_finite() || frames == 0 {
+        return false;
+    }
+    let last = frames.saturating_sub(1) as f64;
+    if from < 0.0 || from > frames as f64 {
+        return false;
+    }
+    if to >= from { to <= last } else { to >= 0.0 }
 }
 
 /// Compiles a document chain into indexed slots.
@@ -801,6 +1212,11 @@ fn compile_clip(
         reverse,
         channels,
         src_rate,
+        asset_frames: meta.duration_samples,
+        pre_roll: 0,
+        post_roll: 0,
+        boundary_in: None,
+        boundary_out: None,
     };
 
     match &clip.warp {

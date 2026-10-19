@@ -135,6 +135,36 @@ impl SrcMap {
         slope
     }
 
+    /// The source position at a signed destination offset.
+    ///
+    /// Before `0` the map is extrapolated with the slope of its first interval.
+    /// A section-boundary crossfade uses this for an incoming segment's
+    /// pre-roll, which reads the source handle before the clip's window
+    /// (`specs/03-audio-engine.md` §5.5).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bragi_engine::srcmap::SrcMap;
+    /// let map = SrcMap::linear(100, 200, 300);
+    /// assert!((map.src_at_signed(50) - 250.0).abs() < 1e-9);
+    /// assert!((map.src_at_signed(-10) - 190.0).abs() < 1e-9);
+    /// ```
+    #[must_use]
+    pub fn src_at_signed(&self, dst: i64) -> f64 {
+        if dst >= 0 {
+            return self.src_at(dst as u64);
+        }
+        let Some(first) = self.points.first() else {
+            return 0.0;
+        };
+        let slope = match self.points.get(1) {
+            Some(b) if b.dst > first.dst => (b.src - first.src) / b.dst as f64,
+            _ => return first.src,
+        };
+        first.src + slope * dst as f64
+    }
+
     /// The source position and slope at `dst`, in one lookup.
     #[must_use]
     pub fn lookup(&self, dst: u64) -> (f64, f64) {
