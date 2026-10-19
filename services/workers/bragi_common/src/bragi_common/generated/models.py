@@ -2956,7 +2956,7 @@ class Commit(BaseModel):
     snapshot: Annotated[
         AssetHash,
         Field(
-            description='zstd-compressed canonical JSON of the full document after this commit.'
+            description='Uncompressed canonical JSON of the full document after this commit, content-addressed in the BlobCache (02 §7). zstd is a later optimisation (Q85).'
         ),
     ]
     state: CommitState

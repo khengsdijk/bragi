@@ -195,3 +195,9 @@ rows.
 | # | Question | Answer | Reference |
 |---|---|---|---|
 | Q71 | Which model and key does `describe` use in production? | Owner decision: all LLM calls go through OpenRouter (`OPENROUTER_API_KEY`); model IDs are OpenRouter slugs. Default model `deepseek/deepseek-v4.1-flash` (cheap, `response_format` support), configured in `config/describe.toml`, overridable by `BRAGI_DESCRIBE_MODEL` or the job param `model`; the owner may change it at any time. The planner (06 §4) uses the same provider with its own tier config. Requests default to `data_collection: "deny"`. Key ownership: the owner supplies it server-side; never committed. | [ADR-0012](decisions/ADR-0012-describe-llm-client.md), [04 §6.3](04-analysis-pipeline.md) |
+
+## Added by WP-2.1
+
+| # | Question | Needed by | Owner | Notes |
+|---|---|---|---|---|
+| Q85 | Snapshot compression: v1 stores commit snapshots as uncompressed canonical JSON in the BlobCache. When (if ever) to add zstd (ruzstd in wasm vs CompressionStream gzip)? | WP-2.9 | Agent | [02 §7](02-song-model.md), `packages/app/src/features/history/api/history-repo.ts`. Documents are under 1 MB in v1, so this is an optimisation, not a correctness change. |

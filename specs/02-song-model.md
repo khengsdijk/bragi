@@ -402,7 +402,7 @@ interface Commit {
   projectId: ProjectId;
   parents: CommitId[];          // 0 for root, 1 normally, 2 never in v1 (no true merges; region.adopt instead)
   batch: OpBatch;
-  snapshot: AssetHash;          // zstd-compressed canonical JSON of the full document after this commit
+  snapshot: AssetHash;          // canonical JSON of the full document after this commit, stored uncompressed in v1 (Q85)
   state: "committed" | "candidate" | "discarded";
   candidateGroup?: string;      // candidates produced by one AI request share a group
   deviceId: string;
@@ -418,6 +418,8 @@ Rules:
 - **Undo/redo** moves HEAD along the parent chain and a redo stack. Undo never deletes commits.
 - **Branching** happens naturally. Making an edit while HEAD is not at a branch tip creates a new branch. The user can name branches ("Club version").
 - **Two devices editing offline** produce two branches with a common ancestor. Sync never auto-merges. The UI shows both tips and the user picks one or uses `region.adopt` ([05-backend-and-jobs.md §7](05-backend-and-jobs.md)).
+
+**Snapshot compression.** v1 stores the canonical JSON of the document **uncompressed** in the content-addressed BlobCache; its hash is the commit's `snapshot`. Documents are under the 1 MB budget and the web build has no zstd yet, so compression is a later optimisation (Q85).
 
 ## 8. Public API of `bragi-model` (Rust, exposed to TS via WASM)
 

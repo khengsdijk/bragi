@@ -1955,7 +1955,7 @@ pub struct Commit {
     pub parents: ::std::vec::Vec<CommitId>,
     #[serde(rename = "projectId")]
     pub project_id: ProjectId,
-    ///zstd-compressed canonical JSON of the full document after this commit.
+    ///Uncompressed canonical JSON of the full document after this commit, content-addressed in the BlobCache (02 §7). zstd is a later optimisation (Q85).
     pub snapshot: AssetHash,
     pub state: CommitState,
 }
