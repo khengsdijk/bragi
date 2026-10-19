@@ -71,6 +71,16 @@ async def run(job: JobRequest, ctx: JobContext) -> JobOutputs:
             raise ValueError("blobs.embed_full must be a song-scope EmbeddingResult with a vector")
         audio_vector = np.asarray(embedding.vectors[0].vector, dtype=np.float64)
         degraded = bool(embedding.lowConfidence)
+        if embedding.model != embedder.model:
+            # Text and audio must live in one space; a mismatch means the labels are noise.
+            _LOGGER.warning(
+                "embed_full model %s does not match the selected embedder %s; "
+                "labels are flagged low-confidence",
+                embedding.model,
+                embedder.model,
+                extra={"job": job.jobId},
+            )
+            degraded = True
     else:
         mono, _ = await base.decode_mono(job, ctx, "source")
         if await ctx.cancelled():
