@@ -1,77 +1,123 @@
 // @ts-nocheck -- AudioWorkletProcessor/registerProcessor are AudioWorklet-global
 // and are not in the DOM lib tsconfig.test.json typechecks with; this file is
-// loaded by URL as a worklet module, not bundled.
+// loaded by URL as a worklet module (bundled by the host app's bundler).
 /**
  * The AudioWorklet processor for the browser engine
  * (specs/03-audio-engine.md §3.1).
  *
- * Plain JavaScript on purpose: an AudioWorklet module is loaded by URL and is
- * not part of the bundler graph, so it must stand alone. It imports the
- * generated wasm-bindgen package (`crates/bragi-engine-wasm/pkg`), which the
- * host serves next to it.
+ * `AudioWorkletGlobalScope` has no `fetch`, no dynamic `import()` and no `TextDecoder`, so this
+ * module is a *static* graph: the polyfill first, then the generated wasm-bindgen package, which
+ * the host bundler inlines. The wasm bytes arrive over the port (the main thread fetches them) and
+ * are instantiated synchronously.
  *
- * Protocol with `web/engine.ts`:
+ * Protocol with `web/engine.ts` (all messages are structured-cloneable):
  *
- * - `{ type: "state", state }` — a shared `Uint32Array` (`StateBlock`) to write.
- * - `{ type: "commands", words }` — the SPSC command ring as strings (see the
- *   JS bridge; `BigInt64Array` postMessage of a `SharedArrayBuffer` is sent
- *   once in the host, this path is for non-shared environments).
- * - `{ type: "load", doc, assets }` — register decoded assets, then the project.
- * - `{ type: "delta", delta }` — apply a mix change.
+ * - `{ type: "wasm", bytes }`   instantiate the engine; answered with `{ type: "ready" }`.
+ * - `{ type: "state", state }`  a *shared* `Uint32Array` (`StateBlock`) the worklet writes.
+ * - `{ type: "commands", words }` packed transport words (see `engine/codec.ts`), as strings.
+ * - `{ type: "load", doc, assets }` register decoded assets, then compile the project; answered
+ *   with `{ type: "loaded", tracks }` so the host can size the state block.
  *
- * The audio thread here is the worklet's global scope and its `process` call;
- * `add_asset`/`load_project` run in message handlers, never inside `process`.
+ * `add_asset`/`load_project` run in message handlers, never inside `process`. Decoding on this
+ * thread is a v1 shortcut recorded in docs/wp/1.9.md: it happens at project open, before play.
  */
+import "./worklet-polyfill.js";
+import {
+  EngineWasm,
+  initSync,
+} from "../../../../crates/bragi-engine-wasm/pkg/bragi_engine_wasm.js";
 
-const WASM_URL = new URL("./bragi_engine_wasm.js", import.meta.url);
+const OP_PLAY = 0;
+const OP_PAUSE = 1;
+const OP_STOP = 2;
+const OP_SEEK = 3;
+const OP_LOOP = 4;
+const OP_LOOP_CLEAR = 5;
+const OP_AUDITION = 6;
+const OP_LOOP_END = 7;
+const PAYLOAD_MASK = 0x00ff_ffff_ffff_ffffn;
+const HEADER_WORDS = 8;
+/** Publish the state block every n-th quantum: ~2.7 ms each, so ~21 ms between publishes. */
+const PUBLISH_EVERY = 8;
 
 class BragiEngineProcessor extends AudioWorkletProcessor {
-  constructor(options) {
+  constructor() {
     super();
     this.engine = null;
     this.state = null;
-    this.commands = null;
-    this.ready = false;
-    this.port.onmessage = (event) => {
-      void this.#handle(event.data);
-    };
-    void this.#load(WASM_URL);
-    void options;
+    this.loopStart = 0;
+    this.quantum = 0;
+    this.port.onmessage = (event) => this.handle(event.data);
   }
 
-  async #load(url) {
-    const module = await import(url.href);
-    // The generated package is fetched relative to this module.
-    const response = await fetch(new URL("./bragi_engine_wasm_bg.wasm", url));
-    module.initSync({ module: await response.arrayBuffer() });
-    this.engine = new module.EngineWasm(128);
-    this.ready = true;
-    this.port.postMessage({ type: "ready" });
-  }
-
-  async #handle(message) {
+  handle(message) {
     switch (message.type) {
+      case "wasm":
+        initSync({ module: message.bytes });
+        this.engine = new EngineWasm(128);
+        this.port.postMessage({ type: "ready" });
+        break;
       case "state":
         this.state = message.state;
         break;
       case "commands":
-        this.commands = message.commands;
+        for (const word of message.words) this.command(BigInt(word));
         break;
-      case "load": {
-        if (!this.engine) return;
-        for (const asset of message.assets ?? []) {
-          this.engine.add_asset(asset.hash, asset.bytes, asset.mime);
-        }
-        this.engine.load_project(JSON.stringify(message.doc));
+      case "load":
+        this.load(message);
         break;
+      default:
+        break;
+    }
+  }
+
+  load(message) {
+    if (!this.engine) return;
+    try {
+      for (const asset of message.assets ?? []) {
+        this.engine.add_asset(asset.hash, asset.bytes, asset.mime);
       }
-      case "delta": {
-        // The mix-only path: the worklet has no document, so it forwards to the
-        // main thread's wasm engine on the next reload. Kept explicit so the
-        // protocol is visible.
-        this.port.postMessage({ type: "deltaReceived" });
+      this.engine.load_project(JSON.stringify(message.doc));
+      const words = this.engine.publish_state().length;
+      this.port.postMessage({
+        type: "loaded",
+        tracks: Math.max(0, (words - HEADER_WORDS - 2) / 2),
+        lengthSamples: Number(this.engine.length_samples()),
+      });
+    } catch (error) {
+      this.port.postMessage({ type: "error", message: String(error?.message ?? error) });
+    }
+  }
+
+  command(word) {
+    if (!this.engine) return;
+    const opcode = Number(word >> 56n);
+    const payload = Number(word & PAYLOAD_MASK);
+    switch (opcode) {
+      case OP_PLAY:
+        this.engine.transport(0, 0, 0);
         break;
-      }
+      case OP_PAUSE:
+        this.engine.transport(1, 0, 0);
+        break;
+      case OP_STOP:
+        this.engine.transport(2, 0, 0);
+        break;
+      case OP_SEEK:
+        this.engine.transport(3, payload, 0);
+        break;
+      case OP_LOOP:
+        this.loopStart = payload;
+        break;
+      case OP_LOOP_END:
+        this.engine.transport(4, this.loopStart, payload);
+        break;
+      case OP_LOOP_CLEAR:
+        this.engine.transport(5, 0, 0);
+        break;
+      case OP_AUDITION:
+        this.engine.transport(6, payload, 0);
+        break;
       default:
         break;
     }
@@ -81,19 +127,17 @@ class BragiEngineProcessor extends AudioWorkletProcessor {
     const output = outputs[0];
     const left = output[0];
     const right = output[1] ?? output[0];
-    if (this.engine && this.ready) {
-      this.engine.process(left, right);
-      if (this.state) {
-        const words = this.engine.publish_state();
-        const view = new Uint32Array(this.state.buffer, this.state.byteOffset, words.length);
-        Atomics.store(view, 0, words[0] ?? 0);
-        for (let index = 0; index < words.length; index += 1) {
-          Atomics.store(this.state, index, words[index] ?? 0);
-        }
-      }
-    } else {
+    if (!this.engine) {
       left.fill(0);
-      right.fill(0);
+      if (right !== left) right.fill(0);
+      return true;
+    }
+    this.engine.process(left, right);
+    this.quantum += 1;
+    if (this.state && this.quantum % PUBLISH_EVERY === 0) {
+      const words = this.engine.publish_state();
+      const count = Math.min(words.length, this.state.length);
+      for (let index = 0; index < count; index += 1) Atomics.store(this.state, index, words[index]);
     }
     return true;
   }

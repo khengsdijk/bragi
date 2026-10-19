@@ -23,7 +23,8 @@
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
-    }
+    },
+    "./engine-processor": "./src/web/engine-processor.js"
   },
   "scripts": {
     "build": "tsc -b",

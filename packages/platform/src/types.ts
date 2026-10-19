@@ -2,6 +2,7 @@
  * The platform seam (specs/01-architecture.md §2, §3). `@bragi/app` only ever
  * sees these interfaces; the web and Tauri adapters implement them.
  */
+import type { EngineHost } from "./engine/types.js";
 
 /**
  * A value that crosses the LocalDB boundary in either direction.
@@ -99,6 +100,12 @@ export interface Platform {
   readonly localDb: LocalDB;
   readonly blobCache: BlobCache;
   readonly fileAccess: FileAccess;
+  /**
+   * Starts this host's audio engine (03 §3). Absent when the host cannot play audio (the
+   * in-memory test platform), in which case the transport bar is disabled. Call from a user
+   * gesture on the web, so the browser lets the audio context start.
+   */
+  readonly createEngine?: () => Promise<EngineHost>;
 }
 
 /** One file from `packages/schemas/sqlite/migrations`, named `NNN_name.sql` (05 §7). */

@@ -9,6 +9,7 @@ import { runMigrations } from "../migrations.js";
 import type { Migration, Platform } from "../types.js";
 import { createInputFileAccess } from "../web/file-access.js";
 import { createTauriBlobCache, createTauriLocalDb, type Invoke } from "./adapters.js";
+import { createTauriEngineHost } from "./engine.js";
 
 export interface TauriPlatformOptions {
   readonly migrations: readonly Migration[];
@@ -36,6 +37,7 @@ export async function createTauriPlatform(options: TauriPlatformOptions): Promis
     // The webview's own file input (WKWebView/WebView2/WebKitGTK all show the
     // native panel for it). Native folder pick + watched folders: library import.
     fileAccess: createInputFileAccess(document),
+    createEngine: () => createTauriEngineHost({ invoke: ipc }),
   };
 }
 

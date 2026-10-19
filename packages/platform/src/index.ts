@@ -19,6 +19,7 @@ export {
   STATE_HEADER_WORDS,
   unpackCommand,
 } from "./engine/codec.js";
+export { applyMixDelta } from "./engine/delta.js";
 export type {
   AssetHash,
   AudioFormat,

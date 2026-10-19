@@ -5,11 +5,23 @@
  */
 import { runMigrations } from "../migrations.js";
 import type { Migration, Platform } from "../types.js";
+import { createBrowserEngineHost } from "./browser-engine.js";
 import { createInputFileAccess } from "./file-access.js";
 import { connectStorage, type MessageEndpoint } from "./protocol.js";
 
 export interface WebPlatformOptions {
   readonly migrations: readonly Migration[];
+  /**
+   * Where the host bundler put the engine worklet and its wasm. Without it the platform has no
+   * audio engine (`createEngine` is absent).
+   */
+  readonly engine?: BrowserEngineAssets;
+}
+
+/** URLs of the two engine files the host application serves (see `createBrowserEngineHost`). */
+export interface BrowserEngineAssets {
+  readonly workletUrl: string;
+  readonly wasmUrl: string;
 }
 
 export async function createWebPlatform(options: WebPlatformOptions): Promise<Platform> {
@@ -24,13 +36,23 @@ export async function createWebPlatform(options: WebPlatformOptions): Promise<Pl
     localDb: storage.localDb,
     blobCache: storage.blobCache,
     fileAccess: createInputFileAccess(document),
+    ...(options.engine
+      ? {
+          createEngine: () =>
+            createBrowserEngineHost({
+              blobCache: storage.blobCache,
+              workletUrl: options.engine?.workletUrl ?? "",
+              wasmUrl: options.engine?.wasmUrl ?? "",
+            }),
+        }
+      : {}),
   };
 }
 
+export { type BrowserEngineOptions, createBrowserEngineHost } from "./browser-engine.js";
 export {
   type AssetResolver,
   createBlobCacheAssetResolver,
-  createBrowserEngineHost,
   createWasmEngineHost,
   type EngineAsset,
   type EngineOfflineBridge,

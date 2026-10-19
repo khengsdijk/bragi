@@ -12,6 +12,8 @@ export function isTauriHost(scope: object = globalThis): boolean {
 
 export interface PlatformOptions {
   readonly migrations: readonly Migration[];
+  /** The bundled engine worklet and wasm URLs, used by the web adapters only. */
+  readonly webEngine?: { readonly workletUrl: string; readonly wasmUrl: string };
 }
 
 export async function createPlatform(options: PlatformOptions): Promise<Platform> {
@@ -20,5 +22,8 @@ export async function createPlatform(options: PlatformOptions): Promise<Platform
     return createTauriPlatform(options);
   }
   const { createWebPlatform } = await import("./web/index.js");
-  return createWebPlatform(options);
+  return createWebPlatform({
+    migrations: options.migrations,
+    ...(options.webEngine ? { engine: options.webEngine } : {}),
+  });
 }
