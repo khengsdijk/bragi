@@ -41,17 +41,27 @@
 //! ```
 
 mod biquad;
+mod chorus;
+mod compressor;
 mod eq3;
 mod filter;
 mod gain;
+mod limiter;
+mod lofi;
+mod saturation;
 mod smooth;
 mod transient;
 mod width;
 
 pub use biquad::{Biquad, BiquadCoeffs, StereoBiquad};
+pub use chorus::Chorus;
+pub use compressor::Compressor;
 pub use eq3::Eq3;
 pub use filter::Filter;
 pub use gain::Gain;
+pub use limiter::Limiter;
+pub use lofi::Lofi;
+pub use saturation::Saturation;
 pub use smooth::{DEFAULT_SMOOTHING_MS, Smoothed};
 pub use transient::Transient;
 pub use width::Width;
@@ -390,13 +400,17 @@ pub fn create(
     if max_block == 0 {
         return Err(FxError::MaxBlock);
     }
-    let _ = max_block;
     match kind {
         FxKind::Gain => Ok(Box::new(Gain::new(sample_rate))),
         FxKind::Eq3 => Ok(Box::new(Eq3::new(sample_rate, max_block))),
         FxKind::Filter => Ok(Box::new(Filter::new(sample_rate, max_block))),
         FxKind::Width => Ok(Box::new(Width::new(sample_rate, max_block))),
         FxKind::Transient => Ok(Box::new(Transient::new(sample_rate, max_block))),
+        FxKind::Compressor => Ok(Box::new(Compressor::new(sample_rate, max_block))),
+        FxKind::Saturation => Ok(Box::new(Saturation::new(sample_rate, max_block))),
+        FxKind::Limiter => Ok(Box::new(Limiter::new(sample_rate, max_block))),
+        FxKind::Lofi => Ok(Box::new(Lofi::new(sample_rate, max_block))),
+        FxKind::Chorus => Ok(Box::new(Chorus::new(sample_rate, max_block))),
         other => Err(FxError::NotImplemented(other.name())),
     }
 }
