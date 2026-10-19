@@ -37,6 +37,7 @@
     "schemas:gen": "node packages/schemas/codegen/gen.mjs",
     "schemas:check": "node packages/schemas/codegen/gen.mjs --check",
     "test:e2e": "pnpm --filter @bragi/web test:e2e",
+    "test:e2e:flow": "pnpm --filter @bragi/web test:e2e:flow",
     "test:e2e:desktop": "pnpm --filter @bragi/desktop test:e2e",
     "test:integration": "pnpm --filter @bragi/api test:integration",
     "test:conformance": "node scripts/conformance.mjs",
