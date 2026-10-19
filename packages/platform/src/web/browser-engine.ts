@@ -126,16 +126,8 @@ export async function createBrowserEngineHost(options: BrowserEngineOptions): Pr
   const offline: EngineOfflineBridge = {
     render(job) {
       if (!worker) return Promise.reject(new Error("no offline worker was provided"));
-      const format =
-        job.kind === "mixdown" || job.kind === "stems"
-          ? job.format
-          : ({ container: "wav", bits: 32 } as const);
-      return request<RenderResult>(worker, {
-        type: "render",
-        start: job.kind === "mixdown" ? (job.startSample ?? 0) : 0,
-        frames: job.kind === "mixdown" ? (job.frames ?? 0) : 0,
-        format,
-      });
+      // WP-1.11: the worker does the encode and returns files, so the whole job goes across.
+      return request<RenderResult>(worker, { type: "render", job });
     },
     peaks(asset, level) {
       if (!worker) return Promise.reject(new Error("no offline worker was provided"));
