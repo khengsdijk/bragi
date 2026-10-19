@@ -1,6 +1,6 @@
 # 06 — AI Intent Planner
 
-Status: Draft v0.1 · Code: `services/api/src/planner/` · Schemas: `packages/schemas/planner/`
+Status: Draft v0.2 · Code: `services/api/src/planner/` · Schemas: `packages/schemas/planner/`
 
 The planner turns **what the user wants** ("make this more aggressive", "add strings under the chorus", "make the outro longer and dreamier") into an **EditPlan**: concrete ops ([02 §4](02-song-model.md)) plus generation steps ([09](09-generation.md)), offered as 1–3 variants. It is the bridge between plain language and the deterministic model.
 
@@ -81,10 +81,12 @@ The plan is a **small program**. Ops-only variants are instant. Variants with `g
 
 ## 4. LLM call
 
-- Uses the Claude API **tool use** with a single tool `propose_edit_plan` whose input schema is the `EditPlan` JSON Schema (minus `planId` and the estimates).
-- **Model tiering** (configured in `config/planner.toml`, model IDs not hard-coded):
+- Calls an LLM through **OpenRouter** (OpenAI-compatible chat completions, key `OPENROUTER_API_KEY`, [ADR-0012](decisions/ADR-0012-describe-llm-client.md)) using OpenAI-format **tool calling** with a single tool `propose_edit_plan` whose input schema is the `EditPlan` JSON Schema (minus `planId` and the estimates).
+- **Model tiering** (configured in `config/planner.toml` as OpenRouter slugs, `vendor/model`; never hard-coded, and the owner may change them freely to trade quality against cost):
   - `fast` tier for short prompts that map to mix/fx edits (classified by a cheap heuristic: no generation verbs, region ≤ 1 track).
   - `smart` tier for everything else.
+- Tool calling must be supported by the chosen model (OpenRouter's model list shows this); if a model returns the plan as plain JSON instead of a tool call, the same schema validation and one repair round apply (§5).
+- **Prompt caching** is provider-dependent through OpenRouter. The prompt is laid out so the stable prefix (system prompt, capability catalogue) comes first and can be cached where the provider supports it, but nothing may depend on caching for correctness or for the latency and cost budgets.
 - System prompt (stored in `services/api/src/planner/prompts/system.md`, versioned) instructs the model to:
   1. Prefer the **cheapest sufficient** lever: fx/macro → arrangement ops → generation.
   2. Make variants **meaningfully different** (different interpretations or intensities), not three near-identical ones.

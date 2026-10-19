@@ -1,6 +1,6 @@
 # 08 — The Universe (library map)
 
-Status: Draft v0.1 · Code: `packages/app/src/features/universe/`, `packages/render-universe/`, `services/workers/embed/`
+Status: Draft v0.2 · Code: `packages/app/src/features/universe/`, `packages/render-universe/`, `services/workers/embed/`
 
 The Universe is zoom level **L1**: the user's whole library as a navigable space where position means sound, and lines mean relationships.
 
@@ -42,7 +42,7 @@ Filters apply to every lens: BPM range, key, energy, genre/mood tags, item kind,
 ## 4. Clusters and naming
 
 - **Clustering:** HDBSCAN on the 2D sound layout (`min_cluster_size` scaled to library size), using the condensed tree for **hierarchical clusters**. Coarse clusters show when zoomed out and finer ones when zoomed in.
-- **Naming:** for each cluster, aggregate the top tags, mean BPM range and mode distribution, then ask Claude for a 2–4 word evocative but descriptive name ("Late-night synthwave", "Sunny acoustic folk", "Heavy 140 bpm dubstep"). Names are cached per cluster and recomputed only when a cluster's membership changes by more than 30%. The user can rename a cluster, and the rename persists by matching the cluster's centroid.
+- **Naming:** for each cluster, aggregate the top tags, mean BPM range and mode distribution, then ask the configured LLM (OpenRouter, ADR-0012) for a 2–4 word evocative but descriptive name ("Late-night synthwave", "Sunny acoustic folk", "Heavy 140 bpm dubstep"). Names are cached per cluster and recomputed only when a cluster's membership changes by more than 30%. The user can rename a cluster, and the rename persists by matching the cluster's centroid.
 - Cluster labels float at the centroid and fade with zoom level (LOD).
 
 ## 5. Constellations (relationships)

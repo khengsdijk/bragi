@@ -1,6 +1,6 @@
 # 04 — Analysis Pipeline
 
-Status: Draft v0.5 · Code: `services/workers/analysis`, `services/workers/embed` · Schemas: `packages/schemas/analysis/`
+Status: Draft v0.6 · Code: `services/workers/analysis`, `services/workers/embed` · Schemas: `packages/schemas/analysis/`
 
 The analysis pipeline turns one stereo file into everything Bragi shows: stems, beat grid, sections, chords, key, energy, tags, embeddings and a plain-language description.
 
@@ -131,8 +131,8 @@ For each section, the pipeline produces a compact record used throughout the UI 
 - **Implementation notes (WP-1.6).** The file exists at `packages/schemas/analysis/taxonomy.json` (source of truth) and is copied into the worker by `pnpm schemas:gen` (the worker image ships only `services/workers`). It ships **211 genres** (hierarchy to three levels, e.g. `electronic > house > deep-house`), **65 moods**, **88 instruments**, **201 descriptors** and **8 eras**, each with a zero-shot `prompt` template; `config/tag.toml` holds the top-k limits. Genre/mood/instrument use small MLP heads on CLAP embeddings when trained heads are present in `BRAGI_TAG_HEADS`, otherwise every category falls back to zero-shot cosine over the prompts and the result is flagged `lowConfidence` (the field added to `TagResult` for 04 §10). Descriptors and era are always zero-shot. The heads, their training data (MTG-Jamendo, CC) and the per-label thresholds are [ADR-0011](decisions/ADR-0011-embeddings-and-tags.md) owner actions; the training script and notebook live in `services/workers/embed/training/`.
 
 ### 6.3 `describe`
-- **Input:** the structured analysis (summary, sections table §5.6, tags, key/bpm, energy shape). Optionally it also takes a **caption from an audio-language model** (candidate in WP-1.7, licence check required). Claude doesn't hear audio, so it writes from these features.
-- **LLM:** Claude via the API, with a fixed system prompt and a JSON output schema:
+- **Input:** the structured analysis (summary, sections table §5.6, tags, key/bpm, energy shape). Optionally it also takes a **caption from an audio-language model** (candidate in WP-1.7, licence check required). The LLM does not hear audio, so it writes from these features.
+- **LLM:** any OpenRouter model (slug in `config/describe.toml`, default `deepseek/deepseek-v4.1-flash`, overridable by `BRAGI_DESCRIBE_MODEL`; key `OPENROUTER_API_KEY`; [ADR-0012](decisions/ADR-0012-describe-llm-client.md)), asked for JSON via `response_format` (json_schema, falling back to json_object), with a fixed system prompt and a JSON output schema:
   ```json
   { "summary": "One paragraph, plain language, no jargon.",
     "sectionNotes": [{ "index": 0, "text": "Sparse filtered piano sets a late-night mood." }],

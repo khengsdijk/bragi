@@ -1,6 +1,6 @@
 # 05 — Backend, Jobs & Sync
 
-Status: Draft v0.2 · Code: `services/api`, `services/workers` · Infra: `infra/`
+Status: Draft v0.3 · Code: `services/api`, `services/workers` · Infra: `infra/`
 
 ## 1. Services
 
@@ -197,5 +197,5 @@ GPU inference cost is the core business risk (R6), so it's designed in from the 
 ## 12. Privacy
 
 - User audio, stems, lyrics and projects are **private** by default and never used to train models.
-- Third-party LLM calls (planner, describe) send **features and text summaries, never audio**. This is documented in the privacy notice.
+- Third-party LLM calls (planner, describe) go through **OpenRouter** and the provider it routes to, and send **features and text summaries, never audio, lyrics or titles**. Requests set `provider.data_collection: "deny"` by default (OpenRouter then only routes to providers that do not retain or train on prompts; `OPENROUTER_DATA_COLLECTION=allow` relaxes it). The key is `OPENROUTER_API_KEY`, held server-side only. This is documented in the privacy notice ([ADR-0012](decisions/ADR-0012-describe-llm-client.md)).
 - Users can export everything (projects as JSON + assets zip) and delete everything.

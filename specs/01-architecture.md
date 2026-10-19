@@ -1,6 +1,6 @@
 # 01 — System Architecture
 
-Status: Draft v0.2 · Decision record: [ADR-0001](decisions/ADR-0001-tech-stack.md)
+Status: Draft v0.3 · Decision record: [ADR-0001](decisions/ADR-0001-tech-stack.md)
 
 ## 1. Stack at a glance
 
@@ -26,7 +26,7 @@ Status: Draft v0.2 · Decision record: [ADR-0001](decisions/ADR-0001-tech-stack.
 | Object storage | **S3** (AWS in prod, **MinIO** locally) | Content-addressed blobs |
 | Event bus / jobs | **NATS JetStream** | Lightweight, durable streams, first-class TS and Python clients. Contracts are broker-agnostic so Kafka can replace it later. |
 | ML workers | **Python 3.12**, **uv**, **PyTorch**, containerised | The model ecosystem lives in Python |
-| LLM | **Anthropic Claude API** (model IDs in config) | Planner, descriptions, labelling |
+| LLM | **OpenRouter** (OpenAI-compatible chat completions; model slugs in config, [ADR-0012](decisions/ADR-0012-describe-llm-client.md)) | Planner, descriptions, labelling |
 | Schemas | **JSON Schema (2020-12)** as source of truth → codegen to TS, Rust (`typify`) and Python (Pydantic v2) | One contract across three languages |
 | Monorepo | **pnpm workspaces + Turborepo**, **Cargo workspace**, **uv workspace** | Standard tools per language, one repo |
 | Testing | Vitest, Playwright (web; desktop e2e via the in-page `selftest` harness on macOS and WebDriver on Windows/Linux), `cargo test` + `insta` snapshots, pytest | See [13-agent-guide.md](13-agent-guide.md) |
@@ -59,7 +59,7 @@ Status: Draft v0.2 · Decision record: [ADR-0001](decisions/ADR-0001-tech-stack.
 ┌───────────────────────────────────────────────▼───────────────── CLOUD ────────────────────────────────┐
 │  API service (services/api, Fastify)                                                                    │
 │   ├─ auth, projects, sync (commits), assets (presigned S3 URLs), jobs, search                           │
-│   ├─ AI planner module (Claude API, tool use → EditPlan)                                                │
+│   ├─ AI planner module (LLM via OpenRouter, tool calling → EditPlan)                                                │
 │   └─ WebSocket gateway (job progress, partial results)                                                  │
 │            │ publish/consume                                │ SQL                │ S3                   │
 │      ┌─────▼────────┐                               ┌───────▼──────┐     ┌───────▼──────┐               │
