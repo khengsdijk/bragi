@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "note": "Pinned separation weights (specs/04 section 9). Read by weights.py at image build and at load time. Keep MODELS.md in sync (a test checks it).",
+  "models": {
+    "htdemucs_6s": {
+      "stageVersion": "htdemucs_6s-1",
+      "source": "https://huggingface.co/adefossez/HTDemucs-6s",
+      "repo": "adefossez/HTDemucs-6s",
+      "revision": "3c5ee475be622df764938de97e4281a7b07ffa58",
+      "bag": "htdemucs_6s.yaml",
+      "files": {
+        "htdemucs_6s.yaml": "207405151270af8fd81c2373c25d27950916682ac91dca7884a11ce13dad6f58",
+        "5c90dfd2.safetensors": "d2a1745f0744721f6b8ca5bf469b67c651ea5ed1b52998cab033b2158609d411"
+      }
+    },
+    "htdemucs": {
+      "stageVersion": "htdemucs-1",
+      "source": "https://huggingface.co/adefossez/HTDemucs",
+      "repo": "adefossez/HTDemucs",
+      "revision": "cbc8a9b1a87023b7fd74e7b3412e6321c0eab003",
+      "bag": "htdemucs.yaml",
+      "files": {
+        "htdemucs.yaml": "239c445d0b14454d541ad8bd9bb271c9e536d267e8a4625208744cbb2e7bb66c",
+        "955717e8.safetensors": "d9fa14133cfcc034a6758923bb3a8ca9f8dfd0b582134643bbf83f72c17576dd"
+      }
+    }
+  }
+}

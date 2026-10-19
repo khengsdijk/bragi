@@ -21,6 +21,17 @@ ml = ["bragi-analysis[ml]"]
 
 [tool.uv]
 package = false
+# `models` (torch + demucs) is large and only needed to run real separation, so it is not
+# synced by default: `uv sync` stays fast and `pnpm verify` needs no weights or GPU.
+# The worker image and the weights-backed tests use `uv sync --group models`.
+default-groups = ["dev"]
+# Intel Macs are not a supported worker platform: demucs pins torch<2.3 and numpy<2 there, which
+# would hold every other platform back to torch 2.2. Apple silicon, Linux and Windows are covered.
+environments = [
+  "sys_platform == 'linux'",
+  "sys_platform == 'win32'",
+  "sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
 
 [tool.uv.workspace]
 members = ["bragi_common", "analysis", "embed", "generate"]
@@ -39,6 +50,12 @@ dev = [
   # Generates bragi_common/src/bragi_common/generated/models.py from the JSON Schemas
   # (WP-0.2). Dev-only: the generated models are committed and imported at runtime.
   "datamodel-code-generator>=0.85",
+]
+
+# Real separation (WP-1.3, ADR-0004): needs torch (CPU, MPS or CUDA) and demucs (MIT).
+models = [
+  "torch>=2.1",
+  "demucs>=4.1.0",
 ]
 
 # --- Tooling (specs/13-agent-guide.md §3) -----------------------------------
@@ -76,7 +93,7 @@ select = [
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["S101", "S603", "S607", "D", "ANN"] # asserts, docstrings and annotations are not required in tests
+"**/tests/**" = ["S101", "S603", "S607", "D", "ANN", "PT018", "RUF007"] # asserts, docstrings and annotations are not required in tests
 
 [tool.mypy]
 python_version = "3.12"
@@ -91,7 +108,11 @@ exclude = ['^\.venv/']
 # adapter (bragi_common.s3, bragi_common.cache), so the untyped edge is contained
 # to those two modules rather than spreading through the framework.
 [[tool.mypy.overrides]]
-module = ["asyncpg", "asyncpg.*", "boto3", "boto3.*", "botocore", "botocore.*"]
+module = [
+  "asyncpg", "asyncpg.*", "boto3", "boto3.*", "botocore", "botocore.*",
+  # Separation (WP-1.3): torch/demucs are optional (the `models` group) and untyped at the edge.
+  "torch", "torch.*", "demucs", "demucs.*", "soundfile", "scipy", "scipy.*", "yaml",
+]
 ignore_missing_imports = true
 # Untyped third-party libraries used by the analysis workers (13 §3: models may
 # be looser than bragi_common).
@@ -103,7 +124,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 addopts = "-q --strict-markers --strict-config"
 markers = [
-  "weights: needs real model weights; skipped unless BRAGI_TEST_WEIGHTS=1 (04 §9)",
+  "weights: needs real model weights; skipped by default (Beat This!: BRAGI_TEST_WEIGHTS=1; separation: BRAGI_MODELS_DIR + the `models` group) (04 §9)",
 ]
 testpaths = [
   "bragi_common/tests",

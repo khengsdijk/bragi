@@ -32,5 +32,65 @@ differs from the pin and reads it with `torch.load(weights_only=True)`. Set
 
 ## Planned (not yet in use)
 
-Separation (WP-1.3), structure, harmony, embeddings and tagging models add their rows with their work
+Structure, harmony, embeddings and tagging models add their rows with their work
 packages.
+
+## Separation (WP-1.3)
+
+Machine-readable pins live in
+[`analysis/src/bragi_analysis/separation/models_lock.json`](analysis/src/bragi_analysis/separation/models_lock.json).
+The Docker build runs `python -m bragi_analysis.separation.weights /opt/bragi/models`, which
+downloads each file at the pinned revision and refuses a SHA-256 mismatch; the worker loads from
+`BRAGI_MODELS_DIR` (default `/opt/bragi/models`) and re-verifies the hashes before loading. A test
+(`test_every_pinned_hash_is_recorded_in_models_md`) fails if this table and the lock file drift.
+The choice is argued in [ADR-0004](../../specs/decisions/ADR-0004-separation-model.md) (Proposed).
+
+### `htdemucs_6s` — v1 default (stage version `htdemucs_6s-1`)
+
+| Field | Value |
+|---|---|
+| Task | Music source separation: `drums, bass, other, vocals, guitar, piano` at 44.1 kHz |
+| Architecture | Hybrid Transformer Demucs, 1 model in the bag, 27.4 M parameters, 52.3 MiB of safetensors (2 bytes per parameter) |
+| Source | https://huggingface.co/adefossez/HTDemucs-6s |
+| Pinned revision | `3c5ee475be622df764938de97e4281a7b07ffa58` |
+| `5c90dfd2.safetensors` SHA-256 | `d2a1745f0744721f6b8ca5bf469b67c651ea5ed1b52998cab033b2158609d411` |
+| `htdemucs_6s.yaml` SHA-256 | `207405151270af8fd81c2373c25d27950916682ac91dca7884a11ce13dad6f58` |
+| Code licence | MIT (`demucs` 4.1.0, https://github.com/adefossez/demucs, copyright Meta Platforms) |
+| **Weights licence** | **Not stated separately.** The Hugging Face repository has no `license` field and no licence file; the upstream README says only "Demucs is released under the MIT license". Treated as MIT. |
+| Training data | MUSDB18-HQ plus an extra set of 800 songs (upstream README). MUSDB18 is licensed for non-commercial research use; the 800-song set is not documented. |
+| Commercial use | **unclear** — flagged. MIT covers the weights as published, but the training-data terms are not stated; see Q32 in [15](../../specs/15-open-questions.md). |
+| Quality caveat | Upstream says `guitar` is "okay" and `piano` has "a lot of bleeding and artifacts". |
+| Date verified | 2026-10-19 |
+
+### `htdemucs` — 4-source fallback and bake-off baseline (stage version `htdemucs-1`)
+
+| Field | Value |
+|---|---|
+| Task | `drums, bass, other, vocals` at 44.1 kHz |
+| Source | https://huggingface.co/adefossez/HTDemucs |
+| Pinned revision | `cbc8a9b1a87023b7fd74e7b3412e6321c0eab003` |
+| `955717e8.safetensors` SHA-256 | `d9fa14133cfcc034a6758923bb3a8ca9f8dfd0b582134643bbf83f72c17576dd` |
+| `htdemucs.yaml` SHA-256 | `239c445d0b14454d541ad8bd9bb271c9e536d267e8a4625208744cbb2e7bb66c` |
+| Code licence | MIT |
+| **Weights licence** | Not stated separately (as above); treated as MIT |
+| Commercial use | **unclear** — flagged (same training data) |
+| Date verified | 2026-10-19 |
+
+### Runtime libraries added by WP-1.3 (not models, recorded because 13 §4 asks for no licence-unclear dependency)
+
+| Package | Licence | Notes |
+|---|---|---|
+| `torch` 2.14 | BSD-3-Clause (and bundled Apache-2.0 / MIT parts) | the `models` dependency group only |
+| `demucs` 4.1.0 | MIT | the `models` group only |
+| `numpy`, `scipy`, `soundfile`, `pyyaml` | BSD-3-Clause / BSD / MIT | `soundfile` loads `libsndfile` (LGPL-2.1, dynamically linked, shipped in its wheel) |
+| `lameenc` (pulled in by `demucs`) | **LGPL-3.0-or-later** | an MP3 encoder `demucs` imports for its own CLI; the worker never calls it. Dynamically linked via the wheel. Flagged for the owner (Q32) |
+| `einops`, `julius`, `safetensors`, `sphn`, `tqdm`, `huggingface-hub` | MIT / Apache-2.0 / MPL-2.0 | `demucs` dependencies; `huggingface-hub` is not used at runtime (weights load from disk) |
+
+### Evaluated in the bake-off but **not adopted** (no weights pinned)
+
+See ADR-0004. Listed so the licence findings are not lost.
+
+| Model | Code | Weights | Finding |
+|---|---|---|---|
+| `htdemucs_ft` (4 fine-tuned models) | MIT | not stated separately | ~4x the compute of `htdemucs`; not run to completion, see ADR |
+| Mel-Band RoFormer vocal checkpoint (`KimberleyJSN/melbandroformer`) | MIT (`bs-roformer`, lucidrains) | Hugging Face tag `license:mit` | see ADR-0004 for what was and was not measured |

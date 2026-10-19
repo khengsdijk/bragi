@@ -1,4 +1,6 @@
-# The CPU worker image (specs/05 §1). GPU capabilities are a later work package.
+# The worker image (specs/05 §1). The same image serves `echo`, the small analysis stages and
+# `analysis.separation`; a GPU host runs it with the NVIDIA container runtime (the PyPI torch
+# wheel for Linux bundles CUDA, and the worker picks cuda > mps > cpu on its own).
 #
 # Build with: docker compose -f infra/docker-compose.yml up -d --build worker
 #
@@ -21,16 +23,24 @@ RUN apt-get update \
 RUN pip install --no-cache-dir "uv==0.12.5"
 WORKDIR /app
 COPY services/workers ./services/workers
+# `--group models` adds torch + demucs (WP-1.3, ADR-0004); `--extra ml` (WITH_ML=1) adds Beat This!
+# (WP-1.2, ADR-0007). The default local sync installs neither.
 RUN cd services/workers \
-    && if [ "$WITH_ML" = "1" ]; then uv sync --frozen --no-dev --extra ml; else uv sync --frozen --no-dev; fi
-# Weights are pulled at build time and pinned by hash (04 §9); workers never download at runtime.
+    && if [ "$WITH_ML" = "1" ]; then uv sync --frozen --no-dev --group models --extra ml; \
+       else uv sync --frozen --no-dev --group models; fi
+ENV PATH="/app/services/workers/.venv/bin:${PATH}" \
+    PYTHONUNBUFFERED=1 \
+    BRAGI_BEAT_THIS_CHECKPOINT=/models/beat_this-final0.ckpt
+# Model weights are pulled HERE, at image build, pinned by hash (specs/04 §9, MODELS.md); the build
+# fails on a mismatch and workers never download at runtime. Separation weights are pinned in
+# bragi_analysis/separation/models_lock.json; the worker only reads /opt/bragi/models.
 RUN if [ "$WITH_ML" = "1" ]; then \
       mkdir -p /models \
       && curl -fsSL -o /models/beat_this-final0.ckpt "$BEAT_THIS_URL" \
       && echo "$BEAT_THIS_SHA256  /models/beat_this-final0.ckpt" | sha256sum -c -; \
     fi
-ENV PATH="/app/services/workers/.venv/bin:${PATH}" \
-    PYTHONUNBUFFERED=1 \
-    BRAGI_BEAT_THIS_CHECKPOINT=/models/beat_this-final0.ckpt
+ENV BRAGI_MODELS_DIR=/opt/bragi/models \
+    HF_HUB_OFFLINE=1
+RUN python -m bragi_analysis.separation.weights "$BRAGI_MODELS_DIR"
 WORKDIR /app/services/workers
 CMD ["python", "-m", "bragi_analysis"]
