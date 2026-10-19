@@ -650,6 +650,9 @@ class Note(BaseModel):
     velocity: Annotated[int, Field(ge=0, le=127)]
 
 
+type Null = Annotated[None, Field(description='JSON null.', title='Null')]
+
+
 type NumberSeries = Annotated[
     list[float],
     Field(
@@ -1508,6 +1511,12 @@ class FxInstance(BaseModel):
     params: FxParams
     bypass: bool
     macroOwned: MacroId | None = None
+    sidechainSource: Annotated[
+        TrackId | None,
+        Field(
+            description='The key track for `sidechain_duck` (03 §6 `sourceTrack`). Only valid on `sidechain_duck`.'
+        ),
+    ] = None
 
 
 class FxRemoveOp(BaseModel):
@@ -1533,20 +1542,6 @@ class FxReorderOp(BaseModel):
     op: FxReorderOpOp
     fxId: FxId
     newIndex: Annotated[int, Field(description='New position in the chain.', ge=0)]
-
-
-class FxUpdateOp(BaseModel):
-    """
-    `fx.update` (02 §4.2). Patch an effect's parameters and/or bypass.
-    """
-
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    op: FxUpdateOpOp
-    fxId: FxId
-    paramsPatch: FxParams
-    bypass: bool | None = None
 
 
 class IngestResult(BaseModel):
@@ -1988,6 +1983,15 @@ class SectionsEffect(BaseModel):
     sections: StructureSectionList
 
 
+type SidechainSourcePatch = Annotated[
+    TrackId | Null,
+    Field(
+        description='A new sidechain source, or `null` to clear it (02 §4.2 `fx.update`).',
+        title='SidechainSourcePatch',
+    ),
+]
+
+
 class Source(BaseModel):
     """
     An original input: an upload, a generation, a recording or an imported stem (02 §3.2).
@@ -2422,6 +2426,26 @@ An ordered effect chain.
 type FxScope = Annotated[
     TrackFxScope | ClipFxScope | MasterFxScope, Field(title='FxScope')
 ]
+
+
+class FxUpdateOp(BaseModel):
+    """
+    `fx.update` (02 §4.2). Patch an effect's parameters and/or bypass.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    op: FxUpdateOpOp
+    fxId: FxId
+    paramsPatch: FxParams
+    bypass: bool | None = None
+    sidechainSource: Annotated[
+        SidechainSourcePatch | None,
+        Field(
+            description='The key track for `sidechain_duck` (03 §6 `sourceTrack`); `null` clears it.'
+        ),
+    ] = None
 
 
 class HarmonyResult(BaseModel):

@@ -3565,6 +3565,12 @@ pub struct FxInstance {
     )]
     pub macro_owned: ::std::option::Option<MacroId>,
     pub params: FxParams,
+    ///The key track for `sidechain_duck` (03 §6 `sourceTrack`). Only valid on `sidechain_duck`.
+    #[serde(
+        rename = "sidechainSource",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub sidechain_source: ::std::option::Option<TrackId>,
     #[serde(rename = "type")]
     pub type_: FxType,
 }
@@ -3834,6 +3840,14 @@ pub struct FxUpdateOp {
     pub op: FxUpdateOpOp,
     #[serde(rename = "paramsPatch")]
     pub params_patch: FxParams,
+    ///The key track for `sidechain_duck` (03 §6 `sourceTrack`); `null` clears it.
+    #[serde(
+        rename = "sidechainSource",
+        default,
+        skip_serializing_if = "::std::option::Option::is_none",
+        deserialize_with = "crate::patch::deserialize_sidechain_source"
+    )]
+    pub sidechain_source: ::std::option::Option<::std::option::Option<SidechainSourcePatch>>,
 }
 ///`FxUpdateOpOp`
 #[derive(
@@ -5684,6 +5698,26 @@ pub struct Note {
     #[serde(rename = "startSec")]
     pub start_sec: f64,
     pub velocity: i64,
+}
+///JSON null.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct Null(pub ());
+impl ::std::ops::Deref for Null {
+    type Target = ();
+    fn deref(&self) -> &() {
+        &self.0
+    }
+}
+impl ::std::convert::From<Null> for () {
+    fn from(value: Null) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<()> for Null {
+    fn from(value: ()) -> Self {
+        Self(value)
+    }
 }
 ///A dense series of numbers, e.g. a per-hop energy curve or an embedding vector.
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
@@ -7898,6 +7932,23 @@ impl<'de> ::serde::Deserialize<'de> for SeparationResultSchemaVersion {
     {
         Self::try_from(<i64>::deserialize(deserializer)?)
             .map_err(|e| <D::Error as ::serde::de::Error>::custom(e.to_string()))
+    }
+}
+///A new sidechain source, or `null` to clear it (02 §4.2 `fx.update`).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(untagged)]
+pub enum SidechainSourcePatch {
+    TrackId(TrackId),
+    Null(Null),
+}
+impl ::std::convert::From<TrackId> for SidechainSourcePatch {
+    fn from(value: TrackId) -> Self {
+        Self::TrackId(value)
+    }
+}
+impl ::std::convert::From<Null> for SidechainSourcePatch {
+    fn from(value: Null) -> Self {
+        Self::Null(value)
     }
 }
 ///An original input: an upload, a generation, a recording or an imported stem (02 §3.2).

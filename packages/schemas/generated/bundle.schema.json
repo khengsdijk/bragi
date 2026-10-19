@@ -1516,6 +1516,10 @@
         },
         "macroOwned": {
           "$ref": "#/$defs/MacroId"
+        },
+        "sidechainSource": {
+          "$ref": "#/$defs/TrackId",
+          "description": "The key track for `sidechain_duck` (03 §6 `sourceTrack`). Only valid on `sidechain_duck`."
         }
       }
     },
@@ -1640,6 +1644,10 @@
         },
         "bypass": {
           "type": "boolean"
+        },
+        "sidechainSource": {
+          "$ref": "#/$defs/SidechainSourcePatch",
+          "description": "The key track for `sidechain_duck` (03 §6 `sourceTrack`); `null` clears it."
         }
       }
     },
@@ -2492,6 +2500,11 @@
           "maximum": 127
         }
       }
+    },
+    "Null": {
+      "title": "Null",
+      "description": "JSON null.",
+      "type": "null"
     },
     "NumberSeries": {
       "title": "NumberSeries",
@@ -3788,6 +3801,18 @@
       "type": "integer",
       "enum": [
         1
+      ]
+    },
+    "SidechainSourcePatch": {
+      "title": "SidechainSourcePatch",
+      "description": "A new sidechain source, or `null` to clear it (02 §4.2 `fx.update`).",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TrackId"
+        },
+        {
+          "$ref": "#/$defs/Null"
+        }
       ]
     },
     "Source": {

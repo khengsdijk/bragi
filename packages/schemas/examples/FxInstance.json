@@ -1,8 +1,10 @@
 {
   "id": "fx_01",
-  "type": "filter",
+  "type": "sidechain_duck",
   "params": {
-    "cutoffHz": 800
+    "amountDb": 6,
+    "releaseMs": 150
   },
-  "bypass": false
+  "bypass": false,
+  "sidechainSource": "trk_01"
 }

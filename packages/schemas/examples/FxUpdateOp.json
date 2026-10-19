@@ -2,7 +2,8 @@
   "op": "fx.update",
   "fxId": "fx_01",
   "paramsPatch": {
-    "cutoffHz": 1200.0
+    "amountDb": 9
   },
-  "bypass": false
+  "bypass": false,
+  "sidechainSource": "trk_02"
 }
