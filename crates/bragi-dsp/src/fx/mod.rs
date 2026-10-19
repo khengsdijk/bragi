@@ -41,6 +41,7 @@
 //! ```
 
 mod biquad;
+mod chorus;
 mod compressor;
 mod gain;
 mod limiter;
@@ -49,6 +50,7 @@ mod saturation;
 mod smooth;
 
 pub use biquad::{Biquad, BiquadCoeffs, StereoBiquad};
+pub use chorus::Chorus;
 pub use compressor::Compressor;
 pub use gain::Gain;
 pub use limiter::Limiter;
@@ -396,6 +398,7 @@ pub fn create(
         FxKind::Saturation => Ok(Box::new(Saturation::new(sample_rate, max_block))),
         FxKind::Limiter => Ok(Box::new(Limiter::new(sample_rate, max_block))),
         FxKind::Lofi => Ok(Box::new(Lofi::new(sample_rate, max_block))),
+        FxKind::Chorus => Ok(Box::new(Chorus::new(sample_rate, max_block))),
         other => Err(FxError::NotImplemented(other.name())),
     }
 }
