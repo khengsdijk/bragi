@@ -45,6 +45,11 @@ const MACRO_NAME_KEYS: Readonly<Record<string, MessageKey>> = {
   distance: "song.macro.distance",
 };
 
+/** The i18n key for a built-in macro's short name, or `null` for a custom macro. */
+export function macroNameKey(macroId: MacroId): MessageKey | null {
+  return MACRO_NAME_KEYS[macroId] ?? null;
+}
+
 /** The macro with `id`, or `undefined` when the catalogue does not define it. */
 function findMacro(id: MacroId): MacroDefinition | undefined {
   return MACROS.macros.find((macro) => macro.id === id);
