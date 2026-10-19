@@ -15,6 +15,7 @@
 //! - [`assets`] — the `AssetMeta` index the invariants need.
 //! - [`clipmath`] — clip end ticks and the sample ⇄ tick mapping.
 //! - [`spans`], [`region`] — derived arrangement geometry.
+//! - [`commits`] — the commit documents an op may read (for `region.adopt`).
 //! - [`validate`], [`apply`] — the invariants and the op interpreter.
 //! - [`canonical`] — stable bytes and the commit hash.
 //! - [`diff`] — the delta handed to the audio engine.
@@ -25,6 +26,7 @@ pub mod apply;
 pub mod assets;
 pub mod canonical;
 pub mod clipmath;
+pub mod commits;
 pub mod diff;
 pub mod error;
 pub mod generated;
@@ -34,10 +36,11 @@ pub mod spans;
 pub mod time;
 pub mod validate;
 
-pub use apply::apply;
+pub use apply::{apply, apply_with};
 pub use assets::AssetIndex;
 pub use canonical::{base32, canonical_json, canonical_value, commit_id, derived_id, sha256};
 pub use clipmath::{clip_end_local, local_at_src_sample, src_sample_at_local};
+pub use commits::{CommitDocs, NoCommits};
 pub use diff::{EngineDelta, diff};
 pub use error::{ApplyError, ValidationCode, ValidationError};
 pub use region::{RegionSlice, ResolvedRegion, resolve_region};

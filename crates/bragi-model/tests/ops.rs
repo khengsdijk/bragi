@@ -1,7 +1,6 @@
 //! One test per v1 op (`specs/02-song-model.md` §4.2), plus the error and lock paths.
 //!
-//! `analysis.apply` and `region.adopt` are out of scope for WP-0.3; the last tests assert they are
-//! rejected with a structured `unsupported_op` rather than silently ignored.
+//! `region.adopt` has its own module (`tests/adopt.rs`) because it needs commit documents.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod common;
@@ -525,22 +524,11 @@ fn region_clear_trims_and_fades() {
             "region": { "startTick": 960, "endTick": 2880, "tracks": "all" } })],
     );
     let clips = &section(&next, SEC_A).lanes.0[&TRK_A.parse().unwrap()].clips;
-    // The first clip lost its head (new start 960) and the second lost its tail.
-    assert_eq!(clips[0].start, 960);
-    assert!(clips[0].fade_in_ticks > 0);
-    assert_eq!(clips[1].start, 1920);
-    assert!(clips[1].fade_out_ticks > 0);
-}
-
-#[test]
-fn unsupported_ops_are_rejected_structurally() {
-    // `analysis.apply` was WP-1.8's and now has its own test module (`tests/analysis.rs`).
-    let doc = fixture();
-    let op = json!({ "op": "region.adopt", "fromCommit": "cmt_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
-        "region": { "startTick": 0, "endTick": 30720, "tracks": "all" } });
-    let err = apply(&doc, &user_batch(vec![op]), &assets()).unwrap_err();
-    assert_eq!(err.code(), ValidationCode::UnsupportedOp);
-    assert_eq!(err.errors()[0].op_index, 0);
+    // The first clip lost its tail and the second lost its head: content inside the region is gone.
+    assert_eq!(clips[0].start, 0);
+    assert!(clips[0].fade_out_ticks > 0);
+    assert_eq!(clips[1].start, 2880);
+    assert!(clips[1].fade_in_ticks > 0);
 }
 
 #[test]

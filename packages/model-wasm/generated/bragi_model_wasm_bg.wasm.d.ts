@@ -2,6 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const applyBatch: (a: number, b: number, c: number) => [number, number, number, number];
+export const applyBatchWith: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
 export const assetAdd: (a: number, b: number, c: number) => [number, number];
 export const canonicalJson: (a: number) => [number, number, number, number];
 export const commitId: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];

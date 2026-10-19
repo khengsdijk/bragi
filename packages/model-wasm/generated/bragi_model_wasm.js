@@ -31,6 +31,42 @@ export function applyBatch(handle, batch_json) {
 }
 
 /**
+ * Applies an op batch that may read other commits to the handle's document and returns the new
+ * document JSON.
+ *
+ * `commit_handles_json` is a JSON object `{ "cmt_…": <document handle> }`; the commit's document is
+ * cloned out of the cache before the target handle is updated, so a commit may be the target's own
+ * handle. The stored document is replaced on success, exactly like [`apply_batch`]; on failure it
+ * is unchanged and the error is the JSON array of `{ opIndex, code, message }`.
+ * @param {number} handle
+ * @param {string} batch_json
+ * @param {string} commit_handles_json
+ * @returns {string}
+ */
+export function applyBatchWith(handle, batch_json, commit_handles_json) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passStringToWasm0(batch_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(commit_handles_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.applyBatchWith(handle, ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
  * Adds asset metadata (a JSON array of `AssetMeta`) to a handle's index.
  * @param {number} handle
  * @param {string} assets_json
