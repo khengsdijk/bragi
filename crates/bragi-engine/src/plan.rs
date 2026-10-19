@@ -24,10 +24,12 @@
 
 use std::collections::HashMap;
 
+use bragi_dsp::fx::{FxKind, create};
 use bragi_dsp::stretch::Quality;
 use bragi_model::EngineDelta;
 use bragi_model::generated::{
-    AssetHash, AutomationCurve, Clip, ClipId, Project, Track, TrackId, Warp,
+    AssetHash, AutomationCurve, Clip, ClipId, FxId, FxInstance, Project, TempoCurve, TempoPoint,
+    Track, TrackId, Warp,
 };
 use bragi_model::{AssetIndex, TempoCtx, clip_end_local, section_spans};
 
@@ -52,8 +54,14 @@ pub struct RenderPlan {
     /// Monotonic version, bumped on every recompilation.
     pub plan_version: u64,
     /// Clips that were dropped during compilation and why (missing asset,
-    /// zero-length window, …). Never read on the audio thread.
+    /// zero-length window, …), plus fx that could not be built. Never read on
+    /// the audio thread.
     pub warnings: Vec<String>,
+    /// The document's tempo map, kept so the renderer can report the tempo at a
+    /// block start to [`bragi_dsp::fx::FxContext`].
+    pub tempo_points: Vec<TempoPoint>,
+    /// Pulses per quarter note for [`RenderPlan::tempo_points`].
+    pub ppq: i64,
 }
 
 /// A section's absolute extent in output samples.
@@ -86,6 +94,32 @@ pub struct TrackPlan {
     pub solo: bool,
     /// Gain automation in absolute samples, in dB.
     pub automation: Vec<AutomationLane>,
+    /// The track's effect chain, in order (`specs/02-song-model.md` §3.6).
+    pub fx: Vec<FxSlot>,
+}
+
+/// One effect in a compiled chain.
+///
+/// Parameters are resolved from catalogue names to indices at compile time, so
+/// the audio thread never touches strings. Unknown names are dropped (and
+/// reported as a plan warning), and a kind that [`bragi_dsp::fx::create`]
+/// cannot build yet is bypassed at runtime, never treated as a plan error.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FxSlot {
+    /// The document's effect ID.
+    pub id: FxId,
+    /// The catalogue kind.
+    pub kind: FxKind,
+    /// `(index into [`FxKind::params`], value)` pairs.
+    pub params: Vec<(usize, f32)>,
+    /// Bypassed in the document (or because the effect cannot run yet).
+    pub bypass: bool,
+    /// Index of the source track for `sidechain_duck`.
+    ///
+    /// `None` because the document schema's `FxParams` is numeric-only and
+    /// cannot carry the `TrackId` that 03 §6 calls for; see the spec gap in
+    /// `docs/wp/2.3.md`. A duck without a source is bypassed.
+    pub sidechain_source: Option<usize>,
 }
 
 /// One clip occurrence flattened to absolute output samples.
@@ -171,6 +205,8 @@ pub struct MasterPlan {
     pub automation: Vec<AutomationLane>,
     /// Safety limiter ceiling as a linear factor (`specs/03-audio-engine.md` §6).
     pub ceiling: f32,
+    /// The master effect chain, in order, before the master gain and limiter.
+    pub fx: Vec<FxSlot>,
 }
 
 /// A gain automation lane, already in absolute output samples.
@@ -182,14 +218,22 @@ pub struct AutomationLane {
     pub points: Vec<AutoPoint>,
 }
 
-/// The parameter an automation lane drives. v1 supports gains only; fx
-/// parameters arrive with WP-2.3.
+/// The parameter an automation lane drives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AutomationTarget {
     /// `track:<id>/gainDb`.
     TrackGain,
     /// `master/gainDb` (absolute arrangement ticks in the document).
     MasterGain,
+    /// `fx:<fxId>/<param>` (02 §3.8). `slot` indexes the chain that owns the
+    /// lane — a track's chain for a lane in that track's section, the master
+    /// chain for a master lane — and `index` is the catalogue parameter index.
+    FxParam {
+        /// Position of the effect in its chain.
+        slot: usize,
+        /// Index into [`bragi_dsp::fx::FxKind::params`].
+        index: usize,
+    },
 }
 
 /// One automation point, converted to output samples.
@@ -291,6 +335,49 @@ impl RenderPlan {
             })
             .fold(1.0_f64, f64::max)
     }
+
+    /// The tempo in BPM at an absolute output sample, from the document's
+    /// tempo map. Used to fill [`bragi_dsp::fx::FxContext::bpm`] per block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use bragi_engine::plan::compile;
+    /// # use bragi_model::{AssetIndex, generated::Project};
+    /// # let doc: Project = serde_json::from_value(serde_json::json!({
+    /// #   "schemaVersion": 1, "id": "prj_01",
+    /// #   "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+    /// #   "sources": [], "analyses": {}, "tracks": [],
+    /// #   "arrangement": { "timebase": { "ppq": 960,
+    /// #       "tempoMap": [{ "tick": 0, "bpm": 90, "curve": "step" }], "timeSignatures": [] },
+    /// #       "sections": [], "master": { "fx": [], "automation": [], "gainDb": 0 } } })).unwrap();
+    /// let plan = compile(&doc, &AssetIndex::new(), 48_000, 1).unwrap();
+    /// assert!((plan.bpm_at_sample(48_000) - 90.0).abs() < 1e-9);
+    /// ```
+    #[must_use]
+    pub fn bpm_at_sample(&self, sample: u64) -> f64 {
+        let Some(first) = self.tempo_points.first() else {
+            return 120.0;
+        };
+        let tempo = TempoCtx::new(&self.tempo_points, self.ppq);
+        let tick = tempo.seconds_to_ticks(sample as f64 / self.sample_rate as f64);
+        if tick <= first.tick as i64 {
+            return first.bpm;
+        }
+        for (index, point) in self.tempo_points.iter().enumerate() {
+            let Some(next) = self.tempo_points.get(index + 1) else {
+                return point.bpm;
+            };
+            if tick < next.tick as i64 {
+                if point.curve == TempoCurve::Linear && next.tick > point.tick {
+                    let t = (tick - point.tick as i64) as f64 / (next.tick - point.tick) as f64;
+                    return point.bpm + (next.bpm - point.bpm) * t;
+                }
+                return point.bpm;
+            }
+        }
+        self.tempo_points.last().map_or(120.0, |point| point.bpm)
+    }
 }
 
 /// Compiles a whole document into a render plan
@@ -390,6 +477,7 @@ fn compile_with(
     }
     let length_samples = sections.last().map_or(0, |section| section.end);
 
+    let mut unavailable: Vec<&'static str> = Vec::new();
     let mut tracks = Vec::with_capacity(doc.tracks.len());
     for track in &doc.tracks {
         if let Some(kept) = keep.get(&track.id) {
@@ -413,14 +501,23 @@ fn compile_with(
             sample_rate,
             length_samples,
             &mut warnings,
+            &mut unavailable,
         )?);
     }
 
+    let master_fx = compile_fx_chain(
+        &doc.arrangement.master.fx,
+        sample_rate,
+        "master",
+        &mut warnings,
+        &mut unavailable,
+    );
     let master = MasterPlan {
         gain: db_to_gain(doc.arrangement.master.gain_db),
         automation: master_automation(doc, &tempo, sample_rate),
         // -0.3 dBFS: the safety limiter of `specs/03-audio-engine.md` §6.
         ceiling: 10.0_f32.powf(-0.3 / 20.0),
+        fx: master_fx,
     };
 
     Ok(RenderPlan {
@@ -431,6 +528,8 @@ fn compile_with(
         sections,
         plan_version,
         warnings,
+        tempo_points: doc.arrangement.timebase.tempo_map.0.clone(),
+        ppq: *doc.arrangement.timebase.ppq,
     })
 }
 
@@ -444,6 +543,7 @@ fn compile_track(
     sample_rate: u32,
     length_samples: u64,
     warnings: &mut Vec<String>,
+    unavailable: &mut Vec<&'static str>,
 ) -> Result<TrackPlan, PlanError> {
     let mut segments = Vec::new();
     for (section_index, (section, span)) in doc.arrangement.sections.iter().zip(spans).enumerate() {
@@ -475,7 +575,80 @@ fn compile_track(
         mute: track.mute,
         solo: track.solo,
         automation: track_automation(track, doc, tempo, spans, sample_rate),
+        fx: compile_fx_chain(
+            &track.fx,
+            sample_rate,
+            &format!("track {}", track.id),
+            warnings,
+            unavailable,
+        ),
     })
+}
+
+/// Compiles a document chain into indexed slots.
+///
+/// Names are resolved here (never on the audio thread). A kind that `create`
+/// cannot build yet bypasses at runtime; it is reported once per plan so a
+/// partly landed catalogue is audible rather than fatal.
+fn compile_fx_chain(
+    chain: &[FxInstance],
+    sample_rate: u32,
+    scope: &str,
+    warnings: &mut Vec<String>,
+    unavailable: &mut Vec<&'static str>,
+) -> Vec<FxSlot> {
+    let mut slots = Vec::with_capacity(chain.len());
+    for instance in chain {
+        let Some(kind) = FxKind::from_name(&instance.type_.to_string()) else {
+            warnings.push(format!(
+                "{scope}: fx {} has unsupported type {}",
+                instance.id, instance.type_
+            ));
+            continue;
+        };
+        if create(kind, sample_rate, crate::QUANTUM_FRAMES).is_err()
+            && !unavailable.contains(&kind.name())
+        {
+            unavailable.push(kind.name());
+            warnings.push(format!(
+                "{scope}: fx type {} is not implemented yet; its instances are bypassed",
+                kind.name()
+            ));
+        }
+
+        let mut params = Vec::with_capacity(instance.params.len());
+        for (name, value) in instance.params.iter() {
+            match kind.param_index(name) {
+                Some(index) => params.push((index, *value as f32)),
+                None => warnings.push(format!(
+                    "{scope}: fx {} has no parameter named {name}; dropped",
+                    instance.id
+                )),
+            }
+        }
+
+        // `sidechain_duck.sourceTrack` is a TrackId in 03 §6, but the schema's
+        // `FxParams` is numeric-only (`specs/02-song-model.md` §3.7), so there is
+        // nowhere to store it. A duck without a source is bypassed (the gap is
+        // recorded in `docs/wp/2.3.md`).
+        let mut bypass = instance.bypass;
+        if kind == FxKind::SidechainDuck {
+            bypass = true;
+            warnings.push(format!(
+                "{scope}: fx {} is sidechain_duck, but sourceTrack cannot be stored in FxParams; bypassed",
+                instance.id
+            ));
+        }
+
+        slots.push(FxSlot {
+            id: instance.id.clone(),
+            kind,
+            params,
+            bypass,
+            sidechain_source: None,
+        });
+    }
+    slots
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -491,6 +664,13 @@ fn compile_clip(
     out: &mut Vec<Segment>,
     warnings: &mut Vec<String>,
 ) -> Result<(), PlanError> {
+    // Clip-level fx (02 §3.6) are out of scope for WP-2.3 and not compiled.
+    if clip.fx.as_ref().is_some_and(|fx| !fx.is_empty()) {
+        warnings.push(format!(
+            "clip {}: clip-level fx are not supported by the engine yet; ignored",
+            clip.id
+        ));
+    }
     let Some(meta) = assets.get(&clip.asset) else {
         warnings.push(format!(
             "clip {}: asset {} is not in the index",
@@ -772,28 +952,32 @@ fn track_automation(
             continue;
         };
         for automation in lane.automation.iter() {
-            if !automation.target.ends_with("/gainDb") {
+            let target = if automation.target.ends_with("/gainDb") {
+                parse_track_target(&automation.target, &track.id)
+            } else {
+                parse_fx_target(&automation.target)
+                    .and_then(|(fx_id, param)| fx_target(&track.fx, fx_id, param))
+            };
+            let Some(target) = target else {
                 continue;
-            }
-            if let Some(target) = parse_track_target(&automation.target, &track.id) {
-                lanes.push(AutomationLane {
-                    target,
-                    points: automation
-                        .points
-                        .iter()
-                        .map(|point| AutoPoint {
-                            sample: tick_to_sample(
-                                tempo,
-                                sample_rate,
-                                span.start_tick.saturating_add(point.tick),
-                            )
-                            .max(0) as u64,
-                            value: point.value,
-                            curve: point.curve,
-                        })
-                        .collect(),
-                });
-            }
+            };
+            lanes.push(AutomationLane {
+                target,
+                points: automation
+                    .points
+                    .iter()
+                    .map(|point| AutoPoint {
+                        sample: tick_to_sample(
+                            tempo,
+                            sample_rate,
+                            span.start_tick.saturating_add(point.tick),
+                        )
+                        .max(0) as u64,
+                        value: point.value,
+                        curve: point.curve,
+                    })
+                    .collect(),
+            });
         }
     }
     lanes
@@ -805,23 +989,47 @@ fn parse_track_target(target: &str, track: &TrackId) -> Option<AutomationTarget>
     (param == "gainDb" && id == track.as_str()).then_some(AutomationTarget::TrackGain)
 }
 
+/// Splits `fx:<fxId>/<param>` (02 §3.8).
+fn parse_fx_target(target: &str) -> Option<(&str, &str)> {
+    let rest = target.strip_prefix("fx:")?;
+    rest.split_once('/')
+}
+
+/// Resolves an fx target against a document chain to its compiled slot.
+fn fx_target(chain: &[FxInstance], fx_id: &str, param: &str) -> Option<AutomationTarget> {
+    let (slot, instance) = chain
+        .iter()
+        .enumerate()
+        .find(|(_, instance)| instance.id.as_str() == fx_id)?;
+    let kind = FxKind::from_name(&instance.type_.to_string())?;
+    let index = kind.param_index(param)?;
+    Some(AutomationTarget::FxParam { slot, index })
+}
+
 fn master_automation(doc: &Project, tempo: &TempoCtx<'_>, sample_rate: u32) -> Vec<AutomationLane> {
     let mut lanes = Vec::new();
     for automation in doc.arrangement.master.automation.iter() {
-        if automation.target.ends_with("/gainDb") || automation.target.as_str() == "master/gainDb" {
-            lanes.push(AutomationLane {
-                target: AutomationTarget::MasterGain,
-                points: automation
-                    .points
-                    .iter()
-                    .map(|point| AutoPoint {
-                        sample: tick_to_sample(tempo, sample_rate, point.tick).max(0) as u64,
-                        value: point.value,
-                        curve: point.curve,
-                    })
-                    .collect(),
-            });
-        }
+        let target = if automation.target.as_str() == "master/gainDb" {
+            Some(AutomationTarget::MasterGain)
+        } else {
+            parse_fx_target(&automation.target)
+                .and_then(|(fx_id, param)| fx_target(&doc.arrangement.master.fx, fx_id, param))
+        };
+        let Some(target) = target else {
+            continue;
+        };
+        lanes.push(AutomationLane {
+            target,
+            points: automation
+                .points
+                .iter()
+                .map(|point| AutoPoint {
+                    sample: tick_to_sample(tempo, sample_rate, point.tick).max(0) as u64,
+                    value: point.value,
+                    curve: point.curve,
+                })
+                .collect(),
+        });
     }
     lanes
 }

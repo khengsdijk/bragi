@@ -264,6 +264,7 @@ fn beatgrid_at_half_tempo_uses_the_stretcher_and_doubles_the_length() {
     let prepared = PreparedPlan::new(
         Arc::new(plan.clone()),
         bragi_engine::plan::quality_for(true),
+        256,
     );
     assert!(prepared.runtimes()[0].stretcher.is_some());
 

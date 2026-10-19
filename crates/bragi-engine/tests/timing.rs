@@ -2,11 +2,12 @@
 //!
 //! Every measurement is in samples and converted to milliseconds at 48 kHz, so
 //! the numbers are exact rather than wall-clock.
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::print_stdout)]
 
 mod common;
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use bragi_engine::engine::Engine;
 use bragi_engine::pcm::PcmSource;
@@ -233,6 +234,66 @@ fn playhead_drift_is_zero_over_ten_minutes() {
     assert_eq!(drift_samples, 0);
     assert!(ms(drift_samples) < 1.0);
     assert_eq!(renderer.underruns_for_test(), 0);
+}
+
+/// 12 tracks × 3 `gain` effects plus a 3-effect master chain: the CPU budget
+/// from `specs/03-audio-engine.md` §11 (WP-2.3 §6). Prints the real-time ratio
+/// (rendered audio seconds / wall-clock seconds); it must stay well under 100 %.
+#[test]
+fn twelve_tracks_with_three_fx_each_stay_far_below_real_time() {
+    let h = hash('7');
+    let mut tracks = Vec::new();
+    let mut lanes = serde_json::Map::new();
+    for index in 0..12 {
+        let id = format!("trk_{index:02}");
+        tracks.push(track(&id));
+        lanes.insert(id, lane(vec![clip_none("clp_01", &h, 0, 480_000, 0)]));
+    }
+    let mut doc = project(tracks, vec![section("sec_a", BAR_TICKS * 5, json!(lanes))]);
+    for (index, track) in doc.tracks.iter_mut().enumerate() {
+        for effect in 0..3 {
+            let id = format!("fx_t{index}{effect}");
+            track.fx.0.push(fx_instance(
+                &id,
+                "gain",
+                &[("db", -0.5 - effect as f64)],
+                false,
+            ));
+        }
+    }
+    for effect in 0..3 {
+        let id = format!("fx_m{effect}");
+        doc.arrangement
+            .master
+            .fx
+            .0
+            .push(fx_instance(&id, "gain", &[("db", -0.5)], false));
+    }
+    let plan = compile(&doc, &assets(&h, 480_000), 48_000, 1).unwrap();
+    let source = pcm(&h, tone(480_000, 220.0, 0.4));
+
+    let frames = 10 * SAMPLE_RATE as usize;
+    let mut renderer = Renderer::new(Arc::new(plan), QUANTUM_FRAMES);
+    renderer.transport_mut().set_length(480_000);
+    renderer.transport_mut().play();
+    let mut left = [0.0f32; QUANTUM_FRAMES];
+    let mut right = [0.0f32; QUANTUM_FRAMES];
+
+    let start = Instant::now();
+    let mut rendered = 0usize;
+    while rendered < frames {
+        renderer.process(&source, &mut [&mut left, &mut right]);
+        rendered += QUANTUM_FRAMES;
+    }
+    let elapsed = start.elapsed().as_secs_f64();
+    let audio_seconds = frames as f64 / SAMPLE_RATE as f64;
+    let ratio = elapsed / audio_seconds * 100.0;
+    println!(
+        "12 tracks × 3 gain fx + 3 master fx: {frames} frames in {elapsed:.3} s \
+         ({ratio:.2} % of real time)"
+    );
+    assert!(ratio < 100.0, "fx mix took {ratio:.1} % of real time");
+    assert!(renderer.underruns_for_test() == 0);
 }
 
 /// A small helper so the drift test can see the renderer's read failures.

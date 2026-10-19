@@ -599,7 +599,7 @@ impl EngineService {
     pub fn prepared(&self) -> Option<PreparedPlan> {
         self.plan
             .as_ref()
-            .map(|plan| PreparedPlan::new(Arc::new(plan.clone()), quality_for(false)))
+            .map(|plan| PreparedPlan::new(Arc::new(plan.clone()), quality_for(false), self.block))
     }
 
     /// The loaded document, if any.
