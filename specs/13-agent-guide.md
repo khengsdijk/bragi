@@ -145,7 +145,7 @@ package's plan in `docs/wp/`).
 | `pnpm infra:up` / `infra:logs` / `infra:down` | Local infrastructure (Postgres+pgvector, MinIO, NATS, Mailpit) |
 | `pnpm dev:web` | Vite dev server with COOP/COEP |
 | `pnpm dev:desktop` | Tauri dev |
-| `pnpm dev:backend` | docker compose infra + API + orchestrator + CPU workers |
+| `pnpm dev:backend` | `scripts/dev-backend.mjs`: ensures the docker compose infra is up, then runs the API, the orchestrator and the Python analysis worker (all capabilities) as local processes with prefixed logs; Ctrl-C stops them. Separation weights: see the script header (`.bragi/models`, gitignored) |
 | `pnpm schemas:gen` | Regenerate TS/Rust/Python from JSON Schemas |
 | `pnpm schemas:check` | Fail if the generated code does not match the JSON Schemas (runs first in `pnpm verify`) |
 | `pnpm test` | TypeScript unit tests (`test:all` adds Rust and Python) |

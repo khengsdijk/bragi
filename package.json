@@ -33,7 +33,7 @@
     "infra:logs": "docker compose -f infra/docker-compose.yml logs -f",
     "dev:web": "pnpm --filter @bragi/web dev",
     "dev:desktop": "pnpm --filter @bragi/desktop dev",
-    "dev:backend": "node scripts/not-yet.mjs dev:backend 0.7 'docker compose infra + API + orchestrator + CPU workers'",
+    "dev:backend": "node scripts/dev-backend.mjs",
     "schemas:gen": "node packages/schemas/codegen/gen.mjs",
     "schemas:check": "node packages/schemas/codegen/gen.mjs --check",
     "test:e2e": "pnpm --filter @bragi/web test:e2e",

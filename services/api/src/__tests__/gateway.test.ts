@@ -26,7 +26,10 @@ describe("WsGateway.handle", () => {
       pool: {
         query: async (sql: string) => {
           queries.push(sql);
-          return { rows: [{ stage: "rhythm", status: "done", blob_hash: "sha256:bb" }], rowCount: 1 };
+          return {
+            rows: [{ stage: "rhythm", status: "done", blob_hash: "sha256:bb" }],
+            rowCount: 1,
+          };
         },
       },
     } as unknown as AppContext;

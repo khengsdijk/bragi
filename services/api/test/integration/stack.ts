@@ -19,8 +19,6 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const COMPOSE_FILE = `${REPO_ROOT}infra/docker-compose.yml`;
-const API_DIR = fileURLToPath(new URL("../../", import.meta.url));
-const WORKERS_DIR = `${REPO_ROOT}services/workers`;
 
 /** The shared infrastructure services and the host port each is reachable on. */
 const INFRA: { name: string; port: number }[] = [
@@ -54,40 +52,41 @@ function startCompose(otelPort: number): Stack {
   };
 }
 
-function startLocal(otelPort: number): Stack {
+async function startLocal(otelPort: number): Promise<Stack> {
+  const apiPort = Number(process.env.API_PORT ?? "8080");
+  if (await portOpen(apiPort)) {
+    throw new Error(
+      `port ${apiPort} is already in use: stop the running backend (a stale \`pnpm dev:backend\`?) first`,
+    );
+  }
   const endpoint = `http://127.0.0.1:${otelPort}`;
-  const apiEnv = {
-    ...process.env,
-    NODE_ENV: "development",
-    OTEL_ENABLED: "true",
-    OTEL_EXPORTER_OTLP_ENDPOINT: endpoint,
-    API_PORT: process.env.API_PORT ?? "8080",
-  };
-  const children: ChildProcess[] = [
-    spawn("node", ["dist/orchestrator.js"], { cwd: API_DIR, env: apiEnv, stdio: "inherit" }),
-    spawn("node", ["dist/server.js"], { cwd: API_DIR, env: apiEnv, stdio: "inherit" }),
-    spawn("uv", ["run", "--directory", WORKERS_DIR, "python", "-m", "bragi_analysis"], {
-      cwd: REPO_ROOT,
-      env: { ...process.env, OTEL_ENABLED: "true", OTEL_EXPORTER_OTLP_ENDPOINT: endpoint },
-      stdio: "inherit",
-    }),
-  ];
+  // The same launcher as `pnpm dev:backend` (scripts/dev-backend.mjs); the
+  // infrastructure was already ensured above.
+  const launcher = spawn("node", [`${REPO_ROOT}scripts/dev-backend.mjs`, "--no-infra"], {
+    cwd: REPO_ROOT,
+    env: {
+      ...process.env,
+      OTEL_ENABLED: "true",
+      OTEL_EXPORTER_OTLP_ENDPOINT: endpoint,
+    },
+    stdio: "inherit",
+  });
   return {
     stop: async () => {
-      for (const child of children) child.kill("SIGTERM");
-      await Promise.all(children.map(waitForExit));
+      launcher.kill("SIGTERM");
+      await waitForExit(launcher, 15_000);
     },
   };
 }
 
 /** Resolves when the child has exited, escalating to SIGKILL after 5 s. */
-function waitForExit(child: ChildProcess): Promise<void> {
+function waitForExit(child: ChildProcess, graceMs = 5000): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
       resolve();
-    }, 5000);
+    }, graceMs);
     child.on("exit", () => {
       clearTimeout(timer);
       resolve();
