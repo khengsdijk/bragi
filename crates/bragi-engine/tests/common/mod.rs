@@ -12,7 +12,7 @@ use bragi_engine::pcm::{MemoryPcm, PcmBuffer, PcmSource};
 use bragi_engine::plan::RenderPlan;
 use bragi_engine::render::Renderer;
 use bragi_model::AssetIndex;
-use bragi_model::generated::{AssetHash, AssetMeta, Project};
+use bragi_model::generated::{AssetHash, AssetMeta, FxInstance, Project};
 use serde_json::{Value, json};
 
 /// The asset hash every fixture uses unless it needs two.
@@ -87,6 +87,19 @@ pub fn track_with(id: &str, gain_db: f64, pan: f64, mute: bool, solo: bool) -> V
         "id": id, "name": id, "role": "full_mix", "color": "#8A8F98",
         "gainDb": gain_db, "pan": pan, "mute": mute, "solo": solo, "hidden": false, "fx": []
     })
+}
+
+/// An fx instance for a generated document, e.g.
+/// `fx_instance("fx_gain", "gain", &[("db", -6.0)], false)`.
+pub fn fx_instance(id: &str, kind: &str, params: &[(&str, f64)], bypass: bool) -> FxInstance {
+    let params: serde_json::Map<String, Value> = params
+        .iter()
+        .map(|(name, value)| ((*name).to_string(), json!(value)))
+        .collect();
+    serde_json::from_value(json!({
+        "id": id, "type": kind, "params": params, "bypass": bypass
+    }))
+    .unwrap()
 }
 
 /// A lane JSON object with `clips` and optional automation.
