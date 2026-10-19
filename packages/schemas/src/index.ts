@@ -9,5 +9,8 @@
  * The validators are precompiled rather than built with `new Function` at runtime, because the UI
  * runs under a strict CSP (specs/01-architecture.md §10).
  */
+
+export * from "./generated/fx-catalog.js";
+export * from "./generated/macros.js";
 export * from "./generated/types.js";
 export * from "./generated/validators.js";

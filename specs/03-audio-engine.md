@@ -180,6 +180,12 @@ Macros are named, plain-language controls that drive several fx params at once. 
 ```
 v1 macros: `brightness`, `space` (reverb + width), `punch` (transient + compressor), `warmth` (saturation + eq), `vintage` (lofi + eq + saturation), `intensity` (drive, compression, transient, small level change), and `distance` (filter, reverb, level). Applying a macro creates or updates fx instances tagged `macroOwned`, so the UI can show "controlled by Space".
 
+`crates/bragi-dsp/macros.json` is the source of truth for the definitions; its schema is
+`packages/schemas/dsp/macros.schema.json`, and `crates/bragi-dsp/fx_catalog.json`'s is
+`packages/schemas/dsp/fx-catalog.schema.json`. `pnpm schemas:gen` validates both and copies them into
+`@bragi/schemas` as the typed modules `MACROS` and `FX_CATALOG`, which TypeScript consumers (the app,
+the planner) import instead of reading the JSON themselves.
+
 ## 7. Time-stretch and pitch-shift
 
 Behind a trait in `bragi-dsp::stretch`; the implementation chosen in

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MacroCatalog",
+  "description": "The v1 macros (03 §6.1): named, plain-language controls that drive several fx parameters at once. The instance is crates/bragi-dsp/macros.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "macros"],
+  "properties": {
+    "$comment": {
+      "description": "Free-form provenance note carried by the source file.",
+      "type": "string"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "macros": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/MacroDefinition" }
+    }
+  },
+  "$defs": {
+    "MacroDefinition": {
+      "description": "One vibe slider: its identity, its two-word label and the parameters it drives.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "range", "drives"],
+      "properties": {
+        "id": { "$ref": "../song/common.schema.json#/$defs/MacroId" },
+        "label": {
+          "description": "The plain-language pair shown on the slider, e.g. \"Dry ↔ Spacious\".",
+          "type": "string"
+        },
+        "range": { "$ref": "#/$defs/MacroRange" },
+        "drives": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/MacroDrive" }
+        }
+      }
+    },
+    "MacroRange": {
+      "description": "The slider's closed interval [min, max].",
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "MacroDrive": {
+      "description": "One fx parameter the macro drives. The curve's x values are the macro value and its y values are the parameter value.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fx", "param", "curve"],
+      "properties": {
+        "fx": { "$ref": "../song/fx.schema.json#/$defs/FxType" },
+        "param": {
+          "description": "A parameter name from the effect's catalogue entry.",
+          "type": "string"
+        },
+        "curve": {
+          "description": "Piecewise-linear points, x strictly increasing from the macro range's min to its max and including x = 0 (the catalogue default).",
+          "type": "array",
+          "minItems": 2,
+          "items": { "$ref": "#/$defs/MacroCurvePoint" }
+        },
+        "mode": {
+          "description": "A fixed value for a discrete parameter of the same effect (e.g. filter mode 0 = low-pass).",
+          "type": "number"
+        }
+      }
+    },
+    "MacroCurvePoint": {
+      "description": "One [macro value, parameter value] point.",
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2
+    }
+  }
+}
