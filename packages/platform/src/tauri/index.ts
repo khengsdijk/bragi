@@ -38,6 +38,8 @@ export async function createTauriPlatform(options: TauriPlatformOptions): Promis
     // native panel for it). Native folder pick + watched folders: library import.
     fileAccess: createInputFileAccess(document),
     // Dev default; the "compute server" setting (05 §10) will supply this later.
+    // The local API runs in single-user mode (ADR-0014), so it needs no
+    // credential at all; bearer/PKCE is for hosted multi-user mode (WP-2.9).
     api: { baseUrl: "http://127.0.0.1:8080", credential: "bearer" },
     createEngine: () => createTauriEngineHost({ invoke: ipc }),
   };
