@@ -26,7 +26,7 @@ eval number is produced or implied.
       "audioSha256": "<hex digest of the file in the bucket>",
       "licence": "CC-BY 4.0, <source URL>   (or: owner's own recording)",
       "genre": "house",
-      "labels": { "beats": "labels/trk-001.beats" }
+      "labels": { "beats": "labels/trk-001.beats", "sections": "labels/trk-001.sections" }
     }
   ]
 }
@@ -36,7 +36,11 @@ eval number is produced or implied.
   scored; a mismatch is reported as `hash_mismatch`, never scored.
 - `labels.beats` is a text file, one beat per line: `<seconds>` or `<seconds> <position in bar>`
   (the `.beats` convention; a position of `1` marks a downbeat). `#` starts a comment.
-- Later stages add their own label files (sections, chords, key, genre) as their work packages land.
+- `labels.sections` is optional (WP-1.4) and a text file, one section per line:
+  `<start> <end> <kind> [group]`, where `kind` is a `SectionKind` value and `group` is an optional
+  repeat-letter. `#` starts a comment. Only tracks that carry this file count towards the structure
+  gates (boundary hit-rate, label accuracy, chorus `repeatGroup`); `beats` remains required.
+- Later stages add their own label files (chords, key, genre) as their work packages land.
 
 ## Running it
 

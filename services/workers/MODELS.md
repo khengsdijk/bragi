@@ -30,9 +30,15 @@ differs from the pin and reads it with `torch.load(weights_only=True)`. Set
 |---|---|
 | madmom (RNN beat tracker + DBN) | Its pretrained models are distributed under CC BY-NC-SA 4.0 (non-commercial). Not re-verified in this WP because it is **not used**; Beat This! needs no DBN (`dbn=False`) |
 
+## Weight-free stages (no model, deliberately)
+
+| Stage | Why there is no row | Reference |
+|---|---|---|
+| `analysis.structure` (WP-1.4, `structure@ssm-novelty-1`) | The v1 segmenter is **weight-free** — self-similarity + Foote novelty + repetition grouping on beat-synchronous chroma/timbre/energy, NumPy/SciPy only. No weights, no licence question, no GPU. A neural All-In-One-class upgrade is planned once a licence-clear checkpoint can be evaluated on the eval set (Q44). | [ADR-0010](../../specs/decisions/ADR-0010-structure-segmentation.md) |
+
 ## Planned (not yet in use)
 
-Structure, harmony, embeddings and tagging models add their rows with their work
+Harmony, embeddings and tagging models add their rows with their work
 packages.
 
 ## Separation (WP-1.3)
