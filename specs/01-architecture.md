@@ -161,13 +161,13 @@ Rules:
 
 ## 6. Data flow: upload to playable song
 
-1. The user drops `song.mp3`. The client computes **SHA-256** and checks the BlobCache and API (`HEAD /assets/{hash}`). If the hash is known, the upload is skipped.
-2. The client creates a **Project** locally with a `Source` pointing at the asset hash. It is playable immediately (the original stereo file).
+1. The user drops `song.mp3`. The client computes **SHA-256** and checks the BlobCache and API (`POST /assets/presign`, 05 §2). If the hash is known, the upload is skipped.
+2. The client keeps the upload in the BlobCache and shows a **plain-language progress state**. The local **Project** is created when `ingest` lands (seconds), not on drop: `Source.workingAsset` and `durationSamples` are what ingest produces, and there is nothing playable before them (WP-1.10; finding 11).
 3. The client uploads via presigned S3 URL, then `POST /analyses {assetHash, profile:"standard"}`.
-4. The API publishes `job.requested` events for the analysis DAG ([04-analysis-pipeline.md §2](04-analysis-pipeline.md)).
-5. Workers emit `analysis.partial` events as each stage completes. The API pushes these to the client over WebSocket.
+4. The API publishes job requests for the analysis DAG ([04 §2](04-analysis-pipeline.md)).
+5. As each stage finishes, `api-orchestrator` records its result and publishes `analysis.partial` on `events.asset.<hash>`; the API pushes it to `asset:<hash>` subscribers. A subscriber that connects late is replayed the finished stages from `analyses` (Q25).
 6. The client merges each partial result into the document as an **`analysis.apply` op batch** authored by `system`. The canvas progressively gains a beat grid, sections, stems, chords, tags and a description.
-7. Stems are downloaded lazily into the BlobCache. Ribbons become soloable as each stem arrives.
+7. Stems are downloaded into the BlobCache as separation lands. Ribbons become soloable as each stem arrives.
 
 ## 7. Cross-language contracts
 
