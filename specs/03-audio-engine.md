@@ -1,6 +1,6 @@
 # 03 — Audio Engine
 
-Status: Draft v0.3 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
+Status: Draft v0.4 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
 
 ## 1. Responsibilities
 
@@ -250,9 +250,15 @@ type RenderJob =
   | { kind: "cache"; sectionId: SectionId };                           // pre-rendered HQ section audio
 type AudioFormat = { container: "wav"; bits: 16 | 24 | 32 } | { container: "flac"; bits: 16 | 24 } | { container: "mp3"; kbps: 128 | 192 | 320 };
 ```
-- Offline render uses the `Render` stretch quality and is **deterministic**, with no dither randomness unless a seed is supplied. WP-1.1 fixes the block size at 512 frames (`OFFLINE_BLOCK`) and renders single-threaded, so a mixdown is host-independent; the rayon per-track parallel path stays for WP-1.11.
+- Offline render uses the `Render` stretch quality and is **deterministic**, with no dither randomness unless a seed is supplied. WP-1.1 fixes the block size at 512 frames (`OFFLINE_BLOCK`), so a mixdown is host-independent.
+- **Implemented in v1 (WP-1.11):** `mixdown` and `stems` to WAV (16/24-bit integer, 32-bit float) and FLAC (16/24-bit). `RenderResult` carries `files: { name, bytes, frames }[]` (one file for a mixdown, one per track in document order for stems). `context`, `cache`, MP3 and `normalize` are rejected with a typed error until their work packages land.
+- Encoding lives in `bragi_engine::export` (platform-free), so WASM and native emit the same files. Dither is TPDF (xorshift64\*), applied to 16/24-bit output only when `ditherSeed` is given. A `range` in ticks must be converted by the caller to `startSample`/`frames` (the tempo map is `bragi-model`'s); the host rejects an unconverted range instead of exporting the whole song.
+- **Naming and metadata:** the mixdown is `<title>.<ext>`; a stem is `<NN>-<track name>.<ext>` with `NN` the track's 1-based document position. Names keep letters, digits, space, `_` and `-`. Metadata (title, BPM and key in the comment, the stem's track name, the caller's creation date, encoder `Bragi <version>`) goes into WAV `LIST/INFO` and FLAC Vorbis comments. The engine never reads the clock.
+- **Stems** are rendered per track with mute/solo ignored (a stem is the track as written), master gain kept, and the safety limiter bypassed, so stems sum to the mixdown whenever the mixdown limiter is not engaged. The mixdown keeps the safety limiter (the user cannot remove it), which means a mixdown only nulls against an asset that peaks below -0.3 dBFS (Q33). Native stems render in parallel on a rayon pool (`parallel` feature of `bragi-engine`, enabled by `bragi-engine-native`); WASM renders them sequentially. Output is identical either way.
+- **FLAC** is written by an in-repo encoder (fixed predictors 0-4, partitioned Rice, stereo decorrelation, MD5 in STREAMINFO, 4096-sample blocks; a remainder under 16 samples switches the stream to variable block size because decoders reject a shorter last block).
+- **Wire format:** hosts return the files as one binary *export frame* (`"BXPT" | u32 LE jsonLen | json | file bytes…`, `ExportResult::to_frame`, read by `decodeExportFrame`), so Tauri never serialises megabytes of audio as a JSON array.
 - **Export bundle ("Open in your DAW")**: a zip containing stems aligned to bar 1 (24-bit WAV), `tempo_and_markers.mid` (tempo map + section markers), `chords.mid` (if harmony analysis is present), and a `README.txt` listing BPM, key and section times. A native Ableton `.als` export is post-v1.
-- The MP3 encoder is chosen in the export work package. It must be licence-clean and compile on all targets. In the browser it may run as a separate WASM module in a worker.
+- The MP3 encoder is chosen in a later export work package (not WP-1.11, whose scope is WAV/FLAC; Q32). It must be licence-clean and compile on all targets. In the browser it may run as a separate WASM module in a worker.
 
 ## 10. Visual data
 

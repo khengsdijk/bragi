@@ -82,3 +82,11 @@ rows.
 | # | Question | Needed by | Owner | Notes |
 |---|---|---|---|---|
 | Q26 | `AnalysisRef.summary` (`bpm`, `key`, `durationSec`, `genres`, `moods`) is not written by `analysis.apply`: `key` is not among the typed effects, and the model cannot read the `harmony` blob. Should a `harmony` effect kind carry the key (and a `summary` be derived once all five parts are known), or does the API/job flow write `summary` from the blobs directly? Until then `summary` stays absent and the canvas gets bpm and duration from the tempo effect and the source. | WP-1.10 | Agent | [02 §3.3](02-song-model.md), [02 §6](02-song-model.md) |
+
+## Added by WP-1.11
+
+| # | Question | Needed by | Owner | Notes |
+|---|---|---|---|---|
+| Q32 | MP3 export and `normalize` (`lufs`/`truePeakDb`) are in the 03 §9 types but not in WP-1.11's roadmap scope (WAV/FLAC). Which work package owns an MP3 encoder (licence-clean, WASM-capable; candidate pure-Rust crates need a licence check and an ADR) and BS.1770 loudness measurement + true-peak limiting (which also unblocks Q26)? Hosts currently reject both with a typed error. | Before any "share"/publish flow | Koen | [03 §9](03-audio-engine.md), `crates/bragi-engine/src/export/mod.rs` |
+| Q33 | The master safety limiter (-0.3 dBFS, 03 §6) applies to every mixdown, including float exports, so "an unedited project nulls against the working asset" holds only for assets that peak below the ceiling. Loud working assets (peaks above -0.3 dBFS) are limited on export. Keep (spec: the user cannot remove it), bypass it for 32-bit float exports, or normalise working assets on ingest to leave headroom? | WP-1.10 / ingest | Koen | [03 §6](03-audio-engine.md), [04 §3.1](04-analysis-pipeline.md), `docs/wp/1.11.md` |
+| Q34 | Export progress, cancellation and non-blocking: `EngineService::export` runs inside the Tauri command while the service mutex is held, so a long export blocks `engine_state` polling and transport commands, and neither host reports progress. Needs a job handle (start/progress/cancel) and either a cloned plan + PCM handle or a separate export worker. | WP-1.10 (export UI) | Agent | `apps/desktop/src-tauri/src/engine.rs`, `packages/platform/src/web/engine.worker.ts` |
