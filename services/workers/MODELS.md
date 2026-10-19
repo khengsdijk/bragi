@@ -35,11 +35,44 @@ differs from the pin and reads it with `torch.load(weights_only=True)`. Set
 | Stage | Why there is no row | Reference |
 |---|---|---|
 | `analysis.structure` (WP-1.4, `structure@ssm-novelty-1`) | The v1 segmenter is **weight-free** — self-similarity + Foote novelty + repetition grouping on beat-synchronous chroma/timbre/energy, NumPy/SciPy only. No weights, no licence question, no GPU. A neural All-In-One-class upgrade is planned once a licence-clear checkpoint can be evaluated on the eval set (Q44). | [ADR-0010](../../specs/decisions/ADR-0010-structure-segmentation.md) |
+| `analysis.stem_activity` (WP-1.6) | Gated RMS (−45 dBFS, 250 ms hop) — arithmetic on the stems, no model at all. | [04 §5.4](../../specs/04-analysis-pipeline.md) |
+| `analysis.embed_*` fallback (WP-1.6, `model` `bragi-concept-basis-1`) | The **CI/runtime fallback** for the three embedding capabilities: a deterministic concept basis over DSP descriptors, NumPy only. Not semantic; every result it produces is flagged `lowConfidence`. The target CLAP model is pinned below but not downloaded here. | [ADR-0011](../../specs/decisions/ADR-0011-embeddings-and-tags.md) |
+| `analysis.tag` zero-shot path (WP-1.6) | With no trained heads, genre/mood/instrument/descriptors/era are scored by cosine over the taxonomy prompts with the selected embedder; the result is `lowConfidence`. Trained heads replace genre/mood/instrument (see below). | [04 §6.2](../../specs/04-analysis-pipeline.md) |
 
 ## Planned (not yet in use)
 
-Harmony, embeddings and tagging models add their rows with their work
-packages.
+## Embeddings & tagging (WP-1.6)
+
+### `laion/larger_clap_music` — the v1 embedding target (not loaded in this environment)
+
+| Field | Value |
+|---|---|
+| Task | Joint audio–text embedding for `analysis.embed_full`/`section_embed`/`stem_embed` and zero-shot `analysis.tag` (04 §6.1, §6.2) |
+| Architecture | CLAP (SwinTransformer audio + RoBERTa text), 512-d joint embedding |
+| Source | https://huggingface.co/laion/larger_clap_music |
+| Pinned revision | **PENDING** — the commit to pin has not been recorded yet (the PyPI/Git SHA-256 below likewise) |
+| `model.safetensors` SHA-256 | **PENDING** — the weights could not be fetched in the WP-1.6 environment; the loader refuses to run until this and `BRAGI_CLAP_SHA256` are set (04 §9) |
+| Code licence | MIT (`laion_clap`, https://github.com/LAION-AI/CLAP); Apache-2.0 for the `transformers` loader |
+| **Weights licence** | **Apache-2.0** (the Hugging Face model card states `apache-2.0`, verified 2026-10-19) |
+| Commercial use | **yes** on weights licence grounds; the training-data terms still fall under the general Q6 review |
+| Runtime extra | `clap` (`torch` + `transformers`), **not** installed in the default sync or the CPU gate; the worker image would need `uv sync --extra clap` when the checkpoint is added (Q68) |
+| Date verified | 2026-10-19 (licence only; the checkpoint bytes were not downloaded) |
+
+The loader (`bragi_analysis.embedding.clap.CLAPEmbedder`) reads `BRAGI_CLAP_CHECKPOINT` (or
+`BRAGI_MODELS_DIR/clap`), verifies `model.safetensors` against `BRAGI_CLAP_SHA256`, imports
+`torch`/`transformers` lazily and **never downloads** (`HF_HUB_OFFLINE=1`). Until the hash is
+recorded it raises `EmbedderUnavailableError`, and the capabilities fall back to the
+concept-basis embedder.
+
+### Tag heads (trained by us — data, not a downloaded model)
+
+`analysis.tag` loads `<category>.npz` MLP heads from `BRAGI_TAG_HEADS`
+(`bragi_analysis.tagging.zeroshot.load_heads`). They are **not** shipped: they are trained by
+`services/workers/embed/training/train_heads.py` on CLAP embeddings of **MTG-Jamendo**
+(`mtg-jamendo/mtg-jamendo-dataset`), a CC-licensed dataset that must be re-checked per subset for
+the exact licence (CC-BY / CC-BY-SA / CC-BY-NC / CC0) before commercial use. No audio, heads or
+dataset are committed here. Owner actions: fetch the data, train, calibrate per-label thresholds
+and run the top-3 genre gate (Q67).
 
 ## Separation (WP-1.3)
 

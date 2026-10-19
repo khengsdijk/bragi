@@ -1,6 +1,6 @@
 # 04 — Analysis Pipeline
 
-Status: Draft v0.4 · Code: `services/workers/analysis`, `services/workers/embed` · Schemas: `packages/schemas/analysis/`
+Status: Draft v0.5 · Code: `services/workers/analysis`, `services/workers/embed` · Schemas: `packages/schemas/analysis/`
 
 The analysis pipeline turns one stereo file into everything Bragi shows: stems, beat grid, sections, chords, key, energy, tags, embeddings and a plain-language description.
 
@@ -89,6 +89,7 @@ Library imports run `quick` and are upgraded to `standard` lazily when a song is
 
 ### 5.4 `stem_activity`
 - Per stem: gated RMS (−45 dBFS gate, 250 ms hop) → `active[] { startSec, endSec }`, plus `presence` per section (0..1). This drives which ribbons appear and fade in the canvas.
+- **Implementation notes (WP-1.6).** Capability `analysis.stem_activity`. Each stem is decoded to mono at 22 050 Hz and gated frame-by-frame: a run of open hops becomes an `active` region, gaps shorter than one hop are closed and runs shorter than one hop are dropped, so a gated hi-hat does not shatter into a click-track. `presence` is the share of in-section open hops (a hop belongs to the section holding its centre). Inputs are the `assets.stem_<role>`; before separation it falls back to `assets.mix` then `assets.source` as the `other` stem (mirrors `harmony`). Sections come from an optional `blobs.structure`; with none, `presence` is `[]`. Silent stems publish an empty `active` and zero presence — never a failure (04 §1.3, §10).
 
 ### 5.5 `loudness_energy` and `energy_stems`
 - **Loudness:** EBU R128 integrated LUFS, LRA, true peak, short-term LUFS series (hop 0.5 s).
@@ -169,6 +170,8 @@ A regression job (`pnpm eval:analysis`) runs the eval set and writes a markdown 
 
 **Gate semantics (WP-1.5).** The harmony gate is chord accuracy (majmin, duration-weighted) ≥ 0.70 and key accuracy ≥ 0.80, both on the eval set. Chord accuracy is `mir_eval.chord.evaluate(...)["majmin"]` over the published chord segments; key accuracy is the share of tracks whose `key` matches the hand label. **Neither has been run: `fixtures/eval/manifest.json` lists no tracks** (Q32), so both are `PENDING`. The synthetic chord/key suite proves the machinery and is never the gate. The WP-1.2 harness scores `rhythm` only; scoring harmony needs the eval-set manifest to carry chord and key labels (Q65).
 
+**Gate semantics (WP-1.6).** The `tag` gate is top-3 genre agreement ≥ 0.70 and the text query `"drums"` ranks the drum stem above the other stems for ≥ 90 % of eval songs. Both are `PENDING`: the first needs the eval set (Q32) *and* trained heads (no labelled training data here, Q67); the second needs the eval set's per-stem references. The `"drums"`-ranking *metric* is proven on a synthetic multi-stem fixture through the deterministic concept-basis fallback embedder (`test_the_text_query_drums_ranks_the_drum_stem_highest`) — that proves the embedding/tagging wiring and the ranking metric, not the CLAP model, and is reported as synthetic. The WP-1.2 harness does not score embeddings yet; it prints the `tag` gate row as `not implemented yet`/`PENDING`.
+
 ## 9. Model registry and licensing
 
 `services/workers/MODELS.md` is the **mandatory** registry. Each model has: name, version or checkpoint hash, task, code licence, **weights licence**, commercial use allowed (yes/no/unclear), source URL, and the date verified.
@@ -176,6 +179,7 @@ A regression job (`pnpm eval:analysis`) runs the eval set and writes a markdown 
 Rules:
 - A model with a non-commercial weights licence may be used in `local`/`staging` and for personal use. It must be **flagged** and needs replacement before any commercial launch.
 - Model weights are pulled at container build time and pinned by hash. Workers never download weights at runtime.
+- **WP-1.6** pins the v1 embedding target **LAION-CLAP `laion/larger_clap_music`** (512-d, Apache-2.0 weights, MIT code) in [services/workers/MODELS.md](../services/workers/MODELS.md); the exact commit and the file SHA-256 are **PENDING** (the weights were not downloadable here, Q68) and the loader refuses an unverified checkpoint. The deterministic concept-basis fallback (`bragi-concept-basis-1`) and the trained tag heads are recorded there too; the heads' MTG-Jamendo training data's per-subset licence is an owner check (Q67).
 
 ## 10. Failure handling
 
