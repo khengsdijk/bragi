@@ -22,6 +22,8 @@ import {
 } from "../../analysis/api/analysis-view.js";
 import { apiFor, realtimeFor } from "../../analysis/api/host.js";
 import { createUploadFlow } from "../../analysis/state/flow.js";
+import { listCommits, readCommitSnapshot } from "../../history/api/history-repo.js";
+import { createHistory, type History } from "../../history/state/history.js";
 import { getProjectRow, getProjectSnapshot } from "../../library/api/library-repo.js";
 import { progressText } from "../../library/components/progress.js";
 import { loadModel } from "../model/model-api.js";
@@ -34,6 +36,7 @@ const SAMPLE_RATE = 48_000;
 interface Session {
   readonly store: SongStore;
   readonly controller: EngineController;
+  readonly history: History;
   readonly analysis: AnalysisData | null;
 }
 
@@ -105,11 +108,30 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
     const cleanup: (() => void)[] = [];
     dispose.current = cleanup;
     (async () => {
-      const snapshot = await getProjectSnapshot(platform, projectId);
-      if (snapshot === null) return;
       const model = await loadModel();
       const store = createSongStore(model);
+      const history = createHistory({ platform, songStore: store, model, projectId });
+      // A project with commits opens at HEAD, not at the project row's pointer
+      // (which only mirrors HEAD). A pre-2.1 project keeps today's path and lets
+      // `load()` create the "Imported" root from the stored snapshot.
+      const commits = await listCommits(platform.localDb, projectId);
+      let snapshot: Project | null = null;
+      if (commits.length > 0) {
+        await history.load();
+        const state = history.store.getState();
+        const head = state.head === null ? undefined : state.commits.get(state.head);
+        if (head !== undefined) {
+          try {
+            snapshot = await readCommitSnapshot(platform, head.snapshotHash);
+          } catch {
+            // A missing commit blob falls back to the project row's snapshot.
+          }
+        }
+      }
+      snapshot ??= await getProjectSnapshot(platform, projectId);
+      if (snapshot === null) return;
       store.load(snapshot, assetMetasFor(snapshot));
+      await history.load();
       const durationSec = (snapshot.sources[0]?.durationSamples ?? 0) / SAMPLE_RATE;
       const controller = createEngineController({
         ...(platform.createEngine === undefined ? {} : { createEngine: platform.createEngine }),
@@ -126,7 +148,7 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
         () => void controller.dispose(),
         () => store.dispose(),
       );
-      setSession({ store, controller, analysis });
+      setSession({ store, controller, history, analysis });
 
       // An analysis that was still running when this page opened (a reload, or the hand-over
       // from the drop zone) keeps merging into this document (Q82).
@@ -138,6 +160,7 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
         api: apiFor(platform),
         realtime,
         songStore: store,
+        history,
         onState: (state) => {
           if (live) setProgress(state.phase === "ready" ? null : progressText(state));
         },
@@ -185,6 +208,7 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
       <SongWorkspace
         songStore={session.store}
         controller={session.controller}
+        history={session.history}
         analysis={session.analysis}
         selection={{ kind: "none" }}
         testHooks={wantsTestHooks(search)}

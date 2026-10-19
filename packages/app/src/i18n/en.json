@@ -99,5 +99,9 @@
   "history.branchRequired": "Give this branch a name.",
   "history.branchTooLong": "Keep the branch name under 64 characters.",
   "history.branchInvalid": "Branch names cannot contain a colon.",
-  "history.snapshotMissing": "We could not find the saved version."
+  "history.snapshotMissing": "We could not find the saved version.",
+  "history.imported": "Imported",
+  "history.undo": "Undid: {label}",
+  "history.redo": "Redid: {label}",
+  "history.adoptFrom": "Take this part from {label}"
 }

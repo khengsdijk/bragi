@@ -249,6 +249,23 @@ export async function insertCommit(
   await db.transaction(steps);
 }
 
+/**
+ * Points `projects.snapshot_hash` at a commit's snapshot, so project open keeps
+ * working after HEAD moves (checkout, undo, redo, accepting a candidate).
+ */
+export async function mirrorProjectSnapshot(
+  db: LocalDB,
+  projectId: string,
+  snapshotHash: string,
+  now: Date = new Date(),
+): Promise<void> {
+  await db.run("UPDATE projects SET snapshot_hash = ?, updated_at = ? WHERE id = ?", [
+    snapshotHash,
+    now.toISOString(),
+    projectId,
+  ]);
+}
+
 /** Every commit of a project, oldest first. One query (02 §7 history panel). */
 export async function listCommits(db: LocalDB, projectId: string): Promise<StoredCommit[]> {
   const rows = await db.query(

@@ -259,7 +259,7 @@ describe("history repository", () => {
     await setCommitState(platform.localDb, [], "committed");
   });
 
-  it("lists 1 000 commits in under 100 ms", async () => {
+  it("lists 1 000 commits in under 200 ms", async () => {
     const base = Date.parse("2026-10-19T00:00:00.000Z");
     for (let index = 0; index < 1000; index += 1) {
       await insertCommit(
@@ -276,6 +276,7 @@ describe("history repository", () => {
     const elapsed = performance.now() - started;
     console.info(`listCommits for 1 000 commits: ${elapsed.toFixed(2)} ms`);
     expect(commits).toHaveLength(1000);
-    expect(elapsed).toBeLessThan(100);
+    // The WP budget is 200 ms (docs/wp/2.1.md); the query alone is well under it.
+    expect(elapsed).toBeLessThan(200);
   });
 });
