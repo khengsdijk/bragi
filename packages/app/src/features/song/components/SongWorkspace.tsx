@@ -18,11 +18,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { t } from "../../../i18n/index.js";
+import type { History } from "../../history/state/history.js";
 import { buildGridModel } from "../api/grid-model.js";
 import { analysisView, buildCanvasDocument } from "../api/view-model.js";
 import type { EngineController } from "../state/engine-controller.js";
 import { trackToggleBatch } from "../state/ops.js";
-import type { SongStore } from "../state/song-store.js";
+import type { ApplyOutcome, SongStore } from "../state/song-store.js";
 import { AccessibleGrid, type GridFocus } from "./AccessibleGrid.js";
 import { type SongCanvasHandle, SongCanvasView } from "./SongCanvasView.js";
 import { formatTime, TransportBar } from "./TransportBar.js";
@@ -33,6 +34,8 @@ export type AnalysisData = Omit<AnalysisView, "stages">;
 export interface SongWorkspaceProps {
   readonly songStore: SongStore;
   readonly controller: EngineController;
+  /** The open project's version tree; absent for the demo, which has no project row. */
+  readonly history?: History;
   /** Energy, chords and ribbon data; `null` before any of it has arrived (WP-1.10 feeds this). */
   readonly analysis: AnalysisData | null;
   readonly selection: Selection;
@@ -47,6 +50,7 @@ export interface BragiTestHooks {
   canvas: SongCanvasHandle["canvas"] | null;
   store: SongStore;
   controller: EngineController;
+  history: History | null;
 }
 
 declare global {
@@ -91,6 +95,18 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     [canvasDoc, analysis],
   );
 
+  const follow = useCallback(
+    (outcome: ApplyOutcome, label: string) => {
+      if (outcome.ok) {
+        controller.commit(outcome.commit, outcome.doc);
+        setAnnouncement(label);
+      } else {
+        setAnnouncement(t("song.live.rejected"));
+      }
+    },
+    [controller],
+  );
+
   const toggleTrack = useCallback(
     (trackId: string, field: "mute" | "solo", value?: boolean) => {
       const current = songStore.store.getState().doc;
@@ -99,15 +115,42 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       if (!track) return;
       const batch = trackToggleBatch(current, trackId, field, value ?? !track[field]);
       if (batch === null) return;
-      const outcome = songStore.apply(batch);
-      if (outcome.ok) {
-        controller.commit(outcome.commit, outcome.doc);
-        setAnnouncement(batch.label);
-      } else {
-        setAnnouncement(t("song.live.rejected"));
+      if (props.history === undefined) {
+        follow(songStore.apply(batch), batch.label);
+        return;
       }
+      void props.history
+        .commit(batch)
+        .then((outcome) => follow(outcome, batch.label))
+        .catch((cause: unknown) => {
+          console.warn("could not commit the track toggle", cause);
+          setAnnouncement(t("song.live.rejected"));
+        });
     },
-    [songStore, controller],
+    [songStore, props.history, follow],
+  );
+
+  /** Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z (07 §4); the command is announced for screen readers. */
+  const undoOrRedo = useCallback(
+    (redo: boolean) => {
+      const history = props.history;
+      if (history === undefined) return;
+      const state = history.store.getState();
+      const targetId = redo ? state.redo.at(-1) : (state.head ?? undefined);
+      const label = targetId === undefined ? "" : (state.commits.get(targetId)?.label ?? "");
+      void (redo ? history.redo() : history.undo())
+        .then((outcome) => {
+          if (outcome === null || !outcome.ok) return;
+          controller.commit(outcome.commit, outcome.doc);
+          if (label !== "") {
+            setAnnouncement(t(redo ? "history.redo" : "history.undo", { label }));
+          }
+        })
+        .catch((cause: unknown) => {
+          console.warn("could not move HEAD", cause);
+        });
+    },
+    [props.history, controller],
   );
 
   const onCanvasToggle = useCallback(
@@ -123,17 +166,26 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       },
       store: songStore,
       controller,
+      history: props.history ?? null,
     } as BragiTestHooks;
     return () => {
       window.__bragi = undefined;
     };
-  }, [props.testHooks, songStore, controller]);
+  }, [props.testHooks, songStore, controller, props.history]);
 
   // Global shortcuts (07 §3). The grid handles M and O itself when it has focus.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (isTypingTarget(event.target)) return;
+      if (event.defaultPrevented || isTypingTarget(event.target)) return;
+      // Undo/redo live on the platform modifier; other shortcuts stay unmodified.
+      if (event.metaKey || event.ctrlKey) {
+        if (!event.altKey && event.key.toLowerCase() === "z" && props.history !== undefined) {
+          event.preventDefault();
+          undoOrRedo(event.shiftKey);
+        }
+        return;
+      }
+      if (event.altKey) return;
       const onButton = event.target instanceof HTMLButtonElement;
       switch (event.key) {
         case " ":
@@ -180,7 +232,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [controller, toggleTrack, props.onSelectionChange]);
+  }, [controller, toggleTrack, undoOrRedo, props.history, props.onSelectionChange]);
 
   if (canvasDoc === null || grid === null || analysis === null) {
     return <p data-testid="song-loading">{t("song.canvas.loading")}</p>;
