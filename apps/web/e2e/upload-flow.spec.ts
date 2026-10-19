@@ -114,6 +114,9 @@ test.describe("upload -> live analysis -> playable, soloable canvas", () => {
     });
 
     // The default local stack is single-user (ADR-0014): no sign-in form, straight to upload.
+    await appPage.goto("/#/");
+    await expect(appPage.getByRole("heading", { level: 1 }).first()).toBeVisible();
+    await expect(appPage.getByTestId("library-empty")).toBeVisible();
     await expect(appPage.locator("#sign-in-email")).toHaveCount(0);
 
     // axe on the welcome / library page (nothing uploaded yet).
