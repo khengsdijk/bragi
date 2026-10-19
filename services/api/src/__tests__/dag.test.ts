@@ -104,7 +104,6 @@ describe("IMPLEMENTED_STAGES", () => {
     for (const missing of [
       "preview",
       "energy_stems",
-      "describe",
       "drum_split",
       "transcribe",
       "lyrics",
@@ -114,6 +113,7 @@ describe("IMPLEMENTED_STAGES", () => {
     expect(stages).toContain("separation");
     expect(stages).toContain("stem_embed");
     expect(stages).toContain("tag");
+    expect(stages).toContain("describe");
   });
 });
 
