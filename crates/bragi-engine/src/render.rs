@@ -848,13 +848,20 @@ impl Renderer {
     ) {
         let fade = (LOOP_FADE_MS * self.prepared.plan.sample_rate as f32 / 1000.0).round() as usize;
         let schedule = self.transport.schedule(len, fade);
-        let bpm = self.prepared.plan.bpm_at_sample(schedule.first_start);
+        // A silent (stopped) block still renders effect tails, so use the
+        // playhead rather than the silent schedule's placeholder start.
+        let start = if schedule.playing {
+            schedule.first_start
+        } else {
+            self.transport.playhead()
+        };
+        let bpm = self.prepared.plan.bpm_at_sample(start);
 
         // A jump in the playhead (a seek) is not a loop wrap: drop the stream
         // state and reset the effects so a tail does not follow the playhead.
         if self
             .expected_start
-            .is_some_and(|expected| expected != schedule.first_start)
+            .is_some_and(|expected| expected != start)
         {
             self.prepared.reset();
         }
@@ -930,9 +937,8 @@ impl Renderer {
         }
 
         // Master fx, then master gain (with automation) and the safety limiter.
-        self.process_master_fx(schedule.first_start, len, bpm);
-        self.master_gain
-            .set_target(self.master_gain_at(schedule.first_start));
+        self.process_master_fx(start, len, bpm);
+        self.master_gain.set_target(self.master_gain_at(start));
         for frame in 0..len {
             let gain = self.master_gain.next();
             let index = frame * 2;
