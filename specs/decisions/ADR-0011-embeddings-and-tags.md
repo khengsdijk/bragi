@@ -1,6 +1,6 @@
 # ADR-0011 — Embeddings and tags: CLAP as the target, a deterministic concept-basis fallback
 
-- **Status:** Proposed (the target model is chosen on licence and contract grounds; the fallback and
+- **Status:** Proposed (the target model is chosen on contract grounds; the fallback and
   the machinery are measured, but real-music accuracy is unmeasured — no eval set, no weights)
 - **Date:** 2026-10-19
 - **Decider:** Koen
@@ -20,23 +20,23 @@ Constraints in this environment ([13 §6](../13-agent-guide.md)):
 
 - **No CUDA** and **no downloadable weights** (Hugging Face / Docker Hub pulls are blocked), so no
   real embedding can be run or measured here.
-- **No eval set** ([15](../15-open-questions.md) Q32) and **no permissively labelled tagging
+- **No eval set** ([15](../15-open-questions.md) Q32) and **no labelled tagging
   dataset** available locally, so no head can be trained or calibrated here.
 - `pnpm verify` must stay a fast, CPU-only, torch-free gate.
 - A **new major dependency needs an ADR** (this one), and every model's weights must be
-  licence-clear and hash-pinned ([04 §9](../04-analysis-pipeline.md), [13 §1](../13-agent-guide.md)).
+  hash-pinned ([04 §9](../04-analysis-pipeline.md), [13 §1](../13-agent-guide.md)).
 
 Text search, tagging and the Universe all depend on this WP, so *something* must ship.
 
 ## Options considered
 
-| Option | Code | Weights | Deps | Verdict |
-|---|---|---|---|---|
-| **LAION-CLAP `laion/larger_clap_music`** | MIT (`laion_clap`) / Apache-2.0 (`transformers`) | **Apache-2.0** (HF model card, verified 2026-10-19) | `torch`, `transformers` (optional extra) | **The v1 target.** Joint audio–text, 512-d, music-trained, permissive weights. Not runnable here (no weights); behind a hash-pinned loader. Q6 still governs the commercial decision. |
-| **MERT / MuQ** (music-representation) | varies | several checkpoints are **non-commercial** | `torch` | Rejected for v1; kept for a WP-3.1 "sounds-like" spike (04 §6.1). No audio–text space, so it cannot do text search or zero-shot tagging. |
-| **Train a CLAP from scratch** | ours | n/a | `torch` | Out of scope: no data, no GPU. |
-| **Deterministic concept-basis embedder** (this WP) | ours (NumPy only) | none | none | **The CI/runtime fallback.** Not a semantic model: it proves the windowing, pooling, storage and tagging machinery and keeps `pnpm verify` torch-free. Never claimed as product quality. |
-| **`madmom`-style or other tagging checkpoints** | mixed | often CC BY-NC | — | Rejected on the same licence grounds as ADR-0007/0008. |
+| Option | Deps | Verdict |
+|---|---|---|
+| **LAION-CLAP `laion/larger_clap_music`** | `torch`, `transformers` (optional extra) | **The v1 target.** Joint audio–text, 512-d, music-trained. Not runnable here (no weights); behind a hash-pinned loader. |
+| **MERT / MuQ** (music-representation) | `torch` | Not v1; kept for a WP-3.1 "sounds-like" spike (04 §6.1). No audio–text space, so it cannot do text search or zero-shot tagging. |
+| **Train a CLAP from scratch** | `torch` | Out of scope: no data, no GPU. |
+| **Deterministic concept-basis embedder** (this WP) | none (NumPy only) | **The CI/runtime fallback.** Not a semantic model: it proves the windowing, pooling, storage and tagging machinery and keeps `pnpm verify` torch-free. Never claimed as product quality. |
+| **`madmom`-style or other tagging checkpoints** | — | Not v1; candidates for the bake-off. |
 
 ## Decision
 
@@ -72,13 +72,10 @@ Text search, tagging and the Universe all depend on this WP, so *something* must
 - **Positive:** the whole WP lands and is testable in `pnpm verify` with no GPU, no weights and no
   torch; swapping in CLAP is a `stageVersion`/`model` change plus a pinned checkpoint, not a
   rewrite; the contract (`EmbeddingResult`, `TagResult`) is model-independent.
-- **Positive:** the licence position is clean in the target: Apache-2.0 weights, MIT/both code, and
-  the fallback has no licence question at all.
 - **Negative:** the fallback is **not** semantic — it recognises a handful of hand-written audio
   concepts, so its tags and rankings say nothing about real music. Every result carries
   `bragi-concept-basis-1` and a low-confidence flag so nothing is mistaken for CLAP output.
 - **Negative:** until the owner supplies the checkpoint (and its hash), the eval set and trained
   heads, the two gates cannot be decided and text search / zero-shot tagging stay unproven on real
   audio (Q32/Q17).
-- **Open:** whether the CLAP checkpoint is trained on data whose terms a commercial launch is
-  comfortable with (Q6); the MERT/MuQ secondary embedding is a WP-3.1 spike.
+- **Open:** the MERT/MuQ secondary embedding is a WP-3.1 spike.

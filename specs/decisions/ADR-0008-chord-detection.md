@@ -9,24 +9,23 @@
 ## Context
 
 [04 §5.3](../04-analysis-pipeline.md) asks for key estimation from beat-synchronous chroma of the
-harmonic stems, a **neural chord recogniser** ("candidate: a transformer chord model, licence
-verified in WP-1.5"), roman numerals and a key-invariant `progressionFingerprint`, and it cautions
-that "some well-known key/chord tools are AGPL/GPL or non-commercial". The gate is chord accuracy
+harmonic stems, a **neural chord recogniser** ("candidate: a transformer chord model"), roman
+numerals and a key-invariant `progressionFingerprint`. The gate is chord accuracy
 (majmin) ≥ 0.70 and key accuracy ≥ 0.80 on the eval set ([04 §8](../04-analysis-pipeline.md)).
 
 Constraints: no CUDA GPU here (13 §3); the eval set does not exist yet (Q32), so no candidate can be
-compared on real music; weights must be permissively licensed, pinned by hash and never downloaded
+compared on real music; weights must be pinned by hash and never downloaded
 at runtime (04 §9); and `pnpm verify` must stay fast and CPU-only.
 
 ## Options considered
 
-| Option | Code licence | Weights licence | Pros | Cons |
-|---|---|---|---|---|
-| **Weight-free chroma templates + Viterbi (adopted v1)** | ours (in-repo) | none | No weights, no torch, CPU-only, deterministic, permissive; testable on synthetic signals with exact ground truth; key-invariance holds by construction | Accuracy on real music unmeasured; root-position templates only (no slash bass, limited tension); the gates stay PENDING |
-| BTC (Bidirectional Transformer for Chord recognition) | MIT | to verify | Strong majmin accuracy in the literature | Needs `torch` plus a pinned checkpoint; weights licence to verify; only worth adopting once the eval set can compare it |
-| ChordFormer / Jamendo-trained chord models | to verify | often CC-BY-NC or unclear | Possibly better on pop/rock | A non-commercial weights licence is rejected by 04 §9 |
-| madmom chord models (CNN + DBN) | BSD-3-Clause | CC BY-NC-SA 4.0 (non-commercial) | Classic, well documented | **Rejected**: non-commercial weights — the same reason madmom was rejected for beats in [ADR-0007](ADR-0007-beat-tracking.md) |
-| `librosa` chroma + templates | ISC | none | Familiar API | A new major dependency for what the existing STFT (`dsp/features.py`) already provides |
+| Option | Pros | Cons |
+|---|---|---|
+| **Weight-free chroma templates + Viterbi (adopted v1)** | No weights, no torch, CPU-only, deterministic; testable on synthetic signals with exact ground truth; key-invariance holds by construction | Accuracy on real music unmeasured; root-position templates only (no slash bass, limited tension); the gates stay PENDING |
+| BTC (Bidirectional Transformer for Chord recognition) | Strong majmin accuracy in the literature | Needs `torch` plus a pinned checkpoint; only worth adopting once the eval set can compare it |
+| ChordFormer / Jamendo-trained chord models | Possibly better on pop/rock | Needs `torch` plus a pinned checkpoint; a candidate for the bake-off |
+| madmom chord models (CNN + DBN) | Classic, well documented | Older; a candidate for the bake-off |
+| `librosa` chroma + templates | Familiar API | A new major dependency for what the existing STFT (`dsp/features.py`) already provides |
 
 ## Decision
 
@@ -49,7 +48,7 @@ at runtime (04 §9); and `pnpm verify` must stay fast and CPU-only.
 ## Consequences
 
 Positive: no weights to pin or download, runs on CPU in well under a second for a 4-minute song,
-permissive throughout, deterministic and unit-testable; key-invariance is structural rather than
+deterministic and unit-testable; key-invariance is structural rather than
 learned.
 
 Negative / risks:
@@ -68,7 +67,6 @@ Negative / risks:
 
 1. Score `harmony@chroma-template-1` on `fixtures/eval/` with `mir_eval.chord.evaluate(...)["majmin"]`
    (chord accuracy, duration-weighted) and a key-accuracy count, and record the gate verdicts.
-2. Compare at least one loading neural recogniser (BTC or similar) with a permissively licensed,
+2. Compare at least one loading neural recogniser (BTC, ChordFormer, madmom or similar) with a
    hash-pinned checkpoint; pick the winner and set the stage version.
-3. Check the weights licence of any adopted model with the owner (Q6/Q40).
-4. Update this ADR with the numbers and set Accepted.
+3. Update this ADR with the numbers and set Accepted.

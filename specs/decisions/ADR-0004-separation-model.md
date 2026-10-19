@@ -7,7 +7,7 @@
 
 > **What this ADR is not.** The bake-off required by [04 §4, §8](../04-analysis-pipeline.md) runs on
 > the owner's eval set, which does not exist yet. **No separation-quality number (SDR) is
-> claimed here.** The decision below is a *provisional default* chosen on licence, availability,
+> claimed here.** The decision below is a *provisional default* chosen on availability,
 > speed and operational simplicity, and it stays Proposed until the eval-set bake-off (procedure at
 > the end) has been run. Reference-GPU timing is likewise unmeasured.
 
@@ -25,12 +25,12 @@ only = model + stitching; "capability total" = the whole `analysis.separation` r
 decode/encode and resampling. Single runs, not averaged; the first MPS figure of 44 s was taken
 while other work was running on the machine and is not representative.
 
-| Option | Code / weights licence | Size | 4 min, MPS | 4 min, CPU | Peak RSS | Notes |
-|---|---|---|---|---|---|---|
-| **`htdemucs_6s`** | MIT / MIT as published, training data unclear | 27.4 M params, 52 MiB | 22.0 and 24.5 s separation (2 runs); **29.9 s capability total** | 107.5 s separation; **79.5 s capability total** | 3.8 to 4.2 GiB (MPS), 4.5 GiB (CPU) | 6 stems; upstream: piano/guitar are weak |
-| `htdemucs` (4 stems) | MIT / same | 42.0 M params, 80 MiB | 23.7 s | 108.6 s | 3.3 GiB / 4.0 GiB | no guitar/piano stems; same cost as 6s |
-| `htdemucs_ft` (bag of 4) | MIT / same | 4 x 80 MiB | 90.9 s | not run | 4.1 GiB | ~4x compute; claims a small SDR gain upstream, unverified here |
-| Mel-Band RoFormer (vocals), `KimberleyJSN/melbandroformer` | MIT (`bs-roformer`) / HF tag `license:mit` | 240 M params, 913 MB | 256.7 s for 34 chunks of 8 s, **random weights** | not run | n/a | **The checkpoint did not load** into `bs-roformer` 1.2.4 (498 missing / 120 unexpected keys, version drift), so only the architecture was timed. Vocals/instrumental only. ~10x slower than HTDemucs on MPS |
+| Option | Size | 4 min, MPS | 4 min, CPU | Peak RSS | Notes |
+|---|---|---|---|---|---|
+| **`htdemucs_6s`** | 27.4 M params, 52 MiB | 22.0 and 24.5 s separation (2 runs); **29.9 s capability total** | 107.5 s separation; **79.5 s capability total** | 3.8 to 4.2 GiB (MPS), 4.5 GiB (CPU) | 6 stems; upstream: piano/guitar are weak |
+| `htdemucs` (4 stems) | 42.0 M params, 80 MiB | 23.7 s | 108.6 s | 3.3 GiB / 4.0 GiB | no guitar/piano stems; same cost as 6s |
+| `htdemucs_ft` (bag of 4) | 4 x 80 MiB | 90.9 s | not run | 4.1 GiB | ~4x compute; claims a small SDR gain upstream, unverified here |
+| Mel-Band RoFormer (vocals), `KimberleyJSN/melbandroformer` | 240 M params, 913 MB | 256.7 s for 34 chunks of 8 s, **random weights** | not run | n/a | **The checkpoint did not load** into `bs-roformer` 1.2.4 (498 missing / 120 unexpected keys, version drift), so only the architecture was timed. Vocals/instrumental only. ~10x slower than HTDemucs on MPS |
 
 What the numbers do and do not say:
 
@@ -48,7 +48,7 @@ What the numbers do and do not say:
 1. **Adopt `htdemucs_6s` as the v1 separation default**, as 04 §4 already assumes, with `htdemucs`
    as a configured fallback. Weights are pinned by revision and SHA-256 in
    `analysis/src/bragi_analysis/separation/models_lock.json` and fetched at image build.
-2. **Depend on `torch` and `demucs`** (4.1.0, MIT), in a non-default uv dependency group
+2. **Depend on `torch` and `demucs`** (4.1.0), in a non-default uv dependency group
    (`models`) so `pnpm verify` stays light and CPU-only. Use `demucs` for the network
    definition only; chunking, crossfade, resampling, residual and silent-stem logic are Bragi's own
    (`separation/pipeline.py`) so they are testable without a model and independent of Demucs' own
@@ -65,18 +65,15 @@ What the numbers do and do not say:
 
 ## Consequences
 
-Positive: permissive code licence, small weights, CPU fallback at 0.33x real time, CUDA/MPS/CPU
+Positive: small weights, CPU fallback at 0.33x real time, CUDA/MPS/CPU
 selected automatically, weights verified before load, no runtime network access.
 
 Negative / risks:
 
-- **Weights licence is not stated separately and the training data (MUSDB18-HQ plus an
-  undocumented 800-song set) has unclear commercial terms.** Flagged in MODELS.md and Q40; it needs
-  an owner decision before any commercial launch. If it blocks, the replacement path is a
-  permissively trained alternative (candidate set to be found), and the stage version string lets
-  old projects keep their stems.
-- `lameenc` (LGPL-3.0-or-later) comes in through `demucs` although it is never called. Options: keep
-  (dynamic wheel), or vendor only the network code. Q41.
+- `lameenc` comes in through `demucs` although it is never called. Options: keep it, or vendor
+  only the network code.
+- Any better separation model (including those previously held back) is a candidate for the
+  bake-off below; the stage version string lets old projects keep their stems.
 - `piano` and `guitar` stems are weak upstream; the UI should not promise more than "experimental".
 - The linux torch wheel bundles CUDA, so the image is large; a CPU-only image would need a torch
   index override.
@@ -91,5 +88,4 @@ Negative / risks:
    `htdemucs_ft` and at least one loading RoFormer vocal checkpoint through the same pipeline.
 2. Report per-stem SDR where multitracks exist (04 §8 says "report only") plus a blind listening
    pass on vocals and drums for the rest, and the time per 4-min song on the reference GPU.
-3. Check the weights-licence question (Q40) with the owner.
-4. Update this ADR with the numbers, set Accepted, and bump `stageVersion` if the model changes.
+3. Update this ADR with the numbers, set Accepted, and bump `stageVersion` if the model changes.

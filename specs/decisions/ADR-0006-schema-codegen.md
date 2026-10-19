@@ -45,10 +45,10 @@ that single artifact:
 
 | Language | Generator | Output | Deps |
 |---|---|---|---|
-| TypeScript types | `json-schema-to-typescript` | `packages/schemas/src/generated/types.ts` | `json-schema-to-typescript` (MIT, **dev**) |
-| TypeScript validators | Ajv 2020-12, standalone (precompiled) | `packages/schemas/src/generated/ajv-validators.js` + a typed façade | `ajv` (MIT, **runtime**: the precompiled module imports Ajv's CommonJS `ucs2length` helper) |
-| Rust | `typify` **0.8**, driven by `crates/bragi-schemas-codegen` | `crates/bragi-model/src/generated/mod.rs` | `typify`, `schemars` 0.8, `syn`, `prettyplease` (MIT/Apache-2.0, **codegen binary only**); `serde`, `serde_json`, `regress` (MIT/Apache-2.0, **runtime** in `bragi-model`) |
-| Python | `datamodel-code-generator` → Pydantic v2 | `services/workers/bragi_common/src/bragi_common/generated/models.py` | `datamodel-code-generator` (MIT, **dev**); `pydantic` (MIT, **runtime**) |
+| TypeScript types | `json-schema-to-typescript` | `packages/schemas/src/generated/types.ts` | `json-schema-to-typescript` (**dev**) |
+| TypeScript validators | Ajv 2020-12, standalone (precompiled) | `packages/schemas/src/generated/ajv-validators.js` + a typed façade | `ajv` (**runtime**: the precompiled module imports Ajv's CommonJS `ucs2length` helper) |
+| Rust | `typify` **0.8**, driven by `crates/bragi-schemas-codegen` | `crates/bragi-model/src/generated/mod.rs` | `typify`, `schemars` 0.8, `syn`, `prettyplease` (**codegen binary only**); `serde`, `serde_json`, `regress` (**runtime** in `bragi-model`) |
+| Python | `datamodel-code-generator` → Pydantic v2 | `services/workers/bragi_common/src/bragi_common/generated/models.py` | `datamodel-code-generator` (**dev**); `pydantic` (**runtime**) |
 
 Supporting decisions, each forced by "the three generators must name things identically and none of
 them may silently change a value":
@@ -86,7 +86,7 @@ them may silently change a value":
   validator (~850 KB, unminified). Mitigation: it is generated once and served as a static asset;
   if bundle size ever matters, WP-0.5 can split it per root type (which would duplicate the shared
   `$defs`, so it is a trade-off to measure, not a free win).
-- *Four codegen dependencies to track.* Mitigation: all are permissive (MIT / Apache-2.0), all are
+- *Four codegen dependencies to track.* Mitigation: all are
   pinned, and `pnpm schemas:check` fails loudly when a generator's output changes, so an upgrade is
   visible in the diff.
 - *Generated code cannot satisfy every lint.* `bragi-model/src/generated/mod.rs` carries

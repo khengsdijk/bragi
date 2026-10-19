@@ -1,6 +1,6 @@
 # ADR-0007 — Beat tracking: Beat This! on optional CPU-capable PyTorch, with a weight-free fallback
 
-- **Status:** Proposed (the technical result is measured; the owner signs off the dependency and the licence reading)
+- **Status:** Proposed (the technical result is measured; the owner signs off the dependency)
 - **Date:** 2026-10-19
 - **Decider:** Koen
 - **Work package:** WP-1.2
@@ -14,18 +14,18 @@ Python workers — a major dependency that [13 §1](../13-agent-guide.md) says n
 (separation) will add `torch` as well, so the *dependency* is shared; this ADR records the beat
 tracker choice and the way it is wired.
 
-Constraints: the model must be commercially usable ([04 §9](../04-analysis-pipeline.md)); GPU code
+Constraints: GPU code
 must also run on CPU ([13 §3](../13-agent-guide.md)) so the CPU gate stays meaningful; weights are
 pinned by hash and never downloaded at runtime; and `pnpm verify` must stay fast.
 
 ## Options considered
 
-| Option | Code licence | Weights licence | Pros | Cons |
-|---|---|---|---|---|
-| **Beat This!** (`beat-this` 1.1, CPJKU) | MIT | MIT | State of the art at ISMIR 2024; beats and downbeats in one pass; no DBN post-processing needed (`dbn=False`), so no madmom; runs on CPU (measured below) | Needs `torch`; the README warns that some *training* files are copyrighted or under limited CC licences, so a commercial launch should confirm it is comfortable with that |
-| madmom (RNN + DBN) | BSD-3-Clause | CC BY-NC-SA 4.0 (non-commercial) | Classic baseline | Non-commercial weights: unusable past personal use ([04 §9](../04-analysis-pipeline.md)) |
-| All-In-One (beats + downbeats + segments) | open | to verify | Jointly gives structure ([04 §5.2](../04-analysis-pipeline.md)) | Heavier; depends on madmom's DBN for its beat output; its fit belongs to WP-1.4's structure bake-off |
-| Own DSP tracker only (flux + autocorrelation + DP) | ours | none | No weights, no torch | Cannot reach 0.85 on real music; no robust downbeats |
+| Option | Pros | Cons |
+|---|---|---|
+| **Beat This!** (`beat-this` 1.1, CPJKU) | State of the art at ISMIR 2024; beats and downbeats in one pass; no DBN post-processing needed (`dbn=False`), so no madmom; runs on CPU (measured below) | Needs `torch` |
+| madmom (RNN + DBN) | Classic baseline | Older; a candidate for the beat bake-off against Beat This! |
+| All-In-One (beats + downbeats + segments) | Jointly gives structure ([04 §5.2](../04-analysis-pipeline.md)) | Heavier; depends on madmom's DBN for its beat output; its fit belongs to WP-1.4's structure bake-off |
+| Own DSP tracker only (flux + autocorrelation + DP) | No weights, no torch | Cannot reach 0.85 on real music; no robust downbeats |
 
 ## Decision
 
@@ -48,7 +48,7 @@ pinned by hash and never downloaded at runtime; and `pnpm verify` must stay fast
 
 ## Consequences
 
-- Positive: a commercially usable beat model on CPU. Measured on an M-series Mac CPU, a 4-minute
+- Positive: a beat model that runs on CPU. Measured on an M-series Mac CPU, a 4-minute
   stereo file takes **5.5 s** for `rhythm` (Beat This!), against a **0.5 s** DSP fallback. The whole `quick`-profile trio (`ingest` + `loudness_energy` +
   `rhythm`) is ~9 s on a laptop CPU, inside the < 15 s budget of
   [04 §3](../04-analysis-pipeline.md) (which assumes a GPU).
@@ -58,5 +58,3 @@ pinned by hash and never downloaded at runtime; and `pnpm verify` must stay fast
   fallback everywhere and Beat This! when `BRAGI_TEST_WEIGHTS=1`.
 - Negative: Beat This! produces no confidence, so `confidence` is a regularity heuristic
   ([04 §5.1](../04-analysis-pipeline.md) note); revisit when the eval set can calibrate it.
-- Open: whether the training-data caveat is acceptable for a commercial launch (Q6 decides whether
-  there is one); recorded in `services/workers/MODELS.md` and Q34.

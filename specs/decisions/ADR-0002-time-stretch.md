@@ -18,13 +18,13 @@ vocoder, and Rubber Band — and lands the trait with at least one real implemen
 
 ## Options considered
 
-| # | Candidate | Licence | Verdict |
-|---|---|---|---|
-| 1 | **Pure-Rust phase vocoder** (`bragi-dsp::stretch::PhaseVocoder`) | our own code; `realfft` MIT, `rustfft` MIT/Apache-2.0 | **Chosen as the always-present implementation.** Zero build risk, compiles to every target including `wasm32-unknown-unknown` with no toolchain beyond `rustc`, allocation moved to the constructor. |
-| 2 | **Signalsmith Stretch** (C++, via the `signalsmith-stretch` crate) | MIT (library and binding) | **Built and benchmarked natively; held for offline `Render` pending the listening check.** Native build works (needs a C++ compiler + libclang). Quality and CPU are on par with the vocoder on the drum fixture. The wasm build is possible but costly — see below — so it is kept in the lab, not shipped. |
-| 3 | **Rubber Band** | GPL-2.0-or-later **or** a paid commercial licence | **Rejected on licence.** Per [Q6](../15-open-questions.md) Bragi may become commercial; shipping GPL code would force the whole app under GPL, and the commercial licence is a recurring cost. Not built. |
-| 4 | `timestretch` (crates.io, pure-Rust SOLA keylock) | MIT/Apache-2.0 | Considered as the "existing crate" baseline. It is a SOLA engine (no pitch shift), fixates window sizes and its own latency, and does not accept the pull model; a 0.15.x single-maintainer crate is more surface than the ~400 lines of vocoder we control. Not adopted. |
-| 5 | `cute-dsp` (0.0.x pure-Rust port of the Signalsmith DSP library) | MIT | Considered. It is an unreleased 0.0.x port with no stability promise; adopting it trades the C++ toolchain for an unfinished dependency. Not adopted. |
+| # | Candidate | Verdict |
+|---|---|---|
+| 1 | **Pure-Rust phase vocoder** (`bragi-dsp::stretch::PhaseVocoder`) | **Chosen as the always-present implementation.** Zero build risk, compiles to every target including `wasm32-unknown-unknown` with no toolchain beyond `rustc`, allocation moved to the constructor. |
+| 2 | **Signalsmith Stretch** (C++, via the `signalsmith-stretch` crate) | **Built and benchmarked natively; held for offline `Render` pending the listening check.** Native build works (needs a C++ compiler + libclang). Quality and CPU are on par with the vocoder on the drum fixture. The wasm build is possible but costly — see below — so it is kept in the lab, not shipped. |
+| 3 | **Rubber Band** | **Not built yet; a candidate for the quality bake-off.** |
+| 4 | `timestretch` (crates.io, pure-Rust SOLA keylock) | Considered as the "existing crate" baseline. It is a SOLA engine (no pitch shift), fixates window sizes and its own latency, and does not accept the pull model; a 0.15.x single-maintainer crate is more surface than the ~400 lines of vocoder we control. Not adopted. |
+| 5 | `cute-dsp` (0.0.x pure-Rust port of the Signalsmith DSP library) | Considered. It is an unreleased 0.0.x port with no stability promise; adopting it trades the C++ toolchain for an unfinished dependency. Not adopted. |
 
 ### Signalsmith on `wasm32-unknown-unknown`
 
@@ -119,7 +119,7 @@ until this section exists.
   adopt Signalsmith for offline renders.
 - **Phasiness** on long tonal material (a known vocoder artefact); phase locking reduces it but
   does not remove it.
-- **New dependency** `realfft` (with `rustfft` transitively) for the FFT — pure Rust, MIT, builds
+- **New dependency** `realfft` (with `rustfft` transitively) for the FFT — pure Rust, builds
   for `wasm32-unknown-unknown`. No other dependency is added.
 - **Pitch shift resamples** the source, so transposing up can alias content above
   `0.5 · sample_rate / pitch`; acceptable for the ±24 semitone range, and documented here.

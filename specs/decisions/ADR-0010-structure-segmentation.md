@@ -16,23 +16,23 @@ hit-rate ≥ 0.70 and label accuracy ≥ 0.60, plus a `repeatGroup` check on son
 
 Three constraints shape the choice:
 
-- **No permissive labelled training data** is available in this environment to train a boundary
+- **No labelled training data** is available in this environment to train a boundary
   model or a label classifier.
 - **No CUDA** (macOS arm64), and the eval set does not exist yet ([15](../15-open-questions.md) Q32),
   so nothing can be calibrated or gated against real music here.
 - A **new major dependency needs an ADR** ([13 §1](../13-agent-guide.md)), and model weights must
-  be licence-clear and pinned ([04 §9](../04-analysis-pipeline.md)).
+  be pinned ([04 §9](../04-analysis-pipeline.md)).
 
 An `analysis.structure` capability must still ship: it feeds the canvas sections and
 `analysis.apply`'s `sections` effect ([02 §6](../02-song-model.md)).
 
 ## Options considered
 
-| Option | Code | Weights | Deps added | Verdict |
-|---|---|---|---|---|
-| **All-In-One** (`mir-aidj/all-in-one`) | MIT | **No weights licence is stated** anywhere in the repo (treated as *unclear*) | `natten` (CUDA build friction on CPU/macOS), `demucs`, `madmom` (BSD code, but its own models are non-commercial), `librosa`, `hydra` | Not integrated in v1. The unclear weights licence alone blocks a commercial path; the dependency drag and the CUDA-oriented build make it a poor fit for the CPU gate. Kept as the v2 upgrade target (Q44). |
-| Train a boundary model + label classifier ourselves | ours | n/a | `torch` | Out of scope: no permissive labelled section data here, and training belongs to a data WPs, not WP-1.4. |
-| **Self-similarity + novelty segmentation + repetition grouping** on beat-synchronous chroma/timbre/energy (Foote 2000; McFee & Ellis / Serra et al. lineage) | ours | none | none (NumPy/SciPy, already deps) | **Chosen for v1.** It *is* the machinery 04 §5.2 prescribes for `repeatGroup`, applied to boundaries as well; it needs no weights, so it runs on CPU in `pnpm verify` and can decide a gate the moment real music exists. |
+| Option | Deps added | Verdict |
+|---|---|---|
+| **All-In-One** (`mir-aidj/all-in-one`) | `natten` (CUDA build friction on CPU/macOS), `demucs`, `madmom`, `librosa`, `hydra` | Not integrated in v1: the dependency drag and the CUDA-oriented build make it a poor fit for the CPU gate. Kept as the v2 upgrade target and a bake-off candidate (Q44). |
+| Train a boundary model + label classifier ourselves | `torch` | Out of scope: no labelled section data here, and training belongs to a data WPs, not WP-1.4. |
+| **Self-similarity + novelty segmentation + repetition grouping** on beat-synchronous chroma/timbre/energy (Foote 2000; McFee & Ellis / Serra et al. lineage) | none (NumPy/SciPy, already deps) | **Chosen for v1.** It *is* the machinery 04 §5.2 prescribes for `repeatGroup`, applied to boundaries as well; it needs no weights, so it runs on CPU in `pnpm verify` and can decide a gate the moment real music exists. |
 
 ## Decision
 
@@ -61,7 +61,7 @@ An `analysis.structure` capability must still ship: it feeds the canvas sections
 
 ## Consequences
 
-- **Positive:** no model weights, no licence question, no GPU; the stage runs in `pnpm verify` and
+- **Positive:** no model weights, no GPU; the stage runs in `pnpm verify` and
   on any CPU. It lands the `repeatGroup` mechanism 04 §5.2 asks for, which a later model can reuse.
 - **Positive:** the model vocabulary → `SectionKind` mapping and the bounding/snapping/grouping
   layers are isolated, so swapping in an All-In-One-class segmenter is a new module plus a
