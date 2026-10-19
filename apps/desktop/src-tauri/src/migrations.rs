@@ -25,11 +25,18 @@ pub struct Migration {
 }
 
 /// Every migration this app knows, oldest first.
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "projects",
-    sql: include_str!("../../../../packages/schemas/sqlite/migrations/001_projects.sql"),
-}];
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "projects",
+        sql: include_str!("../../../../packages/schemas/sqlite/migrations/001_projects.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "library",
+        sql: include_str!("../../../../packages/schemas/sqlite/migrations/002_library.sql"),
+    },
+];
 
 /// The bookkeeping table, byte-for-byte the browser's.
 const BOOKKEEPING: &str = "CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -221,7 +228,7 @@ mod tests {
     #[test]
     fn creates_the_local_schema_and_records_it() {
         let mut connection = in_memory();
-        assert_eq!(apply(&mut connection).expect("applies"), vec![1]);
+        assert_eq!(apply(&mut connection).expect("applies"), vec![1, 2]);
         let columns: Vec<String> = {
             let mut statement = connection
                 .prepare("SELECT name FROM pragma_table_info('projects') ORDER BY cid")
@@ -233,14 +240,29 @@ mod tests {
         };
         assert_eq!(
             columns,
-            vec!["id", "title", "created_at", "updated_at", "deleted_at"]
+            vec![
+                "id",
+                "title",
+                "created_at",
+                "updated_at",
+                "deleted_at",
+                "snapshot_hash",
+                "asset_hash"
+            ]
         );
-        let recorded: (u32, String) = connection
-            .query_row("SELECT version, name FROM schema_migrations", [], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            })
-            .expect("a bookkeeping row");
-        assert_eq!(recorded, (1, "projects".to_owned()));
+        let recorded: Vec<(u32, String)> = {
+            let mut statement = connection
+                .prepare("SELECT version, name FROM schema_migrations ORDER BY version")
+                .expect("prepare");
+            let rows = statement
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .expect("query");
+            rows.collect::<Result<Vec<_>, _>>().expect("rows")
+        };
+        assert_eq!(
+            recorded,
+            vec![(1, "projects".to_owned()), (2, "library".to_owned())]
+        );
     }
 
     #[test]

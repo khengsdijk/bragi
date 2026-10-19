@@ -110,6 +110,24 @@ describe("runMigrations", () => {
       "created_at",
       "updated_at",
       "deleted_at",
+      // 002_library.sql: the document snapshot and the uploaded audio (finding 8).
+      "snapshot_hash",
+      "asset_hash",
+    ]);
+    // The library table arrives with the same migration.
+    const library = await db.query(
+      "SELECT name FROM pragma_table_info('library_items') ORDER BY cid",
+    );
+    expect(library.map((c) => c.name)).toEqual([
+      "id",
+      "asset_hash",
+      "filename",
+      "title",
+      "artist",
+      "album",
+      "imported_at",
+      "project_id",
+      "hidden",
     ]);
   });
 });

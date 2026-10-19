@@ -37,6 +37,8 @@ export async function createTauriPlatform(options: TauriPlatformOptions): Promis
     // The webview's own file input (WKWebView/WebView2/WebKitGTK all show the
     // native panel for it). Native folder pick + watched folders: library import.
     fileAccess: createInputFileAccess(document),
+    // Dev default; the "compute server" setting (05 §10) will supply this later.
+    api: { baseUrl: "http://127.0.0.1:8080", credential: "bearer" },
     createEngine: () => createTauriEngineHost({ invoke: ipc }),
   };
 }

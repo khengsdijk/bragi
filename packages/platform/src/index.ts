@@ -52,6 +52,7 @@ export type {
   PickedFile,
   PickFilesOptions,
   Platform,
+  PlatformApi,
   PlatformKind,
   Row,
   RunResult,

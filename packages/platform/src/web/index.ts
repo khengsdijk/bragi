@@ -36,6 +36,7 @@ export async function createWebPlatform(options: WebPlatformOptions): Promise<Pl
     localDb: storage.localDb,
     blobCache: storage.blobCache,
     fileAccess: createInputFileAccess(document),
+    api: { baseUrl: "", credential: "cookie" },
     ...(options.engine
       ? {
           createEngine: () =>

@@ -94,6 +94,17 @@ export interface FileAccess {
 /** Which adapter set is active. For diagnostics only — the app must not branch on it. */
 export type PlatformKind = "web" | "desktop" | "memory";
 
+/**
+ * Where the app reaches the Bragi API and how it authenticates (01 §3, 05 §8).
+ * `baseUrl: ""` means the same origin (the web build is proxied by Vite in dev
+ * and by the CDN in production); the desktop webview uses an absolute URL.
+ */
+export interface PlatformApi {
+  readonly baseUrl: string;
+  /** `"cookie"` on web; `"bearer"` for a desktop client that cannot hold a session cookie. */
+  readonly credential: "cookie" | "bearer";
+}
+
 /** Everything the app gets from its host. */
 export interface Platform {
   readonly kind: PlatformKind;
@@ -106,6 +117,8 @@ export interface Platform {
    * gesture on the web, so the browser lets the audio context start.
    */
   readonly createEngine?: () => Promise<EngineHost>;
+  /** The API endpoint and credential mode (05 §2). Omitted by in-memory/test hosts. */
+  readonly api?: PlatformApi;
 }
 
 /** One file from `packages/schemas/sqlite/migrations`, named `NNN_name.sql` (05 §7). */
