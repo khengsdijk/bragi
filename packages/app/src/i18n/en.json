@@ -95,5 +95,9 @@
   "library.signIn.email": "Email",
   "library.signIn.send": "Send me a sign-in link",
   "library.signIn.sent": "Check your email for the sign-in link.",
-  "library.signIn.failed": "We could not send the link."
+  "library.signIn.failed": "We could not send the link.",
+  "history.branchRequired": "Give this branch a name.",
+  "history.branchTooLong": "Keep the branch name under 64 characters.",
+  "history.branchInvalid": "Branch names cannot contain a colon.",
+  "history.snapshotMissing": "We could not find the saved version."
 }

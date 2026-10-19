@@ -13,6 +13,8 @@ export interface ModelApi {
   readonly validateDoc: typeof ModelWasm.validateDoc;
   readonly applyBatch: typeof ModelWasm.applyBatch;
   readonly documentJson: typeof ModelWasm.documentJson;
+  readonly canonicalJson: typeof ModelWasm.canonicalJson;
+  readonly commitId: typeof ModelWasm.commitId;
   readonly diffDocs: typeof ModelWasm.diffDocs;
   readonly freeDoc: typeof ModelWasm.freeDoc;
   /** How many handles are live; the tests use it to prove nothing leaks. */
