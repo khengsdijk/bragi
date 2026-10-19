@@ -158,6 +158,32 @@ describe("history store", () => {
     expect(await fixture.history.redo()).toBeNull();
   });
 
+  it("chains overlapping commits and undos in call order", async () => {
+    const fixture = await openFixture();
+    await fixture.history.load();
+    const root = fixture.history.store.getState().head;
+    const [first, second, third] = await Promise.all([
+      fixture.history.commit(
+        batch([{ op: "track.update", trackId: "trk_bass", patch: { mute: true } }], "Mute Bass"),
+      ),
+      fixture.history.commit(
+        batch([{ op: "track.update", trackId: "trk_pads", patch: { gainDb: -2 } }], "Quieter pads"),
+      ),
+      fixture.history.undo(),
+    ]);
+    expect([first.ok, second.ok, third?.ok]).toEqual([true, true, true]);
+
+    const state = fixture.history.store.getState();
+    const [bass, pads] = [...state.commits.values()].filter((commit) => commit.parent !== null);
+    expect(bass?.parent).toBe(root);
+    expect(pads?.parent).toBe(bass?.id);
+    // The undo ran last, so HEAD is the first edit and its snapshot holds only that edit.
+    expect(state.head).toBe(bass?.id);
+    const doc = document(fixture);
+    expect(doc.tracks.find((track) => track.id === "trk_bass")?.mute).toBe(true);
+    expect(doc.tracks.find((track) => track.id === "trk_pads")?.gainDb).not.toBe(-2);
+  });
+
   it("branches naturally from a non-tip commit", async () => {
     const fixture = await openFixture();
     await fixture.history.load();

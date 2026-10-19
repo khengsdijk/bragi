@@ -161,6 +161,23 @@ export function createHistory(options: HistoryOptions): History {
 
   const view = (): HistoryState => store.getState();
 
+  /** The tail of the operation queue: see {@link serial}. */
+  let tail: Promise<unknown> = Promise.resolve();
+
+  /**
+   * Runs `task` after every operation queued before it.
+   *
+   * Every operation reads HEAD and the live document and then awaits storage, so two
+   * overlapping ones (a slider release and a shortcut, or an analysis stage landing during an
+   * edit) would both take the same parent and snapshot each other's changes. Queuing keeps the
+   * apply order equal to the call order and every parent exact.
+   */
+  function serial<T>(task: () => Promise<T>): Promise<T> {
+    const run = tail.then(task, task);
+    tail = run.catch(() => undefined);
+    return run;
+  }
+
   /**
    * The next ISO timestamp. The clock can be coarse or fixed (tests inject one),
    * and the panel orders by `created_at`; this keeps siblings in insertion order.
@@ -322,10 +339,8 @@ export function createHistory(options: HistoryOptions): History {
     publish({ head: commit.id, canUndo: false, canRedo: false });
   }
 
-  const history: History = {
-    store,
-    deviceId: () => deviceId,
-
+  /** The operations themselves, unqueued; they call each other directly. */
+  const direct: Omit<History, "store" | "deviceId"> = {
     async load() {
       await ensureLoaded(true);
     },
@@ -588,11 +603,29 @@ export function createHistory(options: HistoryOptions): History {
         ops: [{ op: "region.adopt", fromCommit, region }],
         createdAt: timestamp(),
       };
-      return history.commit(batch);
+      return direct.commit(batch);
     },
   };
 
-  return history;
+  return {
+    store,
+    deviceId: () => deviceId,
+    load: () => serial(() => direct.load()),
+    commit: (batch, options) => serial(() => direct.commit(batch, options)),
+    recordRoot: (batch) => serial(() => direct.recordRoot(batch)),
+    undo: () => serial(() => direct.undo()),
+    redo: () => serial(() => direct.redo()),
+    checkout: (id) => serial(() => direct.checkout(id)),
+    nameBranch: (name, id) => serial(() => direct.nameBranch(name, id)),
+    renameBranch: (oldName, newName) => serial(() => direct.renameBranch(oldName, newName)),
+    deleteBranch: (name) => serial(() => direct.deleteBranch(name)),
+    star: (id) => serial(() => direct.star(id)),
+    unstar: (id) => serial(() => direct.unstar(id)),
+    addCandidates: (batches, group) => serial(() => direct.addCandidates(batches, group)),
+    accept: (id) => serial(() => direct.accept(id)),
+    discardGroup: (group) => serial(() => direct.discardGroup(group)),
+    adoptRegion: (region, fromCommit) => serial(() => direct.adoptRegion(region, fromCommit)),
+  };
 }
 
 /**
