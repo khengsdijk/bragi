@@ -161,7 +161,7 @@ def click_train(seconds: float, sample_rate: int, per_second: float = 3.0) -> np
 
 
 def synthetic_stems(sample_rate: int, seconds: float) -> dict[str, np.ndarray]:
-    """A hand-made drum/bass/vocal/chord quartet (licence-free, generated)."""
+    """A hand-made drum/bass/vocal/chord quartet (generated)."""
     return {
         "drums": click_train(seconds, sample_rate),
         "bass": sine(seconds, sample_rate, 55.0, 0.6),

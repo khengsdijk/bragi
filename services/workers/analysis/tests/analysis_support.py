@@ -1,4 +1,4 @@
-"""Shared fixtures: a fake job context and generated, licence-clean audio.
+"""Shared fixtures: a fake job context and generated audio.
 
 Every signal here is synthesised by the test (sines, noise, click tracks), so no
 audio file is checked in (13 §1.7).

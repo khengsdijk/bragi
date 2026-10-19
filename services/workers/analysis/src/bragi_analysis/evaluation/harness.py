@@ -60,7 +60,8 @@ class EvalTrack(BaseModel):
     #: File name inside the fetched audio directory.
     file: str
     audioSha256: str  # noqa: N815 - the manifest's field name
-    licence: str
+    #: Where the track came from (free text, optional).
+    source: str | None = None
     genre: str | None = None
     labels: LabelFiles
 

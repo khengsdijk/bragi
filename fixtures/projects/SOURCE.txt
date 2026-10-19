@@ -1,19 +1,16 @@
-Licence register for fixtures/projects
-======================================
+Source register for fixtures/projects
+=====================================
 
 Everything in this directory is original JSON written for this repository. There
 is no audio, lyrics, artwork or third-party dataset here: the documents use
-invented titles, labels, IDs and hashes. They may be copied, modified and
-redistributed under the same terms as the rest of the repository
-(`"license": "UNLICENSED"` in the root package.json), and they are NOT derived
-from any copyrighted recording. See specs/10-fusion.md §7 and
+invented titles, labels, IDs and hashes, and they are NOT derived from any
+copyrighted recording. See specs/10-fusion.md §7 and
 specs/13-agent-guide.md §1.
 
 Format:
 
   <filename>
     Origin:  written for this repository
-    Licence: same as the repository (UNLICENSED)
     Notes:   what it is for
 
 Entries
@@ -21,12 +18,10 @@ Entries
 
 example-02-10.json
     Origin:  written for this repository
-    Licence: same as the repository (UNLICENSED)
     Notes:   the example document in specs/02-song-model.md §10; the TypeScript
              contract test asserts the Markdown block and this file are equal
 
 invalid-cases.json
     Origin:  written for this repository
-    Licence: same as the repository (UNLICENSED)
     Notes:   mutations of the examples above, each rejected by the languages in
              its "checkedBy" list

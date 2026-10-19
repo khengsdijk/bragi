@@ -4,8 +4,8 @@
 //! cargo run --manifest-path crates/bragi-dsp/stretch-lab/lab/Cargo.toml --bin gen-fixtures
 //! ```
 //!
-//! Everything here is generated, so the fixtures are licence-clean; add an entry to
-//! `fixtures/audio/LICENSE.txt` when a new file is added.
+//! Everything here is generated; add an entry to `fixtures/audio/SOURCE.txt` when a
+//! new file is added.
 
 use stretch_lab::{drum_loop, fixture, signals};
 

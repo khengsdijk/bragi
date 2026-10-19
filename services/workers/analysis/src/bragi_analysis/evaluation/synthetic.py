@@ -2,7 +2,7 @@
 
 These prove the *harness*, not the model: a click track has exact beat times, so
 a metric computed against it can be checked by hand. They are generated on the
-fly, hence nothing is checked in and no licence question arises (13 §1.7).
+fly, hence nothing is checked in and no copyrighted audio is involved (13 §1.7).
 Numbers measured on them are never reported as the eval gate.
 """
 

@@ -1,4 +1,4 @@
-"""Synthetic, licence-free harmony fixtures for the tests (13 §1.7).
+"""Synthetic harmony fixtures for the tests (13 §1.7).
 
 Every signal is generated from sine partials, so no audio file is checked in and
 the chord ground truth is exact. ``mir_eval`` reads the ``"C:maj"`` style labels.

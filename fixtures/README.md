@@ -1,7 +1,6 @@
 # fixtures/
 
-Test data. Everything here must be licence-clean: self-made, CC0 or generated, with a licence note
-next to each file. **No copyrighted audio, ever** ([13 §1, §6](../specs/13-agent-guide.md)).
+Test data. Everything here is self-made or generated, with a source note next to each file. **No copyrighted audio, ever** ([13 §1, §6](../specs/13-agent-guide.md)).
 
 | Path | What it is | Budget |
 |---|---|---|

@@ -24,7 +24,7 @@ eval number is produced or implied.
       "id": "trk-001",
       "file": "trk-001.flac",
       "audioSha256": "<hex digest of the file in the bucket>",
-      "licence": "CC-BY 4.0, <source URL>   (or: owner's own recording)",
+      "source": "owner's library (optional, free text)",
       "genre": "house",
       "labels": { "beats": "labels/trk-001.beats", "sections": "labels/trk-001.sections" }
     }

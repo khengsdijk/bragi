@@ -1,6 +1,6 @@
 """Beat This! (Foscarin et al., ISMIR 2024), the v1 beat and downbeat tracker.
 
-Code and weights are MIT-licensed (``services/workers/MODELS.md``). The weights
+The checkpoint is pinned in ``services/workers/MODELS.md``. The weights
 are **never** committed and **never** downloaded at runtime (04 §9): the image
 build fetches ``final0.ckpt`` to ``BRAGI_BEAT_THIS_CHECKPOINT`` and this loader
 refuses any file whose SHA-256 differs from the pin below.

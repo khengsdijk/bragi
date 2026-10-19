@@ -13,7 +13,7 @@
  *   node scripts/conformance.mjs --update   # rewrite the goldens from the native render
  *   node scripts/conformance.mjs --no-build # reuse the last builds
  *
- * The fixtures are generated/CC0 audio (fixtures/audio/LICENSE.txt); no
+ * The fixtures are generated audio (fixtures/audio/SOURCE.txt); no
  * copyrighted content is involved.
  */
 import { execFileSync } from "node:child_process";

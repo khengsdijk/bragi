@@ -12,9 +12,9 @@ One valid instance per root schema type lives next door in
 [`packages/schemas/examples/`](../../packages/schemas/examples); the tests assert that the set of files
 there equals the root types the code generator found.
 
-## Licence
+## Source
 
 Both files are **original work by the project** and contain no audio, lyrics or third-party data:
-they are JSON documents with invented titles, labels and hashes. They are covered by the repository's
-licence (see [`LICENSE.txt`](LICENSE.txt)) and are not derived from any copyrighted recording. See
+they are JSON documents with invented titles, labels and hashes (see [`SOURCE.txt`](SOURCE.txt)),
+and are not derived from any copyrighted recording. See
 the content policy in [specs/10-fusion.md §7](../../specs/10-fusion.md).
