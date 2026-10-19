@@ -6,17 +6,35 @@
  * copy the response back — including every `Set-Cookie` separately, which a
  * naive join would corrupt.
  */
+import type { AuthModeResponse } from "@bragi/schemas";
 import type { FastifyInstance } from "fastify";
 
 import type { AuthInstance } from "../auth/auth.js";
+import type { SessionResolver } from "../auth/session.js";
+import type { Config } from "../config.js";
 
 export interface AuthRoutesDeps {
   auth: AuthInstance;
   publicUrl: string;
+  sessions: SessionResolver;
+  mode: Config["authMode"];
 }
 
-/** Registers the Better Auth catch-all. */
+/** Registers `/v1/auth/mode` and the Better Auth catch-all. */
 export function registerAuthRoutes(app: FastifyInstance, deps: AuthRoutesDeps): void {
+  // A static route wins over the `/v1/auth/*` catch-all below, so it is
+  // registered first and never reaches Better Auth (05 §2, §8).
+  app.get("/v1/auth/mode", async (request): Promise<AuthModeResponse> => {
+    const session = await deps.sessions.resolve(request.headers);
+    return {
+      mode: deps.mode,
+      user:
+        session === undefined
+          ? null
+          : { id: session.user.id, email: session.user.email, name: session.user.name },
+    };
+  });
+
   app.route({
     method: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     url: "/v1/auth/*",

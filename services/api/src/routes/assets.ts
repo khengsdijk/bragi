@@ -26,7 +26,7 @@ interface CompleteBody {
 /** Registers `/v1/assets/*`. */
 export function registerAssets(app: FastifyInstance, ctx: AppContext): void {
   app.post<{ Body: PresignBody }>("/v1/assets/presign", async (request) => {
-    await requireSession(ctx.auth, request);
+    await requireSession(ctx.sessions, request);
     const { hash, bytes, mime } = request.body ?? { hash: "", bytes: 0 };
     if (!isAssetHash(hash)) {
       throw new ApiError("VALIDATION_FAILED", "hash must be sha256:<64 lowercase hex>");
@@ -47,7 +47,7 @@ export function registerAssets(app: FastifyInstance, ctx: AppContext): void {
   });
 
   app.post<{ Body: CompleteBody }>("/v1/assets/:hash/complete", async (request) => {
-    const session = await requireSession(ctx.auth, request);
+    const session = await requireSession(ctx.sessions, request);
     const hash = pathParam(request, "hash");
     if (!isAssetHash(hash)) {
       throw new ApiError("VALIDATION_FAILED", "hash must be sha256:<64 lowercase hex>");
@@ -79,7 +79,7 @@ export function registerAssets(app: FastifyInstance, ctx: AppContext): void {
   });
 
   app.get("/v1/assets/:hash/url", async (request) => {
-    const session = await requireSession(ctx.auth, request);
+    const session = await requireSession(ctx.sessions, request);
     const hash = pathParam(request, "hash");
     if (!isAssetHash(hash)) {
       throw new ApiError("VALIDATION_FAILED", "hash must be sha256:<64 lowercase hex>");

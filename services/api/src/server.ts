@@ -3,6 +3,8 @@ import "./bootstrap-telemetry.js";
 
 import { buildApp } from "./app.js";
 import { createAuth } from "./auth/auth.js";
+import { createSessionResolver } from "./auth/session.js";
+import { assertSafeBinding, ensureOwner, type OwnerUser } from "./auth/single-user.js";
 import { loadConfig } from "./config.js";
 import { runMigrations } from "./db/migrate.js";
 import { createPool } from "./db/pool.js";
@@ -14,12 +16,40 @@ const config = loadConfig();
 const pool = createPool(config);
 await runMigrations(pool);
 
+// Single-user mode has one owner account, created here (idempotently) and used
+// by the session resolver below (ADR-0014, 05 §8).
+let owner: OwnerUser | undefined;
+if (config.authMode === "single-user") owner = await ensureOwner(pool, config);
+
 const nc = await connectNats(config);
 await ensureStreams(nc);
 
 const store = createObjectStore(config);
 const { auth, mailer } = createAuth(config, pool);
-const { app, gateway } = await buildApp({ config, pool, nc, store, auth });
+const sessions = createSessionResolver({
+  mode: config.authMode,
+  authApi: auth.api,
+  ...(owner === undefined ? {} : { owner }),
+});
+const { app, gateway } = await buildApp({
+  config,
+  pool,
+  nc,
+  store,
+  auth,
+  sessions,
+  ...(owner === undefined ? {} : { owner: { id: owner.id, email: owner.email, name: owner.name } }),
+});
+
+// Refuse a reachable single-user bind, loudly. The app exists only so the
+// refusal uses its logger; it has not listened yet.
+try {
+  assertSafeBinding(config, { warn: (message) => app.log.warn(message) });
+} catch (error) {
+  app.log.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+}
+
 gateway.start();
 
 await app.listen({ host: config.apiHost, port: config.apiPort });
@@ -32,6 +62,7 @@ app.log.info(
   },
   "api-http listening",
 );
+app.log.info({ mode: config.authMode, ownerEmail: owner?.email ?? null }, "auth mode");
 
 let shuttingDown = false;
 async function shutdown(signal: string): Promise<void> {

@@ -8,6 +8,11 @@ Notes:
 
 - Configuration comes from environment variables and is validated at boot with zod. No secrets in
   the repo ([01 §8](../../specs/01-architecture.md)).
+- Auth is either **single-user** (`BRAGI_AUTH_MODE=single-user`, the default for `pnpm dev:backend`:
+  every request resolves to the owner account `BRAGI_OWNER_EMAIL` and needs no cookie) or
+  **multi-user** (Better Auth, the compose default). Single-user refuses a non-loopback `API_HOST`
+  unless `BRAGI_ALLOW_REMOTE_SINGLE_USER=1`; `GET /v1/auth/mode` reports the mode and the signed-in
+  user ([ADR-0014](../../specs/decisions/ADR-0014-single-user-mode.md), [05 §8](../../specs/05-backend-and-jobs.md)).
 - Route schemas are the source of the OpenAPI 3.1 document that generates
   [`@bragi/api-client`](../../packages/api-client). **Not yet:** WP-0.7 validates each route's input
   directly; the OpenAPI generation lands with `packages/api-client` in WP-1.10.

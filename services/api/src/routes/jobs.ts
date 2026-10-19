@@ -41,7 +41,7 @@ const sc = StringCodec();
 /** Registers `/v1/jobs*`. */
 export function registerJobs(app: FastifyInstance, ctx: AppContext): void {
   app.post<{ Body: SubmitJobBody }>("/v1/jobs", async (request, reply) => {
-    const session = await requireSession(ctx.auth, request);
+    const session = await requireSession(ctx.sessions, request);
     const body = request.body ?? { capability: "" };
     if (typeof body.capability !== "string" || body.capability === "") {
       throw new ApiError("VALIDATION_FAILED", "capability is required");
@@ -60,7 +60,7 @@ export function registerJobs(app: FastifyInstance, ctx: AppContext): void {
   });
 
   app.get("/v1/jobs/:id", async (request) => {
-    const session = await requireSession(ctx.auth, request);
+    const session = await requireSession(ctx.sessions, request);
     const id = pathParam(request, "id");
     const { rows } = await ctx.pool.query<JobRow>(
       `SELECT id, capability, priority, status, outputs, error, created_at, finished_at
@@ -82,7 +82,7 @@ export function registerJobs(app: FastifyInstance, ctx: AppContext): void {
   });
 
   app.delete("/v1/jobs/:id", async (request) => {
-    const session = await requireSession(ctx.auth, request);
+    const session = await requireSession(ctx.sessions, request);
     const id = pathParam(request, "id");
     const { rowCount } = await ctx.pool.query(
       `UPDATE jobs SET status = 'cancelled', finished_at = now()

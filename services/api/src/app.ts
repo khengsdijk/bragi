@@ -11,6 +11,7 @@ import type { NatsConnection } from "nats";
 import type { Pool } from "pg";
 
 import type { AuthInstance } from "./auth/auth.js";
+import type { Session, SessionResolver } from "./auth/session.js";
 import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
 import { registerAnalyses } from "./routes/analyses.js";
@@ -29,6 +30,10 @@ export interface AppContext {
   nc: NatsConnection;
   store: ObjectStore;
   auth: AuthInstance;
+  /** The one session resolver; single-user returns the owner, multi-user Better Auth (ADR-0014). */
+  sessions: SessionResolver;
+  /** The owner account in single-user mode, absent in multi-user mode. */
+  owner?: Session["user"];
 }
 
 export interface BuiltApp {
@@ -81,7 +86,12 @@ export async function buildApp(ctx: AppContext): Promise<BuiltApp> {
   });
 
   registerMeta(app, { config: ctx.config });
-  registerAuthRoutes(app, { auth: ctx.auth, publicUrl: ctx.config.publicUrl });
+  registerAuthRoutes(app, {
+    auth: ctx.auth,
+    publicUrl: ctx.config.publicUrl,
+    sessions: ctx.sessions,
+    mode: ctx.config.authMode,
+  });
   registerAssets(app, ctx);
   registerJobs(app, ctx);
   registerAnalyses(app, ctx);
