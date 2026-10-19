@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import mir_eval
 import numpy as np
 from numpy.typing import NDArray
@@ -31,3 +33,92 @@ def beat_f_measure(
             np.sort(reference), np.sort(estimate), f_measure_threshold=tolerance_sec
         )
     )
+
+
+# --- structure (04 section 8, WP-1.4) -------------------------------------------------------
+
+#: 04 §8: boundary hit-rate at +-3 s.
+BOUNDARY_TOLERANCE_SEC = 3.0
+#: 04 §8: the v1 gates for `structure`.
+BOUNDARY_HIT_GATE = 0.70
+LABEL_ACCURACY_GATE = 0.60
+#: 12 (WP-1.4): share of songs with >= 2 choruses whose choruses share a repeat group.
+CHORUS_GROUPING_GATE = 0.80
+
+
+@dataclass(frozen=True)
+class LabelledSection:
+    """A section as the structure metrics see it (reference or estimate)."""
+
+    start_sec: float
+    end_sec: float
+    kind: str
+    repeat_group: str | None = None
+
+
+def _intervals(sections: list[LabelledSection]) -> NDArray[np.float64]:
+    return np.asarray([[s.start_sec, s.end_sec] for s in sections], dtype=np.float64)
+
+
+def boundary_scores(
+    reference: list[LabelledSection],
+    estimate: list[LabelledSection],
+    tolerance_sec: float = BOUNDARY_TOLERANCE_SEC,
+) -> tuple[float, float, float]:
+    """Boundary ``(hit-rate, precision, F)`` at +-``tolerance_sec`` via ``mir_eval.segment``.
+
+    The hit-rate is the *recall* of reference boundaries (04 §8: "boundary hit-rate"). The
+    start and end of the song are not counted as boundaries (``trim=True``: they are trivially
+    hit, which would flatter every score).
+    """
+    if not reference or not estimate:
+        return 0.0, 0.0, 0.0
+    if len(reference) == 1:
+        # No interior reference boundary: nothing to hit; precision is what the estimate costs.
+        return 1.0, 1.0 if len(estimate) == 1 else 0.0, 1.0 if len(estimate) == 1 else 0.0
+    precision, recall, f_measure = mir_eval.segment.detection(
+        _intervals(reference), _intervals(estimate), window=tolerance_sec, trim=True
+    )
+    return float(recall), float(precision), float(f_measure)
+
+
+def label_accuracy(reference: list[LabelledSection], estimate: list[LabelledSection]) -> float:
+    """Share of the reference duration whose estimated ``SectionKind`` equals the reference's."""
+    total = sum(r.end_sec - r.start_sec for r in reference)
+    if total <= 0:
+        return 0.0
+    agree = 0.0
+    for ref in reference:
+        for est in estimate:
+            overlap = min(ref.end_sec, est.end_sec) - max(ref.start_sec, est.start_sec)
+            if overlap > 0 and ref.kind == est.kind:
+                agree += overlap
+    return agree / total
+
+
+def _best_overlap(section: LabelledSection, others: list[LabelledSection]) -> int:
+    overlaps = [
+        min(section.end_sec, o.end_sec) - max(section.start_sec, o.start_sec) for o in others
+    ]
+    return int(np.argmax(overlaps))
+
+
+def chorus_grouping_correct(
+    reference: list[LabelledSection], estimate: list[LabelledSection]
+) -> bool | None:
+    """Do the reference choruses fall into one estimated repeat group, and only they?
+
+    Each reference chorus is matched to the estimated section overlapping it most. The song is
+    correct when all those estimated sections share one ``repeatGroup`` and no estimated
+    section matched to a *non*-chorus reference section shares it. ``None`` when the reference
+    has fewer than two choruses (the song is not part of the gate).
+    """
+    choruses = [r for r in reference if r.kind == "chorus"]
+    if len(choruses) < 2 or not estimate:
+        return None
+    groups = {estimate[_best_overlap(c, estimate)].repeat_group for c in choruses}
+    if len(groups) != 1 or None in groups:
+        return False
+    group = next(iter(groups))
+    others = [r for r in reference if r.kind != "chorus"]
+    return all(estimate[_best_overlap(o, estimate)].repeat_group != group for o in others)

@@ -4,6 +4,8 @@ It reads ``fixtures/eval/manifest.json``, runs the rhythm stage on every track
 whose audio has been fetched (``scripts/fetch-eval.sh``), scores the beats and
 writes ``reports/analysis-<date>.md``.
 
+It also scores the ``structure`` stage (WP-1.4) on tracks that carry a section label file.
+
 It never invents a number. A gate is **PASS** or **FAIL** only when *every* track
 in the manifest was scored; with no audio (today: no eval set exists) the verdict
 is **PENDING** and the report says so. The synthetic suite proves the machinery
@@ -27,7 +29,8 @@ from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 
 from bragi_analysis import media, rhythm_post, trackers
-from bragi_analysis.evaluation import metrics, synthetic
+from bragi_analysis.evaluation import metrics, structure_eval, synthetic
+from bragi_analysis.structure import pipeline as structure_pipeline
 from bragi_analysis.trackers.base import TRACKER_SAMPLE_RATE, BeatTracker
 
 type F64 = NDArray[np.float64]
@@ -43,6 +46,9 @@ class LabelFiles(BaseModel):
     #: Text file, one beat per line: ``<seconds>`` or ``<seconds> <position in bar>``.
     #: A position of 1 marks a downbeat.
     beats: str
+    #: Text file, one section per line: ``<start> <end> <kind> [group]`` (``SectionKind``).
+    #: Optional: only tracks that have it count towards the structure gates (WP-1.4).
+    sections: str | None = None
 
 
 class EvalTrack(BaseModel):
@@ -102,6 +108,10 @@ class Report:
     eval_scores: list[TrackScore] = field(default_factory=list)
     gate: Gate | None = None
     synthetic_scores: list[TrackScore] = field(default_factory=list)
+    structure_scores: list[structure_eval.StructureScore] = field(default_factory=list)
+    structure_total: int = 0
+    structure_gates: list[structure_eval.StructureGate] = field(default_factory=list)
+    structure_synthetic: list[structure_eval.StructureScore] = field(default_factory=list)
 
 
 def repo_root(start: Path | None = None) -> Path:
@@ -212,6 +222,54 @@ async def _score_eval_track(
         return TrackScore(track.id, "error", detail=f"{type(error).__name__}: {error}")
 
 
+async def _score_structure_track(
+    track: EvalTrack, manifest_dir: Path, audio_dir: Path, tracker: BeatTracker
+) -> structure_eval.StructureScore:
+    audio = audio_dir / track.file
+    if not audio.is_file():
+        return structure_eval.StructureScore(
+            track.id, "missing", detail=f"{audio} not found (run scripts/fetch-eval.sh)"
+        )
+    digest = hashlib.sha256(audio.read_bytes()).hexdigest()
+    if digest != track.audioSha256.removeprefix("sha256:"):
+        return structure_eval.StructureScore(
+            track.id, "hash_mismatch", detail=f"sha256 is {digest}"
+        )
+    try:
+        assert track.labels.sections is not None  # noqa: S101 - callers filter on it
+        reference = structure_eval.parse_sections(
+            (manifest_dir / track.labels.sections).read_text("utf-8")
+        )
+        info = await media.probe(audio)
+        pcm = await media.decode_pcm(
+            audio,
+            sample_rate=TRACKER_SAMPLE_RATE,
+            channels=1,
+            declared_duration_sec=info.duration_sec,
+        )
+        analysis = await asyncio.to_thread(
+            structure_pipeline.analyse_with_tracker, pcm[:, 0], TRACKER_SAMPLE_RATE, tracker
+        )
+        return structure_eval.score(
+            track.id, reference, structure_eval.from_result(analysis.result)
+        )
+    except Exception as error:  # report it, keep scoring the rest
+        return structure_eval.StructureScore(
+            track.id, "error", detail=f"{type(error).__name__}: {error}"
+        )
+
+
+async def score_structure_manifest(
+    manifest: Manifest, manifest_dir: Path, audio_dir: Path, tracker: BeatTracker
+) -> list[structure_eval.StructureScore]:
+    """Scores the manifest tracks that carry a section label file."""
+    return [
+        await _score_structure_track(t, manifest_dir, audio_dir, tracker)
+        for t in manifest.tracks
+        if t.labels.sections is not None
+    ]
+
+
 async def score_manifest(
     manifest: Manifest, manifest_dir: Path, audio_dir: Path, tracker: BeatTracker
 ) -> list[TrackScore]:
@@ -240,12 +298,14 @@ def render(report: Report) -> str:
         "|---|---|---|---|",
         f"| rhythm | beat F-measure | >= {metrics.BEAT_F_GATE} "
         f"| **{gate.status}**: {gate.reason} |",
-        "| separation | SDR per stem | report only | not implemented in WP-1.2 |",
-        "| structure | boundary hit-rate, label accuracy | >= 0.70, >= 0.60 "
-        "| not implemented in WP-1.2 |",
-        "| harmony | chord accuracy, key accuracy | >= 0.70, >= 0.80 | not implemented in WP-1.2 |",
-        "| tag | top-3 genre agreement | >= 0.70 | not implemented in WP-1.2 |",
-        "| describe | manual checklist | 0 hard failures | not implemented in WP-1.2 |",
+        "| separation | SDR per stem | report only | not implemented yet |",
+        *[
+            f"| structure | {g.name} | >= {g.threshold:g} | **{g.status}**: {g.reason} |"
+            for g in report.structure_gates
+        ],
+        "| harmony | chord accuracy, key accuracy | >= 0.70, >= 0.80 | not implemented yet |",
+        "| tag | top-3 genre agreement | >= 0.70 | not implemented yet |",
+        "| describe | manual checklist | 0 hard failures | not implemented yet |",
         "",
         "## Rhythm on the eval set",
         "",
@@ -289,7 +349,66 @@ def render(report: Report) -> str:
             f"Mean beat F over {len(scored)} synthetic tracks: {float(np.mean(scored)):.3f}",
             "",
         ]
+    lines += _render_structure(report)
     return "\n".join(lines)
+
+
+def _fmt_bool(value: bool | None) -> str:
+    return "n/a" if value is None else ("yes" if value else "no")
+
+
+def _structure_table(scores: list[structure_eval.StructureScore], with_detail: bool) -> list[str]:
+    head = (
+        "| Track | Status | Boundary hit-rate | Precision | Label acc. "
+        "| Choruses grouped | Sections (found/ref) |"
+    )
+    lines = [
+        head + (" Detail |" if with_detail else ""),
+        "|---|---|---|---|---|---|---|" + ("---|" if with_detail else ""),
+    ]
+    for s in scores:
+        row = (
+            f"| {s.id} | {s.status} | {_fmt(s.boundary_hit_rate)} | {_fmt(s.boundary_precision)} "
+            f"| {_fmt(s.label_accuracy)} | {_fmt_bool(s.chorus_grouping)} "
+            f"| {s.sections_found}/{s.sections_expected} |"
+        )
+        lines.append(row + (f" {s.detail} |" if with_detail else ""))
+    return lines
+
+
+def _render_structure(report: Report) -> list[str]:
+    lines = ["## Structure on the eval set", ""]
+    if not report.structure_scores:
+        lines += [
+            "No eval track has a `labels.sections` file: **no numbers are reported.**",
+            "",
+        ]
+    else:
+        lines += [*_structure_table(report.structure_scores, with_detail=True), ""]
+    if report.structure_synthetic:
+        hits = [
+            s.boundary_hit_rate
+            for s in report.structure_synthetic
+            if s.boundary_hit_rate is not None
+        ]
+        accs = [
+            s.label_accuracy for s in report.structure_synthetic if s.label_accuracy is not None
+        ]
+        lines += [
+            "## Synthetic structure harness check (not the gate)",
+            "",
+            "Generated songs with a known section plan (`evaluation/synthetic_songs.py`). They "
+            "prove "
+            "the metrics, snapping, grouping and wiring, not accuracy on real music: the generator "
+            "and the segmenter were written by the same hand.",
+            "",
+            *_structure_table(report.structure_synthetic, with_detail=False),
+            "",
+            f"Mean boundary hit-rate {float(np.mean(hits)):.3f}, mean label accuracy "
+            f"{float(np.mean(accs)):.3f} over {len(hits)} synthetic songs.",
+            "",
+        ]
+    return lines
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -335,17 +454,28 @@ def main(argv: list[str] | None = None) -> int:
             f"scored with the `{tracker.name}` fallback, which is not the v1 model "
             "(set BRAGI_BEAT_THIS_CHECKPOINT and use the `ml` extra)",
         )
+    report.structure_total = sum(1 for t in manifest.tracks if t.labels.sections is not None)
+    report.structure_scores = asyncio.run(
+        score_structure_manifest(manifest, args.manifest.parent, args.audio_dir, tracker)
+    )
+    report.structure_gates = structure_eval.gates_for(
+        report.structure_scores, report.structure_total
+    )
     if args.synthetic:
         report.synthetic_scores = score_synthetic(tracker)
+        report.structure_synthetic = structure_eval.score_synthetic()
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     out = args.out_dir / f"analysis-{report.day.isoformat()}.md"
     out.write_text(render(report), "utf-8")
     print(f"rhythm gate: {report.gate.status} ({report.gate.reason})")
+    for g in report.structure_gates:
+        print(f"structure gate, {g.name}: {g.status} ({g.reason})")
     print(f"report: {out}")
-    if report.gate.status == "FAIL":
+    statuses = [report.gate.status, *(g.status for g in report.structure_gates)]
+    if "FAIL" in statuses:
         return 1
-    if args.strict and report.gate.status != "PASS":
+    if args.strict and any(status != "PASS" for status in statuses):
         return 2
     return 0
 
