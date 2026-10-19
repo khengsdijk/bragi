@@ -11,475 +11,307 @@
     {
       "id": "house",
       "label": "House",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "deep-house",
       "label": "Deep house",
-      "parents": [
-        "electronic",
-        "house"
-      ]
+      "parents": ["electronic", "house"]
     },
     {
       "id": "tech-house",
       "label": "Tech house",
-      "parents": [
-        "electronic",
-        "house"
-      ]
+      "parents": ["electronic", "house"]
     },
     {
       "id": "progressive-house",
       "label": "Progressive house",
-      "parents": [
-        "electronic",
-        "house"
-      ]
+      "parents": ["electronic", "house"]
     },
     {
       "id": "acid-house",
       "label": "Acid house",
-      "parents": [
-        "electronic",
-        "house"
-      ]
+      "parents": ["electronic", "house"]
     },
     {
       "id": "soulful-house",
       "label": "Soulful house",
-      "parents": [
-        "electronic",
-        "house"
-      ]
+      "parents": ["electronic", "house"]
     },
     {
       "id": "techno",
       "label": "Techno",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "minimal-techno",
       "label": "Minimal techno",
-      "parents": [
-        "electronic",
-        "techno"
-      ]
+      "parents": ["electronic", "techno"]
     },
     {
       "id": "melodic-techno",
       "label": "Melodic techno",
-      "parents": [
-        "electronic",
-        "techno"
-      ]
+      "parents": ["electronic", "techno"]
     },
     {
       "id": "hard-techno",
       "label": "Hard techno",
-      "parents": [
-        "electronic",
-        "techno"
-      ]
+      "parents": ["electronic", "techno"]
     },
     {
       "id": "detroit-techno",
       "label": "Detroit techno",
-      "parents": [
-        "electronic",
-        "techno"
-      ]
+      "parents": ["electronic", "techno"]
     },
     {
       "id": "acid-techno",
       "label": "Acid techno",
-      "parents": [
-        "electronic",
-        "techno"
-      ]
+      "parents": ["electronic", "techno"]
     },
     {
       "id": "trance",
       "label": "Trance",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "psytrance",
       "label": "Psytrance",
-      "parents": [
-        "electronic",
-        "trance"
-      ]
+      "parents": ["electronic", "trance"]
     },
     {
       "id": "progressive-trance",
       "label": "Progressive trance",
-      "parents": [
-        "electronic",
-        "trance"
-      ]
+      "parents": ["electronic", "trance"]
     },
     {
       "id": "uplifting-trance",
       "label": "Uplifting trance",
-      "parents": [
-        "electronic",
-        "trance"
-      ]
+      "parents": ["electronic", "trance"]
     },
     {
       "id": "drum-and-bass",
       "label": "Drum & bass",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "liquid-dnb",
       "label": "Liquid dnb",
-      "parents": [
-        "electronic",
-        "drum-and-bass"
-      ]
+      "parents": ["electronic", "drum-and-bass"]
     },
     {
       "id": "neurofunk",
       "label": "Neurofunk",
-      "parents": [
-        "electronic",
-        "drum-and-bass"
-      ]
+      "parents": ["electronic", "drum-and-bass"]
     },
     {
       "id": "jungle",
       "label": "Jungle",
-      "parents": [
-        "electronic",
-        "drum-and-bass"
-      ]
+      "parents": ["electronic", "drum-and-bass"]
     },
     {
       "id": "dubstep",
       "label": "Dubstep",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "brostep",
       "label": "Brostep",
-      "parents": [
-        "electronic",
-        "dubstep"
-      ]
+      "parents": ["electronic", "dubstep"]
     },
     {
       "id": "riddim",
       "label": "Riddim",
-      "parents": [
-        "electronic",
-        "dubstep"
-      ]
+      "parents": ["electronic", "dubstep"]
     },
     {
       "id": "melodic-dubstep",
       "label": "Melodic dubstep",
-      "parents": [
-        "electronic",
-        "dubstep"
-      ]
+      "parents": ["electronic", "dubstep"]
     },
     {
       "id": "garage",
       "label": "Garage",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "uk-garage",
       "label": "Uk garage",
-      "parents": [
-        "electronic",
-        "garage"
-      ]
+      "parents": ["electronic", "garage"]
     },
     {
       "id": "2-step",
       "label": "2 step",
-      "parents": [
-        "electronic",
-        "garage"
-      ]
+      "parents": ["electronic", "garage"]
     },
     {
       "id": "bassline",
       "label": "Bassline",
-      "parents": [
-        "electronic",
-        "garage"
-      ]
+      "parents": ["electronic", "garage"]
     },
     {
       "id": "breakbeat",
       "label": "Breakbeat",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "big-beat",
       "label": "Big beat",
-      "parents": [
-        "electronic",
-        "breakbeat"
-      ]
+      "parents": ["electronic", "breakbeat"]
     },
     {
       "id": "breaks",
       "label": "Breaks",
-      "parents": [
-        "electronic",
-        "breakbeat"
-      ]
+      "parents": ["electronic", "breakbeat"]
     },
     {
       "id": "breakcore",
       "label": "Breakcore",
-      "parents": [
-        "electronic",
-        "breakbeat"
-      ]
+      "parents": ["electronic", "breakbeat"]
     },
     {
       "id": "downtempo",
       "label": "Downtempo",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "trip-hop",
       "label": "Trip hop",
-      "parents": [
-        "electronic",
-        "downtempo"
-      ]
+      "parents": ["electronic", "downtempo"]
     },
     {
       "id": "chillout",
       "label": "Chillout",
-      "parents": [
-        "electronic",
-        "downtempo"
-      ]
+      "parents": ["electronic", "downtempo"]
     },
     {
       "id": "ambient-techno",
       "label": "Ambient techno",
-      "parents": [
-        "electronic",
-        "downtempo"
-      ]
+      "parents": ["electronic", "downtempo"]
     },
     {
       "id": "edm",
       "label": "Edm",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "big-room",
       "label": "Big room",
-      "parents": [
-        "electronic",
-        "edm"
-      ]
+      "parents": ["electronic", "edm"]
     },
     {
       "id": "future-house",
       "label": "Future house",
-      "parents": [
-        "electronic",
-        "edm"
-      ]
+      "parents": ["electronic", "edm"]
     },
     {
       "id": "future-bass",
       "label": "Future bass",
-      "parents": [
-        "electronic",
-        "edm"
-      ]
+      "parents": ["electronic", "edm"]
     },
     {
       "id": "tropical-house",
       "label": "Tropical house",
-      "parents": [
-        "electronic",
-        "edm"
-      ]
+      "parents": ["electronic", "edm"]
     },
     {
       "id": "electro",
       "label": "Electro",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "electro-clash",
       "label": "Electro clash",
-      "parents": [
-        "electronic",
-        "electro"
-      ]
+      "parents": ["electronic", "electro"]
     },
     {
       "id": "electro-funk",
       "label": "Electro funk",
-      "parents": [
-        "electronic",
-        "electro"
-      ]
+      "parents": ["electronic", "electro"]
     },
     {
       "id": "synthwave",
       "label": "Synthwave",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "darkwave",
       "label": "Darkwave",
-      "parents": [
-        "electronic",
-        "synthwave"
-      ]
+      "parents": ["electronic", "synthwave"]
     },
     {
       "id": "vaporwave",
       "label": "Vaporwave",
-      "parents": [
-        "electronic",
-        "synthwave"
-      ]
+      "parents": ["electronic", "synthwave"]
     },
     {
       "id": "chillwave",
       "label": "Chillwave",
-      "parents": [
-        "electronic",
-        "synthwave"
-      ]
+      "parents": ["electronic", "synthwave"]
     },
     {
       "id": "hardcore-electronic",
       "label": "Hardcore electronic",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "gabber",
       "label": "Gabber",
-      "parents": [
-        "electronic",
-        "hardcore-electronic"
-      ]
+      "parents": ["electronic", "hardcore-electronic"]
     },
     {
       "id": "hardstyle",
       "label": "Hardstyle",
-      "parents": [
-        "electronic",
-        "hardcore-electronic"
-      ]
+      "parents": ["electronic", "hardcore-electronic"]
     },
     {
       "id": "frenchcore",
       "label": "Frenchcore",
-      "parents": [
-        "electronic",
-        "hardcore-electronic"
-      ]
+      "parents": ["electronic", "hardcore-electronic"]
     },
     {
       "id": "idm",
       "label": "Idm",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "glitch",
       "label": "Glitch",
-      "parents": [
-        "electronic",
-        "idm"
-      ]
+      "parents": ["electronic", "idm"]
     },
     {
       "id": "braindance",
       "label": "Braindance",
-      "parents": [
-        "electronic",
-        "idm"
-      ]
+      "parents": ["electronic", "idm"]
     },
     {
       "id": "bass",
       "label": "Bass",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "footwork",
       "label": "Footwork",
-      "parents": [
-        "electronic",
-        "bass"
-      ]
+      "parents": ["electronic", "bass"]
     },
     {
       "id": "trap-electronic",
       "label": "Trap electronic",
-      "parents": [
-        "electronic",
-        "bass"
-      ]
+      "parents": ["electronic", "bass"]
     },
     {
       "id": "industrial-electronic",
       "label": "Industrial electronic",
-      "parents": [
-        "electronic"
-      ]
+      "parents": ["electronic"]
     },
     {
       "id": "ebm",
       "label": "Ebm",
-      "parents": [
-        "electronic",
-        "industrial-electronic"
-      ]
+      "parents": ["electronic", "industrial-electronic"]
     },
     {
       "id": "aggrotech",
       "label": "Aggrotech",
-      "parents": [
-        "electronic",
-        "industrial-electronic"
-      ]
+      "parents": ["electronic", "industrial-electronic"]
     },
     {
       "id": "hip-hop",
@@ -490,72 +322,52 @@
     {
       "id": "boom-bap",
       "label": "Boom bap",
-      "parents": [
-        "hip-hop"
-      ]
+      "parents": ["hip-hop"]
     },
     {
       "id": "trap",
       "label": "Trap",
-      "parents": [
-        "hip-hop"
-      ]
+      "parents": ["hip-hop"]
     },
     {
       "id": "drill",
       "label": "Drill",
-      "parents": [
-        "hip-hop"
-      ]
+      "parents": ["hip-hop"]
     },
     {
       "id": "lo-fi-hip-hop",
       "label": "Lo fi hip hop",
-      "parents": [
-        "hip-hop"
-      ]
+      "parents": ["hip-hop"]
     },
     {
       "id": "conscious-hip-hop",
       "label": "Conscious hip hop",
-      "parents": [
-        "hip-hop"
-      ]
+      "parents": ["hip-hop"]
     },
     {
       "id": "gangsta-rap",
       "label": "Gangsta rap",
-      "parents": [
-        "hip-hop"
-      ]
+      "parents": ["hip-hop"]
     },
     {
       "id": "grime",
       "label": "Grime",
-      "parents": [
-        "hip-hop"
-      ]
+      "parents": ["hip-hop"]
     },
     {
       "id": "phonk",
       "label": "Phonk",
-      "parents": [
-        "hip-hop"
-      ]
+      "parents": ["hip-hop"]
     },
     {
       "id": "abstract-hip-hop",
       "label": "Abstract hip hop",
-      "parents": [
-        "hip-hop"
-      ]
+      "parents": ["hip-hop"]
     },
     {
       "id": "g-funk",
       "label": "G funk",
-      "parents": [
-        "hip-hop"
-      ]
+      "parents": ["hip-hop"]
     },
     {
       "id": "rock",
@@ -566,245 +378,162 @@
     {
       "id": "alternative-rock",
       "label": "Alternative rock",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "indie-rock",
       "label": "Indie rock",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "classic-rock",
       "label": "Classic rock",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "hard-rock",
       "label": "Hard rock",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "punk-rock",
       "label": "Punk rock",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "pop-punk",
       "label": "Pop punk",
-      "parents": [
-        "rock",
-        "punk-rock"
-      ]
+      "parents": ["rock", "punk-rock"]
     },
     {
       "id": "post-punk",
       "label": "Post punk",
-      "parents": [
-        "rock",
-        "punk-rock"
-      ]
+      "parents": ["rock", "punk-rock"]
     },
     {
       "id": "garage-rock",
       "label": "Garage rock",
-      "parents": [
-        "rock",
-        "punk-rock"
-      ]
+      "parents": ["rock", "punk-rock"]
     },
     {
       "id": "psychedelic-rock",
       "label": "Psychedelic rock",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "stoner-rock",
       "label": "Stoner rock",
-      "parents": [
-        "rock",
-        "psychedelic-rock"
-      ]
+      "parents": ["rock", "psychedelic-rock"]
     },
     {
       "id": "space-rock",
       "label": "Space rock",
-      "parents": [
-        "rock",
-        "psychedelic-rock"
-      ]
+      "parents": ["rock", "psychedelic-rock"]
     },
     {
       "id": "progressive-rock",
       "label": "Progressive rock",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "art-rock",
       "label": "Art rock",
-      "parents": [
-        "rock",
-        "progressive-rock"
-      ]
+      "parents": ["rock", "progressive-rock"]
     },
     {
       "id": "math-rock",
       "label": "Math rock",
-      "parents": [
-        "rock",
-        "progressive-rock"
-      ]
+      "parents": ["rock", "progressive-rock"]
     },
     {
       "id": "post-rock",
       "label": "Post rock",
-      "parents": [
-        "rock",
-        "progressive-rock"
-      ]
+      "parents": ["rock", "progressive-rock"]
     },
     {
       "id": "shoegaze",
       "label": "Shoegaze",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "dream-pop",
       "label": "Dream pop",
-      "parents": [
-        "rock",
-        "shoegaze"
-      ]
+      "parents": ["rock", "shoegaze"]
     },
     {
       "id": "grunge",
       "label": "Grunge",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "emo",
       "label": "Emo",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "metal",
       "label": "Metal",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "heavy-metal",
       "label": "Heavy metal",
-      "parents": [
-        "rock",
-        "metal"
-      ]
+      "parents": ["rock", "metal"]
     },
     {
       "id": "thrash-metal",
       "label": "Thrash metal",
-      "parents": [
-        "rock",
-        "metal"
-      ]
+      "parents": ["rock", "metal"]
     },
     {
       "id": "death-metal",
       "label": "Death metal",
-      "parents": [
-        "rock",
-        "metal"
-      ]
+      "parents": ["rock", "metal"]
     },
     {
       "id": "black-metal",
       "label": "Black metal",
-      "parents": [
-        "rock",
-        "metal"
-      ]
+      "parents": ["rock", "metal"]
     },
     {
       "id": "doom-metal",
       "label": "Doom metal",
-      "parents": [
-        "rock",
-        "metal"
-      ]
+      "parents": ["rock", "metal"]
     },
     {
       "id": "power-metal",
       "label": "Power metal",
-      "parents": [
-        "rock",
-        "metal"
-      ]
+      "parents": ["rock", "metal"]
     },
     {
       "id": "metalcore",
       "label": "Metalcore",
-      "parents": [
-        "rock",
-        "metal"
-      ]
+      "parents": ["rock", "metal"]
     },
     {
       "id": "nu-metal",
       "label": "Nu metal",
-      "parents": [
-        "rock",
-        "metal"
-      ]
+      "parents": ["rock", "metal"]
     },
     {
       "id": "djent",
       "label": "Djent",
-      "parents": [
-        "rock",
-        "metal"
-      ]
+      "parents": ["rock", "metal"]
     },
     {
       "id": "rockabilly",
       "label": "Rockabilly",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "surf-rock",
       "label": "Surf rock",
-      "parents": [
-        "rock",
-        "rockabilly"
-      ]
+      "parents": ["rock", "rockabilly"]
     },
     {
       "id": "britpop",
       "label": "Britpop",
-      "parents": [
-        "rock"
-      ]
+      "parents": ["rock"]
     },
     {
       "id": "pop",
@@ -815,86 +544,62 @@
     {
       "id": "synth-pop",
       "label": "Synth pop",
-      "parents": [
-        "pop"
-      ]
+      "parents": ["pop"]
     },
     {
       "id": "indie-pop",
       "label": "Indie pop",
-      "parents": [
-        "pop"
-      ]
+      "parents": ["pop"]
     },
     {
       "id": "electropop",
       "label": "Electropop",
-      "parents": [
-        "pop"
-      ]
+      "parents": ["pop"]
     },
     {
       "id": "dance-pop",
       "label": "Dance pop",
-      "parents": [
-        "pop"
-      ]
+      "parents": ["pop"]
     },
     {
       "id": "k-pop",
       "label": "K pop",
-      "parents": [
-        "pop"
-      ]
+      "parents": ["pop"]
     },
     {
       "id": "j-pop",
       "label": "J pop",
-      "parents": [
-        "pop"
-      ]
+      "parents": ["pop"]
     },
     {
       "id": "city-pop",
       "label": "City pop",
-      "parents": [
-        "pop"
-      ]
+      "parents": ["pop"]
     },
     {
       "id": "art-pop",
       "label": "Art pop",
-      "parents": [
-        "pop"
-      ]
+      "parents": ["pop"]
     },
     {
       "id": "chamber-pop",
       "label": "Chamber pop",
-      "parents": [
-        "pop"
-      ]
+      "parents": ["pop"]
     },
     {
       "id": "hyperpop",
       "label": "Hyperpop",
-      "parents": [
-        "pop"
-      ]
+      "parents": ["pop"]
     },
     {
       "id": "pop-rock",
       "label": "Pop rock",
-      "parents": [
-        "pop"
-      ]
+      "parents": ["pop"]
     },
     {
       "id": "bedroom-pop",
       "label": "Bedroom pop",
-      "parents": [
-        "pop"
-      ]
+      "parents": ["pop"]
     },
     {
       "id": "jazz",
@@ -905,79 +610,57 @@
     {
       "id": "bebop",
       "label": "Bebop",
-      "parents": [
-        "jazz"
-      ]
+      "parents": ["jazz"]
     },
     {
       "id": "hard-bop",
       "label": "Hard bop",
-      "parents": [
-        "jazz"
-      ]
+      "parents": ["jazz"]
     },
     {
       "id": "cool-jazz",
       "label": "Cool jazz",
-      "parents": [
-        "jazz"
-      ]
+      "parents": ["jazz"]
     },
     {
       "id": "modal-jazz",
       "label": "Modal jazz",
-      "parents": [
-        "jazz"
-      ]
+      "parents": ["jazz"]
     },
     {
       "id": "free-jazz",
       "label": "Free jazz",
-      "parents": [
-        "jazz"
-      ]
+      "parents": ["jazz"]
     },
     {
       "id": "fusion",
       "label": "Fusion",
-      "parents": [
-        "jazz"
-      ]
+      "parents": ["jazz"]
     },
     {
       "id": "smooth-jazz",
       "label": "Smooth jazz",
-      "parents": [
-        "jazz"
-      ]
+      "parents": ["jazz"]
     },
     {
       "id": "acid-jazz",
       "label": "Acid jazz",
-      "parents": [
-        "jazz"
-      ]
+      "parents": ["jazz"]
     },
     {
       "id": "nu-jazz",
       "label": "Nu jazz",
-      "parents": [
-        "jazz"
-      ]
+      "parents": ["jazz"]
     },
     {
       "id": "bossa-nova",
       "label": "Bossa nova",
-      "parents": [
-        "jazz"
-      ]
+      "parents": ["jazz"]
     },
     {
       "id": "swing",
       "label": "Swing",
-      "parents": [
-        "jazz"
-      ]
+      "parents": ["jazz"]
     },
     {
       "id": "classical",
@@ -988,79 +671,57 @@
     {
       "id": "baroque",
       "label": "Baroque",
-      "parents": [
-        "classical"
-      ]
+      "parents": ["classical"]
     },
     {
       "id": "romantic-classical",
       "label": "Romantic classical",
-      "parents": [
-        "classical"
-      ]
+      "parents": ["classical"]
     },
     {
       "id": "modern-classical",
       "label": "Modern classical",
-      "parents": [
-        "classical"
-      ]
+      "parents": ["classical"]
     },
     {
       "id": "contemporary-classical",
       "label": "Contemporary classical",
-      "parents": [
-        "classical"
-      ]
+      "parents": ["classical"]
     },
     {
       "id": "neoclassical",
       "label": "Neoclassical",
-      "parents": [
-        "classical"
-      ]
+      "parents": ["classical"]
     },
     {
       "id": "opera",
       "label": "Opera",
-      "parents": [
-        "classical"
-      ]
+      "parents": ["classical"]
     },
     {
       "id": "orchestral",
       "label": "Orchestral",
-      "parents": [
-        "classical"
-      ]
+      "parents": ["classical"]
     },
     {
       "id": "chamber-music",
       "label": "Chamber music",
-      "parents": [
-        "classical"
-      ]
+      "parents": ["classical"]
     },
     {
       "id": "choral",
       "label": "Choral",
-      "parents": [
-        "classical"
-      ]
+      "parents": ["classical"]
     },
     {
       "id": "minimalism",
       "label": "Minimalism",
-      "parents": [
-        "classical"
-      ]
+      "parents": ["classical"]
     },
     {
       "id": "film-score",
       "label": "Film score",
-      "parents": [
-        "classical"
-      ]
+      "parents": ["classical"]
     },
     {
       "id": "soul",
@@ -1071,58 +732,42 @@
     {
       "id": "funk",
       "label": "Funk",
-      "parents": [
-        "soul"
-      ]
+      "parents": ["soul"]
     },
     {
       "id": "motown",
       "label": "Motown",
-      "parents": [
-        "soul"
-      ]
+      "parents": ["soul"]
     },
     {
       "id": "neo-soul",
       "label": "Neo soul",
-      "parents": [
-        "soul"
-      ]
+      "parents": ["soul"]
     },
     {
       "id": "r-and-b",
       "label": "R & b",
-      "parents": [
-        "soul"
-      ]
+      "parents": ["soul"]
     },
     {
       "id": "contemporary-r-and-b",
       "label": "Contemporary r & b",
-      "parents": [
-        "soul"
-      ]
+      "parents": ["soul"]
     },
     {
       "id": "disco",
       "label": "Disco",
-      "parents": [
-        "soul"
-      ]
+      "parents": ["soul"]
     },
     {
       "id": "boogie",
       "label": "Boogie",
-      "parents": [
-        "soul"
-      ]
+      "parents": ["soul"]
     },
     {
       "id": "gospel",
       "label": "Gospel",
-      "parents": [
-        "soul"
-      ]
+      "parents": ["soul"]
     },
     {
       "id": "folk",
@@ -1133,51 +778,37 @@
     {
       "id": "singer-songwriter",
       "label": "Singer songwriter",
-      "parents": [
-        "folk"
-      ]
+      "parents": ["folk"]
     },
     {
       "id": "americana",
       "label": "Americana",
-      "parents": [
-        "folk"
-      ]
+      "parents": ["folk"]
     },
     {
       "id": "indie-folk",
       "label": "Indie folk",
-      "parents": [
-        "folk"
-      ]
+      "parents": ["folk"]
     },
     {
       "id": "contemporary-folk",
       "label": "Contemporary folk",
-      "parents": [
-        "folk"
-      ]
+      "parents": ["folk"]
     },
     {
       "id": "bluegrass",
       "label": "Bluegrass",
-      "parents": [
-        "folk"
-      ]
+      "parents": ["folk"]
     },
     {
       "id": "celtic",
       "label": "Celtic",
-      "parents": [
-        "folk"
-      ]
+      "parents": ["folk"]
     },
     {
       "id": "folk-rock",
       "label": "Folk rock",
-      "parents": [
-        "folk"
-      ]
+      "parents": ["folk"]
     },
     {
       "id": "world",
@@ -1188,86 +819,62 @@
     {
       "id": "afrobeat",
       "label": "Afrobeat",
-      "parents": [
-        "world"
-      ]
+      "parents": ["world"]
     },
     {
       "id": "afropop",
       "label": "Afropop",
-      "parents": [
-        "world"
-      ]
+      "parents": ["world"]
     },
     {
       "id": "highlife",
       "label": "Highlife",
-      "parents": [
-        "world"
-      ]
+      "parents": ["world"]
     },
     {
       "id": "latin",
       "label": "Latin",
-      "parents": [
-        "world"
-      ]
+      "parents": ["world"]
     },
     {
       "id": "reggaeton",
       "label": "Reggaeton",
-      "parents": [
-        "world"
-      ]
+      "parents": ["world"]
     },
     {
       "id": "salsa",
       "label": "Salsa",
-      "parents": [
-        "world"
-      ]
+      "parents": ["world"]
     },
     {
       "id": "cumbia",
       "label": "Cumbia",
-      "parents": [
-        "world"
-      ]
+      "parents": ["world"]
     },
     {
       "id": "bachata",
       "label": "Bachata",
-      "parents": [
-        "world"
-      ]
+      "parents": ["world"]
     },
     {
       "id": "flamenco",
       "label": "Flamenco",
-      "parents": [
-        "world"
-      ]
+      "parents": ["world"]
     },
     {
       "id": "tango",
       "label": "Tango",
-      "parents": [
-        "world"
-      ]
+      "parents": ["world"]
     },
     {
       "id": "bhangra",
       "label": "Bhangra",
-      "parents": [
-        "world"
-      ]
+      "parents": ["world"]
     },
     {
       "id": "bollywood",
       "label": "Bollywood",
-      "parents": [
-        "world"
-      ]
+      "parents": ["world"]
     },
     {
       "id": "country",
@@ -1278,44 +885,32 @@
     {
       "id": "country-pop",
       "label": "Country pop",
-      "parents": [
-        "country"
-      ]
+      "parents": ["country"]
     },
     {
       "id": "outlaw-country",
       "label": "Outlaw country",
-      "parents": [
-        "country"
-      ]
+      "parents": ["country"]
     },
     {
       "id": "alt-country",
       "label": "Alt country",
-      "parents": [
-        "country"
-      ]
+      "parents": ["country"]
     },
     {
       "id": "honky-tonk",
       "label": "Honky tonk",
-      "parents": [
-        "country"
-      ]
+      "parents": ["country"]
     },
     {
       "id": "country-rock",
       "label": "Country rock",
-      "parents": [
-        "country"
-      ]
+      "parents": ["country"]
     },
     {
       "id": "nashville-sound",
       "label": "Nashville sound",
-      "parents": [
-        "country"
-      ]
+      "parents": ["country"]
     },
     {
       "id": "blues",
@@ -1326,37 +921,27 @@
     {
       "id": "delta-blues",
       "label": "Delta blues",
-      "parents": [
-        "blues"
-      ]
+      "parents": ["blues"]
     },
     {
       "id": "chicago-blues",
       "label": "Chicago blues",
-      "parents": [
-        "blues"
-      ]
+      "parents": ["blues"]
     },
     {
       "id": "electric-blues",
       "label": "Electric blues",
-      "parents": [
-        "blues"
-      ]
+      "parents": ["blues"]
     },
     {
       "id": "acoustic-blues",
       "label": "Acoustic blues",
-      "parents": [
-        "blues"
-      ]
+      "parents": ["blues"]
     },
     {
       "id": "blues-rock",
       "label": "Blues rock",
-      "parents": [
-        "blues"
-      ]
+      "parents": ["blues"]
     },
     {
       "id": "reggae",
@@ -1367,44 +952,32 @@
     {
       "id": "roots-reggae",
       "label": "Roots reggae",
-      "parents": [
-        "reggae"
-      ]
+      "parents": ["reggae"]
     },
     {
       "id": "dancehall",
       "label": "Dancehall",
-      "parents": [
-        "reggae"
-      ]
+      "parents": ["reggae"]
     },
     {
       "id": "dub-reggae",
       "label": "Dub reggae",
-      "parents": [
-        "reggae"
-      ]
+      "parents": ["reggae"]
     },
     {
       "id": "ska",
       "label": "Ska",
-      "parents": [
-        "reggae"
-      ]
+      "parents": ["reggae"]
     },
     {
       "id": "rocksteady",
       "label": "Rocksteady",
-      "parents": [
-        "reggae"
-      ]
+      "parents": ["reggae"]
     },
     {
       "id": "ragga",
       "label": "Ragga",
-      "parents": [
-        "reggae"
-      ]
+      "parents": ["reggae"]
     },
     {
       "id": "soundtrack",
@@ -1415,37 +988,27 @@
     {
       "id": "tv-score",
       "label": "Tv score",
-      "parents": [
-        "soundtrack"
-      ]
+      "parents": ["soundtrack"]
     },
     {
       "id": "trailer-music",
       "label": "Trailer music",
-      "parents": [
-        "soundtrack"
-      ]
+      "parents": ["soundtrack"]
     },
     {
       "id": "library-music",
       "label": "Library music",
-      "parents": [
-        "soundtrack"
-      ]
+      "parents": ["soundtrack"]
     },
     {
       "id": "musical-theatre",
       "label": "Musical theatre",
-      "parents": [
-        "soundtrack"
-      ]
+      "parents": ["soundtrack"]
     },
     {
       "id": "orchestral-score",
       "label": "Orchestral score",
-      "parents": [
-        "soundtrack"
-      ]
+      "parents": ["soundtrack"]
     },
     {
       "id": "ambient",
@@ -1456,30 +1019,22 @@
     {
       "id": "drone",
       "label": "Drone",
-      "parents": [
-        "ambient"
-      ]
+      "parents": ["ambient"]
     },
     {
       "id": "field-recordings",
       "label": "Field recordings",
-      "parents": [
-        "ambient"
-      ]
+      "parents": ["ambient"]
     },
     {
       "id": "lowercase",
       "label": "Lowercase",
-      "parents": [
-        "ambient"
-      ]
+      "parents": ["ambient"]
     },
     {
       "id": "new-age",
       "label": "New age",
-      "parents": [
-        "ambient"
-      ]
+      "parents": ["ambient"]
     },
     {
       "id": "experimental",
@@ -1490,44 +1045,32 @@
     {
       "id": "noise",
       "label": "Noise",
-      "parents": [
-        "experimental"
-      ]
+      "parents": ["experimental"]
     },
     {
       "id": "avant-garde",
       "label": "Avant garde",
-      "parents": [
-        "experimental"
-      ]
+      "parents": ["experimental"]
     },
     {
       "id": "sound-art",
       "label": "Sound art",
-      "parents": [
-        "experimental"
-      ]
+      "parents": ["experimental"]
     },
     {
       "id": "electroacoustic",
       "label": "Electroacoustic",
-      "parents": [
-        "experimental"
-      ]
+      "parents": ["experimental"]
     },
     {
       "id": "musique-concrete",
       "label": "Musique concrete",
-      "parents": [
-        "experimental"
-      ]
+      "parents": ["experimental"]
     },
     {
       "id": "free-improvisation",
       "label": "Free improvisation",
-      "parents": [
-        "experimental"
-      ]
+      "parents": ["experimental"]
     }
   ],
   "moods": [

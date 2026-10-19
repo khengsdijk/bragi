@@ -8,6 +8,7 @@
       "!**/target",
       "!**/.venv",
       "!**/generated",
+      "!**/config/taxonomy.json",
       "!**/*.min.js",
       "!pnpm-lock.yaml"
     ]
