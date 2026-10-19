@@ -314,6 +314,7 @@ Master automation points carry absolute ticks. When sections move, points lying 
 2. Remove the current content in the region (as `region.clear`).
 3. Copy clips and automation from the source commit's region, preserving relative positions.
 4. Add 10 ms equal-power fades at the region boundaries.
+A source track that does not exist in the target commit is skipped.
 If the section structure differs between commits, the region is matched **by absolute ticks**, and the UI warns when boundaries don't align.
 
 ## 6. Applying analysis (`analysis.apply`)
@@ -424,6 +425,8 @@ Rules:
 ```rust
 pub fn validate(doc: &Project, assets: &AssetIndex) -> Result<(), Vec<ValidationError>>;
 pub fn apply(doc: &Project, batch: &OpBatch, assets: &AssetIndex) -> Result<Project, ApplyError>;
+pub fn apply_with(doc: &Project, batch: &OpBatch, assets: &AssetIndex, commits: &dyn CommitDocs) -> Result<Project, ApplyError>;
+pub trait CommitDocs { fn get(&self, id: &CommitId) -> Option<&Project>; }  // `region.adopt` sources; `NoCommits` is empty
 pub fn diff(prev: &Project, next: &Project) -> EngineDelta;          // consumed by bragi-engine
 pub fn resolve_region(doc: &Project, region: &Region, assets: &AssetIndex) -> ResolvedRegion;
 pub fn section_spans(doc: &Project) -> Vec<SectionSpan>;             // absolute ticks per section
@@ -433,7 +436,7 @@ pub fn summarize_for_llm(doc: &Project, analyses: &AnalysisBundle, focus: Option
 pub fn migrate(raw: serde_json::Value) -> Result<Project, MigrateError>;
 pub fn canonical_json(doc: &Project) -> String;                      // stable key order, for hashing
 ```
-`AssetIndex` is the `AssetHash → AssetMeta` map the invariants need, because clip ranges are in samples and the asset's length lives outside the document (02 §3.2). `ValidationError` is the structured `{ opIndex, code, message }` of 02 §4.3; `ApplyError` is either one of those (the op itself was bad) or a list of them (the batch left the document invalid). `SectionSpan` and `ResolvedRegion` are owned return shapes; `EngineDelta` (defined in `crates/bragi-model/src/diff.rs`) reports `timebaseChanged`, `metaChanged`, source/track/section adds–removes–updates, `masterChanged`, and `requiresFullResync` for a structural change the engine must rebuild its render plan for. `migrate` (there are no v0 documents yet) and `summarize_for_llm` (it needs the analysis bundle from WP-1.8) are the two entry points still to come.
+`AssetIndex` is the `AssetHash → AssetMeta` map the invariants need, because clip ranges are in samples and the asset's length lives outside the document (02 §3.2). `apply_with` is `apply` with the `CommitDocs` documents that `region.adopt` reads (02 §5.4); `apply` passes `NoCommits`, so an unknown commit id is an `unknown_commit` error. `ValidationError` is the structured `{ opIndex, code, message }` of 02 §4.3; `ApplyError` is either one of those (the op itself was bad) or a list of them (the batch left the document invalid). `SectionSpan` and `ResolvedRegion` are owned return shapes; `EngineDelta` (defined in `crates/bragi-model/src/diff.rs`) reports `timebaseChanged`, `metaChanged`, source/track/section adds–removes–updates, `masterChanged`, and `requiresFullResync` for a structural change the engine must rebuild its render plan for. `migrate` (there are no v0 documents yet) and `summarize_for_llm` (it needs the analysis bundle from WP-1.8) are the two entry points still to come.
 
 The WASM wrapper passes documents as JSON strings or `Uint8Array` (MessagePack). Hot paths (`section_spans`, `ticks_to_seconds`) must not re-serialize the whole document. The WASM module keeps a handle-based cache: `load(doc) -> DocHandle`, and later calls take the handle.
 
