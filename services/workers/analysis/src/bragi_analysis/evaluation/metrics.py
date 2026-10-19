@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 import mir_eval
@@ -122,3 +123,42 @@ def chorus_grouping_correct(
     group = next(iter(groups))
     others = [r for r in reference if r.kind != "chorus"]
     return all(estimate[_best_overlap(o, estimate)].repeat_group != group for o in others)
+
+
+# --- embeddings & tagging (04 §8, WP-1.6) ------------------------------------
+
+#: 04 §8: share of eval songs whose top-3 genres agree with the hand label.
+TAG_GENRE_GATE = 0.70
+#: 12 (WP-1.6): share of eval songs where `"drums"` ranks the drum stem first.
+EMBED_DRUM_RANK_GATE = 0.90
+
+
+def ranks(query: NDArray[np.floating], candidates: Mapping[str, NDArray[np.floating]]) -> list[str]:
+    """Candidate keys sorted by descending cosine with ``query`` (ties keep input order).
+
+    This is the `"drums"`-ranking metric of 04 §8 (WP-1.6): a text query's cosine against each
+    stem's embedding. Both sides are L2-normalised, so a plain dot product is the cosine.
+    """
+    q = np.asarray(query, dtype=np.float64)
+    q_norm = float(np.linalg.norm(q))
+    if q_norm < 1e-9:
+        return list(candidates)
+    scored = [
+        (key, float(np.asarray(value, dtype=np.float64) @ q) / q_norm)
+        for key, value in candidates.items()
+    ]
+    return [key for key, _ in sorted(scored, key=lambda item: -item[1])]
+
+
+def drum_rank_accuracy(
+    cases: Sequence[tuple[NDArray[np.floating], Mapping[str, NDArray[np.floating]], str]],
+) -> float:
+    """Share of cases whose drum key ranks first for the `"drums"` query (04 §8, WP-1.6).
+
+    Each case is ``(drums text embedding, {stem key: embedding}, drum stem key)``. This is the
+    acceptance metric; the eval harness supplies one case per eval song, the tests a synthetic one.
+    """
+    if not cases:
+        return 0.0
+    hits = sum(ranks(query, candidates)[:1] == [drum_key] for query, candidates, drum_key in cases)
+    return hits / len(cases)

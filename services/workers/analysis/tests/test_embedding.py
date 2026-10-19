@@ -13,6 +13,7 @@ from bragi_analysis.embedding import pipeline, store, windows
 from bragi_analysis.embedding.clap import CLAPEmbedder
 from bragi_analysis.embedding.fallback import FallbackEmbedder
 from bragi_analysis.embedding.protocol import EmbedderUnavailableError, select
+from bragi_analysis.evaluation import metrics
 
 SAMPLE_RATE = 22_050
 
@@ -71,15 +72,24 @@ def test_the_text_query_drums_ranks_the_drum_stem_highest() -> None:
         for role, mono in stems.items()
     }
     query = embedder.embed_texts(["drums"])[0]
+    assert metrics.ranks(query, vectors)[0] == "drums"
+    assert metrics.drum_rank_accuracy([(query, vectors, "drums")]) == 1.0
+
     cosine = {role: float(query @ vector) for role, vector in vectors.items()}
-    ranked = sorted(cosine, key=lambda role: -cosine[role])
-    assert ranked[0] == "drums"
-    assert cosine["drums"] > 2 * max(cosine[role] for role in ranked[1:])
+    assert cosine["drums"] > 2 * max(cosine[role] for role in vectors if role != "drums")
 
     # The query is specific: "bass" ranks the bass stem, not the drums.
     bass_query = embedder.embed_texts(["bass"])[0]
-    bass_cosine = {role: float(bass_query @ vector) for role, vector in vectors.items()}
-    assert max(bass_cosine, key=lambda role: bass_cosine[role]) == "bass"
+    assert metrics.ranks(bass_query, vectors)[0] == "bass"
+
+
+def test_drum_rank_accuracy_edges() -> None:
+    query = np.asarray([1.0, 0.0])
+    candidates = {"drums": np.asarray([1.0, 0.0]), "bass": np.asarray([0.0, 1.0])}
+    assert metrics.drum_rank_accuracy([]) == 0.0
+    assert metrics.drum_rank_accuracy([(query, candidates, "drums")]) == 1.0
+    assert metrics.drum_rank_accuracy([(query, candidates, "bass")]) == 0.0
+    assert metrics.ranks(np.zeros(2), candidates) == ["drums", "bass"]
 
 
 def test_select_auto_falls_back_and_clap_requires_weights(monkeypatch: pytest.MonkeyPatch) -> None:

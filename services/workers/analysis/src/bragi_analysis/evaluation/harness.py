@@ -303,8 +303,12 @@ def render(report: Report) -> str:
             f"| structure | {g.name} | >= {g.threshold:g} | **{g.status}**: {g.reason} |"
             for g in report.structure_gates
         ],
-        "| harmony | chord accuracy, key accuracy | >= 0.70, >= 0.80 | not implemented yet |",
-        "| tag | top-3 genre agreement | >= 0.70 | not implemented yet |",
+        "| harmony | chord accuracy, key accuracy | >= 0.70, >= 0.80 "
+        "| **PENDING**: the eval set and its chord/key labels do not exist (Q32, Q65) |",
+        f"| tag | top-3 genre agreement | >= {metrics.TAG_GENRE_GATE} "
+        f"| **PENDING**: needs the eval set and trained heads (Q32, Q67) |",
+        f'| embed_* | `"drums"` stem ranking | >= {metrics.EMBED_DRUM_RANK_GATE:.0%} '
+        f"| **PENDING**: needs the eval set's per-stem references (Q32) |",
         "| describe | manual checklist | 0 hard failures | not implemented yet |",
         "",
         "## Rhythm on the eval set",
