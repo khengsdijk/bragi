@@ -400,3 +400,27 @@ fn run_job_reads_the_host_json() {
         assert!(run_job(&plan, &pcm, &bad).is_err(), "{bad}");
     }
 }
+
+/// With the `parallel` feature the stems render on the rayon pool; the bytes
+/// must equal a sequential render of the same stem plans.
+#[cfg(feature = "parallel")]
+#[test]
+fn parallel_stems_equal_sequential_stems() {
+    use bragi_engine::export::{encode, stem_plan};
+    use bragi_engine::offline::{OfflineOptions, render};
+
+    let (plan, pcm) = three_track_plan();
+    let options = ExportOptions::new(AudioFormat::Flac { bits: 24 }, ExportMeta::titled("Song"));
+    let parallel = export_stems(&plan, &pcm, &StemSelection::All, &options).unwrap();
+    for (index, file) in parallel.iter().enumerate() {
+        let rendered = render(
+            &stem_plan(&plan, &plan.tracks[index]),
+            &pcm,
+            &OfflineOptions::range(0, plan.length_samples),
+        );
+        let mut meta = options.meta.clone();
+        meta.track = Some(plan.tracks[index].name.clone());
+        let expected = encode(&rendered.samples, options.format, &meta, None).unwrap();
+        assert_eq!(file.bytes, expected, "stem {index}");
+    }
+}

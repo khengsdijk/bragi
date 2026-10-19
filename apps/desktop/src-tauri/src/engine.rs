@@ -99,14 +99,18 @@ pub fn engine_state(
     Ok(service.state())
 }
 
-/// Offline mixdown (03 §9).
+/// Offline export (03 §9): WAV/FLAC mixdown or per-track stems.
+///
+/// The reply is one binary export frame (`ExportResult::to_frame`) sent as a
+/// raw IPC response, so megabytes of audio never become a JSON number array.
 #[tauri::command]
 pub fn engine_render(
     state: State<'_, EngineState>,
     job: serde_json::Value,
-) -> Result<bragi_engine_native::service::RenderJson, CommandError> {
-    let mut service = lock(&state)?;
-    service.render(&job).map_err(engine_error)
+) -> Result<tauri::ipc::Response, CommandError> {
+    let service = lock(&state)?;
+    let exported = service.export(&job).map_err(engine_error)?;
+    Ok(tauri::ipc::Response::new(exported.to_frame()))
 }
 
 /// The peak pyramid for an asset, as raw bytes (03 §10).

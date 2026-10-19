@@ -459,6 +459,51 @@ pub struct ExportResult {
     pub files: Vec<ExportFile>,
 }
 
+/// The magic bytes that open an export frame.
+pub const FRAME_MAGIC: &[u8; 4] = b"BXPT";
+
+impl ExportResult {
+    /// Packs the result into one binary frame, so a host can hand every file
+    /// across a process or worker boundary in a single buffer (no JSON number
+    /// arrays for megabytes of audio).
+    ///
+    /// Layout: `"BXPT" | u32 LE jsonLen | json | file 0 bytes | file 1 bytes | …`
+    /// where `json` is `{"version":1,"channels":2,"sampleRate":48000,
+    /// "frames":N,"files":[{"name":…,"length":…,"frames":…},…]}`. The TypeScript
+    /// reader is `decodeExportFrame` in `packages/platform/src/engine/codec.ts`.
+    #[must_use]
+    pub fn to_frame(&self) -> Vec<u8> {
+        let files: Vec<serde_json::Value> = self
+            .files
+            .iter()
+            .map(|file| {
+                serde_json::json!({
+                    "name": file.name,
+                    "length": file.bytes.len(),
+                    "frames": file.frames,
+                })
+            })
+            .collect();
+        let header = serde_json::json!({
+            "version": 1,
+            "channels": 2,
+            "sampleRate": crate::SAMPLE_RATE,
+            "frames": self.files.iter().map(|file| file.frames).max().unwrap_or(0),
+            "files": files,
+        })
+        .to_string();
+        let total: usize = self.files.iter().map(|file| file.bytes.len()).sum();
+        let mut out = Vec::with_capacity(8 + header.len() + total);
+        out.extend_from_slice(FRAME_MAGIC);
+        out.extend_from_slice(&(header.len() as u32).to_le_bytes());
+        out.extend_from_slice(header.as_bytes());
+        for file in &self.files {
+            out.extend_from_slice(&file.bytes);
+        }
+        out
+    }
+}
+
 /// Runs a `mixdown` or `stems` render job given as the host JSON
 /// (`packages/platform` `RenderJob`), so both hosts share one parser.
 ///
@@ -478,6 +523,12 @@ pub fn run_job<P: PcmSource + Sync + ?Sized>(
         .get("kind")
         .and_then(serde_json::Value::as_str)
         .unwrap_or("");
+    if job.get("range").is_some_and(|range| !range.is_null()) && job.get("startSample").is_none() {
+        return Err(ExportError::BadJob(
+            "a tick range must be converted to startSample/frames by the caller; the tempo map lives in bragi-model"
+                .into(),
+        ));
+    }
     if kind != "mixdown" && kind != "stems" {
         return Err(ExportError::UnsupportedJob(kind.to_string()));
     }
@@ -540,6 +591,32 @@ mod tests {
         assert_eq!(sanitize_file_name("../../etc/passwd", "x"), "etc_passwd");
         assert_eq!(sanitize_file_name("Dr\u{fc}ms", "x"), "Dr\u{fc}ms");
         assert_eq!(sanitize_file_name(&"a".repeat(200), "x").len(), 80);
+    }
+
+    #[test]
+    fn frames_pack_files_back_to_back() {
+        let result = ExportResult {
+            files: vec![
+                ExportFile {
+                    name: "a.wav".into(),
+                    bytes: vec![1, 2, 3],
+                    frames: 5,
+                },
+                ExportFile {
+                    name: "b.wav".into(),
+                    bytes: vec![9],
+                    frames: 5,
+                },
+            ],
+        };
+        let frame = result.to_frame();
+        assert_eq!(&frame[0..4], FRAME_MAGIC);
+        let json_len = u32::from_le_bytes(frame[4..8].try_into().unwrap()) as usize;
+        let header: serde_json::Value = serde_json::from_slice(&frame[8..8 + json_len]).unwrap();
+        assert_eq!(header["files"][0]["length"], 3);
+        assert_eq!(header["files"][1]["name"], "b.wav");
+        assert_eq!(header["frames"], 5);
+        assert_eq!(&frame[8 + json_len..], [1, 2, 3, 9]);
     }
 
     #[test]

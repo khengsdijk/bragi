@@ -64,6 +64,9 @@ pub enum ServiceError {
     /// Playback could not start.
     #[error("output: {0}")]
     Output(#[from] OutputError),
+    /// An export job was rejected or could not be encoded.
+    #[error("export: {0}")]
+    Export(#[from] bragi_engine::export::ExportError),
 }
 
 /// One meter value as the UI reads it.
@@ -472,8 +475,8 @@ impl EngineService {
         &self.state
     }
 
-    /// Offline mixdown for a `mixdown` job (03 §9). Other kinds arrive with
-    /// WP-1.11.
+    /// Raw offline mixdown as interleaved `f32` (03 §9), for tests and the
+    /// conformance harness. Hosts export files through [`EngineService::export`].
     ///
     /// # Errors
     /// [`ServiceError::NoDocument`], [`ServiceError::UnsupportedJob`].
@@ -507,6 +510,21 @@ impl EngineService {
             frames: output.frames as u64,
             samples: output.samples,
         })
+    }
+
+    /// Encodes a `mixdown` or `stems` job (03 §9) to WAV or FLAC files.
+    ///
+    /// Stems render per track on the rayon pool. The job is the host's
+    /// `RenderJob` JSON; see [`bragi_engine::export::run_job`].
+    ///
+    /// # Errors
+    /// [`ServiceError::NoDocument`] and [`ServiceError::Export`].
+    pub fn export(
+        &self,
+        job: &serde_json::Value,
+    ) -> Result<bragi_engine::export::ExportResult, ServiceError> {
+        let plan = self.plan.as_ref().ok_or(ServiceError::NoDocument)?;
+        Ok(bragi_engine::export::run_job(plan, &self.pcm, job)?)
     }
 
     /// The peak pyramid for an asset, in the cache byte format (03 §10).
@@ -895,6 +913,51 @@ mod tests {
         assert!(matches!(
             service.render(&serde_json::json!({ "kind": "stems" })),
             Err(ServiceError::UnsupportedJob(_))
+        ));
+    }
+
+    #[test]
+    fn exports_flac_mixdowns_and_wav_stems_through_the_mmap_cache() {
+        let (mut service, hash, _dir) = service();
+        let samples = vec![1000i16; 48_000 * 2];
+        service
+            .register_asset(&hash, &wav(&samples, 2), "audio/wav")
+            .unwrap();
+        service.load_document(document(&hash)).unwrap();
+
+        let raw = service
+            .render(&serde_json::json!({ "kind": "mixdown" }))
+            .unwrap();
+        let mix = service
+            .export(&serde_json::json!({
+                "kind": "mixdown",
+                "format": { "container": "flac", "bits": 24 },
+                "meta": { "title": "Native" }
+            }))
+            .unwrap();
+        assert_eq!(mix.files.len(), 1);
+        assert_eq!(mix.files[0].name, "Native.flac");
+        let decoded =
+            bragi_engine::decode::decode_bytes(&mix.files[0].bytes, Some("flac")).unwrap();
+        assert_eq!(decoded.samples.len(), raw.samples.len());
+        let level = bragi_engine::offline::null_level_dbfs(&decoded.samples, &raw.samples);
+        assert!(level <= -130.0, "flac vs raw render: {level} dBFS");
+
+        let stems = service
+            .export(&serde_json::json!({
+                "kind": "stems", "tracks": "all",
+                "format": { "container": "wav", "bits": 16 }
+            }))
+            .unwrap();
+        assert_eq!(stems.files.len(), 1);
+        assert_eq!(stems.files[0].name, "01-T.wav");
+
+        let frame = stems.to_frame();
+        assert_eq!(&frame[0..4], b"BXPT");
+
+        assert!(matches!(
+            service.export(&serde_json::json!({ "kind": "context" })),
+            Err(ServiceError::Export(_))
         ));
     }
 

@@ -18,6 +18,7 @@
 //! | `transport(cmd, value)` | main thread, drained in the worklet |
 //! | `state_words()` | AudioWorklet, written into the SharedArrayBuffer |
 //! | `render(start, frames, block)` | offline render in a worker |
+//! | `export_frame(jobJson)` | WAV/FLAC mixdown or stems, one binary export frame |
 //! | `peaks(hash)` | waveform pyramids for the canvas |
 //!
 //! `process` uses `wasm-bindgen`'s `&mut [f32]` conversion, which copies into and
@@ -174,6 +175,23 @@ impl EngineWasm {
             sample_rate: SAMPLE_RATE,
         };
         render(self.engine.plan(), &self.pcm, &options).samples
+    }
+
+    /// Runs a `mixdown` or `stems` render job (03 §9) and returns one export
+    /// frame (`ExportResult::to_frame`) holding the encoded WAV/FLAC files.
+    /// `job_json` is the host's `RenderJob`.
+    ///
+    /// The same encoders run on the desktop, so a WASM export is byte-identical
+    /// to a native one (the conformance harness asserts it).
+    ///
+    /// # Errors
+    /// A JavaScript `Error` for a bad job, an unsupported format or a missing document.
+    pub fn export_frame(&self, job_json: &str) -> Result<Vec<u8>, JsError> {
+        let job: serde_json::Value = serde_json::from_str(job_json)
+            .map_err(|error| JsError::new(&format!("bad render job: {error}")))?;
+        let result = bragi_engine::export::run_job(self.engine.plan(), &self.pcm, &job)
+            .map_err(|error| JsError::new(&error.to_string()))?;
+        Ok(result.to_frame())
     }
 
     /// The waveform peak pyramid for an asset, in the cache byte format.
