@@ -7,7 +7,7 @@
  * derived assets are downloadable -> every stage blob validates against the
  * `@bragi/schemas` validators -> a late subscriber gets the replay snapshot.
  *
- * `describe` calls the Anthropic API; without `ANTHROPIC_API_KEY` it fails, and
+ * `describe` calls the LLM via OpenRouter; without `OPENROUTER_API_KEY` it fails, and
  * the test then requires a clean `analysis.failed` for it (nothing is faked).
  *
  *   BRAGI_STACK=local pnpm test:integration

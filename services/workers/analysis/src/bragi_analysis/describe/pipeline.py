@@ -1,4 +1,4 @@
-"""Features -> prompt -> Claude -> ``DescriptionResult``, with the grounding post-check (04 §6.3).
+"""Features -> prompt -> LLM -> ``DescriptionResult``, with the grounding post-check (04 §6.3).
 
 The steps are: build the messages, call the model through a ``DescribeClient``, parse the reply as
 the single JSON object the prompt asks for (one repair retry when it is malformed), validate it

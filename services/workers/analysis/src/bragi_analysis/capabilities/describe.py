@@ -1,9 +1,9 @@
 """The ``describe`` capability (``specs/04`` §6.3).
 
 Reads the analysis blobs the orchestrator passes (``structure``, ``loudness_energy``, ``harmony``,
-``rhythm``, ``tag``, ``stem_activity``; any may be absent), builds the feature digest, asks Claude
-for the description through the ``DescribeClient`` seam, runs the grounding post-check, and
-publishes a ``DescriptionResult`` blob under ``describe``.
+``rhythm``, ``tag``, ``stem_activity``; any may be absent), builds the feature digest, asks the LLM
+(via OpenRouter) for the description through the ``DescribeClient`` seam, runs the grounding
+post-check, and publishes a ``DescriptionResult`` blob under ``describe``.
 
 Input: ``blobs.*`` only (no audio is read). Output: ``blobs.describe`` (a ``DescriptionResult``).
 A missing API key, or a description the post-check cannot ground, fails the stage with a clear
@@ -21,9 +21,9 @@ from bragi_analysis.describe import features as feature_builder
 from bragi_analysis.describe import pipeline
 from bragi_analysis.describe.grounding import GroundingRejectedError
 from bragi_analysis.describe.llm import (
-    AnthropicClient,
     DescribeClient,
     DescribeUnavailableError,
+    OpenRouterClient,
 )
 from bragi_analysis.describe.pipeline import DescriptionInvalidError
 from bragi_analysis.describe.prompt import PROMPT_VERSION
@@ -49,7 +49,7 @@ CAPABILITY = "analysis.describe"
 _logger = logging.getLogger("bragi_analysis.describe")
 
 #: Builds the client. Tests replace this with a fake; production uses the environment key.
-client_factory: Callable[[], DescribeClient] = AnthropicClient.from_env
+client_factory: Callable[[], DescribeClient] = OpenRouterClient.from_env
 
 
 class ParamsModel(BaseModel):

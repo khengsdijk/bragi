@@ -70,13 +70,13 @@ def test_a_reply_with_the_wrong_shape_raises() -> None:
 def test_the_client_is_called_with_the_requested_model_and_tokens() -> None:
     client = FakeDescribeClient([GOOD_REPLY])
     outcome = asyncio.run(
-        pipeline.describe(describe_features(), client, model="claude-test-1", max_tokens=1234)
+        pipeline.describe(describe_features(), client, model="test-model-1", max_tokens=1234)
     )
 
-    assert outcome.model == "claude-test-1"
+    assert outcome.model == "test-model-1"
     assert outcome.attempts == 1
     call = client.calls[0]
-    assert call["model"] == "claude-test-1"
+    assert call["model"] == "test-model-1"
     assert call["max_tokens"] == 1234
     assert call["system"] == SYSTEM_PROMPT
     assert call["user"].startswith("<analysis>")

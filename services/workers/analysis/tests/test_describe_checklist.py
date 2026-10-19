@@ -1,7 +1,7 @@
 """The automated 04 §6.3/§8 checklist over synthetic fixtures and canned replies (WP-1.7).
 
 The "0 hard failures" result below is **synthetic**: it proves the checklist machinery and the
-post-check, not the quality of real Claude output on the owner's eval set (Q32, Q73).
+post-check, not the quality of real model output on the owner's eval set (Q32, Q73).
 """
 
 from __future__ import annotations

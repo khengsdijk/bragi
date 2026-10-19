@@ -192,6 +192,10 @@ services:
       S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-bragi-dev-secret}
       WORKER_NAME: ${WORKER_NAME:-bragi-worker}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+      # describe (04 §6.3): optional; empty makes the describe stage fail cleanly (MODEL_ERROR, not retried).
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      BRAGI_DESCRIBE_MODEL: ${BRAGI_DESCRIBE_MODEL:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-}
       OTEL_SERVICE_NAME: bragi-worker
 
 volumes:

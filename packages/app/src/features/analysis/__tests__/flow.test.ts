@@ -403,7 +403,7 @@ describe("the upload -> live-analysis flow", () => {
       assetHash: result.assetHash,
       stage: "describe",
       code: "MODEL_ERROR",
-      message: "ANTHROPIC_API_KEY is not set",
+      message: "OPENROUTER_API_KEY is not set",
       retryable: false,
     });
     expect(h.flow.state().phase).not.toBe("failed");

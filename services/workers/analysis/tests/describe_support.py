@@ -1,6 +1,6 @@
 """Shared fixtures for the WP-1.7 describe tests: a fake client and synthetic analysis blobs.
 
-Everything here is generated in-process: no audio, no network, no ``ANTHROPIC_API_KEY``. The blob
+Everything here is generated in-process: no audio, no network, no ``OPENROUTER_API_KEY``. The blob
 builders mirror the stage outputs of ``specs/04`` §5 so the feature join, the prompt, the grounding
 post-check and the checklist can be exercised without any real analysis run.
 """

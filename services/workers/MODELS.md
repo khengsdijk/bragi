@@ -20,7 +20,7 @@ differs from the pin and reads it with `torch.load(weights_only=True)`. Set
 
 | Name | Task | Version | SHA-256 | Code licence | Weights / service licence | Commercial use | Source | Verified |
 |---|---|---|---|---|---|---|---|---|
-| Anthropic Claude | `analysis.describe` text generation | configured in `bragi_analysis/config/describe.toml` (default `claude-sonnet-5-5`; `BRAGI_DESCRIBE_MODEL` or the job param `model` override it) | n/a (hosted API, no weights) | `anthropic` SDK: MIT | Anthropic commercial API terms; the ID and the key are an owner decision (Q71) | per the Anthropic API terms (owner confirms, Q71) | <https://api.anthropic.com>; SDK <https://github.com/anthropics/anthropic-sdk-python> | 2026-10-19 (SDK installed; no API key or call in this environment) |
+| OpenRouter-routed LLM (hosted) | `analysis.describe` text generation | an OpenRouter slug in `bragi_analysis/config/describe.toml` (default `deepseek/deepseek-v4.1-flash`; `BRAGI_DESCRIBE_MODEL` or the job param `model` override it) | n/a (hosted API, no weights) | none: the client uses the standard library, no SDK | OpenRouter terms plus the routed provider's terms; the model slug and the key are an owner decision (Q71, ADR-0012) | per the OpenRouter and provider terms; requests ask for `data_collection: deny` | <https://openrouter.ai/api/v1> | 2026-10-19 (no API key or call in this environment) |
 
 The `describe` stage sends **derived features and controlled labels only** — no audio, lyrics, file
 names, artist or title metadata ([10 §7](../../specs/10-fusion.md)) — over outbound HTTPS from the

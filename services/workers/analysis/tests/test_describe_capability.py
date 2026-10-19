@@ -22,8 +22,8 @@ from describe_support import (
 from bragi_analysis.capabilities import describe
 from bragi_analysis.describe.llm import (
     API_KEY_ENV,
-    AnthropicClient,
     DescribeUnavailableError,
+    OpenRouterClient,
 )
 from bragi_analysis.describe.settings import MODEL_ENV, load
 from bragi_common.cancel import JobCancelledError
@@ -75,27 +75,27 @@ def test_a_job_param_overrides_the_configured_model(
 ) -> None:
     context = FakeContext(tmp_path, blob_bytes(pop_blobs()))
 
-    _, client = _run(monkeypatch, context, {"model": "claude-haiku-test"})
+    _, client = _run(monkeypatch, context, {"model": "test-vendor/model-a"})
 
-    assert client.calls[0]["model"] == "claude-haiku-test"
+    assert client.calls[0]["model"] == "test-vendor/model-a"
 
 
 def test_the_environment_overrides_the_configured_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv(MODEL_ENV, "claude-env-test")
+    monkeypatch.setenv(MODEL_ENV, "test-vendor/model-env")
     context = FakeContext(tmp_path, blob_bytes(pop_blobs()))
 
     _, client = _run(monkeypatch, context, {})
 
-    assert client.calls[0]["model"] == "claude-env-test"
+    assert client.calls[0]["model"] == "test-vendor/model-env"
 
 
 def test_a_missing_api_key_fails_with_a_clear_message(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv(API_KEY_ENV, raising=False)
-    monkeypatch.setattr(describe, "client_factory", AnthropicClient.from_env)
+    monkeypatch.setattr(describe, "client_factory", OpenRouterClient.from_env)
     context = FakeContext(tmp_path, blob_bytes(pop_blobs()))
     job = make_job(describe.CAPABILITY, blob_hash_map(pop_blobs()))
 
@@ -140,7 +140,7 @@ def test_from_env_without_a_key_names_the_variable_not_a_secret(
     monkeypatch.delenv(API_KEY_ENV, raising=False)
 
     with pytest.raises(DescribeUnavailableError) as caught:
-        AnthropicClient.from_env()
+        OpenRouterClient.from_env()
 
     assert API_KEY_ENV in str(caught.value)
 
@@ -150,8 +150,8 @@ def test_from_env_without_a_key_names_the_variable_not_a_secret(
     reason=f"real-API smoke test: set {API_KEY_ENV} to run it",
 )
 def test_the_real_client_round_trips_one_tiny_request() -> None:
-    """PENDING in this environment: no ``ANTHROPIC_API_KEY`` is available here."""
-    client = AnthropicClient.from_env()
+    """PENDING in this environment: no ``OPENROUTER_API_KEY`` is available here."""
+    client = OpenRouterClient.from_env()
 
     reply = asyncio.run(
         client.complete(
