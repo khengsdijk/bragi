@@ -530,7 +530,13 @@ export function HistoryPanel({
                 />
               ))}
             </svg>
-            <div role="tree" aria-label={t("history.panel.label")} aria-multiselectable="true">
+            <div
+              role="tree"
+              aria-label={t("history.panel.label")}
+              aria-multiselectable="true"
+              // The tree spans the spacer, so it has a box of its own (rows are positioned in it).
+              style={{ position: "absolute", inset: 0 }}
+            >
               {visibleRows.map((index) => {
                 const row = rows[index];
                 if (row === undefined) return null;
