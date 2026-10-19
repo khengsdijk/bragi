@@ -36,6 +36,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "library",
         sql: include_str!("../../../../packages/schemas/sqlite/migrations/002_library.sql"),
     },
+    Migration {
+        version: 3,
+        name: "history",
+        sql: include_str!("../../../../packages/schemas/sqlite/migrations/003_history.sql"),
+    },
 ];
 
 /// The bookkeeping table, byte-for-byte the browser's.
@@ -228,7 +233,7 @@ mod tests {
     #[test]
     fn creates_the_local_schema_and_records_it() {
         let mut connection = in_memory();
-        assert_eq!(apply(&mut connection).expect("applies"), vec![1, 2]);
+        assert_eq!(apply(&mut connection).expect("applies"), vec![1, 2, 3]);
         let columns: Vec<String> = {
             let mut statement = connection
                 .prepare("SELECT name FROM pragma_table_info('projects') ORDER BY cid")
@@ -261,7 +266,11 @@ mod tests {
         };
         assert_eq!(
             recorded,
-            vec![(1, "projects".to_owned()), (2, "library".to_owned())]
+            vec![
+                (1, "projects".to_owned()),
+                (2, "library".to_owned()),
+                (3, "history".to_owned())
+            ]
         );
     }
 
