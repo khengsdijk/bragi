@@ -25,33 +25,9 @@ import { createUploadFlow, type UploadFlow, type UploadState } from "../../analy
 import { loadModel } from "../../song/model/model-api.js";
 import { createSongStore } from "../../song/state/song-store.js";
 import { type LibraryItem, listLibraryItems } from "../api/library-repo.js";
+import { progressText } from "./progress.js";
 
 const LOCAL_LIBRARY = ["library", "local"] as const;
-
-function progressText(state: UploadState | null): string | null {
-  if (state === null) return null;
-  switch (state.phase) {
-    case "hashing":
-      return t("library.analysis.hashing");
-    case "checking":
-      return t("library.analysis.checking");
-    case "uploading":
-      return t("library.analysis.uploading");
-    case "queueing":
-      return t("library.analysis.queueing");
-    case "analysing":
-      return t("library.analysis.analysing", {
-        done: state.stagesDone,
-        total: state.stagesTotal,
-      });
-    case "ready":
-      return t("library.analysis.ready");
-    case "failed":
-      return t("library.analysis.failed", { message: state.message ?? "" });
-    default:
-      return null;
-  }
-}
 
 export function LibrarySection() {
   const platform = usePlatform();
@@ -174,6 +150,8 @@ export function LibrarySection() {
         ref={input}
         type="file"
         className="sr-only"
+        aria-label={t("library.choose")}
+        tabIndex={-1}
         accept="audio/*,.wav,.flac,.mp3,.m4a,.ogg,.opus"
         onChange={onPick}
         disabled={busy}

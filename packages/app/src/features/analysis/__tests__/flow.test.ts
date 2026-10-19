@@ -84,7 +84,9 @@ interface Harness {
   readonly postAnalysesEmit: (stage: string, fixture: Fixture) => void;
 }
 
-async function harness(): Promise<Harness> {
+async function harness(
+  onCommit?: (commit: { batch: { label: string } }, platform: Platform) => void,
+): Promise<Harness> {
   const platform = await memoryPlatform();
   const store = new Map<string, Uint8Array>();
   const realtime = new FakeRealtime();
@@ -131,6 +133,7 @@ async function harness(): Promise<Harness> {
     onState: (state) => states.push(state),
     onAnalysis: (data) => views.push(data as Record<string, unknown>),
     onProject: (projectId) => projects.push(projectId),
+    onCommit: (commit) => onCommit?.(commit, platform),
     now: () => new Date("2026-10-19T12:00:00Z"),
   });
 
@@ -220,7 +223,16 @@ describe("the upload -> live-analysis flow", () => {
   });
 
   it("merges every standard stage through analysis.apply and reaches ready", async () => {
-    const h = await harness();
+    // The engine resyncs from the document on every commit and reads the audio from the cache:
+    // the stems must already be there when the separation commit is announced.
+    const stemsAtCommit: boolean[] = [];
+    let stemHashes: string[] = [];
+    const h = await harness((commit, platform) => {
+      if (commit.batch.label !== "Analysis: separation") return;
+      void Promise.all(
+        stemHashes.map((hash) => platform.blobCache.has(hash as `sha256:${string}`)),
+      ).then((has) => stemsAtCommit.push(...has));
+    });
     const workingAsset = await registerAudio(h.store, "working");
     const ingest = await register(h.store, {
       schemaVersion: 1,
@@ -235,6 +247,7 @@ describe("the upload -> live-analysis flow", () => {
     const drums = await registerAudio(h.store, "drums");
     const residual = await registerAudio(h.store, "residual");
 
+    stemHashes = [vocals, drums, residual];
     const fixtures: Record<string, Fixture> = {
       ingest,
       rhythm: await register(h.store, {
@@ -327,6 +340,8 @@ describe("the upload -> live-analysis flow", () => {
     expect(doc?.analyses[doc.sources[0]?.id ?? ""]?.status.separation).toBe("done");
     expect(doc?.meta.tags).toContain("pop");
 
+    await drain();
+    expect(stemsAtCommit).toEqual([true, true, true]);
     // Stems were downloaded for soloing.
     for (const hash of [vocals, drums, residual]) {
       expect(await h.platform.blobCache.has(hash as `sha256:${string}`)).toBe(true);

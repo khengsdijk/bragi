@@ -203,6 +203,12 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
       // The stems and residual must be in the AssetIndex before the op, so
       // `analysis.apply` can validate their clip ranges (02 §6).
       deps.songStore.addAssets(stemAssetMetas(separation, deps.songStore));
+      // And in the BlobCache before the engine hears about the new tracks (`onCommit` resyncs the
+      // engine from the document and reads the bytes from the cache): a stem the cache does not
+      // have yet plays as silence. Stems appear as soon as separation lands (07 §8); a large
+      // song's stems could be made lazier per ribbon (Q80).
+      await ensureAsset(separation.residual);
+      for (const stem of separation.stems) await ensureAsset(stem.asset);
     }
 
     if (stage === "ingest") {
@@ -252,14 +258,6 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
       }
       deps.onCommit?.(outcome.commit, outcome.doc);
       await saveProjectSnapshot(deps.platform, outcome.doc, now());
-    }
-
-    if (separation !== null) {
-      // Stems appear as soon as separation lands (07 §8). They are downloaded
-      // into the BlobCache so the engine can solo each ribbon; a large song's
-      // stems could be made lazier per ribbon (see the outcome's open question).
-      await ensureAsset(separation.residual);
-      for (const stem of separation.stems) await ensureAsset(stem.asset);
     }
 
     view = mergeArtifacts(view, artifactsForStage(stage, json, { tracks: tracks() }));
@@ -337,11 +335,14 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
         // this user's ownership (`user_assets`), which upload dedupe does not (05 §2).
         await deps.api.complete(hash, mime);
 
-        // Subscribe before submitting, so no stage can finish in between.
-        deps.realtime.subscribe([`asset:${hash}`]);
+        // Submit first, subscribe second. The server grants this user the outputs of stages another
+        // user's upload of the same bytes already finished while it handles the POST, and the
+        // download of a finished stage is ownership-checked: a `sub` before the POST would replay
+        // those stages too early (404). A stage finishing between the POST and the `sub` is not
+        // lost, the `sub` replays every finished stage (05 §3) and so does `getAnalyses`.
         emit({ phase: "queueing" });
         await deps.api.postAnalyses(hash, "standard");
-        await replayFromServer(hash, false);
+        await replayFromServer(hash);
         return { projectId: await waitForProject(), assetHash: hash };
       } catch (error) {
         emit({
@@ -385,8 +386,8 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
    * The server also replays finished stages on `sub`; this covers a stage that finished before
    * the socket opened. Replay in DAG order so ingest creates the source before the rest.
    */
-  async function replayFromServer(hash: string, subscribe = true): Promise<void> {
-    if (subscribe) deps.realtime.subscribe([`asset:${hash}`]);
+  async function replayFromServer(hash: string): Promise<void> {
+    deps.realtime.subscribe([`asset:${hash}`]);
     const snapshot = await deps.api.getAnalyses(hash);
     const order = new Map(STANDARD_STAGES.map((stage, index) => [stage, index]));
     const stages = [...snapshot.stages].sort(

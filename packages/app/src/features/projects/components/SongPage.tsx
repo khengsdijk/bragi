@@ -75,9 +75,13 @@ export function SongPage() {
       <p className="song__id" data-testid="project-id">
         {state.project.id}
       </p>
-      <p data-testid="card-status" data-card-ok={state.cardOk ? "true" : "false"}>
-        {state.cardOk ? t("song.cardOk") : t("song.cardMissing")}
-      </p>
+      {/* Only a project created from the projects form has a stored card (WP-0.5); an uploaded
+          song lives in its snapshot, and "we could not find the stored copy" would be a lie. */}
+      {state.hasSnapshot ? null : (
+        <p data-testid="card-status" data-card-ok={state.cardOk ? "true" : "false"}>
+          {state.cardOk ? t("song.cardOk") : t("song.cardMissing")}
+        </p>
+      )}
       <Link to="/">{t("song.back")}</Link>
       {state.hasSnapshot ? <StoredSongCanvas projectId={state.project.id} /> : null}
     </section>

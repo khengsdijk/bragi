@@ -23,6 +23,7 @@ import {
 import { apiFor, realtimeFor } from "../../analysis/api/host.js";
 import { createUploadFlow } from "../../analysis/state/flow.js";
 import { getProjectRow, getProjectSnapshot } from "../../library/api/library-repo.js";
+import { progressText } from "../../library/components/progress.js";
 import { loadModel } from "../model/model-api.js";
 import { createEngineController, type EngineController } from "../state/engine-controller.js";
 import { createSongStore, type SongStore } from "../state/song-store.js";
@@ -96,6 +97,7 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
   const search = useSearch({ strict: false }) as Record<string, unknown>;
   const [session, setSession] = useState<Session | null>(null);
   const [failed, setFailed] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const dispose = useRef<(() => void)[]>([]);
 
   useEffect(() => {
@@ -136,6 +138,9 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
         api: apiFor(platform),
         realtime,
         songStore: store,
+        onState: (state) => {
+          if (live) setProgress(state.phase === "ready" ? null : progressText(state));
+        },
         onAnalysis: (data) => {
           if (live)
             setSession((current) => (current === null ? current : { ...current, analysis: data }));
@@ -171,13 +176,20 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
     return <p data-testid="stored-canvas-loading">{t("song.canvas.loading")}</p>;
   }
   return (
-    <SongWorkspace
-      songStore={session.store}
-      controller={session.controller}
-      analysis={session.analysis}
-      selection={{ kind: "none" }}
-      testHooks={wantsTestHooks(search)}
-      onSelectionChange={() => {}}
-    />
+    <>
+      {progress === null ? null : (
+        <p role="status" data-testid="analysis-progress">
+          {progress}
+        </p>
+      )}
+      <SongWorkspace
+        songStore={session.store}
+        controller={session.controller}
+        analysis={session.analysis}
+        selection={{ kind: "none" }}
+        testHooks={wantsTestHooks(search)}
+        onSelectionChange={() => {}}
+      />
+    </>
   );
 }
