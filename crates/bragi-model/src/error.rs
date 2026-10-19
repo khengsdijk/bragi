@@ -36,7 +36,10 @@ pub enum ValidationCode {
     MissingTarget,
     /// An op gives an index beyond the end of its list.
     IndexOutOfRange,
-    /// The op is valid but not implemented by this work package (`region.adopt`, WP-2.1).
+    /// A `region.adopt` names a commit whose document was not supplied (02 §5.4).
+    UnknownCommit,
+    /// The op is valid but this variant of it is not implemented in v1 (e.g. `section.remove`
+    /// with `closeGap: false`).
     UnsupportedOp,
     /// An `analysis.apply` effect does not match its stage, or its payload is unusable (02 §6).
     AnalysisEffects,
@@ -58,6 +61,7 @@ impl ValidationCode {
             Self::NumericRange => "numeric_range",
             Self::MissingTarget => "missing_target",
             Self::IndexOutOfRange => "index_out_of_range",
+            Self::UnknownCommit => "unknown_commit",
             Self::UnsupportedOp => "unsupported_op",
             Self::AnalysisEffects => "analysis_effects",
         }
