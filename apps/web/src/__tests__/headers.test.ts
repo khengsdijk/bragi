@@ -48,4 +48,13 @@ describe("securityHeaders", () => {
     expect(directives).toContain("frame-ancestors 'none'");
     expect(directives).toContain("form-action 'none'");
   });
+
+  it("adds the object-store origin to connect-src only when given one", () => {
+    expect(contentSecurityPolicy("production", ["https://blobs.example"])).toContain(
+      "connect-src 'self' https://blobs.example;",
+    );
+    expect(contentSecurityPolicy("development", ["http://127.0.0.1:9000"])).toContain(
+      "connect-src 'self' ws: wss: http://127.0.0.1:9000;",
+    );
+  });
 });

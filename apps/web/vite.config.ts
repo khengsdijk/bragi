@@ -22,7 +22,16 @@ import { securityHeaders } from "./src/headers.js";
  *    component state to preserve yet.
  */
 export default defineConfig(({ command }) => {
-  const headers = securityHeaders(command === "serve" ? "development" : "production");
+  // Presigned upload/download URLs point at object storage (05 §2): allow its origin in connect-src.
+  // The dev default is the compose MinIO (`S3_PUBLIC_ENDPOINT`); a deployment sets the variable.
+  const blobOrigins = (
+    process.env.BRAGI_BLOB_ORIGINS ??
+    (command === "serve" ? "http://127.0.0.1:9000,http://localhost:9000" : "")
+  )
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin !== "");
+  const headers = securityHeaders(command === "serve" ? "development" : "production", blobOrigins);
   // The API (05 §2, §3) is proxied rather than called cross-origin: the page
   // stays same-origin, so the Better Auth session cookie is an ordinary
   // same-site cookie and `Origin` matches the API's trusted origins. `ws: true`

@@ -29,12 +29,21 @@ const CONNECT_SOURCES = "'self'";
  * is narrower than `'unsafe-eval'`. Nothing remote is allowed: no CDN, no
  * analytics, no fonts.
  *
+ * `blobOrigins` are the object-store origins presigned URLs point at (`S3_PUBLIC_ENDPOINT`); the
+ * deploy sets them, `vite.config.ts` reads `BRAGI_BLOB_ORIGINS` (dev default: the compose MinIO).
+ *
  * Dev adds what Vite needs, and only dev: `'unsafe-inline'` for the `<style>`
  * elements Vite injects for CSS in dev (the production build links a CSS file)
  * and `ws:`/`wss:` for its HMR websocket.
  */
-export function contentSecurityPolicy(mode: HeaderMode): string {
+export function contentSecurityPolicy(
+  mode: HeaderMode,
+  blobOrigins: readonly string[] = [],
+): string {
   const dev = mode === "development";
+  // Uploads and downloads go straight to object storage through presigned URLs (05 §2), a
+  // different origin from the page: it is the one remote origin the app may talk to.
+  const connect = [CONNECT_SOURCES, ...(dev ? ["ws:", "wss:"] : []), ...blobOrigins].join(" ");
   return [
     "default-src 'self'",
     `script-src ${SCRIPT_SOURCES}`,
@@ -42,7 +51,7 @@ export function contentSecurityPolicy(mode: HeaderMode): string {
     "img-src 'self' data: blob:",
     "media-src 'self' blob:",
     "font-src 'self'",
-    `connect-src ${dev ? `${CONNECT_SOURCES} ws: wss:` : CONNECT_SOURCES}`,
+    `connect-src ${connect}`,
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     "object-src 'none'",
@@ -53,11 +62,14 @@ export function contentSecurityPolicy(mode: HeaderMode): string {
 }
 
 /** The headers a web build must be served with. */
-export function securityHeaders(mode: HeaderMode): Record<string, string> {
+export function securityHeaders(
+  mode: HeaderMode,
+  blobOrigins: readonly string[] = [],
+): Record<string, string> {
   return {
     "Cross-Origin-Opener-Policy": "same-origin",
     "Cross-Origin-Embedder-Policy": "require-corp",
-    "Content-Security-Policy": contentSecurityPolicy(mode),
+    "Content-Security-Policy": contentSecurityPolicy(mode, blobOrigins),
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
   };
