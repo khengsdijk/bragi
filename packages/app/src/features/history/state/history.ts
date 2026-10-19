@@ -95,6 +95,11 @@ export interface History {
   discardGroup(group: string): Promise<void>;
   /** "Take this part from…" (02 §5.4): copies `region` from an earlier commit. */
   adoptRegion(region: Region, fromCommit: string): Promise<ApplyOutcome>;
+  /**
+   * The saved document of a commit, or `null` when the row or its snapshot is gone. The history
+   * panel uses this to compare section boundaries before adopting a region (07 §7).
+   */
+  readSnapshot(id: string): Promise<Project | null>;
 }
 
 export interface HistoryOptions {
@@ -605,6 +610,17 @@ export function createHistory(options: HistoryOptions): History {
       };
       return direct.commit(batch);
     },
+
+    async readSnapshot(id) {
+      await ensureLoaded(false);
+      const commit = view().commits.get(id);
+      if (commit === undefined) return null;
+      try {
+        return await readCommitSnapshot(platform, commit.snapshotHash);
+      } catch {
+        return null;
+      }
+    },
   };
 
   return {
@@ -625,6 +641,7 @@ export function createHistory(options: HistoryOptions): History {
     accept: (id) => serial(() => direct.accept(id)),
     discardGroup: (group) => serial(() => direct.discardGroup(group)),
     adoptRegion: (region, fromCommit) => serial(() => direct.adoptRegion(region, fromCommit)),
+    readSnapshot: (id) => direct.readSnapshot(id),
   };
 }
 
