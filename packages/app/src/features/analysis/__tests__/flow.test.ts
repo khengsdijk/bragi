@@ -5,6 +5,7 @@ import { type Platform, parseMigrations } from "@bragi/platform";
 import { createMemoryPlatform } from "@bragi/platform/testing";
 import { describe, expect, it } from "vitest";
 
+import { listCommits } from "../../history/api/history-repo.js";
 import { getProjectSnapshot, listLibraryItems } from "../../library/api/library-repo.js";
 import { loadTestModel } from "../../song/__tests__/fixtures.js";
 import { createSongStore, type SongStore } from "../../song/state/song-store.js";
@@ -85,7 +86,7 @@ interface Harness {
 }
 
 async function harness(
-  onCommit?: (commit: { batch: { label: string } }, platform: Platform) => void,
+  onCommit?: (commit: { batch: { label: string } | null }, platform: Platform) => void,
 ): Promise<Harness> {
   const platform = await memoryPlatform();
   const store = new Map<string, Uint8Array>();
@@ -229,7 +230,7 @@ describe("the upload -> live-analysis flow", () => {
     const stemsAtCommit: boolean[] = [];
     let stemHashes: string[] = [];
     const h = await harness((commit, platform) => {
-      if (commit.batch.label !== "Analysis: separation") return;
+      if (commit.batch?.label !== "Analysis: separation") return;
       void Promise.all(
         stemHashes.map((hash) => platform.blobCache.has(hash as `sha256:${string}`)),
       ).then((has) => stemsAtCommit.push(...has));
@@ -426,6 +427,59 @@ describe("the upload -> live-analysis flow", () => {
     expect(doc?.analyses[doc.sources[0]?.id ?? ""]?.blobs.rhythm).toBeUndefined();
   });
 
+  it("records the ingest as a root commit and one commit per stage, all system", async () => {
+    const h = await harness();
+    const workingAsset = await registerAudio(h.store, "working");
+    const ingest = await register(h.store, {
+      schemaVersion: 1,
+      workingAsset,
+      durationSec: 30,
+      channelsOriginal: 1,
+      sampleRateOriginal: 48000,
+      codec: "wav",
+      fingerprint: "fp",
+    });
+    const rhythm = await register(h.store, {
+      schemaVersion: 1,
+      bpm: 120,
+      beats: [0, 0.5],
+      downbeats: [0],
+      tempoCurve: [{ beat: 0, bpm: 120 }],
+      timeSignature: { numerator: 4, denominator: 4 },
+      confidence: 0.9,
+      isTempoStable: true,
+    });
+    const tag = await register(h.store, {
+      schemaVersion: 1,
+      genres: [],
+      moods: [],
+      instruments: [],
+      descriptors: [],
+    });
+    h.postAnalysesEmit("ingest", ingest);
+    const result = await h.flow.start({ name: "song.wav", bytes: async () => new Uint8Array([6]) });
+
+    h.partial("rhythm", rhythm);
+    await drain();
+    h.partial("tag", tag);
+    await drain();
+
+    const commits = await listCommits(h.platform.localDb, result.projectId);
+    expect(commits.map((commit) => commit.label)).toEqual([
+      "Analysis: ingest",
+      "Analysis: rhythm",
+      "Analysis: tag",
+    ]);
+    expect(commits[0]?.parent).toBeNull();
+    expect(commits[1]?.parent).toBe(commits[0]?.id);
+    expect(commits[2]?.parent).toBe(commits[1]?.id);
+    expect(commits.every((commit) => commit.authorKind === "system")).toBe(true);
+
+    // The project row still opens the newest document.
+    const snapshot = await getProjectSnapshot(h.platform, result.projectId);
+    expect(snapshot?.meta.tags).toEqual([]);
+  });
+
   it("resumes a stored project: skips merged stages, merges the rest and reports commits (Q82)", async () => {
     const h = await harness();
     const workingAsset = await registerAudio(h.store, "working");
@@ -500,7 +554,7 @@ describe("the upload -> live-analysis flow", () => {
         const bytes = h.store.get(String(url).replace(/^blob:/, ""));
         return new Response(bytes as unknown as BodyInit, { status: bytes ? 200 : 404 });
       }) as unknown as typeof globalThis.fetch,
-      onCommit: (commit) => commits.push(commit.batch.label),
+      onCommit: (commit) => commits.push(commit.batch?.label ?? ""),
     });
     await flow.resume({ assetHash: result.assetHash });
     expect(realtime.topics()).toContain(`asset:${result.assetHash}`);
