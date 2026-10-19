@@ -82,15 +82,11 @@ export const PROFILE_STAGES: Record<AnalysisProfile, readonly string[]> = {
  * The stages that have a worker today (05 §4.1, WP-1.10).
  *
  * The DAG lists the full 04 §2 graph, including stages no work package has built
- * yet (`preview`, `energy_stems`, `describe`, `drum_split`, `transcribe`,
- * `lyrics`). A `standard` analysis would never finish if it scheduled them, so a
- * profile is filtered down to what can actually run. A stage may only be removed
- * here when nothing in the profile depends on it: `energy_stems` and `preview`
- * have no dependents; `describe` is terminal too.
- *
- * TODO(WP-1.7): add `describe` once its worker lands; it depends on
- * `structure`/`harmony`/`tag`/`section_embed`/`stem_activity`/`stem_embed`, all
- * of which are already here.
+ * yet (`preview`, `energy_stems`, `drum_split`, `transcribe`, `lyrics`). A
+ * `standard` analysis would never finish if it scheduled them, so a profile is
+ * filtered down to what can actually run. A stage may only be removed here when
+ * nothing in the profile depends on it: `energy_stems` and `preview` have no
+ * dependents.
  */
 export const IMPLEMENTED_STAGES: ReadonlySet<string> = new Set([
   "ingest",
@@ -104,6 +100,7 @@ export const IMPLEMENTED_STAGES: ReadonlySet<string> = new Set([
   "stem_activity",
   "section_embed",
   "stem_embed",
+  "describe",
 ]);
 
 const BY_STAGE = new Map(ANALYSIS_DAG.map((node) => [node.stage, node]));
