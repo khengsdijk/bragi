@@ -291,3 +291,18 @@ fn validation_rejects_a_source_on_another_effect_type_and_a_self_source() {
             .any(|error| error.code == ValidationCode::FxParam)
     );
 }
+
+/// Absent and `null` must survive a serde round trip unchanged: commit ids hash the batch JSON.
+#[test]
+fn fx_update_sidechain_source_round_trips_absent_and_null() {
+    for json in [
+        r#"{"op":"fx.update","fxId":"fx_01J000000000000000000DUCK1","paramsPatch":{}}"#,
+        r#"{"op":"fx.update","fxId":"fx_01J000000000000000000DUCK1","paramsPatch":{},"sidechainSource":null}"#,
+        r#"{"op":"fx.update","fxId":"fx_01J000000000000000000DUCK1","paramsPatch":{},"sidechainSource":"trk_drums"}"#,
+    ] {
+        let op: bragi_model::generated::FxUpdateOp = serde_json::from_str(json).expect("parses");
+        let back: serde_json::Value = serde_json::to_value(&op).expect("serialises");
+        let expected: serde_json::Value = serde_json::from_str(json).expect("valid json");
+        assert_eq!(back, expected, "{json}");
+    }
+}
