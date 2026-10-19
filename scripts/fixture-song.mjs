@@ -227,7 +227,9 @@ export function encodeWav16(left, right, sampleRate) {
 function main(argv) {
   const output = argv.find((arg) => !arg.startsWith("--"));
   if (output === undefined) {
-    process.stderr.write("usage: node scripts/fixture-song.mjs <out.wav> [--seconds N] [--rate N]\n");
+    process.stderr.write(
+      "usage: node scripts/fixture-song.mjs <out.wav> [--seconds N] [--rate N]\n",
+    );
     process.exitCode = 1;
     return;
   }

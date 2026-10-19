@@ -7,7 +7,7 @@ import { applyJobEvent } from "../orchestrator/handler.js";
 
 interface Query {
   readonly sql: string;
-  readonly params?: readonly unknown[];
+  readonly params?: readonly unknown[] | undefined;
 }
 
 interface AnalysisRow {
