@@ -1,0 +1,303 @@
+{
+  "schemaVersion": 1,
+  "id": "prj_engineconfE",
+  "meta": {
+    "title": "Engine conformance E (section boundaries)",
+    "createdAt": "2026-10-19T00:00:00Z",
+    "tags": ["conformance"]
+  },
+  "sources": [],
+  "analyses": {},
+  "tracks": [
+    {
+      "id": "trk_drums",
+      "name": "trk_drums",
+      "role": "full_mix",
+      "color": "#8A8F98",
+      "gainDb": 0.0,
+      "pan": 0.0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    },
+    {
+      "id": "trk_tone",
+      "name": "trk_tone",
+      "role": "synth",
+      "color": "#C9A227",
+      "gainDb": -6.0,
+      "pan": 0.25,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    }
+  ],
+  "arrangement": {
+    "timebase": {
+      "ppq": 960,
+      "tempoMap": [
+        {
+          "tick": 0,
+          "bpm": 120,
+          "curve": "step"
+        }
+      ],
+      "timeSignatures": [
+        {
+          "bar": 0,
+          "numerator": 4,
+          "denominator": 4
+        }
+      ]
+    },
+    "sections": [
+      {
+        "id": "sec_a",
+        "kind": "intro",
+        "label": "A",
+        "lengthTicks": 960,
+        "lanes": {
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_d0",
+                "asset": "sha256:1b77ad128280974bbacf069084b80098f0561361a2b76e852ced984779a64900",
+                "srcStart": 0,
+                "srcEnd": 24000,
+                "start": 0,
+                "warp": {
+                  "mode": "none"
+                },
+                "gainDb": 0.0,
+                "pitchSemitones": 0.0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-19T00:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_tone": {
+            "clips": [
+              {
+                "id": "clp_t0",
+                "asset": "sha256:4f0f99f60f5a81427887a233bacd5bbca2e0f7e4fe4f18ce1c39904955362f3e",
+                "srcStart": 0,
+                "srcEnd": 24000,
+                "start": 0,
+                "warp": {
+                  "mode": "none"
+                },
+                "gainDb": 0.0,
+                "pitchSemitones": 0.0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-19T00:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        },
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        }
+      },
+      {
+        "id": "sec_b",
+        "kind": "verse",
+        "label": "B",
+        "lengthTicks": 960,
+        "lanes": {
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_d1",
+                "asset": "sha256:1b77ad128280974bbacf069084b80098f0561361a2b76e852ced984779a64900",
+                "srcStart": 90000,
+                "srcEnd": 114000,
+                "start": 0,
+                "warp": {
+                  "mode": "none"
+                },
+                "gainDb": 0.0,
+                "pitchSemitones": 0.0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-19T00:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_tone": {
+            "clips": [
+              {
+                "id": "clp_t1",
+                "asset": "sha256:4f0f99f60f5a81427887a233bacd5bbca2e0f7e4fe4f18ce1c39904955362f3e",
+                "srcStart": 48000,
+                "srcEnd": 72000,
+                "start": 0,
+                "warp": {
+                  "mode": "none"
+                },
+                "gainDb": 0.0,
+                "pitchSemitones": 0.0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-19T00:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        },
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        }
+      },
+      {
+        "id": "sec_c",
+        "kind": "chorus",
+        "label": "C",
+        "lengthTicks": 960,
+        "lanes": {
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_d2",
+                "asset": "sha256:1b77ad128280974bbacf069084b80098f0561361a2b76e852ced984779a64900",
+                "srcStart": 20000,
+                "srcEnd": 44000,
+                "start": 0,
+                "warp": {
+                  "mode": "none"
+                },
+                "gainDb": 0.0,
+                "pitchSemitones": 0.0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-19T00:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_tone": {
+            "clips": [
+              {
+                "id": "clp_t2",
+                "asset": "sha256:4f0f99f60f5a81427887a233bacd5bbca2e0f7e4fe4f18ce1c39904955362f3e",
+                "srcStart": 10000,
+                "srcEnd": 34000,
+                "start": 0,
+                "warp": {
+                  "mode": "none"
+                },
+                "gainDb": 0.0,
+                "pitchSemitones": 0.0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-19T00:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        },
+        "transitionIn": {
+          "kind": "crossfade",
+          "lengthTicks": 240
+        }
+      },
+      {
+        "id": "sec_d",
+        "kind": "outro",
+        "label": "D",
+        "lengthTicks": 960,
+        "lanes": {
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_d3",
+                "asset": "sha256:1b77ad128280974bbacf069084b80098f0561361a2b76e852ced984779a64900",
+                "srcStart": 150000,
+                "srcEnd": 174000,
+                "start": 0,
+                "warp": {
+                  "mode": "none"
+                },
+                "gainDb": 0.0,
+                "pitchSemitones": 0.0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-19T00:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_tone": {
+            "clips": [
+              {
+                "id": "clp_t3",
+                "asset": "sha256:4f0f99f60f5a81427887a233bacd5bbca2e0f7e4fe4f18ce1c39904955362f3e",
+                "srcStart": 70000,
+                "srcEnd": 94000,
+                "start": 0,
+                "warp": {
+                  "mode": "none"
+                },
+                "gainDb": 0.0,
+                "pitchSemitones": 0.0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-19T00:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        },
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        }
+      }
+    ],
+    "master": {
+      "fx": [],
+      "automation": [],
+      "gainDb": 0
+    }
+  }
+}

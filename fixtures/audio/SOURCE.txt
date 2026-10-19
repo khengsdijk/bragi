@@ -40,3 +40,15 @@ golden/engine-conformance-c-stretch.wav
   Notes:   48000 Hz, 2 ch, 32-bit float, 1 s. Golden mixdown through the phase
            vocoder (informational: the cross-target null is reported, not gated;
            see Q31 in specs/15-open-questions.md).
+
+golden/engine-conformance-d-fx.wav
+  Origin:  rendered by scripts/conformance.mjs --update from tone_440.wav
+  Notes:   48000 Hz, 2 ch, 32-bit float, 1 s. Golden mixdown through a track
+           and a master `gain` (WP-2.3).
+
+golden/engine-conformance-e-boundaries.wav
+  Origin:  rendered by scripts/conformance.mjs --update from drums_120.wav and
+           tone_440.wav
+  Notes:   48000 Hz, 2 ch, 32-bit float, 2 s. Golden mixdown with four reordered
+           sections, three 5 ms cut crossfades and one 1/4-beat crossfade
+           (specs/03-audio-engine.md §5.5, WP-2.2).

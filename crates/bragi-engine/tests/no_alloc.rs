@@ -259,3 +259,86 @@ fn a_missing_chunk_does_not_allocate() {
     alloc_guard::assert_clean();
     assert!(renderer.stats().underruns > 0);
 }
+
+/// A reordered four-section song whose boundaries are all discontinuous. The
+/// part at `crossfade_part` enters through a `crossfade`; the others use `cut`.
+fn reordered_document(
+    hash: &AssetHash,
+    order: [usize; 4],
+    crossfade_part: usize,
+    crossfade_ticks: u64,
+) -> Project {
+    // One beat per section at 120 bpm; the source windows jump by half a 55 Hz
+    // period so no boundary is contiguous.
+    const OFFSETS: [u64; 4] = [654, 25_090, 49_526, 73_962];
+    let sections = order
+        .iter()
+        .map(|part| {
+            let offset = OFFSETS[*part];
+            let clip = clip_none(
+                &format!("clp_{part}"),
+                hash,
+                offset,
+                offset + BEAT_SAMPLES,
+                0,
+            );
+            let (kind, ticks) = if *part == crossfade_part {
+                ("crossfade", crossfade_ticks)
+            } else {
+                ("cut", 0)
+            };
+            json!({
+                "id": format!("sec_{part}"), "kind": "custom", "label": "S",
+                "lengthTicks": BEAT_TICKS,
+                "lanes": { "trk_01": lane(vec![clip]) },
+                "transitionIn": { "kind": kind, "lengthTicks": ticks }
+            })
+        })
+        .collect();
+    project(vec![track("trk_01")], sections)
+}
+
+#[test]
+fn section_boundary_crossfades_never_allocate_on_the_audio_thread() {
+    let h = hash('2');
+    let doc = reordered_document(&h, [1, 0, 2, 3], 2, BEAT_TICKS / 4);
+    let moved = reordered_document(&h, [0, 1, 2, 3], 2, BEAT_TICKS / 4);
+    let asset_index = assets(&h, 100_000);
+    let plan = compile(&doc, &asset_index, 48_000, 1).unwrap();
+    let moved_plan = compile(&moved, &asset_index, 48_000, 2).unwrap();
+    let source = pcm(&h, tone(100_000, 55.0, 0.4));
+
+    let mut renderer = Renderer::new(Arc::new(plan), BLOCK);
+    renderer.transport_mut().play();
+    let mut left = [0.0f32; BLOCK];
+    let mut right = [0.0f32; BLOCK];
+    // Warm up through the first boundary so the ramps have settled.
+    for _ in 0..100 {
+        renderer.process(&source, &mut [&mut left, &mut right]);
+    }
+    alloc_guard::reset_violations();
+    for block in 0..750 {
+        if block == 200 {
+            // Into the middle of the 1/4-beat crossfade at sample 48 000.
+            renderer.transport_mut().seek(46_000);
+        }
+        if block == 400 {
+            // A section move is structural; the planner may allocate, the audio
+            // thread may not.
+            let prepared =
+                PreparedPlan::new(Arc::new(moved_plan.clone()), quality_for(false), BLOCK);
+            let previous = renderer.set_prepared(prepared);
+            drop(previous);
+        }
+        renderer.process(&source, &mut [&mut left, &mut right]);
+    }
+    let violations = alloc_guard::Guard::violations();
+    println!("guarded allocations over 750 boundary blocks: {violations}");
+    alloc_guard::assert_clean();
+    assert!(
+        renderer.plan().tracks[0]
+            .segments
+            .iter()
+            .any(|segment| segment.boundary_in.is_some())
+    );
+}

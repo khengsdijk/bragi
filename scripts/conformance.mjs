@@ -70,6 +70,19 @@ const FIXTURES = [
     assets: [{ hash: TONE, path: "fixtures/audio/tone_440.wav", mime: "audio/wav" }],
     gate: true,
   },
+  {
+    // WP-2.2: four sections whose source windows are reordered, so every
+    // boundary is discontinuous. Three cut transitions (5 ms) and one 1/4-beat
+    // crossfade exercise the pre/post-roll gains in both engines.
+    name: "engine-conformance-e-boundaries",
+    project: "fixtures/projects/engine-conformance-e-boundaries.json",
+    frames: 96000,
+    assets: [
+      { hash: DRUMS, path: "fixtures/audio/drums_120.wav", mime: "audio/wav" },
+      { hash: TONE, path: "fixtures/audio/tone_440.wav", mime: "audio/wav" },
+    ],
+    gate: true,
+  },
 ];
 
 const GOLDEN_DIR = join(ROOT, "fixtures", "audio", "golden");
