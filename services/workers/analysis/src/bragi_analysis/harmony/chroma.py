@@ -141,8 +141,3 @@ def beat_sync(
         vectors=np.asarray(vectors, dtype=np.float32),
         energy=np.asarray(energy, dtype=np.float64),
     )
-
-
-def chord_label(root_pc: int, quality: str) -> str:
-    """A ``mir_eval``-style label ``"C:maj7"`` for a root pitch class and a quality."""
-    return f"{NOTE_NAMES[root_pc % 12]}:{quality}"
