@@ -6,12 +6,13 @@
  * authorised against the same ownership rules as REST, so a client cannot
  * listen to somebody else's job.
  */
+
+import type { IncomingHttpHeaders } from "node:http";
 import { type JobEvent, validateJobEvent } from "@bragi/schemas";
 import type { WebSocket } from "@fastify/websocket";
 import type { Subscription } from "nats";
 
 import type { AppContext } from "../app.js";
-import { resolveSession } from "../auth/session.js";
 import {
   analysisMessages,
   replayMessages,
@@ -50,11 +51,11 @@ export class WsGateway {
   }
 
   /** Handles one upgraded connection. */
-  async handle(socket: WebSocket, request: Parameters<typeof resolveSession>[1]): Promise<void> {
+  async handle(socket: WebSocket, request: IncomingHttpHeaders): Promise<void> {
     // The session lookup is asynchronous, and a client may send `sub` the moment the
     // socket opens. The listener is therefore attached *before* the lookup and waits
     // for it; attaching it afterwards drops every message sent in that window.
-    const pending = resolveSession(this.ctx.auth.api, request);
+    const pending = this.ctx.sessions.resolve(request);
     socket.on("message", (raw: unknown) => {
       void pending.then((session) => {
         if (session) return this.onMessage(socket, session.user.id, raw);

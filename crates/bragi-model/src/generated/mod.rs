@@ -696,6 +696,209 @@ impl<'de> ::serde::Deserialize<'de> for AssetMetaMime {
             })
     }
 }
+///`single-user` resolves every request to the owner; `multi-user` uses Better Auth (ADR-0014).
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum AuthMode {
+    #[serde(rename = "single-user")]
+    SingleUser,
+    #[serde(rename = "multi-user")]
+    MultiUser,
+}
+impl ::std::fmt::Display for AuthMode {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::SingleUser => f.write_str("single-user"),
+            Self::MultiUser => f.write_str("multi-user"),
+        }
+    }
+}
+impl ::std::str::FromStr for AuthMode {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "single-user" => Ok(Self::SingleUser),
+            "multi-user" => Ok(Self::MultiUser),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for AuthMode {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for AuthMode {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///No session: only possible in multi-user mode.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct AuthModeAnonymous(pub ());
+impl ::std::ops::Deref for AuthModeAnonymous {
+    type Target = ();
+    fn deref(&self) -> &() {
+        &self.0
+    }
+}
+impl ::std::convert::From<AuthModeAnonymous> for () {
+    fn from(value: AuthModeAnonymous) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<()> for AuthModeAnonymous {
+    fn from(value: ()) -> Self {
+        Self(value)
+    }
+}
+///`GET /v1/auth/mode`: which auth mode the API runs in, and the signed-in user if there is one (specs/05-backend-and-jobs.md §8, ADR-0014). In single-user mode `user` is always the owner.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct AuthModeResponse {
+    pub mode: AuthMode,
+    pub user: AuthModeUserOrNull,
+}
+///`AuthModeUser`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct AuthModeUser {
+    pub email: AuthModeUserEmail,
+    pub id: AuthModeUserId,
+    pub name: ::std::string::String,
+}
+///`AuthModeUserEmail`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct AuthModeUserEmail(::std::string::String);
+impl ::std::ops::Deref for AuthModeUserEmail {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<AuthModeUserEmail> for ::std::string::String {
+    fn from(value: AuthModeUserEmail) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for AuthModeUserEmail {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for AuthModeUserEmail {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for AuthModeUserEmail {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for AuthModeUserEmail {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`AuthModeUserId`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct AuthModeUserId(::std::string::String);
+impl ::std::ops::Deref for AuthModeUserId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<AuthModeUserId> for ::std::string::String {
+    fn from(value: AuthModeUserId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for AuthModeUserId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for AuthModeUserId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for AuthModeUserId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for AuthModeUserId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///The signed-in user, or null when signed out in multi-user mode.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(untagged)]
+pub enum AuthModeUserOrNull {
+    User(AuthModeUser),
+    Anonymous(AuthModeAnonymous),
+}
+impl ::std::convert::From<AuthModeUser> for AuthModeUserOrNull {
+    fn from(value: AuthModeUser) -> Self {
+        Self::User(value)
+    }
+}
+impl ::std::convert::From<AuthModeAnonymous> for AuthModeUserOrNull {
+    fn from(value: AuthModeAnonymous) -> Self {
+        Self::Anonymous(value)
+    }
+}
 ///A parameter curve (02 §3.7). Lane automation is section-relative, master automation uses absolute arrangement ticks.
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
@@ -2212,7 +2415,7 @@ pub struct Commit {
     pub parents: ::std::vec::Vec<CommitId>,
     #[serde(rename = "projectId")]
     pub project_id: ProjectId,
-    ///zstd-compressed canonical JSON of the full document after this commit.
+    ///Uncompressed canonical JSON of the full document after this commit, content-addressed in the BlobCache (02 §7). zstd is a later optimisation (Q85).
     pub snapshot: AssetHash,
     pub state: CommitState,
 }
@@ -9895,6 +10098,7 @@ pub const ROOT_TYPES: &[&str] = &[
     "ApiError",
     "Arrangement",
     "AssetMeta",
+    "AuthModeResponse",
     "Automation",
     "AutomationClearOp",
     "AutomationSetOp",

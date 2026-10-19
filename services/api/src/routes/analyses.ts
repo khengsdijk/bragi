@@ -36,7 +36,7 @@ interface StageStatus {
 /** Registers `/v1/analyses*`. */
 export function registerAnalyses(app: FastifyInstance, ctx: AppContext): void {
   app.post<{ Body: AnalysesBody }>("/v1/analyses", async (request) => {
-    const session = await requireSession(ctx.auth, request);
+    const session = await requireSession(ctx.sessions, request);
     const body = request.body ?? { assetHash: "", profile: "quick" as AnalysisProfile };
     if (!isAssetHash(body.assetHash)) {
       throw new ApiError("VALIDATION_FAILED", "assetHash must be sha256:<64 lowercase hex>");
@@ -67,7 +67,7 @@ export function registerAnalyses(app: FastifyInstance, ctx: AppContext): void {
   });
 
   app.get("/v1/analyses/:assetHash", async (request) => {
-    const session = await requireSession(ctx.auth, request);
+    const session = await requireSession(ctx.sessions, request);
     const assetHash = pathParam(request, "assetHash");
     if (!isAssetHash(assetHash)) {
       throw new ApiError("VALIDATION_FAILED", "assetHash must be sha256:<64 lowercase hex>");

@@ -43,6 +43,22 @@ export const configSchema = z.object({
   smtpUrl: z.string().min(1).default("smtp://127.0.0.1:1025"),
   mailFrom: z.string().min(1).default("Bragi <bragi@localhost>"),
 
+  /**
+   * `single-user` resolves every request to one owner account; `multi-user` is
+   * Better Auth (ADR-0014, 05 §8). Multi-user stays the default for compose and
+   * any hosted deployment.
+   */
+  authMode: z.enum(["single-user", "multi-user"]).default("multi-user"),
+  /** The owner account `ensureOwner` creates and single-user mode signs every request in as. */
+  ownerEmail: z.string().email().default("owner@bragi.local"),
+  ownerName: z.string().min(1).default("Owner"),
+  /**
+   * Single-user mode refuses a non-loopback `apiHost` unless this is set: anyone
+   * who can reach the API would act as the owner. A container binds `0.0.0.0`,
+   * so compose single-user needs it (ADR-0014).
+   */
+  allowRemoteSingleUser: booleanish.default(false),
+
   authSecret: z.string().min(1).default("dev-only-insecure-auth-secret-change-me"),
   /** Empty disables the provider (the integration test never uses GitHub). */
   githubClientId: z.string().default(""),
@@ -102,6 +118,10 @@ const ENV_KEYS: Record<keyof ConfigInput, string> = {
   s3ForcePathStyle: "S3_FORCE_PATH_STYLE",
   smtpUrl: "SMTP_URL",
   mailFrom: "MAIL_FROM",
+  authMode: "BRAGI_AUTH_MODE",
+  ownerEmail: "BRAGI_OWNER_EMAIL",
+  ownerName: "BRAGI_OWNER_NAME",
+  allowRemoteSingleUser: "BRAGI_ALLOW_REMOTE_SINGLE_USER",
   authSecret: "AUTH_SECRET",
   githubClientId: "GITHUB_CLIENT_ID",
   githubClientSecret: "GITHUB_CLIENT_SECRET",

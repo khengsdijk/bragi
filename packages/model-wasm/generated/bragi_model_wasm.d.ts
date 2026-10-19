@@ -10,6 +10,17 @@
 export function applyBatch(handle: number, batch_json: string): string;
 
 /**
+ * Applies an op batch that may read other commits to the handle's document and returns the new
+ * document JSON.
+ *
+ * `commit_handles_json` is a JSON object `{ "cmt_…": <document handle> }`; the commit's document is
+ * cloned out of the cache before the target handle is updated, so a commit may be the target's own
+ * handle. The stored document is replaced on success, exactly like [`apply_batch`]; on failure it
+ * is unchanged and the error is the JSON array of `{ opIndex, code, message }`.
+ */
+export function applyBatchWith(handle: number, batch_json: string, commit_handles_json: string): string;
+
+/**
  * Adds asset metadata (a JSON array of `AssetMeta`) to a handle's index.
  */
 export function assetAdd(handle: number, assets_json: string): void;
@@ -82,6 +93,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly applyBatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly applyBatchWith: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly assetAdd: (a: number, b: number, c: number) => [number, number];
     readonly canonicalJson: (a: number) => [number, number, number, number];
     readonly commitId: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];

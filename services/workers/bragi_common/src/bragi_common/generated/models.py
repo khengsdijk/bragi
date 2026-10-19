@@ -88,6 +88,42 @@ type AssetHash = Annotated[
 ]
 
 
+class AuthMode(StrEnum):
+    """
+    `single-user` resolves every request to the owner; `multi-user` uses Better Auth (ADR-0014).
+    """
+
+    single_user = 'single-user'
+    multi_user = 'multi-user'
+
+
+type AuthModeAnonymous = Annotated[
+    None,
+    Field(
+        description='No session: only possible in multi-user mode.',
+        title='AuthModeAnonymous',
+    ),
+]
+
+
+class AuthModeUser(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: Annotated[str, Field(min_length=1)]
+    email: Annotated[str, Field(min_length=1)]
+    name: str
+
+
+type AuthModeUserOrNull = Annotated[
+    AuthModeUser | AuthModeAnonymous,
+    Field(
+        description='The signed-in user, or null when signed out in multi-user mode.',
+        title='AuthModeUserOrNull',
+    ),
+]
+
+
 class AutomationClearOpOp(StrEnum):
     automation_clear = 'automation.clear'
 
@@ -1297,6 +1333,18 @@ class AssetMeta(BaseModel):
     channels: Annotated[int, Field(ge=1)]
     durationSamples: Annotated[int, Field(ge=0)]
     derivedFrom: AssetDerivation | None = None
+
+
+class AuthModeResponse(BaseModel):
+    """
+    `GET /v1/auth/mode`: which auth mode the API runs in, and the signed-in user if there is one (specs/05-backend-and-jobs.md §8, ADR-0014). In single-user mode `user` is always the owner.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    mode: AuthMode
+    user: AuthModeUserOrNull
 
 
 class Automation(BaseModel):
@@ -3175,7 +3223,7 @@ class Commit(BaseModel):
     snapshot: Annotated[
         AssetHash,
         Field(
-            description='zstd-compressed canonical JSON of the full document after this commit.'
+            description='Uncompressed canonical JSON of the full document after this commit, content-addressed in the BlobCache (02 §7). zstd is a later optimisation (Q85).'
         ),
     ]
     state: CommitState
@@ -3194,6 +3242,7 @@ ROOT_TYPES: tuple[str, ...] = (
     "ApiError",
     "Arrangement",
     "AssetMeta",
+    "AuthModeResponse",
     "Automation",
     "AutomationClearOp",
     "AutomationSetOp",

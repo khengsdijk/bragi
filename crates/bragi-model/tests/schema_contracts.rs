@@ -92,6 +92,7 @@ fn reserialize_root(name: &str, value: Value) -> Result<Value, String> {
         "ApiError" => reserialize::<g::ApiError>(value),
         "Arrangement" => reserialize::<g::Arrangement>(value),
         "AssetMeta" => reserialize::<g::AssetMeta>(value),
+        "AuthModeResponse" => reserialize::<g::AuthModeResponse>(value),
         "Automation" => reserialize::<g::Automation>(value),
         "AutomationClearOp" => reserialize::<g::AutomationClearOp>(value),
         "AutomationSetOp" => reserialize::<g::AutomationSetOp>(value),

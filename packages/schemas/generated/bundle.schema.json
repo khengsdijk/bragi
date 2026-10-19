@@ -365,6 +365,73 @@
         }
       }
     },
+    "AuthMode": {
+      "title": "AuthMode",
+      "description": "`single-user` resolves every request to the owner; `multi-user` uses Better Auth (ADR-0014).",
+      "type": "string",
+      "enum": [
+        "single-user",
+        "multi-user"
+      ]
+    },
+    "AuthModeAnonymous": {
+      "title": "AuthModeAnonymous",
+      "description": "No session: only possible in multi-user mode.",
+      "type": "null"
+    },
+    "AuthModeResponse": {
+      "title": "AuthModeResponse",
+      "description": "`GET /v1/auth/mode`: which auth mode the API runs in, and the signed-in user if there is one (specs/05-backend-and-jobs.md §8, ADR-0014). In single-user mode `user` is always the owner.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "user"
+      ],
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/AuthMode"
+        },
+        "user": {
+          "$ref": "#/$defs/AuthModeUserOrNull"
+        }
+      }
+    },
+    "AuthModeUser": {
+      "title": "AuthModeUser",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "email",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "email": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "AuthModeUserOrNull": {
+      "title": "AuthModeUserOrNull",
+      "description": "The signed-in user, or null when signed out in multi-user mode.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AuthModeUser"
+        },
+        {
+          "$ref": "#/$defs/AuthModeAnonymous"
+        }
+      ]
+    },
     "Automation": {
       "title": "Automation",
       "description": "A parameter curve (02 §3.7). Lane automation is section-relative, master automation uses absolute arrangement ticks.",
@@ -1060,7 +1127,7 @@
           "$ref": "#/$defs/OpBatch"
         },
         "snapshot": {
-          "description": "zstd-compressed canonical JSON of the full document after this commit.",
+          "description": "Uncompressed canonical JSON of the full document after this commit, content-addressed in the BlobCache (02 §7). zstd is a later optimisation (Q85).",
           "$ref": "#/$defs/AssetHash"
         },
         "state": {

@@ -14,17 +14,19 @@ use std::collections::{BTreeSet, HashMap};
 use crate::assets::AssetIndex;
 use crate::canonical::derived_id;
 use crate::clipmath::{clip_end_local, src_sample_at_local};
+use crate::commits::{CommitDocs, NoCommits};
 use crate::error::{ApplyError, ValidationCode, ValidationError};
 use crate::generated::{
-    All, Automation, AutomationClearOp, AutomationList, AutomationPoints, AutomationScope,
-    AutomationSetOp, AutomationTarget, BatchAuthor, Clip, ClipAddOp, ClipId, ClipPatch,
-    ClipRemoveOp, ClipReplaceOp, ClipSplitOp, ClipUpdateOp, FadeCurve, FxAddOp, FxChain, FxId,
-    FxInstance, FxRemoveOp, FxReorderOp, FxScope, FxType, FxUpdateOp, KeyTransposeOp, Lane,
-    LaneMap, Op, OpBatch, Project, ProjectSetMetaOp, RegionClearOp, SectionDuplicateOp, SectionId,
-    SectionInsertOp, SectionInstance, SectionMergeOp, SectionMoveOp, SectionPatch, SectionRemoveOp,
-    SectionResizeMode, SectionResizeOp, SectionSetTransitionOp, SectionSplitOp, SectionUpdateOp,
-    SidechainSourcePatch, TempoSetOp, Track, TrackAddOp, TrackId, TrackPatch, TrackRemoveOp,
-    TrackUpdateOp, Transition, TransitionKind, TransposeScope, Warp, WarpStretch, WarpStretchMode,
+    All, Automation, AutomationClearOp, AutomationList, AutomationPoint, AutomationPoints,
+    AutomationScope, AutomationSetOp, AutomationTarget, BatchAuthor, Clip, ClipAddOp, ClipId,
+    ClipPatch, ClipRemoveOp, ClipReplaceOp, ClipSplitOp, ClipUpdateOp, FadeCurve, FxAddOp, FxChain,
+    FxId, FxInstance, FxRemoveOp, FxReorderOp, FxScope, FxType, FxUpdateOp, KeyTransposeOp, Lane,
+    LaneMap, Op, OpBatch, Project, ProjectSetMetaOp, Region, RegionAdoptOp, RegionClearOp,
+    RegionTracks, SectionDuplicateOp, SectionId, SectionInsertOp, SectionInstance, SectionMergeOp,
+    SectionMoveOp, SectionPatch, SectionRemoveOp, SectionResizeMode, SectionResizeOp,
+    SectionSetTransitionOp, SectionSplitOp, SectionUpdateOp, SidechainSourcePatch, TempoSetOp,
+    Track, TrackAddOp, TrackId, TrackPatch, TrackRemoveOp, TrackUpdateOp, Transition,
+    TransitionKind, TransposeScope, Warp, WarpStretch, WarpStretchMode,
 };
 use crate::region::resolve_region;
 use crate::spans::{SectionSpan, section_spans};
@@ -38,7 +40,8 @@ pub const CUT_FADE_SECS: f64 = 0.01;
 /// Applies `batch` to `doc`, returning a new document.
 ///
 /// `assets` supplies the `AssetMeta` the invariants need. On any failure the document is unchanged
-/// (the function works on a clone).
+/// (the function works on a clone). This is [`apply_with`] with no commit documents available, so a
+/// `region.adopt` fails with [`ValidationCode::UnknownCommit`].
 ///
 /// ```
 /// # use bragi_model::{apply, AssetIndex};
@@ -63,9 +66,51 @@ pub const CUT_FADE_SECS: f64 = 0.01;
 /// assert_eq!(next.meta.title, "New title");
 /// ```
 pub fn apply(doc: &Project, batch: &OpBatch, assets: &AssetIndex) -> Result<Project, ApplyError> {
+    apply_with(doc, batch, assets, &NoCommits)
+}
+
+/// Applies `batch` to `doc` with `commits` supplying the documents ops may read from.
+///
+/// Only `region.adopt` reads another commit (`specs/02-song-model.md` §5.4); every other op works
+/// with [`NoCommits`] through [`apply`]. On any failure the document is unchanged (the function
+/// works on a clone).
+///
+/// ```
+/// # use std::collections::HashMap;
+/// # use bragi_model::generated::{CommitId, OpBatch, Project};
+/// # use bragi_model::{AssetIndex, apply_with};
+/// # fn project(title: &str) -> Project {
+/// #     serde_json::from_value(serde_json::json!({
+/// #         "schemaVersion": 1, "id": "prj_01",
+/// #         "meta": { "title": title, "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+/// #         "sources": [], "analyses": {}, "tracks": [],
+/// #         "arrangement": { "timebase": { "ppq": 960,
+/// #             "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }],
+/// #             "timeSignatures": [{ "bar": 0, "numerator": 4, "denominator": 4 }] },
+/// #             "sections": [], "master": { "fx": [], "automation": [], "gainDb": 0 } }
+/// #     })).unwrap()
+/// # }
+/// let doc = project("target");
+/// let commit: CommitId = "cmt_01JAB3QK7M9P2V6XWN0T4Y8ZB5".parse().unwrap();
+/// let commits = HashMap::from([(commit.clone(), project("source"))]);
+/// let batch: OpBatch = serde_json::from_value(serde_json::json!({
+///     "id": "bat_01", "label": "Adopt", "createdAt": "2026-10-18T12:00:00Z",
+///     "author": { "kind": "user" },
+///     "ops": [{ "op": "region.adopt", "fromCommit": commit.to_string(),
+///               "region": { "startTick": 0, "endTick": 0, "tracks": "all" } }]
+/// })).unwrap();
+/// let next = apply_with(&doc, &batch, &AssetIndex::new(), &commits).unwrap();
+/// assert_eq!(next.meta.title, "target");
+/// ```
+pub fn apply_with(
+    doc: &Project,
+    batch: &OpBatch,
+    assets: &AssetIndex,
+    commits: &dyn CommitDocs,
+) -> Result<Project, ApplyError> {
     let mut next = doc.clone();
     for (index, op) in batch.ops.iter().enumerate() {
-        apply_op(&mut next, op, assets, index)?;
+        apply_op(&mut next, op, assets, commits, index)?;
     }
     if matches!(batch.author, BatchAuthor::AiAuthor(_)) {
         check_locked_sections(doc, &next, batch.ops.len().saturating_sub(1))?;
@@ -84,6 +129,7 @@ fn apply_op(
     doc: &mut Project,
     op: &Op,
     assets: &AssetIndex,
+    commits: &dyn CommitDocs,
     op_index: usize,
 ) -> Result<(), ApplyError> {
     match op {
@@ -114,15 +160,10 @@ fn apply_op(
         Op::TempoSetOp(payload) => apply_tempo_set(doc, payload),
         Op::KeyTransposeOp(payload) => apply_key_transpose(doc, payload, assets),
         Op::RegionClearOp(payload) => apply_region_clear(doc, payload, assets),
+        Op::RegionAdoptOp(payload) => apply_region_adopt(doc, payload, assets, commits, op_index),
         Op::AnalysisApplyOp(payload) => {
             crate::analysis::apply_analysis_apply(doc, payload, assets, op_index)
         }
-        // Out of scope for WP-0.3 (specs/12-roadmap.md): WP-2.1 owns `region.adopt`.
-        Op::RegionAdoptOp(_) => Err(invalid(
-            op_index,
-            ValidationCode::UnsupportedOp,
-            "region.adopt is not implemented yet (WP-2.1)",
-        )),
     }
 }
 
@@ -1664,7 +1705,7 @@ fn apply_key_transpose(
     Ok(())
 }
 
-// --- region.clear ------------------------------------------------------------------------------
+// --- region.clear & region.adopt ---------------------------------------------------------------
 
 /// Removes or trims clip content inside `region`, adding 10 ms equal-power fades at the cuts
 /// (`specs/02-song-model.md` §4.2, §5.4).
@@ -1673,7 +1714,13 @@ fn apply_region_clear(
     op: &RegionClearOp,
     assets: &AssetIndex,
 ) -> Result<(), ApplyError> {
-    let resolved = resolve_region(doc, &op.region, assets);
+    clear_region(doc, &op.region, assets);
+    Ok(())
+}
+
+/// The body of `region.clear`, reused by `region.adopt` (`specs/02-song-model.md` §5.4).
+fn clear_region(doc: &mut Project, region: &Region, assets: &AssetIndex) {
+    let resolved = resolve_region(doc, region, assets);
     let spans = section_spans(doc);
     let tempo = TempoCtx::from_project(doc);
     let fades = fade_at(&tempo, resolved.start_tick, resolved.end_tick);
@@ -1699,20 +1746,22 @@ fn apply_region_clear(
             } else if rs <= clip.start && end <= re {
                 // Fully covered: drop it.
             } else if rs <= clip.start {
+                // Starts inside the region and runs past its end: keep the tail.
                 let mut trimmed = clip.clone();
                 if let Some(sample) = src_sample_at_local(clip, &tempo, assets, section_start, re) {
-                    trimmed.src_end = sample;
+                    trimmed.src_start = sample;
                 }
-                trimmed.fade_out_ticks = fades;
+                trimmed.start = re;
+                trimmed.fade_in_ticks = fades;
                 trimmed.fade_curve = FadeCurve::EqualPower;
                 rebuilt.push(trimmed);
             } else if re >= end {
+                // Starts before the region and ends inside it: keep the head.
                 let mut trimmed = clip.clone();
                 if let Some(sample) = src_sample_at_local(clip, &tempo, assets, section_start, rs) {
-                    trimmed.src_start = sample;
+                    trimmed.src_end = sample;
                 }
-                trimmed.start = rs;
-                trimmed.fade_in_ticks = fades;
+                trimmed.fade_out_ticks = fades;
                 trimmed.fade_curve = FadeCurve::EqualPower;
                 rebuilt.push(trimmed);
             } else {
@@ -1751,7 +1800,394 @@ fn apply_region_clear(
             lane.clips = clips;
         }
     }
+}
+
+/// Copies a region's content from another commit (`specs/02-song-model.md` §5.4).
+///
+/// 1. The region is resolved in the current document, whose sections decide where the copy lands.
+/// 2. Its content is cleared exactly like `region.clear`.
+/// 3. The source document is read over the same **absolute** tick range and track set. Source
+///    clips are cut at the region and at the target's section boundaries, re-anchored into the
+///    target section's frame, and copied into lanes with the same track ID. A source track that
+///    does not exist in the target is skipped.
+/// 4. The copies get a 10 ms equal-power fade at each region boundary.
+///
+/// Lane automation is section-relative on both sides, so its points move by absolute tick into the
+/// covering target section; master automation is absolute and copied as is. New clip and clip-FX
+/// IDs come from [`derived_id`], so applying the same batch always produces the same document.
+fn apply_region_adopt(
+    doc: &mut Project,
+    op: &RegionAdoptOp,
+    assets: &AssetIndex,
+    commits: &dyn CommitDocs,
+    op_index: usize,
+) -> Result<(), ApplyError> {
+    let Some(source) = commits.get(&op.from_commit) else {
+        return Err(invalid(
+            op_index,
+            ValidationCode::UnknownCommit,
+            format!(
+                "region.adopt needs the document of commit {} and it was not supplied",
+                op.from_commit
+            ),
+        ));
+    };
+    let (start_tick, end_tick) = (op.region.start_tick, op.region.end_tick);
+    if start_tick >= end_tick {
+        return Ok(());
+    }
+    let track_ids = region_track_ids(doc, &op.region);
+    clear_region(doc, &op.region, assets);
+
+    let target_spans = section_spans(doc);
+    let target_tempo = TempoCtx::from_project(doc);
+    let fade = fade_at(&target_tempo, start_tick, end_tick);
+    copy_region_automation(doc, source, &track_ids, start_tick, end_tick);
+
+    let copies = copied_clips(
+        doc,
+        source,
+        &track_ids,
+        &target_spans,
+        assets,
+        start_tick,
+        end_tick,
+        fade,
+    );
+    let mut touched = BTreeSet::new();
+    for (section, track, clip) in copies {
+        if let Some(instance) = doc.arrangement.sections.get_mut(section) {
+            lane_mut(instance, &track).clips.push(clip);
+            touched.insert(section);
+        }
+    }
+    for index in touched {
+        if let Some(section) = doc.arrangement.sections.get_mut(index) {
+            for lane in section.lanes.0.values_mut() {
+                lane.clips.sort_by_key(|clip| clip.start);
+            }
+        }
+    }
     Ok(())
+}
+
+/// The track IDs a region targets, in document order when it says `"all"`.
+fn region_track_ids(doc: &Project, region: &Region) -> Vec<TrackId> {
+    match &region.tracks {
+        RegionTracks::All(_) => doc.tracks.iter().map(|track| track.id.clone()).collect(),
+        RegionTracks::TrackIdList(list) => list.0.clone(),
+    }
+}
+
+/// The target tracks that also exist in the source, as a set of strings.
+fn shared_target_tracks(target: &Project, source: &Project) -> BTreeSet<String> {
+    let source_ids: BTreeSet<&str> = source
+        .tracks
+        .iter()
+        .map(|track| track.id.as_str())
+        .collect();
+    target
+        .tracks
+        .iter()
+        .filter(|track| source_ids.contains(track.id.as_str()))
+        .map(|track| track.id.to_string())
+        .collect()
+}
+
+/// Copies the source's clips in `[start_tick, end_tick)` into target sections, cut at the region
+/// and section edges.
+#[allow(clippy::too_many_arguments)]
+fn copied_clips(
+    target: &Project,
+    source: &Project,
+    track_ids: &[TrackId],
+    target_spans: &[SectionSpan],
+    assets: &AssetIndex,
+    start_tick: i64,
+    end_tick: i64,
+    fade: u64,
+) -> Vec<(usize, TrackId, Clip)> {
+    let source_spans = section_spans(source);
+    let source_tempo = TempoCtx::from_project(source);
+    let shared = shared_target_tracks(target, source);
+    let mut copies = Vec::new();
+    for span in &source_spans {
+        let slice_start = start_tick.max(span.start_tick);
+        let slice_end = end_tick.min(span.end_tick);
+        if slice_start >= slice_end {
+            continue;
+        }
+        let Some(section) = source.arrangement.sections.get(span.index) else {
+            continue;
+        };
+        for track_id in track_ids {
+            if !shared.contains(track_id.as_str()) {
+                continue;
+            }
+            let Some(lane) = section.lanes.0.get(track_id) else {
+                continue;
+            };
+            for clip in &lane.clips {
+                let Some(clip_end) = clip_end_local(clip, &source_tempo, assets, span.start_tick)
+                else {
+                    continue;
+                };
+                let copy_start = span.start_tick.saturating_add(clip.start).max(slice_start);
+                let copy_end = span.start_tick.saturating_add(clip_end).min(slice_end);
+                if copy_start >= copy_end {
+                    continue;
+                }
+                for target_span in target_spans {
+                    let segment_start = copy_start.max(target_span.start_tick);
+                    let segment_end = copy_end.min(target_span.end_tick);
+                    if segment_start >= segment_end {
+                        continue;
+                    }
+                    let Some(copy) = copied_clip_segment(
+                        clip,
+                        span.start_tick,
+                        target_span,
+                        track_id,
+                        copy_start,
+                        segment_start,
+                        segment_end,
+                        start_tick,
+                        end_tick,
+                        fade,
+                        &source_tempo,
+                        assets,
+                    ) else {
+                        continue;
+                    };
+                    copies.push((target_span.index, track_id.clone(), copy));
+                }
+            }
+        }
+    }
+    copies
+}
+
+/// One source-clip segment, re-expressed in a target section's frame.
+#[allow(clippy::too_many_arguments)]
+fn copied_clip_segment(
+    clip: &Clip,
+    source_start_tick: i64,
+    target_span: &SectionSpan,
+    track_id: &TrackId,
+    copy_start_tick: i64,
+    segment_start_tick: i64,
+    segment_end_tick: i64,
+    region_start_tick: i64,
+    region_end_tick: i64,
+    fade: u64,
+    source_tempo: &TempoCtx<'_>,
+    assets: &AssetIndex,
+) -> Option<Clip> {
+    let local = |tick: i64| tick - source_start_tick;
+    let src_start = src_sample_at_local(
+        clip,
+        source_tempo,
+        assets,
+        source_start_tick,
+        local(segment_start_tick),
+    )?;
+    let src_end = src_sample_at_local(
+        clip,
+        source_tempo,
+        assets,
+        source_start_tick,
+        local(segment_end_tick),
+    )?;
+    if src_start >= src_end {
+        return None;
+    }
+    // The parent names the target section, track and copied span, so two adopts of the same
+    // source clip never collide (Q14).
+    let parent = format!(
+        "{}:{track_id}:adopt{copy_start_tick}-{region_end_tick}",
+        target_span.id
+    );
+    let id = make_clip_id(derived_id("clp_", &parent, clip.id.as_str()));
+    let mut fx_map = HashMap::new();
+    let mut copy = copy_clip_with_new_fx_ids(clip, id, &parent, &mut fx_map);
+    copy.start = segment_start_tick - target_span.start_tick;
+    // Beatgrid anchors are section-relative: moving the clip to another section shifts them by
+    // the difference between the two section starts.
+    if let Warp::Beatgrid(beatgrid) = &mut copy.warp {
+        let delta = source_start_tick - target_span.start_tick;
+        for anchor in &mut beatgrid.anchors {
+            anchor.tick = anchor.tick.saturating_add(delta);
+        }
+    }
+    copy.src_start = src_start;
+    copy.src_end = src_end;
+    if segment_start_tick == region_start_tick {
+        copy.fade_in_ticks = fade;
+        copy.fade_curve = FadeCurve::EqualPower;
+    }
+    if segment_end_tick == region_end_tick {
+        copy.fade_out_ticks = fade;
+        copy.fade_curve = FadeCurve::EqualPower;
+    }
+    Some(copy)
+}
+
+/// Replaces the target's lane and master automation in the range with the source's points.
+fn copy_region_automation(
+    doc: &mut Project,
+    source: &Project,
+    track_ids: &[TrackId],
+    start_tick: i64,
+    end_tick: i64,
+) {
+    clear_lane_automation(doc, track_ids, start_tick, end_tick);
+    clear_master_automation(doc, start_tick, end_tick);
+    add_source_lane_automation(doc, source, track_ids, start_tick, end_tick);
+    add_source_master_automation(doc, source, start_tick, end_tick);
+}
+
+/// Drops target lane points in `[start_tick, end_tick)` (section-relative storage).
+fn clear_lane_automation(doc: &mut Project, track_ids: &[TrackId], start_tick: i64, end_tick: i64) {
+    for span in section_spans(doc) {
+        let local_start = start_tick.max(span.start_tick) - span.start_tick;
+        let local_end = end_tick.min(span.end_tick) - span.start_tick;
+        if local_start >= local_end {
+            continue;
+        }
+        let Some(section) = doc.arrangement.sections.get_mut(span.index) else {
+            continue;
+        };
+        for track_id in track_ids {
+            let Some(lane) = section.lanes.0.get_mut(track_id) else {
+                continue;
+            };
+            for automation in &mut lane.automation.0 {
+                automation
+                    .points
+                    .0
+                    .retain(|point| point.tick < local_start || point.tick >= local_end);
+            }
+            lane.automation
+                .0
+                .retain(|automation| !automation.points.0.is_empty());
+        }
+    }
+}
+
+/// Drops target master points in the range (master points are absolute).
+fn clear_master_automation(doc: &mut Project, start_tick: i64, end_tick: i64) {
+    let list = &mut doc.arrangement.master.automation;
+    for automation in &mut list.0 {
+        automation
+            .points
+            .0
+            .retain(|point| point.tick < start_tick || point.tick >= end_tick);
+    }
+    list.0.retain(|automation| !automation.points.0.is_empty());
+}
+
+/// Adds the source's lane points in the range to the target section covering each absolute tick.
+fn add_source_lane_automation(
+    doc: &mut Project,
+    source: &Project,
+    track_ids: &[TrackId],
+    start_tick: i64,
+    end_tick: i64,
+) {
+    let target_spans = section_spans(doc);
+    let shared = shared_target_tracks(doc, source);
+    for span in section_spans(source) {
+        let slice_start = start_tick.max(span.start_tick);
+        let slice_end = end_tick.min(span.end_tick);
+        if slice_start >= slice_end {
+            continue;
+        }
+        let Some(section) = source.arrangement.sections.get(span.index) else {
+            continue;
+        };
+        for track_id in track_ids {
+            if !shared.contains(track_id.as_str()) {
+                continue;
+            }
+            let Some(lane) = section.lanes.0.get(track_id) else {
+                continue;
+            };
+            for automation in &lane.automation.0 {
+                let target = automation.target.to_string();
+                for point in &automation.points.0 {
+                    let absolute = span.start_tick.saturating_add(point.tick);
+                    if absolute < slice_start || absolute >= slice_end {
+                        continue;
+                    }
+                    let Some(destination) = target_spans
+                        .iter()
+                        .find(|candidate| candidate.contains(absolute))
+                    else {
+                        continue;
+                    };
+                    let Some(section) = doc.arrangement.sections.get_mut(destination.index) else {
+                        continue;
+                    };
+                    let mut moved = point.clone();
+                    moved.tick = absolute - destination.start_tick;
+                    add_automation_points(
+                        &mut lane_mut(section, track_id).automation,
+                        &target,
+                        [moved],
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Adds the source's master points in the range (absolute ticks, so no frame change).
+fn add_source_master_automation(
+    doc: &mut Project,
+    source: &Project,
+    start_tick: i64,
+    end_tick: i64,
+) {
+    for automation in &source.arrangement.master.automation.0 {
+        let points: Vec<AutomationPoint> = automation
+            .points
+            .0
+            .iter()
+            .filter(|point| point.tick >= start_tick && point.tick < end_tick)
+            .cloned()
+            .collect();
+        add_automation_points(
+            &mut doc.arrangement.master.automation,
+            &automation.target.to_string(),
+            points,
+        );
+    }
+}
+
+/// Appends points to the entry for `target`, creating it when absent, and keeps it sorted.
+fn add_automation_points(
+    list: &mut AutomationList,
+    target: &str,
+    points: impl IntoIterator<Item = AutomationPoint>,
+) {
+    let mut points: Vec<AutomationPoint> = points.into_iter().collect();
+    if points.is_empty() {
+        return;
+    }
+    points.sort_by_key(|point| point.tick);
+    if let Some(entry) = list
+        .0
+        .iter_mut()
+        .find(|entry| entry.target.to_string() == target)
+    {
+        entry.points.0.extend(points);
+        entry.points.0.sort_by_key(|point| point.tick);
+    } else {
+        list.0.push(Automation {
+            target: make_target(target.to_string()),
+            points: AutomationPoints(points),
+        });
+    }
 }
 
 // --- helpers -----------------------------------------------------------------------------------

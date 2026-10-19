@@ -1,11 +1,11 @@
 /**
  * WP-1.10: the upload -> analysis flow against the real backend.
  *
- * login (magic link, Mailpit) -> upload the generated 4-minute song (presign,
- * PUT, complete) -> `POST /v1/analyses` (standard) -> `asset:<hash>` over the
- * WebSocket -> an `analysis.partial` for every stage that has a worker -> the
- * derived assets are downloadable -> every stage blob validates against the
- * `@bragi/schemas` validators -> a late subscriber gets the replay snapshot.
+ * No login (single-user mode, ADR-0014): upload the generated 4-minute song
+ * (presign, PUT, complete) -> `POST /v1/analyses` (standard) -> `asset:<hash>`
+ * over the WebSocket -> an `analysis.partial` for every stage that has a worker
+ * -> the derived assets are downloadable -> every stage blob validates against
+ * the `@bragi/schemas` validators -> a late subscriber gets the replay snapshot.
  *
  * `describe` calls the LLM via OpenRouter; without `OPENROUTER_API_KEY` it fails, and
  * the test then requires a clean `analysis.failed` for it (nothing is faked).
@@ -39,7 +39,7 @@ import WebSocket from "ws";
 
 import { implementedStagesForProfile } from "../../src/jobs/dag.js";
 import { SpanCollector } from "./collector.js";
-import { API_URL, loginViaMagicLink, waitFor } from "./helpers.js";
+import { API_URL, waitFor } from "./helpers.js";
 import { type Stack, startStack } from "./stack.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -74,7 +74,6 @@ const VALIDATORS: Record<string, Validator> = {
   stem_activity: validateStemActivityResult as Validator,
 };
 
-let cookie = "";
 let collector: SpanCollector;
 let stack: Stack;
 let workDir = "";
@@ -85,7 +84,7 @@ describe("WP-1.10 upload -> live analysis", () => {
   beforeAll(async () => {
     workDir = mkdtempSync(join(tmpdir(), "bragi-flow-"));
     collector = new SpanCollector();
-    stack = await startStack(await collector.start());
+    stack = await startStack(await collector.start(), { authMode: "single-user" });
     await waitFor(
       async () => {
         try {
@@ -116,7 +115,6 @@ describe("WP-1.10 upload -> live analysis", () => {
     const hash = `sha256:${createHash("sha256").update(wav).digest("hex")}`;
 
     await resetAnalysis(hash);
-    cookie = await loginViaMagicLink(`flow+${Date.now()}@bragi.test`);
 
     step("uploading");
     // 2. Upload: presign -> PUT -> complete.
@@ -283,7 +281,7 @@ async function resetAnalysis(hash: string): Promise<void> {
 async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     method,
-    headers: { "content-type": "application/json", cookie },
+    headers: { "content-type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok)
@@ -303,7 +301,7 @@ async function downloadJson(hash: string): Promise<unknown> {
 }
 
 async function openSocket(): Promise<{ socket: WebSocket; messages: WsMessage[] }> {
-  const socket = new WebSocket(`${LOCAL_ENDPOINT}/v1/ws`, { headers: { cookie } });
+  const socket = new WebSocket(`${LOCAL_ENDPOINT}/v1/ws`);
   const messages: WsMessage[] = [];
   socket.on("message", (raw) => {
     const message = JSON.parse(raw.toString()) as WsMessage;

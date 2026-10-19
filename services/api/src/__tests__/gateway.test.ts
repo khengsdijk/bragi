@@ -22,7 +22,7 @@ describe("WsGateway.handle", () => {
     });
     const queries: string[] = [];
     const ctx = {
-      auth: { api: { getSession: () => sessionLookup } },
+      sessions: { resolve: () => sessionLookup },
       pool: {
         query: async (sql: string) => {
           queries.push(sql);

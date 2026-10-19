@@ -8,7 +8,7 @@ import type * as Types from "./types.js";
 import * as validators from "./ajv-validators.js";
 
 /** Every root schema type in `generated/bundle.schema.json`, sorted. */
-export const ROOT_TYPES = ["AnalysisApplyOp", "AnalysisRef", "ApiError", "Arrangement", "AssetMeta", "Automation", "AutomationClearOp", "AutomationSetOp", "Clip", "ClipAddOp", "ClipRemoveOp", "ClipReplaceOp", "ClipSplitOp", "ClipUpdateOp", "Commit", "DescriptionResult", "DrumSplitResult", "EmbeddingResult", "FxAddOp", "FxCatalog", "FxInstance", "FxRemoveOp", "FxReorderOp", "FxUpdateOp", "HarmonyResult", "IngestResult", "JobEvent", "JobRequest", "KeyTransposeOp", "LoudnessEnergyResult", "LyricsResult", "MacroCatalog", "Op", "OpBatch", "PreviewResult", "Project", "ProjectSetMetaOp", "Refs", "Region", "RegionAdoptOp", "RegionClearOp", "RhythmResult", "SectionDuplicateOp", "SectionInsertOp", "SectionInstance", "SectionMergeOp", "SectionMoveOp", "SectionRemoveOp", "SectionResizeOp", "SectionSetTransitionOp", "SectionSplitOp", "SectionSummary", "SectionUpdateOp", "SeparationResult", "Source", "StemActivityResult", "StemEnergyResult", "StructureResult", "TagResult", "TempoSetOp", "Track", "TrackAddOp", "TrackRemoveOp", "TrackUpdateOp", "TranscribeResult"] as const;
+export const ROOT_TYPES = ["AnalysisApplyOp", "AnalysisRef", "ApiError", "Arrangement", "AssetMeta", "AuthModeResponse", "Automation", "AutomationClearOp", "AutomationSetOp", "Clip", "ClipAddOp", "ClipRemoveOp", "ClipReplaceOp", "ClipSplitOp", "ClipUpdateOp", "Commit", "DescriptionResult", "DrumSplitResult", "EmbeddingResult", "FxAddOp", "FxCatalog", "FxInstance", "FxRemoveOp", "FxReorderOp", "FxUpdateOp", "HarmonyResult", "IngestResult", "JobEvent", "JobRequest", "KeyTransposeOp", "LoudnessEnergyResult", "LyricsResult", "MacroCatalog", "Op", "OpBatch", "PreviewResult", "Project", "ProjectSetMetaOp", "Refs", "Region", "RegionAdoptOp", "RegionClearOp", "RhythmResult", "SectionDuplicateOp", "SectionInsertOp", "SectionInstance", "SectionMergeOp", "SectionMoveOp", "SectionRemoveOp", "SectionResizeOp", "SectionSetTransitionOp", "SectionSplitOp", "SectionSummary", "SectionUpdateOp", "SeparationResult", "Source", "StemActivityResult", "StemEnergyResult", "StructureResult", "TagResult", "TempoSetOp", "Track", "TrackAddOp", "TrackRemoveOp", "TrackUpdateOp", "TranscribeResult"] as const;
 
 /** A root schema type in `generated/bundle.schema.json`. */
 export type RootType = (typeof ROOT_TYPES)[number];
@@ -27,6 +27,9 @@ export const validateArrangement: ValidateFunction<Types.Arrangement> = validato
 
 /** Validates a `AssetMeta` (see `packages/schemas/song|analysis|jobs|api`). */
 export const validateAssetMeta: ValidateFunction<Types.AssetMeta> = validators.AssetMeta as ValidateFunction<Types.AssetMeta>;
+
+/** Validates a `AuthModeResponse` (see `packages/schemas/song|analysis|jobs|api`). */
+export const validateAuthModeResponse: ValidateFunction<Types.AuthModeResponse> = validators.AuthModeResponse as ValidateFunction<Types.AuthModeResponse>;
 
 /** Validates a `Automation` (see `packages/schemas/song|analysis|jobs|api`). */
 export const validateAutomation: ValidateFunction<Types.Automation> = validators.Automation as ValidateFunction<Types.Automation>;

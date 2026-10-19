@@ -25,11 +25,8 @@ import type {
 import type { BlobHash, Platform } from "@bragi/platform";
 import type { AnalysisStage, AssetMeta, Project, SeparationResult } from "@bragi/schemas";
 import { validateIngestResult, validateSeparationResult } from "@bragi/schemas";
-import {
-  createProjectWithSnapshot,
-  newProjectId,
-  saveProjectSnapshot,
-} from "../../library/api/library-repo.js";
+import { createHistory, type History } from "../../history/state/history.js";
+import { createProjectWithSnapshot, newProjectId } from "../../library/api/library-repo.js";
 import type { AnalysisData } from "../../song/components/SongWorkspace.js";
 import type { Commit, SongStore } from "../../song/state/song-store.js";
 import {
@@ -102,6 +99,8 @@ export interface FlowDependencies {
   readonly onProject?: (projectId: string) => void;
   /** Called after every document change the flow makes, so a live engine can follow. */
   readonly onCommit?: (commit: Commit, doc: Project) => void;
+  /** The open project's history, when the caller already has one (reopen). */
+  readonly history?: History;
   readonly now?: () => Date;
 }
 
@@ -152,6 +151,7 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
   let filename = "";
   let title = "";
   let projectId: string | null = null;
+  let history: History | null = deps.history ?? null;
   let sourceId: string | null = null;
   let ingested = false;
   let started = false;
@@ -223,9 +223,8 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
         });
         deps.songStore.load(initial.project, initial.assets);
         sourceId = initial.sourceId;
-        const outcome = deps.songStore.apply(
-          analysisBatch(initial.sourceId, "ingest", blob as BlobHash, []),
-        );
+        const ingestBatch = analysisBatch(initial.sourceId, "ingest", blob as BlobHash, []);
+        const outcome = deps.songStore.apply(ingestBatch);
         if (!outcome.ok) {
           throw new Error(
             `bragi-model rejected the ingest batch: ${JSON.stringify(outcome.errors)}`,
@@ -239,6 +238,19 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
           title,
           now: now(),
         });
+        // The project row exists, so the ingest batch can become the root commit.
+        // It was applied above; `recordRoot` only snapshots and stores it.
+        const recorded =
+          deps.history ??
+          createHistory({
+            platform: deps.platform,
+            songStore: deps.songStore,
+            model: deps.songStore.model,
+            projectId: created.projectId,
+            ...(deps.now === undefined ? {} : { now: deps.now }),
+          });
+        history = recorded;
+        await recorded.recordRoot(ingestBatch);
         // The working asset is a re-encode, not the upload, so it has to reach
         // the BlobCache before the engine can play the full mix.
         await ensureAsset(json.workingAsset);
@@ -250,14 +262,12 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
         return;
       }
     } else if (sourceId !== null && deps.songStore.handle() !== null) {
-      const outcome = deps.songStore.apply(
-        analysisBatch(sourceId, stage, blob as BlobHash, effects),
-      );
+      const batch = analysisBatch(sourceId, stage, blob as BlobHash, effects);
+      const outcome = history === null ? deps.songStore.apply(batch) : await history.commit(batch);
       if (!outcome.ok) {
         throw new Error(`bragi-model rejected ${stage}: ${JSON.stringify(outcome.errors)}`);
       }
       deps.onCommit?.(outcome.commit, outcome.doc);
-      await saveProjectSnapshot(deps.platform, outcome.doc, now());
     }
 
     view = mergeArtifacts(view, artifactsForStage(stage, json, { tracks: tracks() }));
@@ -364,8 +374,29 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
       sourceId = source.id;
       title = doc.meta.title;
       ingested = true;
+      // Reopened project: read the version tree first, so the stages below are
+      // children of HEAD (and a pre-2.1 project gets its "Imported" root).
+      const reopen =
+        deps.history ??
+        createHistory({
+          platform: deps.platform,
+          songStore: deps.songStore,
+          model: deps.songStore.model,
+          projectId: doc.id,
+          ...(deps.now === undefined ? {} : { now: deps.now }),
+        });
+      history = reopen;
+      await reopen.load();
       view = (initialView ?? {}) as StageArtifacts;
       for (const stage of Object.keys(doc.analyses[source.id]?.blobs ?? {})) applied.add(stage);
+      // A stage any version already applied is done, even when HEAD is a version from before it
+      // (the user went back and edited there): replaying it would graft the analysis onto that
+      // branch again.
+      for (const commit of reopen.store.getState().commits.values()) {
+        for (const op of commit.batch.ops) {
+          if (op.op === "analysis.apply" && op.sourceId === source.id) applied.add(op.stage);
+        }
+      }
       const done = STANDARD_STAGES.filter((candidate) => applied.has(candidate)).length;
       emit({ phase: "analysing", assetHash: hash, projectId: doc.id, stagesDone: done });
       if (done === STANDARD_STAGES.length) {

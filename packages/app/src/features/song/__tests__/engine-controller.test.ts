@@ -77,6 +77,45 @@ describe("engine controller (transport bar wiring)", () => {
     expect(createEngine).toHaveBeenCalledTimes(1);
   });
 
+  it("ends on the newest document when a commit lands during a full reload", async () => {
+    const { store } = await loadDemo();
+    const { host } = fakeHost();
+    const controller = createEngineController({
+      createEngine: async () => host,
+      document: () => store.store.getState().doc,
+      durationSec: () => 32,
+    });
+    await controller.play();
+    const releases: (() => void)[] = [];
+    host.loadDocument.mockImplementation(
+      () => new Promise<void>((resolve) => releases.push(resolve)),
+    );
+    host.loadDocument.mockClear();
+    host.applyDelta.mockClear();
+
+    const doc = store.store.getState().doc;
+    if (doc === null) throw new Error("no document");
+    // A structural commit (an analysis stage adding tracks) starts a reload…
+    const structural = { batch: null, delta: { requiresFullResync: true }, revision: 2 };
+    controller.commit(structural, doc);
+    expect(host.loadDocument).toHaveBeenCalledTimes(1);
+    // …and a solo lands while it runs.
+    const solo = trackToggleBatch(doc, "trk_bass", "solo", true);
+    if (solo === null) throw new Error("no batch");
+    const outcome = store.apply(solo);
+    if (!outcome.ok) throw new Error("solo rejected");
+    controller.commit(outcome.commit, outcome.doc);
+    // Applied as a delta it would be overwritten by the older load; it waits for the next load.
+    expect(host.applyDelta).toHaveBeenCalledTimes(1);
+
+    releases.shift()?.();
+    await vi.waitFor(() => expect(host.loadDocument).toHaveBeenCalledTimes(2));
+    expect(host.loadDocument).toHaveBeenLastCalledWith(outcome.doc);
+    releases.shift()?.();
+    await vi.waitFor(() => expect(releases).toHaveLength(0));
+    expect(host.loadDocument).toHaveBeenCalledTimes(2);
+  });
+
   it("follows the engine state: playhead seconds, playing flag and per-track meters", async () => {
     const { store } = await loadDemo();
     const { host, emit } = fakeHost();

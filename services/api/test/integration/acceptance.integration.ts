@@ -2,6 +2,9 @@
  * WP-0.7 acceptance: log in, upload, run an `echo` job, watch it over the
  * WebSocket, and prove one OpenTelemetry trace spans API → NATS → worker.
  *
+ * It runs against a **multi-user** stack on purpose (the WP-2.0 default is
+ * single-user): keeping the magic-link path here stops it rotting (ADR-0014).
+ *
  * Run it against the docker compose stack (see vitest.integration.config.ts),
  * or with `BRAGI_STACK=local` to run the same entrypoints as processes:
  *
@@ -32,7 +35,7 @@ describe("WP-0.7 acceptance", () => {
   beforeAll(async () => {
     collector = new SpanCollector();
     const port = await collector.start();
-    stack = await startStack(port);
+    stack = await startStack(port, { authMode: "multi-user" });
     await waitFor(
       async () => {
         try {

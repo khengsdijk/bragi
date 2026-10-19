@@ -16,9 +16,10 @@ use std::collections::HashMap;
 use bragi_model::generated::{AssetHash, AssetMeta, CommitId, OpBatch, Project, Region};
 use bragi_model::{AssetIndex, diff as model_diff, section_spans as model_spans};
 use bragi_model::{
-    apply as model_apply, canonical_json as model_canonical_json, commit_id as model_commit_id,
-    resolve_region as model_resolve_region, seconds_to_ticks as model_seconds_to_ticks,
-    ticks_to_seconds as model_ticks_to_seconds, validate as model_validate,
+    apply as model_apply, apply_with as model_apply_with, canonical_json as model_canonical_json,
+    commit_id as model_commit_id, resolve_region as model_resolve_region,
+    seconds_to_ticks as model_seconds_to_ticks, ticks_to_seconds as model_ticks_to_seconds,
+    validate as model_validate,
 };
 use wasm_bindgen::prelude::*;
 
@@ -118,6 +119,51 @@ pub fn apply_batch(handle: u32, batch_json: &str) -> Result<String, String> {
         let next = model_apply(&doc.project, &batch, &doc.assets).map_err(|error| {
             serde_json::to_string(&error.errors()).unwrap_or_else(|_| error.to_string())
         })?;
+        doc.project = next;
+        serde_json::to_string(&doc.project).map_err(|error| error.to_string())
+    })
+}
+
+/// Applies an op batch that may read other commits to the handle's document and returns the new
+/// document JSON.
+///
+/// `commit_handles_json` is a JSON object `{ "cmt_…": <document handle> }`; the commit's document is
+/// cloned out of the cache before the target handle is updated, so a commit may be the target's own
+/// handle. The stored document is replaced on success, exactly like [`apply_batch`]; on failure it
+/// is unchanged and the error is the JSON array of `{ opIndex, code, message }`.
+#[wasm_bindgen(js_name = applyBatchWith)]
+pub fn apply_batch_with(
+    handle: u32,
+    batch_json: &str,
+    commit_handles_json: &str,
+) -> Result<String, String> {
+    let batch: OpBatch = serde_json::from_str(batch_json).map_err(|error| error.to_string())?;
+    let handles: HashMap<String, u32> =
+        serde_json::from_str(commit_handles_json).map_err(|error| error.to_string())?;
+    let commits =
+        DOCS.with(|docs| {
+            let docs = docs.borrow();
+            let mut commits: HashMap<CommitId, Project> = HashMap::with_capacity(handles.len());
+            for (id, commit_handle) in &handles {
+                let commit: CommitId = id.parse().map_err(
+                    |error: bragi_model::generated::error::ConversionError| error.to_string(),
+                )?;
+                let doc = docs
+                    .get(commit_handle)
+                    .ok_or_else(|| format!("unknown handle {commit_handle}"))?;
+                commits.insert(commit, doc.project.clone());
+            }
+            Ok::<_, String>(commits)
+        })?;
+    DOCS.with(|docs| {
+        let mut docs = docs.borrow_mut();
+        let doc = docs
+            .get_mut(&handle)
+            .ok_or_else(|| format!("unknown handle {handle}"))?;
+        let next =
+            model_apply_with(&doc.project, &batch, &doc.assets, &commits).map_err(|error| {
+                serde_json::to_string(&error.errors()).unwrap_or_else(|_| error.to_string())
+            })?;
         doc.project = next;
         serde_json::to_string(&doc.project).map_err(|error| error.to_string())
     })
@@ -265,5 +311,69 @@ mod tests {
         assert!(free_doc(handle));
         assert!(!free_doc(handle));
         assert_eq!(doc_count(), 0);
+    }
+
+    /// A one-section document with one clip whose gain distinguishes the source from the target.
+    fn clip_project_json(gain_db: f64) -> String {
+        serde_json::json!({
+            "schemaVersion": 1, "id": "prj_01",
+            "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+            "sources": [], "analyses": {},
+            "tracks": [{ "id": "trk_01", "name": "Mix", "role": "full_mix", "color": "#8A8F98",
+                         "gainDb": 0, "pan": 0, "mute": false, "solo": false, "hidden": false, "fx": [] }],
+            "arrangement": { "timebase": { "ppq": 960,
+                "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }],
+                "timeSignatures": [{ "bar": 0, "numerator": 4, "denominator": 4 }] },
+                "sections": [{ "id": "sec_01", "kind": "verse", "label": "S", "lengthTicks": 3840,
+                    "lanes": { "trk_01": { "clips": [{
+                        "id": "clp_01", "asset": HASH, "srcStart": 0, "srcEnd": 48000, "start": 0,
+                        "warp": { "mode": "beatgrid", "anchors": [
+                            { "srcSample": 0, "tick": 0 }, { "srcSample": 48000, "tick": 1920 } ] },
+                        "gainDb": gain_db, "pitchSemitones": 0, "fadeInTicks": 0, "fadeOutTicks": 0,
+                        "fadeCurve": "equal_power",
+                        "provenance": { "kind": "user", "createdAt": "2026-10-18T12:00:00Z" } }],
+                        "automation": [] } },
+                    "transitionIn": { "kind": "cut", "lengthTicks": 0 } }],
+                "master": { "fx": [], "automation": [], "gainDb": 0 } }
+        })
+        .to_string()
+    }
+
+    const HASH: &str = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+    const COMMIT: &str = "cmt_01JAB3QK7M9P2V6XWN0T4Y8ZB5";
+
+    fn asset_json() -> String {
+        serde_json::json!([{
+            "hash": HASH, "mime": "audio/flac", "bytes": 1,
+            "sampleRate": 48000, "channels": 2, "durationSamples": 480000
+        }])
+        .to_string()
+    }
+
+    #[test]
+    fn apply_batch_with_adopts_from_another_handle() {
+        let target = load_project(&clip_project_json(0.0)).unwrap();
+        asset_add(target, &asset_json()).unwrap();
+        let source = load_project(&clip_project_json(-6.0)).unwrap();
+        asset_add(source, &asset_json()).unwrap();
+
+        let batch = serde_json::json!({
+            "id": "bat_01", "label": "Adopt", "createdAt": "2026-10-18T12:00:00Z",
+            "author": { "kind": "user" },
+            "ops": [{ "op": "region.adopt", "fromCommit": COMMIT,
+                      "region": { "startTick": 0, "endTick": 960, "tracks": "all" } }] })
+        .to_string();
+
+        // Without the commit's handle the op fails with the structured `unknown_commit` code.
+        let err = apply_batch_with(target, &batch, "{}").unwrap_err();
+        assert!(err.contains("unknown_commit"), "unexpected error: {err}");
+
+        let commit_handles = serde_json::json!({ COMMIT: source }).to_string();
+        let next = apply_batch_with(target, &batch, &commit_handles).unwrap();
+        assert!(next.contains("-6.0"), "the source clip's gain was copied");
+        assert_eq!(document_json(target).unwrap(), next);
+
+        assert!(free_doc(source));
+        assert!(free_doc(target));
     }
 }

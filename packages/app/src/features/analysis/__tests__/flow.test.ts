@@ -5,6 +5,13 @@ import { type Platform, parseMigrations } from "@bragi/platform";
 import { createMemoryPlatform } from "@bragi/platform/testing";
 import { describe, expect, it } from "vitest";
 
+import {
+  getDeviceId,
+  headRef,
+  listCommits,
+  readCommitSnapshot,
+  setRef,
+} from "../../history/api/history-repo.js";
 import { getProjectSnapshot, listLibraryItems } from "../../library/api/library-repo.js";
 import { loadTestModel } from "../../song/__tests__/fixtures.js";
 import { createSongStore, type SongStore } from "../../song/state/song-store.js";
@@ -85,7 +92,7 @@ interface Harness {
 }
 
 async function harness(
-  onCommit?: (commit: { batch: { label: string } }, platform: Platform) => void,
+  onCommit?: (commit: { batch: { label: string } | null }, platform: Platform) => void,
 ): Promise<Harness> {
   const platform = await memoryPlatform();
   const store = new Map<string, Uint8Array>();
@@ -109,6 +116,7 @@ async function harness(
   const api: ApiClient = {
     baseUrl: "",
     meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
+    getAuthMode: async () => ({ mode: "multi-user", user: null }),
     signInWithEmail: async () => {},
     presign: async () => ({ exists: false, uploadUrl: "blob:upload", headers: {}, expiresIn: 900 }),
     complete: async (hash) => ({ hash, bytes: 0, mime: null }),
@@ -228,7 +236,7 @@ describe("the upload -> live-analysis flow", () => {
     const stemsAtCommit: boolean[] = [];
     let stemHashes: string[] = [];
     const h = await harness((commit, platform) => {
-      if (commit.batch.label !== "Analysis: separation") return;
+      if (commit.batch?.label !== "Analysis: separation") return;
       void Promise.all(
         stemHashes.map((hash) => platform.blobCache.has(hash as `sha256:${string}`)),
       ).then((has) => stemsAtCommit.push(...has));
@@ -425,6 +433,59 @@ describe("the upload -> live-analysis flow", () => {
     expect(doc?.analyses[doc.sources[0]?.id ?? ""]?.blobs.rhythm).toBeUndefined();
   });
 
+  it("records the ingest as a root commit and one commit per stage, all system", async () => {
+    const h = await harness();
+    const workingAsset = await registerAudio(h.store, "working");
+    const ingest = await register(h.store, {
+      schemaVersion: 1,
+      workingAsset,
+      durationSec: 30,
+      channelsOriginal: 1,
+      sampleRateOriginal: 48000,
+      codec: "wav",
+      fingerprint: "fp",
+    });
+    const rhythm = await register(h.store, {
+      schemaVersion: 1,
+      bpm: 120,
+      beats: [0, 0.5],
+      downbeats: [0],
+      tempoCurve: [{ beat: 0, bpm: 120 }],
+      timeSignature: { numerator: 4, denominator: 4 },
+      confidence: 0.9,
+      isTempoStable: true,
+    });
+    const tag = await register(h.store, {
+      schemaVersion: 1,
+      genres: [],
+      moods: [],
+      instruments: [],
+      descriptors: [],
+    });
+    h.postAnalysesEmit("ingest", ingest);
+    const result = await h.flow.start({ name: "song.wav", bytes: async () => new Uint8Array([6]) });
+
+    h.partial("rhythm", rhythm);
+    await drain();
+    h.partial("tag", tag);
+    await drain();
+
+    const commits = await listCommits(h.platform.localDb, result.projectId);
+    expect(commits.map((commit) => commit.label)).toEqual([
+      "Analysis: ingest",
+      "Analysis: rhythm",
+      "Analysis: tag",
+    ]);
+    expect(commits[0]?.parent).toBeNull();
+    expect(commits[1]?.parent).toBe(commits[0]?.id);
+    expect(commits[2]?.parent).toBe(commits[1]?.id);
+    expect(commits.every((commit) => commit.authorKind === "system")).toBe(true);
+
+    // The project row still opens the newest document.
+    const snapshot = await getProjectSnapshot(h.platform, result.projectId);
+    expect(snapshot?.meta.tags).toEqual([]);
+  });
+
   it("resumes a stored project: skips merged stages, merges the rest and reports commits (Q82)", async () => {
     const h = await harness();
     const workingAsset = await registerAudio(h.store, "working");
@@ -471,6 +532,7 @@ describe("the upload -> live-analysis flow", () => {
       api: {
         baseUrl: "",
         meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
+        getAuthMode: async () => ({ mode: "multi-user", user: null }),
         signInWithEmail: async () => {},
         presign: async () => {
           throw new Error("resume must not upload");
@@ -498,7 +560,7 @@ describe("the upload -> live-analysis flow", () => {
         const bytes = h.store.get(String(url).replace(/^blob:/, ""));
         return new Response(bytes as unknown as BodyInit, { status: bytes ? 200 : 404 });
       }) as unknown as typeof globalThis.fetch,
-      onCommit: (commit) => commits.push(commit.batch.label),
+      onCommit: (commit) => commits.push(commit.batch?.label ?? ""),
     });
     await flow.resume({ assetHash: result.assetHash });
     expect(realtime.topics()).toContain(`asset:${result.assetHash}`);
@@ -508,5 +570,96 @@ describe("the upload -> live-analysis flow", () => {
     expect(doc?.analyses[doc.sources[0]?.id ?? ""]?.blobs.rhythm).toBe(rhythm.hash);
     // The ingest batch was not applied twice.
     expect(doc?.tracks.length).toBe(snapshot.tracks.length);
+  });
+
+  it("does not replay stages onto a version from before them (going back, then reopening)", async () => {
+    const h = await harness();
+    const workingAsset = await registerAudio(h.store, "working");
+    const ingest = await register(h.store, {
+      schemaVersion: 1,
+      workingAsset,
+      durationSec: 30,
+      channelsOriginal: 1,
+      sampleRateOriginal: 48000,
+      codec: "wav",
+      fingerprint: "fp",
+    });
+    const rhythm = await register(h.store, {
+      schemaVersion: 1,
+      bpm: 90,
+      beats: [0, 0.66],
+      downbeats: [0],
+      tempoCurve: [{ beat: 0, bpm: 90 }],
+      timeSignature: { numerator: 4, denominator: 4 },
+      confidence: 0.9,
+      isTempoStable: true,
+    });
+    h.postAnalysesEmit("ingest", ingest);
+    const result = await h.flow.start({ name: "song.wav", bytes: async () => new Uint8Array([8]) });
+    h.partial("rhythm", rhythm);
+    await drain();
+    h.flow.dispose();
+
+    // The user went back to the first version: HEAD is the ingest root, without rhythm.
+    const before = await listCommits(h.platform.localDb, result.projectId);
+    const root = before[0];
+    if (root === undefined) throw new Error("no root commit");
+    const deviceId = await getDeviceId(h.platform.localDb);
+    await setRef(h.platform.localDb, result.projectId, headRef(deviceId), root.id, new Date());
+    const rootDoc = await readCommitSnapshot(h.platform, root.snapshotHash);
+    expect(rootDoc.analyses[rootDoc.sources[0]?.id ?? ""]?.blobs.rhythm).toBeUndefined();
+
+    const resumedStore = createSongStore(await loadTestModel());
+    resumedStore.load(rootDoc, [
+      {
+        hash: workingAsset,
+        mime: "audio/flac",
+        bytes: 0,
+        sampleRate: 48000,
+        channels: 2,
+        durationSamples: 30 * 48000,
+      },
+    ]);
+    const commits: string[] = [];
+    const flow = createUploadFlow({
+      platform: h.platform,
+      api: {
+        baseUrl: "",
+        meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
+        getAuthMode: async () => ({ mode: "multi-user", user: null }),
+        signInWithEmail: async () => {},
+        presign: async () => {
+          throw new Error("resume must not upload");
+        },
+        complete: async () => {
+          throw new Error("resume must not upload");
+        },
+        assetUrl: async (hash) => ({ url: `blob:${hash}`, expiresIn: 60 }),
+        postAnalyses: async () => {
+          throw new Error("resume must not submit");
+        },
+        getAnalyses: async (hash) => ({
+          assetHash: hash,
+          stages: [
+            { stage: "ingest", status: "done", blob: ingest.hash },
+            { stage: "rhythm", status: "done", blob: rhythm.hash },
+          ],
+        }),
+        library: async () => ({ items: [], nextCursor: null }),
+        importLibrary: async () => ({ items: [], enqueuedStages: [] }),
+      } as ApiClient,
+      realtime: new FakeRealtime(),
+      songStore: resumedStore,
+      fetch: (async (url: string | URL) => {
+        const bytes = h.store.get(String(url).replace(/^blob:/, ""));
+        return new Response(bytes as unknown as BodyInit, { status: bytes ? 200 : 404 });
+      }) as unknown as typeof globalThis.fetch,
+      onCommit: (commit) => commits.push(commit.batch?.label ?? ""),
+    });
+    await flow.resume({ assetHash: result.assetHash });
+    expect(commits).toEqual([]);
+    expect(await listCommits(h.platform.localDb, result.projectId)).toHaveLength(before.length);
+    const doc = resumedStore.store.getState().doc;
+    expect(doc?.analyses[doc.sources[0]?.id ?? ""]?.blobs.rhythm).toBeUndefined();
   });
 });

@@ -72,6 +72,27 @@ export function createEngineController(options: EngineControllerOptions): Engine
   let starting: Promise<boolean> | null = null;
   let unsubscribe: (() => void) | null = null;
   let pendingSeekSec = 0;
+  /** The full reload in flight, if any, and the newest document it must end on. */
+  let reloading: Promise<void> | null = null;
+  let latestDoc: Project | null = null;
+
+  /**
+   * Loads `latestDoc` into the engine, again and again until no newer document arrived while a
+   * load ran. A load is async, so a delta committed during one (a solo while an analysis stage
+   * resyncs) would otherwise be overwritten when the older document finishes loading.
+   */
+  const reload = (): void => {
+    if (reloading) return;
+    reloading = (async () => {
+      let loaded: Project | null = null;
+      while (engine && latestDoc !== null && latestDoc !== loaded) {
+        loaded = latestDoc;
+        await engine.loadDocument(loaded as unknown as ProjectJson);
+      }
+    })().finally(() => {
+      reloading = null;
+    });
+  };
 
   const onState = (state: EngineState): void => {
     const doc = options.document();
@@ -162,16 +183,17 @@ export function createEngineController(options: EngineControllerOptions): Engine
     commit(commit, doc) {
       if (!engine) return;
       const delta = commit.delta as EngineDelta;
-      engine.applyDelta(delta);
-      if (delta.requiresFullResync === true) {
-        void engine.loadDocument(doc as unknown as ProjectJson);
-      }
+      latestDoc = doc;
+      // During a reload the delta would land on the plan the reload replaces; the reload loop
+      // picks up `doc` instead.
+      if (reloading === null) engine.applyDelta(delta);
+      if (delta.requiresFullResync === true || reloading !== null) reload();
       store.setState({ durationSec: options.durationSec() });
     },
     documentReplaced() {
       store.setState({ durationSec: options.durationSec(), positionSec: 0 });
-      const doc = options.document();
-      if (engine && doc) void engine.loadDocument(doc as unknown as ProjectJson);
+      latestDoc = options.document();
+      reload();
     },
     async dispose() {
       unsubscribe?.();
