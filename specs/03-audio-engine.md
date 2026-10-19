@@ -1,6 +1,6 @@
 # 03 — Audio Engine
 
-Status: Draft v0.6 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
+Status: Draft v0.7 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
 
 ## 1. Responsibilities
 
@@ -110,7 +110,8 @@ WP-1.1 pinned the parts this sketch left open:
 - **`TrackPlan.solo`** exists: the "any solo" rule is resolved at compile time, and the renderer
   ramps the resulting audible gain.
 - **Sections window their clips.** A clip occurrence is trimmed at its section's end, because a
-  section is the arrangement's window (02 §3.5).
+  section is the arrangement's window (02 §3.5). The only exception is the deliberate
+  `post_roll`/`pre_roll` of a boundary crossfade (§5.5).
 - **Automation** in v1 is gain only (`track:<id>/gainDb`, `master/gainDb`, already converted to
   absolute samples by the compiler). Fx parameters arrive with WP-2.3, which also supplies
   `FxNode`; `TrackPlan.fx` is empty in WP-1.1.
@@ -156,6 +157,33 @@ superseded: it duplicated op semantics inside the engine.)
 
 ### 5.4 Audition (A/B)
 `audition(commit)` compiles a second plan for the candidate commit and **crossfades (30 ms) between plans at the same playhead position**. Switching between the original and candidates 1/2/3 must be instant and gapless. This is the key interaction for AI edits ([07-song-canvas.md §6](07-song-canvas.md)). At most **4 plans** are kept warm (HEAD + 3 candidates).
+
+### 5.5 Section boundaries
+The planner joins section *i* to the previous one at its absolute start sample *B*
+(`RenderPlan::sections[i].start`). For each track it compares the last `Segment` with
+`dst_end == B` with the first with `dst_start == B`:
+
+- **Contiguous** — the same asset and the same source position at *B*, within one source sample
+  after warp and ratio — plans no fade at all. The segments' windows, maps, fades and gains are
+  untouched, so an unedited song is bit-identical to a plan built without boundaries.
+- **Discontinuous** — anything else, including a side that is silent — plans a centred equal-power
+  crossfade. `L` is 5 ms (`BOUNDARY_FADE_MS`) for `cut`, `transitionIn.lengthTicks` converted at
+  *B*'s tempo for `crossfade`, and the same for `generated` (with a plan warning until WP-2.7
+  renders the bridging asset). `L` is clamped to half of either neighbouring section.
+
+The fade is centred on *B*: the outgoing segment gains `post_roll = L/2` when an incoming segment
+is present and its source handle exists, and fades out with `cos(xπ/2)` over
+`[B − L/2, B + L/2]`; the incoming segment gains `pre_roll = L/2` under the same conditions and
+fades in with `sin(xπ/2)`. Without a handle (or without a counterpart), the side uses its own half:
+the outgoing fade runs `[B − L/2, B]` and the incoming one `[B, B + L/2]`. A handle is source
+material the warp maps outside the clip window — after it for the outgoing side, before it for the
+incoming side — checked against the asset's duration at compile time; a track that is silent on one
+side therefore never leaks material into the neighbouring section. `Segment::dst_start` and
+`dst_end` stay the clip's section window; only `pre_roll`/`post_roll` widen what `Segment::overlap`
+renders. The boundary gain multiplies with the clip's own fades and is applied per sample in
+`Segment::fade_gain`, from the absolute sample alone, so a seek into a crossfade is sample-accurate
+and (on the direct path) identical to playing through it. `PlanOptions::section_fades` turns the
+whole step off; it exists for tests that compare the two renders.
 
 ## 6. DSP catalogue (`bragi-dsp`)
 
@@ -311,5 +339,6 @@ type AudioFormat = { container: "wav"; bits: 16 | 24 | 32 } | { container: "flac
 - **Golden renders:** `fixtures/projects/*.json` + `fixtures/audio/*` (self-made). Offline render output is compared with `insta`-stored hashes and a **null test** (residual ≤ −90 dBFS) against golden WAVs.
 - **Parity:** the same fixtures rendered via WASM (in Node with a WASM runtime) and native must null to ≤ −90 dBFS.
 - **Real-time safety:** a custom allocator in debug builds panics if the audio thread allocates (`assert_no_alloc`).
+- **Section boundaries:** `crates/bragi-engine/tests/boundaries.rs` renders a reordered 55 Hz fixture and asserts the §5.5 discontinuity metric (07 §10 check 4: no boundary step more than −40 dBFS above the signal's own maximum step), the equal-power RMS through a 1-beat crossfade, handle vs no-handle fades, sample-accurate seeking into a crossfade, a bit-identical contiguous song and a section move during playback.
 - **Stress:** 24 tracks × 4 fx × 10 minutes with no underruns at 128 frames (browser, mid-range laptop) or 256 frames (desktop).
 - **Fuzz:** random op sequences → apply → plan → render 1 s. No panics, no NaNs or Infs in output.

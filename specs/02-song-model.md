@@ -1,6 +1,6 @@
 # 02 — Song Model & Versioning
 
-Status: Draft v0.4 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
+Status: Draft v0.5 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
 
 This is the **architectural heart** of Bragi. Every feature (canvas, AI edits, generation, fusion, export) reads and writes this model, and nothing else. If a feature can't be expressed as operations on this model, the model is extended here first (with an ADR).
 
@@ -167,6 +167,8 @@ interface Transition {
 }
 ```
 The **absolute start tick** of section *i* is `Σ lengthTicks of sections[0..i)`. It is never stored.
+
+**Section boundaries.** The engine joins section *i* to the previous one at its absolute start sample *B*. It leaves the boundary alone when, for a track, the last clip reaching *B* and the first clip starting at *B* are the same asset at the same source position (within one source sample, after warp and ratio): an unedited song therefore renders exactly as before. Every other pair is **discontinuous** — including one that is silent on either side — and gets a centred equal-power crossfade of length `L` at *B*: 5 ms for `cut`, `transitionIn.lengthTicks` at *B*'s tempo for `crossfade` (clamped to half of either neighbouring section), and the same for `generated` until the bridging asset lands (WP-2.7). Each side continues `L/2` from its source handle when the asset has material there and there is something to crossfade with; otherwise it fades over its own half (`[B − L/2, B]` for the outgoing side, `[B, B + L/2]` for the incoming one). The boundary gain is separate from — and multiplies with — the clip's own `fadeInTicks`/`fadeOutTicks`. The precise law is in [03 §5.5](03-audio-engine.md).
 
 ### 3.6 Clip
 ```ts
