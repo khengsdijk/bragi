@@ -6,6 +6,8 @@
 //! working asset. Decoding goes through symphonia, so the encoders are checked
 //! by an independent implementation.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::print_stdout)]
+
 mod common;
 
 use bragi_engine::decode::decode_bytes;
