@@ -1,6 +1,6 @@
 # 03 — Audio Engine
 
-Status: Draft v0.5 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
+Status: Draft v0.6 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
 
 ## 1. Responsibilities
 
@@ -142,8 +142,17 @@ begins at the playhead's first frame when the chunks are resident); seek ≤ 1 b
 240-sample equal-power crossfade; mute/solo is silent after 240 samples; the playhead is an integer
 sample counter, so ten minutes of playback drift by 0 samples.
 
-### 5.3 Live preview (`setPreview`)
-During a drag, the UI sends a lightweight `PreviewPatch`, for example `{ moveSection: { id, toIndex } }`, `{ clipOffset: { clipId, deltaTicks } }`, `{ trackGain: { trackId, db } }`, `{ fxParam: { fxId, param, value } }`, or `{ macro: { trackId, macroId, value } }`. The engine applies the patch to a **shadow plan** without recompiling the whole document. On commit, the UI clears the preview and sends the real `applyDelta`.
+### 5.3 Live preview
+During a drag the document does not change ([01 §5](01-architecture.md)). Since WP-2.1 the
+preview is a **copy of the document** in the Song Store (`SongStore.beginPreview`): each gesture
+step is an ordinary op batch applied to the copy, and its `EngineDelta` goes to the engine, so the
+engine needs no separate preview command set. A param-only step (gain, pan, fx params, macros) is
+a patch delta and glides through the effects' own smoothing; a structural step (a section move)
+rebuilds the plan, carrying live effect state over. On release the steps are folded into one batch
+(`coalesceBatches`) and committed through the history store; its delta carries absolute track and
+section states, so it lands the engine where the preview already is. On cancel, the delta from the
+copy back to the document returns the engine. (The earlier `PreviewPatch`/shadow-plan design is
+superseded: it duplicated op semantics inside the engine.)
 
 ### 5.4 Audition (A/B)
 `audition(commit)` compiles a second plan for the candidate commit and **crossfades (30 ms) between plans at the same playhead position**. Switching between the original and candidates 1/2/3 must be instant and gapless. This is the key interaction for AI edits ([07-song-canvas.md §6](07-song-canvas.md)). At most **4 plans** are kept warm (HEAD + 3 candidates).

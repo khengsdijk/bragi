@@ -2,10 +2,10 @@
  * Folding one gesture's batches into one commit (07 §4.5: a slider drag previews live and commits
  * once on release).
  *
- * While a gesture runs, each step is applied to the live document with `songStore.apply` and no
- * commit; on release the steps become one batch for `history.commitApplied`. Applying that batch
- * to the parent snapshot must give the live document, so ops are only ever merged into an earlier
- * op on the same target, and only when nothing in between touches that target.
+ * While a gesture runs, each step is applied to the Song Store's preview copy (see `gesture.ts`);
+ * on release the steps become one batch for `history.commit`. Applying that batch to the document
+ * must give the preview, so ops are only ever merged into an earlier op on the same target, and
+ * only when nothing in between touches that target.
  */
 import type {
   FxAddOp,

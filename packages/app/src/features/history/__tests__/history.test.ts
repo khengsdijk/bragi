@@ -7,8 +7,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { loadTestModel } from "../../song/__tests__/fixtures.js";
 import { buildDemoProject, fakeAssetHash, SHORT_DEMO } from "../../song/api/demo-song.js";
 import type { ModelApi } from "../../song/model/model-api.js";
-import { createSongStore, type SongStore } from "../../song/state/song-store.js";
-import { coalesceBatches } from "../state/coalesce.js";
+import { type Commit, createSongStore, type SongStore } from "../../song/state/song-store.js";
+import { startGesture } from "../state/gesture.js";
 import { createHistory, type History, regionBoundariesAlign } from "../state/history.js";
 
 const MIGRATIONS_DIR = new URL("../../../../../schemas/sqlite/migrations/", import.meta.url);
@@ -185,30 +185,71 @@ describe("history store", () => {
     expect(doc.tracks.find((track) => track.id === "trk_pads")?.gainDb).not.toBe(-2);
   });
 
-  it("records a previewed gesture as one commit that undoes to the state before it", async () => {
+  it("previews a drag without touching the document and commits it once", async () => {
     const fixture = await openFixture();
     await fixture.history.load();
     const before = structuredClone(document(fixture));
-    const steps = [-1, -2, -4].map((gainDb) =>
-      batch([{ op: "track.update", trackId: "trk_pads", patch: { gainDb } }], "Pads volume"),
-    );
-    for (const preview of steps) expect(fixture.store.apply(preview).ok).toBe(true);
-    const live = structuredClone(document(fixture));
+    const ids = before.arrangement.sections.map((section) => section.id);
+    const dragged = ids.at(-1) as string;
+    const sent: Commit[] = [];
+    const gesture = startGesture({
+      songStore: fixture.store,
+      history: fixture.history,
+      engine: (commit) => sent.push(commit),
+    });
+    if (gesture === null) throw new Error("expected a gesture");
 
-    const gesture = coalesceBatches(steps, "Pads volume", NOW);
-    if (gesture === null) throw new Error("expected a batch");
-    expect(gesture.ops).toHaveLength(1);
-    const commit = await fixture.history.commitApplied(gesture);
-    expect(document(fixture)).toEqual(live);
-    expect(fixture.history.store.getState().head).toBe(commit.id);
+    for (const toIndex of [2, 1, 0]) {
+      expect(
+        gesture.step(batch([{ op: "section.move", sectionId: dragged, toIndex }], "Move")).ok,
+      ).toBe(true);
+      // 01 §5: drags never mutate the document; views render the preview.
+      expect(document(fixture)).toEqual(before);
+      expect(fixture.store.store.getState().preview?.arrangement.sections[toIndex]?.id).toBe(
+        dragged,
+      );
+    }
+    expect(sent).toHaveLength(3);
+    const previewed = structuredClone(fixture.store.store.getState().preview);
 
-    // Parent snapshot + batch = the commit's snapshot.
-    const replay = await openFixture();
-    expect(replay.store.apply(gesture).ok).toBe(true);
-    expect(document(replay)).toEqual(live);
+    const outcome = await gesture.commit("Move the outro");
+    expect(outcome?.ok).toBe(true);
+    expect(fixture.store.store.getState().preview).toBeNull();
+    expect(document(fixture)).toEqual(previewed);
+    const state = fixture.history.store.getState();
+    const head = state.commits.get(state.head ?? "");
+    expect(head?.label).toBe("Move the outro");
+    expect(head?.batch.ops).toEqual([{ op: "section.move", sectionId: dragged, toIndex: 0 }]);
+    expect(sent).toHaveLength(4);
 
     expect((await fixture.history.undo())?.ok).toBe(true);
     expect(document(fixture)).toEqual(before);
+  });
+
+  it("cancels a gesture, and a drag back to the start records nothing", async () => {
+    const fixture = await openFixture();
+    await fixture.history.load();
+    const commits = fixture.history.store.getState().commits.size;
+    const ids = document(fixture).arrangement.sections.map((section) => section.id);
+    const sent: Commit[] = [];
+    const engine = (commit: Commit): void => {
+      sent.push(commit);
+    };
+
+    const cancelled = startGesture({ songStore: fixture.store, history: fixture.history, engine });
+    cancelled?.step(batch([{ op: "section.move", sectionId: ids[0] as string, toIndex: 1 }]));
+    cancelled?.cancel();
+    expect(fixture.store.store.getState().preview).toBeNull();
+    // The engine heard the step and then the way back.
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.batch).toBeNull();
+
+    const roundTrip = startGesture({ songStore: fixture.store, history: fixture.history, engine });
+    roundTrip?.step(batch([{ op: "section.move", sectionId: ids[0] as string, toIndex: 1 }]));
+    roundTrip?.step(batch([{ op: "section.move", sectionId: ids[0] as string, toIndex: 0 }]));
+    expect(await roundTrip?.commit("Move")).toBeNull();
+    expect(fixture.history.store.getState().commits.size).toBe(commits);
+    expect(document(fixture).arrangement.sections.map((section) => section.id)).toEqual(ids);
   });
 
   it("branches naturally from a non-tip commit", async () => {
