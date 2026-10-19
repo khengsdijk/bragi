@@ -43,11 +43,13 @@
 mod biquad;
 mod compressor;
 mod gain;
+mod saturation;
 mod smooth;
 
 pub use biquad::{Biquad, BiquadCoeffs, StereoBiquad};
 pub use compressor::Compressor;
 pub use gain::Gain;
+pub use saturation::Saturation;
 pub use smooth::{DEFAULT_SMOOTHING_MS, Smoothed};
 
 use thiserror::Error;
@@ -387,6 +389,7 @@ pub fn create(
     match kind {
         FxKind::Gain => Ok(Box::new(Gain::new(sample_rate))),
         FxKind::Compressor => Ok(Box::new(Compressor::new(sample_rate, max_block))),
+        FxKind::Saturation => Ok(Box::new(Saturation::new(sample_rate, max_block))),
         other => Err(FxError::NotImplemented(other.name())),
     }
 }
