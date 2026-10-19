@@ -25,7 +25,8 @@ export interface ModelError {
 export type EngineDeltaJson = Readonly<Record<string, unknown>>;
 
 export interface Commit {
-  readonly batch: OpBatch;
+  /** The batch that produced the document; `null` after a checkout, which runs no ops. */
+  readonly batch: OpBatch | null;
   readonly delta: EngineDeltaJson;
   /** The store revision this commit produced. */
   readonly revision: number;
@@ -58,8 +59,20 @@ export interface SongStore {
    * asset's length (02 §6).
    */
   addAssets(assets: readonly AssetMeta[]): void;
+  /** The asset metadata the live handle validates clips against. */
+  assets(): readonly AssetMeta[];
   /** Applies an op batch atomically. */
   apply(batch: OpBatch): ApplyOutcome;
+  /**
+   * Applies a batch whose ops may read other commits (`region.adopt`), given a
+   * `cmt_… → model handle` map (02 §5.4).
+   */
+  applyWith(batch: OpBatch, commitHandles: Readonly<Record<string, number>>): ApplyOutcome;
+  /**
+   * Replaces the document without freeing the asset index and returns the
+   * engine delta between the old and new documents. Used by history checkout.
+   */
+  checkout(project: Project): ApplyOutcome;
   /** Frees the model handle. */
   dispose(): void;
 }
@@ -92,10 +105,43 @@ export function createSongStore(model: ModelApi): SongStore {
     handle = null;
   };
 
+  /** Applies `batch` to the live handle and turns the change into an outcome. */
+  const run = (
+    batch: OpBatch,
+    commitHandles: Readonly<Record<string, number>> | null,
+  ): ApplyOutcome => {
+    if (handle === null) {
+      return { ok: false, errors: [{ opIndex: 0, code: "no_document", message: "no document" }] };
+    }
+    // A second handle on the same document is the "before" side of the diff.
+    const before = model.loadProject(model.documentJson(handle));
+    try {
+      if (assetMetas.length > 0) model.assetAdd(before, JSON.stringify(assetMetas));
+      let nextJson: string;
+      try {
+        nextJson =
+          commitHandles === null
+            ? model.applyBatch(handle, JSON.stringify(batch))
+            : model.applyBatchWith(handle, JSON.stringify(batch), JSON.stringify(commitHandles));
+      } catch (error) {
+        return { ok: false, errors: parseErrors(error) };
+      }
+      const delta = JSON.parse(model.diffDocs(before, handle)) as EngineDeltaJson;
+      const doc = JSON.parse(nextJson) as Project;
+      const revision = store.getState().revision + 1;
+      const commit: Commit = { batch, delta, revision };
+      store.setState({ doc, revision, lastCommit: commit });
+      return { ok: true, doc, commit };
+    } finally {
+      model.freeDoc(before);
+    }
+  };
+
   return {
     store,
     model,
     handle: () => handle,
+    assets: () => assetMetas,
     load(project, assets = []) {
       free();
       assetMetas = assets;
@@ -116,27 +162,40 @@ export function createSongStore(model: ModelApi): SongStore {
       assetMetas = [...assetMetas, ...fresh];
     },
     apply(batch) {
+      return run(batch, null);
+    },
+    applyWith(batch, commitHandles) {
+      return run(batch, commitHandles);
+    },
+    checkout(project) {
       if (handle === null) {
-        return { ok: false, errors: [{ opIndex: 0, code: "no_document", message: "no document" }] };
-      }
-      // A second handle on the same document is the "before" side of the diff.
-      const before = model.loadProject(model.documentJson(handle));
-      try {
-        if (assetMetas.length > 0) model.assetAdd(before, JSON.stringify(assetMetas));
-        let nextJson: string;
-        try {
-          nextJson = model.applyBatch(handle, JSON.stringify(batch));
-        } catch (error) {
-          return { ok: false, errors: parseErrors(error) };
-        }
-        const delta = JSON.parse(model.diffDocs(before, handle)) as EngineDeltaJson;
-        const doc = JSON.parse(nextJson) as Project;
+        // No previous document: behave like `load`, with an empty delta.
+        handle = model.loadProject(JSON.stringify(project));
+        if (assetMetas.length > 0) model.assetAdd(handle, JSON.stringify(assetMetas));
+        const doc = JSON.parse(model.documentJson(handle)) as Project;
         const revision = store.getState().revision + 1;
-        const commit: Commit = { batch, delta, revision };
+        const commit: Commit = { batch: null, delta: {}, revision };
+        store.setState({ doc, revision, lastCommit: commit });
+        return { ok: true, doc, commit };
+      }
+      const before = model.loadProject(model.documentJson(handle));
+      let next: number | null = null;
+      try {
+        // Load first, then swap: a malformed snapshot leaves the old document intact.
+        next = model.loadProject(JSON.stringify(project));
+        if (assetMetas.length > 0) model.assetAdd(next, JSON.stringify(assetMetas));
+        const delta = JSON.parse(model.diffDocs(before, next)) as EngineDeltaJson;
+        model.freeDoc(handle);
+        handle = next;
+        next = null;
+        const doc = JSON.parse(model.documentJson(handle)) as Project;
+        const revision = store.getState().revision + 1;
+        const commit: Commit = { batch: null, delta, revision };
         store.setState({ doc, revision, lastCommit: commit });
         return { ok: true, doc, commit };
       } finally {
         model.freeDoc(before);
+        if (next !== null) model.freeDoc(next);
       }
     },
     dispose() {

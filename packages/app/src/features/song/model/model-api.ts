@@ -12,6 +12,7 @@ export interface ModelApi {
   readonly assetAdd: typeof ModelWasm.assetAdd;
   readonly validateDoc: typeof ModelWasm.validateDoc;
   readonly applyBatch: typeof ModelWasm.applyBatch;
+  readonly applyBatchWith: typeof ModelWasm.applyBatchWith;
   readonly documentJson: typeof ModelWasm.documentJson;
   readonly canonicalJson: typeof ModelWasm.canonicalJson;
   readonly commitId: typeof ModelWasm.commitId;
