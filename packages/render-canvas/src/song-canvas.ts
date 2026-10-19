@@ -189,6 +189,7 @@ export class SongCanvas {
   private visibleTracks: CanvasTrack[] = [];
   private sectionEnergy = new Map<string, number>();
   private repeatGlyphs = new Map<string, number>();
+  private readonly graveyard: { destroy(arg?: boolean): void }[] = [];
   private readonly appearing = new Map<string, Anim>();
   private previousIds: readonly string[] = [];
 
@@ -484,6 +485,7 @@ export class SongCanvas {
     this.recent.push(elapsed);
     if (this.recent.length > 120) this.recent.shift();
     this.frames += 1;
+    this.emptyGraveyard();
   }
 
   /** Rebuilds every pending piece of geometry (not just the per-frame budget) and renders. */
@@ -509,6 +511,36 @@ export class SongCanvas {
   resetStats(): void {
     this.recent.length = 0;
     this.frames = 0;
+  }
+
+  /**
+   * Diagnostic for the tests: the share of pixels that differ from the background colour, or
+   * `null` when the backend cannot read pixels back synchronously. A blank canvas is 0.
+   */
+  coverage(): number | null {
+    try {
+      this.renderNow();
+      const { pixels } = this.app.renderer.extract.pixels(this.app.stage);
+      const [r, g, b] = numberToRgb(this.palette.canvas);
+      let different = 0;
+      for (let index = 0; index < pixels.length; index += 4) {
+        if (
+          Math.abs((pixels[index] ?? 0) - r) > 6 ||
+          Math.abs((pixels[index + 1] ?? 0) - g) > 6 ||
+          Math.abs((pixels[index + 2] ?? 0) - b) > 6
+        ) {
+          different += 1;
+        }
+      }
+      return different / (pixels.length / 4);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Which progressive layers are live, pending or failed right now (07 §8). */
+  layerStates(): Record<LayerName, LayerState> | null {
+    return this.doc ? layerStates(this.doc, this.analysis) : null;
   }
 
   /** The current layout, so the DOM overlay can position things from the renderer's coordinates. */
@@ -539,6 +571,7 @@ export class SongCanvas {
     if (next.pxPerBeat === this.viewport.pxPerBeat && next.originSec === this.viewport.originSec) {
       return;
     }
+    if (zoomLevel(next.pxPerBeat) !== zoomLevel(this.viewport.pxPerBeat)) this.layoutDirty = true;
     this.viewport = next;
     this.chromeDirty = true;
     this.emitViewport();
@@ -569,6 +602,7 @@ export class SongCanvas {
     this.recent.push(elapsed);
     if (this.recent.length > 120) this.recent.shift();
     this.frames += 1;
+    this.emptyGraveyard();
     if (this.playing || animating || this.needsMoreRebuilds()) this.schedule();
   }
 
@@ -668,10 +702,16 @@ export class SongCanvas {
       view.mesh.destroy();
       view.mesh = null;
     }
-    view.geometry?.destroy();
+    // Textures still bound in the last frame's bind groups are destroyed after the next render.
+    if (view.geometry) this.graveyard.push(view.geometry);
+    if (view.texture) this.graveyard.push(view.texture);
     view.geometry = null;
-    view.texture?.destroy(true);
     view.texture = null;
+  }
+
+  private emptyGraveyard(): void {
+    for (const item of this.graveyard) item.destroy(true);
+    this.graveyard.length = 0;
   }
 
   private recomputeSectionEnergy(): void {
