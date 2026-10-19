@@ -50,6 +50,12 @@ fn rms(samples: &[f32]) -> f64 {
     (sum / samples.len() as f64).sqrt()
 }
 
+/// RMS of one channel of an interleaved stereo buffer.
+fn channel_rms(samples: &[f32], channel: usize) -> f64 {
+    let values: Vec<f32> = samples.iter().skip(channel).step_by(2).copied().collect();
+    rms(&values)
+}
+
 #[test]
 fn a_track_gain_effect_is_six_db_quieter_after_settling() {
     let h = hash('a');
@@ -291,6 +297,64 @@ fn renderer_output(renderer: &mut Renderer, source: &dyn PcmSource, frames: usiz
         done += count;
     }
     out
+}
+
+#[test]
+fn a_duck_keyed_from_a_loud_track_reduces_the_ducked_track() {
+    let key_hash = hash('b');
+    let duck_hash = hash('a');
+    let mut doc = project(
+        vec![
+            // Panning keeps the two tracks in separate output channels, so the
+            // measurement sees the ducked track alone.
+            track_with("trk_key", 0.0, -1.0, false, false),
+            track_with("trk_duck", 0.0, 1.0, false, false),
+        ],
+        vec![section(
+            "sec_a",
+            BAR_TICKS * 5,
+            json!({
+                "trk_key": lane(vec![clip_none("clp_key", &key_hash, 0, 480_000, 0)]),
+                "trk_duck": lane(vec![clip_none("clp_duck", &duck_hash, 0, 480_000, 0)]),
+            }),
+        )],
+    );
+    doc.tracks[1].fx.0.push(fx_instance(
+        "fx_duck",
+        "sidechain_duck",
+        &[("amountDb", 12.0), ("releaseMs", 50.0)],
+        false,
+    ));
+    doc.tracks[1].fx.0[0].sidechain_source = Some("trk_key".parse().unwrap());
+    let mut index = assets_for();
+    index.insert(meta(&key_hash, 480_000));
+    let plan = compile(&doc, &index, 48_000, 1).unwrap();
+    assert!(plan.warnings.is_empty(), "{:?}", plan.warnings);
+
+    let mut source = pcm(&duck_hash, dc(480_000, 0.5));
+    source.insert(key_hash, dc(480_000, 1.0));
+    let out = render(&plan, &source, &OfflineOptions::default()).samples;
+
+    // Without the duck the right channel is the dry 0.5 DC.
+    let mut dry_doc = doc.clone();
+    dry_doc.tracks[1].fx.0.clear();
+    let dry_plan = compile(&dry_doc, &index, 48_000, 1).unwrap();
+    let dry = render(&dry_plan, &source, &OfflineOptions::default()).samples;
+
+    // Skip 0.2 s so the envelope and parameter smoothing have settled.
+    let settled = 9_600 * 2;
+    let wet_level = channel_rms(&out[settled..], 1);
+    let dry_level = channel_rms(&dry[settled..], 1);
+    let level = 20.0 * (wet_level / dry_level).log10();
+    println!("sidechain_duck: {level:.3} dB relative to dry");
+    assert!(
+        (level + 12.0).abs() <= 1.0,
+        "expected about -12 dB, measured {level:.3} dB"
+    );
+    assert!(
+        out.iter().all(|sample| sample.is_finite()),
+        "the duck must not produce NaN/Inf"
+    );
 }
 
 #[test]

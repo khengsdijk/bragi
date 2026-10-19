@@ -25,6 +25,12 @@
           "type": "gain",
           "params": { "db": -3.0 },
           "bypass": false
+        },
+        {
+          "id": "fx_sat",
+          "type": "saturation",
+          "params": { "drive": 0.3, "tone": 0.0, "mix": 1.0 },
+          "bypass": false
         }
       ]
     }
