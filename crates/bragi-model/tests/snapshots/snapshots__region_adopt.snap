@@ -1,0 +1,122 @@
+---
+source: crates/bragi-model/tests/snapshots.rs
+expression: adopted_lane()
+---
+[
+  {
+    "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "fadeCurve": "equal_power",
+    "fadeInTicks": 0,
+    "fadeOutTicks": 19,
+    "gainDb": 0.0,
+    "id": "clp_000",
+    "pitchSemitones": 0.0,
+    "provenance": {
+      "createdAt": "2026-10-18T12:00:00Z",
+      "kind": "user"
+    },
+    "srcEnd": 24000,
+    "srcStart": 0,
+    "start": 0,
+    "warp": {
+      "anchors": [
+        {
+          "srcSample": 0,
+          "tick": 0
+        },
+        {
+          "srcSample": 48000,
+          "tick": 1920
+        }
+      ],
+      "mode": "beatgrid"
+    }
+  },
+  {
+    "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "fadeCurve": "equal_power",
+    "fadeInTicks": 19,
+    "fadeOutTicks": 0,
+    "gainDb": 0.0,
+    "id": "clp_V4TEHBZH5IEE5AOMA2CZI2QFTH",
+    "pitchSemitones": 0.0,
+    "provenance": {
+      "createdAt": "2026-10-18T12:00:00Z",
+      "kind": "user"
+    },
+    "srcEnd": 48000,
+    "srcStart": 24000,
+    "start": 960,
+    "warp": {
+      "anchors": [
+        {
+          "srcSample": 0,
+          "tick": 0
+        },
+        {
+          "srcSample": 48000,
+          "tick": 1920
+        }
+      ],
+      "mode": "beatgrid"
+    }
+  },
+  {
+    "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "fadeCurve": "equal_power",
+    "fadeInTicks": 0,
+    "fadeOutTicks": 19,
+    "gainDb": 0.0,
+    "id": "clp_T33KTP5HBXXN64X7HNZEFCTUJI",
+    "pitchSemitones": 0.0,
+    "provenance": {
+      "createdAt": "2026-10-18T12:00:00Z",
+      "kind": "user"
+    },
+    "srcEnd": 24000,
+    "srcStart": 0,
+    "start": 1920,
+    "warp": {
+      "anchors": [
+        {
+          "srcSample": 0,
+          "tick": 1920
+        },
+        {
+          "srcSample": 48000,
+          "tick": 3840
+        }
+      ],
+      "mode": "beatgrid"
+    }
+  },
+  {
+    "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "fadeCurve": "equal_power",
+    "fadeInTicks": 19,
+    "fadeOutTicks": 0,
+    "gainDb": 0.0,
+    "id": "clp_001",
+    "pitchSemitones": 0.0,
+    "provenance": {
+      "createdAt": "2026-10-18T12:00:00Z",
+      "kind": "user"
+    },
+    "srcEnd": 48000,
+    "srcStart": 24000,
+    "start": 2880,
+    "warp": {
+      "anchors": [
+        {
+          "srcSample": 0,
+          "tick": 1920
+        },
+        {
+          "srcSample": 48000,
+          "tick": 3840
+        }
+      ],
+      "mode": "beatgrid"
+    }
+  }
+]

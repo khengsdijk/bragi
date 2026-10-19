@@ -14,11 +14,16 @@
 
 mod common;
 
-use bragi_model::generated::{Project, TrackId};
-use bragi_model::{apply, canonical_json, section_spans, validate};
+use std::collections::HashMap;
+
+use bragi_model::generated::{CommitId, Project, TrackId};
+use bragi_model::{apply_with, canonical_json, section_spans, validate};
 use common::{assets, build_project, user_batch};
 use proptest::prelude::*;
 use serde_json::{Value, json};
+
+/// The commit ID every fuzz `region.adopt` points at.
+const COMMIT: &str = "cmt_01JAB3QK7M9P2V6XWN0T4Y8ZB5";
 
 /// The fuzz iteration count: 10 000 unless `BRAGI_FUZZ_CASES` says otherwise.
 fn cases() -> u32 {
@@ -39,7 +44,7 @@ fn build_ops(doc: &Project, seed: u64, count: usize) -> Vec<Value> {
     let mut ops = Vec::with_capacity(count);
     for index in 0..count {
         let bits = seed.rotate_left((index as u32 * 7) % 63);
-        let choice = bits % 12;
+        let choice = bits % 13;
         let section = (bits >> 8) as usize % sections;
         let track = (bits >> 20) as usize % tracks;
         let section_id = format!("sec_{section}");
@@ -81,7 +86,12 @@ fn build_ops(doc: &Project, seed: u64, count: usize) -> Vec<Value> {
                     "atTick": start + 960, "newId": format!("clp_sp{index}") }),
                 None => continue,
             },
-            _ => json!({ "op": "region.clear", "region": {
+            11 => json!({ "op": "region.clear", "region": {
+                "startTick": (bits >> 28) % 6000, "endTick": ((bits >> 28) % 6000) + 500,
+                "tracks": "all" } }),
+            // Adopt from the source document the test supplied for this run. The structure of
+            // that document may differ, which is the interesting part.
+            _ => json!({ "op": "region.adopt", "fromCommit": COMMIT, "region": {
                 "startTick": (bits >> 28) % 6000, "endTick": ((bits >> 28) % 6000) + 500,
                 "tracks": "all" } }),
         };
@@ -97,16 +107,26 @@ proptest! {
     fn random_batches_never_produce_invalid_documents(
         tracks in 1usize..4,
         sections in 1usize..4,
+        source_tracks in 1usize..4,
+        source_sections in 1usize..4,
         doc_seed in any::<u64>(),
         ops_seed in any::<u64>(),
+        source_seed in any::<u64>(),
         count in 0usize..8,
     ) {
         let doc = build_project(tracks, sections, doc_seed);
         let assets = assets();
         prop_assert!(validate(&doc, &assets).is_ok(), "the generated document is valid");
 
+        // An earlier document of the run: the source of every `region.adopt` in the batch. Its
+        // track and section structure may differ from the target's.
+        let source = build_project(source_tracks, source_sections, source_seed);
+        prop_assert!(validate(&source, &assets).is_ok(), "the source document is valid");
+        let commit: CommitId = COMMIT.parse().unwrap();
+        let commits = HashMap::from([(commit, source)]);
+
         let batch = user_batch(build_ops(&doc, ops_seed, count));
-        match apply(&doc, &batch, &assets) {
+        match apply_with(&doc, &batch, &assets, &commits) {
             Ok(next) => {
                 prop_assert!(
                     validate(&next, &assets).is_ok(),
