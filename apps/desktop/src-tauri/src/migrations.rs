@@ -233,7 +233,8 @@ mod tests {
     #[test]
     fn creates_the_local_schema_and_records_it() {
         let mut connection = in_memory();
-        assert_eq!(apply(&mut connection).expect("applies"), vec![1, 2, 3]);
+        let expected: Vec<_> = MIGRATIONS.iter().map(|m| m.version).collect();
+        assert_eq!(apply(&mut connection).expect("applies"), expected);
         let columns: Vec<String> = {
             let mut statement = connection
                 .prepare("SELECT name FROM pragma_table_info('projects') ORDER BY cid")
@@ -266,11 +267,10 @@ mod tests {
         };
         assert_eq!(
             recorded,
-            vec![
-                (1, "projects".to_owned()),
-                (2, "library".to_owned()),
-                (3, "history".to_owned())
-            ]
+            MIGRATIONS
+                .iter()
+                .map(|m| (m.version, m.name.to_owned()))
+                .collect::<Vec<_>>()
         );
     }
 
