@@ -99,6 +99,16 @@ describe("asset helpers", () => {
     expect(collectAssetHashes(doc).sort()).toEqual([hash, other].sort());
   });
 
+  it("leaves the analysis result blobs (JSON) out: the decoder must only see audio", () => {
+    const audio = `sha256:${"a".repeat(64)}`;
+    const json = `sha256:${"b".repeat(64)}`;
+    const doc = {
+      sources: [{ workingAsset: audio }],
+      analyses: { src_1: { blobs: { rhythm: json }, stems: { vocals: audio } } },
+    };
+    expect(collectAssetHashes(doc as never)).toEqual([audio]);
+  });
+
   it("guesses mime types from magic bytes", () => {
     const riff = new Uint8Array(12);
     riff.set([0x52, 0x49, 0x46, 0x46], 0);

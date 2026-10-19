@@ -232,10 +232,16 @@ export function stateWordCount(tracks: number): number {
   return STATE_HEADER_WORDS + tracks * 2 + 2;
 }
 
-/** Every asset hash a document references (sources and clips). */
+/**
+ * Every audio asset hash a document references (sources, clips, stems).
+ *
+ * `analyses.*.blobs` are the analysis result blobs (JSON, 02 §6): they are content-addressed like
+ * assets and sit in the same BlobCache, but they are not audio and the decoder must never see them.
+ */
 export function collectAssetHashes(doc: ProjectJson): AssetHash[] {
   const hashes = new Set<string>();
-  const visit = (value: unknown): void => {
+  const visit = (value: unknown, key?: string): void => {
+    if (key === "blobs") return;
     if (typeof value === "string") {
       if (value.startsWith("sha256:") && value.length === 71) hashes.add(value);
       return;
@@ -245,7 +251,7 @@ export function collectAssetHashes(doc: ProjectJson): AssetHash[] {
       return;
     }
     if (value && typeof value === "object") {
-      for (const item of Object.values(value)) visit(item);
+      for (const [name, item] of Object.entries(value)) visit(item, name);
     }
   };
   visit(doc);
