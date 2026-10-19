@@ -21,7 +21,14 @@ export interface DirectJobInput {
   projectId?: string;
   assets: Record<string, string>;
   blobs?: Record<string, string>;
+  /** The capability's own parameters: validated by the worker, published on the bus. */
   params: Record<string, unknown>;
+  /**
+   * Orchestration bookkeeping (which analysis a job belongs to). Stored beside
+   * `params` in `jobs.params` so the orchestrator can find it, but never sent to
+   * the worker, whose parameter schema is strict (05 §4.2).
+   */
+  context?: Record<string, unknown>;
   attempt?: number;
   deadlineSec?: number;
 }
@@ -105,7 +112,7 @@ export async function submitJob(
             input.projectId ?? null,
             input.capability,
             input.priority,
-            JSON.stringify(input.params),
+            JSON.stringify({ ...input.params, ...input.context }),
             key,
             JSON.stringify(input.assets),
             job.traceparent,

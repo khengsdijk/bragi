@@ -104,6 +104,8 @@ const BLOB_INPUTS: Readonly<Record<string, readonly string[]>> = {
   section_embed: ["structure"],
   stem_embed: ["stem_activity"],
   tag: ["embed_full"],
+  // describe reads every analysis blob it can get (04 §6.3); all are optional.
+  describe: ["structure", "loudness_energy", "harmony", "rhythm", "tag", "stem_activity"],
 };
 
 /** The asset keys `separation` publishes that later stages read (`04 §4`). */

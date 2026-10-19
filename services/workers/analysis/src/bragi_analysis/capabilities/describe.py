@@ -31,6 +31,7 @@ from bragi_analysis.describe.settings import load as load_config
 from bragi_analysis.describe.settings import resolve_model
 from bragi_common.cancel import JobCancelledError
 from bragi_common.context import JobContext
+from bragi_common.errors import JobFailure
 from bragi_common.generated.models import (
     HarmonyResult,
     JobOutputs,
@@ -90,7 +91,8 @@ async def run(job: JobRequest, ctx: JobContext) -> JobOutputs:
     try:
         client = client_factory()
     except DescribeUnavailableError as exc:
-        raise ValueError(str(exc)) from None
+        # No API key is a deployment fact, not a transient fault: retrying cannot help.
+        raise JobFailure("MODEL_ERROR", str(exc), retryable=False) from None
     if await ctx.cancelled():
         raise JobCancelledError(f"job {job.jobId} cancelled")
 

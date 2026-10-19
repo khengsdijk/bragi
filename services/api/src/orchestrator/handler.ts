@@ -180,14 +180,17 @@ export async function enqueueDependents(
   assetHash: string,
   userId: string,
 ): Promise<string[]> {
-  const { rows } = await deps.pool.query<{ stage: string; done: boolean }>(
-    `SELECT stage, bool_or(status = 'done') AS done
+  // Only stages still `pending` are candidates: a stage that is queued, running or
+  // failed must not be submitted again by every completion that follows (a retry is
+  // the client calling POST /analyses, 04 §2).
+  const { rows } = await deps.pool.query<{ stage: string; done: boolean; waiting: boolean }>(
+    `SELECT stage, bool_or(status = 'done') AS done, bool_and(status = 'pending') AS waiting
      FROM analyses WHERE asset_hash = $1 GROUP BY stage`,
     [assetHash],
   );
   const completed = new Set(rows.filter((row) => row.done).map((row) => row.stage));
   const pending = rows
-    .filter((row) => !row.done)
+    .filter((row) => !row.done && row.waiting)
     .map((row) => row.stage)
     .filter((stage) => IMPLEMENTED_STAGES.has(stage));
   const ready = readyStages(completed, pending);
@@ -201,7 +204,8 @@ export async function enqueueDependents(
       priority: "interactive",
       assets: inputs.assets,
       blobs: inputs.blobs,
-      params: { assetHash, stage },
+      params: {},
+      context: { assetHash, stage },
     });
     await deps.pool.query(
       "UPDATE analyses SET status = 'queued', updated_at = now() WHERE asset_hash = $1 AND stage = $2",

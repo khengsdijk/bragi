@@ -97,7 +97,8 @@ export async function submitAnalysis(
       priority: "interactive",
       assets: inputs.assets,
       blobs: inputs.blobs,
-      params: { assetHash, stage, profile },
+      params: {},
+      context: { assetHash, stage },
     });
     await deps.pool.query(
       `UPDATE analyses SET status = 'queued', updated_at = now()

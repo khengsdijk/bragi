@@ -13,6 +13,7 @@ interface Query {
 interface AnalysisRow {
   stage: string;
   done: boolean;
+  waiting?: boolean;
 }
 
 /** The handful of statements the handler issues, answered from canned state. */
@@ -135,5 +136,24 @@ describe("applyJobEvent (findings 2 and 3)", () => {
     const nc = new FakeNats();
     await applyJobEvent(deps(pool, nc), completed());
     expect(nc.published).toEqual([]);
+  });
+
+  it("does not resubmit a stage that is already queued when another stage completes", async () => {
+    const pool = new FakePool();
+    pool.job = {
+      capability: "analysis.loudness_energy",
+      user_id: "usr_1",
+      params: { assetHash: "sha256:aa", stage: "loudness_energy" },
+    };
+    // ingest is done and rhythm is already queued: nothing is ready to submit.
+    pool.analysisRows = [
+      { stage: "ingest", done: true, waiting: false },
+      { stage: "loudness_energy", done: true, waiting: false },
+      { stage: "rhythm", done: false, waiting: false },
+    ];
+    const nc = new FakeNats();
+    await applyJobEvent(deps(pool, nc), completed({ outputs: { blobs: { result: "sha256:cc" } } }));
+    expect(nc.published.filter((m) => m.subject.startsWith("jobs."))).toEqual([]);
+    expect(pool.queries.some((q) => q.sql.includes("SET status = 'queued'"))).toBe(false);
   });
 });

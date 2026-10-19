@@ -28,6 +28,7 @@ from bragi_analysis.describe.llm import (
 from bragi_analysis.describe.settings import MODEL_ENV, load
 from bragi_common.cancel import JobCancelledError
 from bragi_common.context import JobContext
+from bragi_common.errors import JobFailure
 from bragi_common.generated.models import DescriptionResult, JobOutputs
 
 
@@ -98,7 +99,7 @@ def test_a_missing_api_key_fails_with_a_clear_message(
     context = FakeContext(tmp_path, blob_bytes(pop_blobs()))
     job = make_job(describe.CAPABILITY, blob_hash_map(pop_blobs()))
 
-    with pytest.raises(ValueError, match=f"{API_KEY_ENV} is not set"):
+    with pytest.raises(JobFailure, match=f"{API_KEY_ENV} is not set"):
         asyncio.run(describe.run(job, _ctx(context)))
 
     assert not context.uploads

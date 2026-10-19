@@ -104,6 +104,20 @@ describe("resolveStageInputs", () => {
     });
   });
 
+  it("hands describe every analysis blob that has finished", () => {
+    const done = results({
+      ingest: { assets: { workingAsset: WORKING }, blobs: { result: "sha256:0f" } },
+      structure: { blobs: { result: STRUCTURE } },
+      tag: { blobs: { tag: EMBED } },
+      stem_activity: { blobs: { stem_activity: ACTIVITY } },
+    });
+    expect(resolveStageInputs(UPLOAD, "describe", done).blobs).toEqual({
+      structure: STRUCTURE,
+      tag: EMBED,
+      stem_activity: ACTIVITY,
+    });
+  });
+
   it("omits a blob whose producer has not finished", () => {
     expect(resolveStageInputs(UPLOAD, "tag", afterIngest).blobs).toEqual({});
   });
