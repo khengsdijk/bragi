@@ -137,14 +137,19 @@ pub fn render(plan: &RenderPlan, pcm: &dyn PcmSource, options: &OfflineOptions) 
             .saturating_sub(options.start)
             .saturating_add(tail),
     };
-    let mut samples = Vec::with_capacity(total as usize * 2);
+    // Plugin delay compensation: the engine emits audio `latency` frames late.
+    // Render the timeline plus that many extra frames, then drop the leading
+    // latency so the file is sample-aligned with the timeline (03 §9).
+    let latency = renderer.output_latency_frames() as u64;
+    let engine_total = total.saturating_add(latency);
+    let mut samples = Vec::with_capacity(engine_total as usize * 2);
     let mut left = vec![0.0f32; block];
     let mut right = vec![0.0f32; block];
     let mut underruns = 0u64;
     let mut rendered = 0u64;
     let mut finite = true;
-    while rendered < total {
-        let frames = ((total - rendered) as usize).min(block);
+    while rendered < engine_total {
+        let frames = ((engine_total - rendered) as usize).min(block);
         let stats: RenderStats =
             renderer.process(pcm, &mut [&mut left[..frames], &mut right[..frames]]);
         underruns += stats.underruns;
@@ -155,6 +160,11 @@ pub fn render(plan: &RenderPlan, pcm: &dyn PcmSource, options: &OfflineOptions) 
         }
         rendered += frames as u64;
     }
+
+    // Drop the compensated lead-in; `total` frames remain.
+    let drop = (latency as usize).min(samples.len() / 2);
+    let keep = (total as usize).min(samples.len() / 2 - drop);
+    let samples = samples[drop * 2..(drop + keep) * 2].to_vec();
 
     let mut peak = 0.0f32;
     let mut sum_sq = 0.0f64;

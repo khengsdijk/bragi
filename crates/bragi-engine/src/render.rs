@@ -43,7 +43,9 @@ use crate::PARAM_RAMP_MS;
 use crate::meters::Meters;
 use crate::pcm::PcmSource;
 use crate::plan::AutomationTarget;
-use crate::plan::{AutomationLane, FxSlot, RenderPlan, Segment, TrackPlan, db_to_gain};
+use crate::plan::{
+    AutomationLane, FxSlot, MAX_COMPENSATION_FRAMES, RenderPlan, Segment, TrackPlan, db_to_gain,
+};
 use crate::rt::alloc_guard;
 use crate::transport::{Transport, TransportState};
 
@@ -79,8 +81,73 @@ pub struct PreparedPlan {
     master_fx: Vec<FxRuntime>,
     /// Track indices in a sidechain-safe order (a duck's source runs first).
     order: Vec<usize>,
+    /// Frames each track is delayed so every track reaches the master with the
+    /// same total chain latency (`max_track_latency - own_latency`, clamped to
+    /// [`MAX_COMPENSATION_FRAMES`]).
+    compensation: Vec<usize>,
+    /// One pre-allocated stereo delay line per track
+    /// ([`MAX_COMPENSATION_FRAMES`] frames each).
+    delays: Vec<DelayLine>,
+    /// The largest non-bypassed track-chain latency, in frames.
+    max_track_latency: usize,
+    /// The master chain's latency, in frames.
+    master_latency: usize,
     /// Stretch quality tier.
     pub quality: Quality,
+}
+
+/// A fixed-capacity stereo delay line for plugin delay compensation.
+///
+/// The buffer is interleaved (`[L, R, L, R, …]`) and allocated in
+/// [`PreparedPlan::new`] / [`PreparedPlan::carry_delays_from`] moves it, never in
+/// `process`. A change in compensation depth keeps the buffer contents; the
+/// resulting jump is accepted (the alternative would be a click on every plan
+/// swap that changes a chain's latency).
+struct DelayLine {
+    /// Interleaved stereo history at the fixed cap.
+    buffer: Vec<f32>,
+    /// Next write frame.
+    pos: usize,
+}
+
+impl DelayLine {
+    fn new(frames: usize) -> Self {
+        Self {
+            buffer: vec![0.0; frames.max(1) * 2],
+            pos: 0,
+        }
+    }
+
+    /// Delays an interleaved stereo block by `delay` frames in place.
+    ///
+    /// `delay == 0` is a no-op; a delay past the buffer is clamped. The read
+    /// index is relative to the write cursor, so changing `delay` does not
+    /// reorder the history.
+    fn process(&mut self, block: &mut [f32], delay: usize) {
+        let capacity = self.buffer.len() / 2;
+        let delay = delay.min(capacity);
+        if delay == 0 || block.len() < 2 {
+            return;
+        }
+        for frame in block.chunks_mut(2) {
+            let read = (self.pos + capacity - delay) % capacity;
+            let left = self.buffer[read * 2];
+            let right = self.buffer[read * 2 + 1];
+            self.buffer[self.pos * 2] = frame[0];
+            self.buffer[self.pos * 2 + 1] = frame.get(1).copied().unwrap_or(0.0);
+            frame[0] = left;
+            if let Some(sample) = frame.get_mut(1) {
+                *sample = right;
+            }
+            self.pos = (self.pos + 1) % capacity;
+        }
+    }
+
+    /// Clears the history and rewinds the cursor.
+    fn reset(&mut self) {
+        self.buffer.fill(0.0);
+        self.pos = 0;
+    }
 }
 
 impl std::fmt::Debug for PreparedPlan {
@@ -189,13 +256,34 @@ impl PreparedPlan {
                     .collect()
             })
             .collect();
-        let master_fx = plan
+        let master_fx: Vec<FxRuntime> = plan
             .master
             .fx
             .iter()
             .map(|slot| build_slot(slot, plan.sample_rate, block_size))
             .collect();
         let order = processing_order(&plan, &mut fx);
+        let latencies: Vec<usize> = plan
+            .tracks
+            .iter()
+            .zip(fx.iter())
+            .map(|(track, chain)| live_chain_latency(&track.fx, chain))
+            .collect();
+        let max_track_latency = latencies.iter().copied().max().unwrap_or(0);
+        let compensation: Vec<usize> = latencies
+            .iter()
+            .map(|latency| {
+                max_track_latency
+                    .saturating_sub(*latency)
+                    .min(MAX_COMPENSATION_FRAMES)
+            })
+            .collect();
+        let delays = plan
+            .tracks
+            .iter()
+            .map(|_| DelayLine::new(MAX_COMPENSATION_FRAMES))
+            .collect();
+        let master_latency = live_chain_latency(&plan.master.fx, &master_fx);
         Self {
             plan,
             runtimes,
@@ -203,8 +291,44 @@ impl PreparedPlan {
             fx,
             master_fx,
             order,
+            compensation,
+            delays,
+            max_track_latency,
+            master_latency,
             quality,
         }
+    }
+
+    /// The total latency the renderer adds to the timeline, in frames:
+    /// `max_track_latency + master_chain_latency`.
+    ///
+    /// Realtime playback does not compensate for this (it is at most a few
+    /// milliseconds); the transport may use it later to shift the playhead or
+    /// the metronome. Offline renders trim exactly this many leading frames
+    /// (03 §9).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use bragi_engine::plan::quality_for;
+    /// # use bragi_engine::render::PreparedPlan;
+    /// # fn plan() -> bragi_engine::plan::RenderPlan {
+    /// #   let doc: bragi_model::generated::Project = serde_json::from_value(serde_json::json!({
+    /// #     "schemaVersion": 1, "id": "prj_01",
+    /// #     "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+    /// #     "sources": [], "analyses": {}, "tracks": [],
+    /// #     "arrangement": { "timebase": { "ppq": 960,
+    /// #         "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }], "timeSignatures": [] },
+    /// #         "sections": [], "master": { "fx": [], "automation": [], "gainDb": 0 } } })).unwrap();
+    /// #   bragi_engine::plan::compile(&doc, &bragi_model::AssetIndex::new(), 48_000, 1).unwrap()
+    /// # }
+    /// let prepared = PreparedPlan::new(Arc::new(plan()), quality_for(false), 128);
+    /// assert_eq!(prepared.output_latency_frames(), 0);
+    /// ```
+    #[must_use]
+    pub fn output_latency_frames(&self) -> usize {
+        self.max_track_latency.saturating_add(self.master_latency)
     }
 
     /// The largest `tail()` of any live effect across all chains, in frames.
@@ -287,6 +411,30 @@ impl PreparedPlan {
         );
     }
 
+    /// Moves a surviving track's compensation delay line from `previous`
+    /// (matched by [`TrackId`](bragi_model::generated::TrackId)), so a plan
+    /// swap that leaves a track in place does not discard its buffered audio.
+    /// If the compensation amount changes the content is kept as-is; the jump
+    /// at the new depth is accepted.
+    fn carry_delays_from(&mut self, previous: &mut PreparedPlan) {
+        for (index, track) in self.plan.tracks.iter().enumerate() {
+            let Some(old_index) = previous
+                .plan
+                .tracks
+                .iter()
+                .position(|old| old.id == track.id)
+            else {
+                continue;
+            };
+            if let (Some(delay), Some(old)) = (
+                self.delays.get_mut(index),
+                previous.delays.get_mut(old_index),
+            ) {
+                std::mem::swap(delay, old);
+            }
+        }
+    }
+
     /// The track processing order (a duck's source track first).
     #[must_use]
     pub fn order(&self) -> &[usize] {
@@ -329,7 +477,22 @@ impl PreparedPlan {
                 effect.reset();
             }
         }
+        for delay in &mut self.delays {
+            delay.reset();
+        }
     }
+}
+
+/// The latency of a live chain: the sum of the non-bypassed effects'
+/// algorithmic latency, exactly what the renderer has to compensate.
+fn live_chain_latency(slots: &[FxSlot], chain: &[FxRuntime]) -> usize {
+    slots
+        .iter()
+        .zip(chain.iter())
+        .filter(|(slot, runtime)| !slot.bypass && !runtime.bypassed)
+        .filter_map(|(_, runtime)| runtime.effect.as_ref())
+        .map(|effect| effect.latency())
+        .sum()
 }
 
 /// Builds the live effect for one slot (allocation allowed: planner side).
@@ -757,6 +920,37 @@ impl Renderer {
         self.stats
     }
 
+    /// The renderer's total output latency in frames:
+    /// `max_track_latency + master_chain_latency` (03 §9).
+    ///
+    /// Realtime playback does not compensate for it (the maximum is a few
+    /// milliseconds), but a transport may use it later to align the playhead or
+    /// the metronome. Offline renders trim exactly this many leading frames, so
+    /// an exported file is sample-aligned with the timeline.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use bragi_engine::render::Renderer;
+    /// # fn plan() -> bragi_engine::plan::RenderPlan {
+    /// #   let doc: bragi_model::generated::Project = serde_json::from_value(serde_json::json!({
+    /// #     "schemaVersion": 1, "id": "prj_01",
+    /// #     "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+    /// #     "sources": [], "analyses": {}, "tracks": [],
+    /// #     "arrangement": { "timebase": { "ppq": 960,
+    /// #         "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }], "timeSignatures": [] },
+    /// #         "sections": [], "master": { "fx": [], "automation": [], "gainDb": 0 } } })).unwrap();
+    /// #   bragi_engine::plan::compile(&doc, &bragi_model::AssetIndex::new(), 48_000, 1).unwrap()
+    /// # }
+    /// let renderer = Renderer::new(Arc::new(plan()), 128);
+    /// assert_eq!(renderer.output_latency_frames(), 0);
+    /// ```
+    #[must_use]
+    pub fn output_latency_frames(&self) -> usize {
+        self.prepared.output_latency_frames()
+    }
+
     /// Installs a prepared plan and returns the previous one.
     ///
     /// The caller swaps this on the planner side. The renderer keeps the
@@ -769,6 +963,7 @@ impl Renderer {
         // glides rather than jumps (`specs/03-audio-engine.md` §4).
         let mut previous = std::mem::replace(&mut self.prepared, prepared);
         self.prepared.carry_fx_from(&mut previous);
+        self.prepared.carry_delays_from(&mut previous);
         self.prepared.apply_all_params();
 
         let track_count = self.prepared.plan.tracks.len();
@@ -876,6 +1071,8 @@ impl Renderer {
                 runtimes: &mut self.prepared.runtimes,
                 offsets: &self.prepared.offsets,
                 fx: &mut self.prepared.fx,
+                delays: &mut self.prepared.delays,
+                compensation: &self.prepared.compensation,
                 order: &self.prepared.order,
                 scratch: &mut self.scratch,
                 pcm,
@@ -1044,6 +1241,8 @@ struct MixContext<'a> {
     runtimes: &'a mut Vec<SegmentRuntime>,
     offsets: &'a [usize],
     fx: &'a mut [Vec<FxRuntime>],
+    delays: &'a mut [DelayLine],
+    compensation: &'a [usize],
     order: &'a [usize],
     scratch: &'a mut Scratch,
     pcm: &'a dyn PcmSource,
@@ -1107,6 +1306,17 @@ impl MixContext<'_> {
                 frames,
                 self.bpm,
             );
+
+            // Plugin delay compensation: delay the post-fx, pre-fader signal so
+            // every track reaches the master with the same chain latency. Doing
+            // it before the fader also puts the sidechain key below at master
+            // alignment (03 §6, §9).
+            if let (Some(delay), Some(amount)) = (
+                self.delays.get_mut(track_index),
+                self.compensation.get(track_index),
+            ) {
+                delay.process(&mut self.scratch.track[..frames * 2], *amount);
+            }
 
             let runtime = &mut self.tracks[track_index];
             let mut gain_target = track.gain;
