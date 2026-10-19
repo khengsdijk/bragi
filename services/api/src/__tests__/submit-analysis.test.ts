@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-
 import { implementedStagesForProfile } from "../jobs/dag.js";
-import { planAnalyses } from "../jobs/submit-analysis.js";
+import { emptyStageResults, withOutputs } from "../jobs/stage-inputs.js";
+import { finishedOutputs, planAnalyses } from "../jobs/submit-analysis.js";
 
 const STANDARD = implementedStagesForProfile("standard");
 
@@ -50,5 +50,19 @@ describe("planAnalyses (finding 4: POST /analyses is idempotent)", () => {
     status.set("ingest", "queued");
     status.set("rhythm", "failed");
     expect(planAnalyses(STANDARD, status).toSubmit).toEqual([]);
+  });
+});
+
+describe("finishedOutputs (a second user of the same bytes owns the derived assets)", () => {
+  it("flattens every produced asset and result blob", () => {
+    let results = emptyStageResults();
+    results = withOutputs(results, "ingest", {
+      assets: { workingAsset: "sha256:work" },
+      blobs: { result: "sha256:ingest" },
+    });
+    results = withOutputs(results, "rhythm", { blobs: { result: "sha256:rhythm" } });
+    const flat = finishedOutputs(results);
+    expect(Object.values(flat.assets)).toEqual(["sha256:work"]);
+    expect(new Set(Object.values(flat.blobs))).toEqual(new Set(["sha256:ingest", "sha256:rhythm"]));
   });
 });

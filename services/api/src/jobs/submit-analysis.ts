@@ -6,9 +6,10 @@
  */
 import type { Pool } from "pg";
 
+import { recordOutputs } from "../orchestrator/handler.js";
 import { type AnalysisProfile, implementedStagesForProfile, readyStages } from "./dag.js";
 import { type JobDeps, submitJob } from "./service.js";
-import { loadStageResults, resolveStageInputs } from "./stage-inputs.js";
+import { loadStageResults, resolveStageInputs, type StageResults } from "./stage-inputs.js";
 
 /**
  * Placeholder stage version. Every analysis stage has its own real version
@@ -59,6 +60,20 @@ export async function statusForAsset(pool: Pool, assetHash: string): Promise<Map
   return new Map(rows.map((row) => [row.stage, row.status]));
 }
 
+/** Every produced asset and result blob of the finished stages, as `recordOutputs` takes them. */
+export function finishedOutputs(results: StageResults): {
+  assets: Record<string, string>;
+  blobs: Record<string, string>;
+} {
+  const assets: Record<string, string> = {};
+  const blobs: Record<string, string> = {};
+  for (const [stage, produced] of results.assets) {
+    for (const [key, hash] of Object.entries(produced)) assets[`${stage}.${key}`] = hash;
+  }
+  for (const [stage, hash] of results.blobs) blobs[stage] = hash;
+  return { assets, blobs };
+}
+
 /**
  * Creates the missing `analyses` rows and publishes the ready stages.
  *
@@ -75,6 +90,11 @@ export async function submitAnalysis(
   profile: AnalysisProfile,
 ): Promise<string[]> {
   const stages = implementedStagesForProfile(profile);
+  // `analyses` is keyed by the asset, not by the user: when another user's upload of the same
+  // bytes already finished some stages, this user must still be able to download their outputs
+  // (`GET /assets/{hash}/url` is ownership-checked), so grant them here.
+  const finished = await loadStageResults(deps.pool, assetHash);
+  await recordOutputs(deps.pool, userId, finishedOutputs(finished));
   const plan = planAnalyses(stages, await statusForAsset(deps.pool, assetHash));
 
   for (const stage of plan.toCreate) {
@@ -89,9 +109,8 @@ export async function submitAnalysis(
   if (plan.toSubmit.length === 0) return [];
   // Inputs come from the stages already finished: cached results are reused
   // (04 §1.2), so a late stage still gets its stems and blobs.
-  const results = await loadStageResults(deps.pool, assetHash);
   for (const stage of plan.toSubmit) {
-    const inputs = resolveStageInputs(assetHash, stage, results);
+    const inputs = resolveStageInputs(assetHash, stage, finished);
     await submitJob(deps, userId, {
       capability: `analysis.${stage}`,
       priority: "interactive",
