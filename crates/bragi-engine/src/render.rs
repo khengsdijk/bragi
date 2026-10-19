@@ -30,8 +30,10 @@
 //! assert_eq!(stats.frames, 128);
 //! ```
 
+use std::collections::VecDeque;
 use std::sync::Arc;
 
+use bragi_dsp::fx::{Effect, FxContext, FxKind, create};
 use bragi_dsp::stretch::{PhaseVocoder, Quality, Stretcher};
 use bragi_model::generated::AutomationCurve;
 
@@ -41,9 +43,9 @@ use crate::PARAM_RAMP_MS;
 use crate::meters::Meters;
 use crate::pcm::PcmSource;
 use crate::plan::AutomationTarget;
-use crate::plan::{RenderPlan, Segment, TrackPlan, db_to_gain};
+use crate::plan::{AutomationLane, FxSlot, RenderPlan, Segment, TrackPlan, db_to_gain};
 use crate::rt::alloc_guard;
-use crate::transport::Transport;
+use crate::transport::{Transport, TransportState};
 
 /// The largest source-frames-per-output-frame factor a segment may have. Plans
 /// above this are clamped; the scratch buffers are sized once.
@@ -64,7 +66,6 @@ pub struct RenderStats {
 ///
 /// `PreparedPlan` is built on the planner side (allocation allowed) and can be
 /// swapped into a running [`Renderer`] without touching the audio thread.
-#[derive(Debug)]
 pub struct PreparedPlan {
     /// The immutable plan.
     pub plan: Arc<RenderPlan>,
@@ -72,8 +73,44 @@ pub struct PreparedPlan {
     pub runtimes: Vec<SegmentRuntime>,
     /// Prefix offsets into `runtimes`, one entry per track plus the end.
     offsets: Vec<usize>,
+    /// Live effect chains, parallel to `plan.tracks[i].fx`.
+    fx: Vec<Vec<FxRuntime>>,
+    /// The master chain, parallel to `plan.master.fx`.
+    master_fx: Vec<FxRuntime>,
+    /// Track indices in a sidechain-safe order (a duck's source runs first).
+    order: Vec<usize>,
     /// Stretch quality tier.
     pub quality: Quality,
+}
+
+impl std::fmt::Debug for PreparedPlan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PreparedPlan")
+            .field("plan_version", &self.plan.plan_version)
+            .field("runtimes", &self.runtimes.len())
+            .field("order", &self.order)
+            .finish()
+    }
+}
+
+/// The live state of one compiled [`FxSlot`].
+pub struct FxRuntime {
+    /// The effect, or `None` when the slot is bypassed or not implemented.
+    effect: Option<Box<dyn Effect>>,
+    /// Whether `process` must skip this slot.
+    bypassed: bool,
+    /// The compiled kind (kept for matching across plan swaps and debugging).
+    kind: FxKind,
+}
+
+impl std::fmt::Debug for FxRuntime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FxRuntime")
+            .field("kind", &self.kind.name())
+            .field("bypassed", &self.bypassed)
+            .field("has_effect", &self.effect.is_some())
+            .finish()
+    }
 }
 
 /// Mutable stream state for one segment. Allocation happens in
@@ -103,9 +140,35 @@ impl std::fmt::Debug for SegmentRuntime {
 }
 
 impl PreparedPlan {
-    /// Prepares `plan` for rendering at the given stretch quality.
+    /// Prepares `plan` for rendering at the given stretch quality, building the
+    /// live effect chains for blocks of at most `block_size`.
+    ///
+    /// All of this allocates, so it runs on the planner/control side, never on
+    /// the audio thread. A kind [`create`] cannot build is bypassed, and a
+    /// `sidechain_duck` whose source would form a cycle is bypassed too.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::sync::Arc;
+    /// use bragi_engine::plan::quality_for;
+    /// use bragi_engine::render::PreparedPlan;
+    /// # fn plan() -> bragi_engine::plan::RenderPlan {
+    /// #   let doc: bragi_model::generated::Project = serde_json::from_value(serde_json::json!({
+    /// #     "schemaVersion": 1, "id": "prj_01",
+    /// #     "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+    /// #     "sources": [], "analyses": {}, "tracks": [],
+    /// #     "arrangement": { "timebase": { "ppq": 960,
+    /// #         "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }], "timeSignatures": [] },
+    /// #         "sections": [], "master": { "fx": [], "automation": [], "gainDb": 0 } } })).unwrap();
+    /// #   bragi_engine::plan::compile(&doc, &bragi_model::AssetIndex::new(), 48_000, 1).unwrap()
+    /// # }
+    /// let prepared = PreparedPlan::new(Arc::new(plan()), quality_for(false), 128);
+    /// assert!(prepared.runtimes().is_empty());
+    /// ```
     #[must_use]
-    pub fn new(plan: Arc<RenderPlan>, quality: Quality) -> Self {
+    pub fn new(plan: Arc<RenderPlan>, quality: Quality, block_size: usize) -> Self {
+        let block_size = block_size.max(1);
         let mut offsets = Vec::with_capacity(plan.tracks.len() + 1);
         let mut runtimes = Vec::with_capacity(plan.segment_count());
         offsets.push(0);
@@ -115,12 +178,119 @@ impl PreparedPlan {
             }
             offsets.push(runtimes.len());
         }
+        let mut fx: Vec<Vec<FxRuntime>> = plan
+            .tracks
+            .iter()
+            .map(|track| {
+                track
+                    .fx
+                    .iter()
+                    .map(|slot| build_slot(slot, plan.sample_rate, block_size))
+                    .collect()
+            })
+            .collect();
+        let master_fx = plan
+            .master
+            .fx
+            .iter()
+            .map(|slot| build_slot(slot, plan.sample_rate, block_size))
+            .collect();
+        let order = processing_order(&plan, &mut fx);
         Self {
             plan,
             runtimes,
             offsets,
+            fx,
+            master_fx,
+            order,
             quality,
         }
+    }
+
+    /// The largest `tail()` of any live effect across all chains, in frames.
+    ///
+    /// Offline renders keep processing for this long after the arrangement so a
+    /// reverb or delay is not cut (03 §9).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use bragi_engine::plan::quality_for;
+    /// # use bragi_engine::render::PreparedPlan;
+    /// # fn plan() -> bragi_engine::plan::RenderPlan {
+    /// #   let doc: bragi_model::generated::Project = serde_json::from_value(serde_json::json!({
+    /// #     "schemaVersion": 1, "id": "prj_01",
+    /// #     "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+    /// #     "sources": [], "analyses": {}, "tracks": [],
+    /// #     "arrangement": { "timebase": { "ppq": 960,
+    /// #         "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }], "timeSignatures": [] },
+    /// #         "sections": [], "master": { "fx": [], "automation": [], "gainDb": 0 } } })).unwrap();
+    /// #   bragi_engine::plan::compile(&doc, &bragi_model::AssetIndex::new(), 48_000, 1).unwrap()
+    /// # }
+    /// let prepared = PreparedPlan::new(Arc::new(plan()), quality_for(true), 512);
+    /// assert_eq!(prepared.max_tail_frames(), 0);
+    /// ```
+    #[must_use]
+    pub fn max_tail_frames(&self) -> usize {
+        self.fx
+            .iter()
+            .flatten()
+            .chain(self.master_fx.iter())
+            .filter_map(|runtime| runtime.effect.as_ref())
+            .map(|effect| effect.tail())
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// Applies every slot's parameters to its live effect.
+    ///
+    /// New effects have already snapped to them in [`build_slot`]; a carried
+    /// effect receives them as *targets*, so an `fx.update` glides (03 §4).
+    fn apply_all_params(&mut self) {
+        for (index, track) in self.plan.tracks.iter().enumerate() {
+            let Some(chain) = self.fx.get_mut(index) else {
+                continue;
+            };
+            apply_params(&track.fx, chain);
+        }
+        apply_params(&self.plan.master.fx, &mut self.master_fx);
+    }
+
+    /// Moves every surviving effect from `previous` into `self` (same
+    /// [`FxId`](bragi_model::generated::FxId) and kind), so an `fx.update`
+    /// neither resets audio state nor clicks.
+    fn carry_fx_from(&mut self, previous: &mut PreparedPlan) {
+        for (index, track) in self.plan.tracks.iter().enumerate() {
+            let Some(old_index) = previous
+                .plan
+                .tracks
+                .iter()
+                .position(|old| old.id == track.id)
+            else {
+                continue;
+            };
+            let (Some(old_track), Some(old_chain), Some(chain)) = (
+                previous.plan.tracks.get(old_index),
+                previous.fx.get_mut(old_index),
+                self.fx.get_mut(index),
+            ) else {
+                continue;
+            };
+            carry_chain(&track.fx, chain, &old_track.fx, old_chain);
+        }
+        carry_chain(
+            &self.plan.master.fx,
+            &mut self.master_fx,
+            &previous.plan.master.fx,
+            &mut previous.master_fx,
+        );
+    }
+
+    /// The track processing order (a duck's source track first).
+    #[must_use]
+    pub fn order(&self) -> &[usize] {
+        &self.order
     }
 
     /// Every segment runtime, in plan order.
@@ -137,8 +307,8 @@ impl PreparedPlan {
         self.runtimes.get(start..end).unwrap_or(&[])
     }
 
-    /// Drops the stream state of every segment (used after a seek or a plan
-    /// swap).
+    /// Drops the stream state of every segment and clears every effect (used
+    /// after a seek or for a freshly built plan).
     pub fn reset(&mut self) {
         for runtime in &mut self.runtimes {
             runtime.primed = false;
@@ -147,7 +317,138 @@ impl PreparedPlan {
                 stretcher.reset();
             }
         }
+        for chain in &mut self.fx {
+            for runtime in chain {
+                if let Some(effect) = runtime.effect.as_mut() {
+                    effect.reset();
+                }
+            }
+        }
+        for runtime in &mut self.master_fx {
+            if let Some(effect) = runtime.effect.as_mut() {
+                effect.reset();
+            }
+        }
     }
+}
+
+/// Builds the live effect for one slot (allocation allowed: planner side).
+fn build_slot(slot: &FxSlot, sample_rate: u32, block_size: usize) -> FxRuntime {
+    let bypassed =
+        slot.bypass || (slot.kind == FxKind::SidechainDuck && slot.sidechain_source.is_none());
+    if bypassed {
+        return FxRuntime {
+            effect: None,
+            bypassed: true,
+            kind: slot.kind,
+        };
+    }
+    match create(slot.kind, sample_rate, block_size) {
+        Ok(mut effect) => {
+            for (index, spec) in slot.kind.params().iter().enumerate() {
+                effect.set_param(index, spec.default);
+            }
+            for &(index, value) in &slot.params {
+                effect.set_param(index, value);
+            }
+            effect.reset();
+            FxRuntime {
+                effect: Some(effect),
+                bypassed: false,
+                kind: slot.kind,
+            }
+        }
+        Err(_) => FxRuntime {
+            effect: None,
+            bypassed: true,
+            kind: slot.kind,
+        },
+    }
+}
+
+/// Moves surviving effects (`same id` and kind) from `old_chain` into
+/// `chain`, matching by position in the slot lists.
+fn carry_chain(
+    slots: &[FxSlot],
+    chain: &mut [FxRuntime],
+    old_slots: &[FxSlot],
+    old_chain: &mut [FxRuntime],
+) {
+    for (slot, runtime) in slots.iter().zip(chain.iter_mut()) {
+        for (old_slot, old_runtime) in old_slots.iter().zip(old_chain.iter_mut()) {
+            if old_slot.id == slot.id && old_slot.kind == slot.kind {
+                if let Some(effect) = old_runtime.effect.take() {
+                    runtime.effect = Some(effect);
+                }
+                break;
+            }
+        }
+    }
+}
+
+/// Sends every slot's catalogue default to its effect, then the slot's own
+/// values, as *targets*. A freshly built effect is then snapped by `reset`;
+/// a carried-over effect glides.
+fn apply_params(slots: &[FxSlot], chain: &mut [FxRuntime]) {
+    for (slot, runtime) in slots.iter().zip(chain.iter_mut()) {
+        let Some(effect) = runtime.effect.as_mut() else {
+            continue;
+        };
+        for (index, spec) in slot.kind.params().iter().enumerate() {
+            effect.set_param(index, spec.default);
+        }
+        for &(index, value) in &slot.params {
+            effect.set_param(index, value);
+        }
+    }
+}
+
+/// A sidechain-safe track order with a cycle broken by bypassing the ducks in
+/// the cycle.
+fn processing_order(plan: &RenderPlan, fx: &mut [Vec<FxRuntime>]) -> Vec<usize> {
+    let count = plan.tracks.len();
+    let mut indegree = vec![0usize; count];
+    let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); count];
+    for (index, track) in plan.tracks.iter().enumerate() {
+        for slot in &track.fx {
+            let Some(source) = slot.sidechain_source else {
+                continue;
+            };
+            if source >= count || source == index {
+                continue;
+            }
+            indegree[index] += 1;
+            dependents[source].push(index);
+        }
+    }
+    let mut queue: VecDeque<usize> = (0..count).filter(|index| indegree[*index] == 0).collect();
+    let mut order = Vec::with_capacity(count);
+    while let Some(index) = queue.pop_front() {
+        order.push(index);
+        for &dependent in &dependents[index] {
+            indegree[dependent] = indegree[dependent].saturating_sub(1);
+            if indegree[dependent] == 0 {
+                queue.push_back(dependent);
+            }
+        }
+    }
+    if order.len() < count {
+        // A cycle: bypass every duck in the leftover tracks so the order is
+        // still total and the ducks stay silent (03 §6).
+        for (index, chain) in fx.iter_mut().enumerate() {
+            if order.contains(&index) {
+                continue;
+            }
+            for runtime in chain {
+                if runtime.kind == FxKind::SidechainDuck {
+                    runtime.bypassed = true;
+                    runtime.effect = None;
+                }
+            }
+            order.push(index);
+        }
+    }
+    order
 }
 
 fn runtime_for(segment: &Segment, quality: Quality, sample_rate: u32) -> SegmentRuntime {
@@ -265,12 +566,17 @@ struct Scratch {
     planar_out: Vec<f32>,
     wrap_out: Vec<f32>,
     wrap_in: Vec<f32>,
+    /// Planar left/right workspace for fx chains.
+    fx_left: Vec<f32>,
+    fx_right: Vec<f32>,
+    /// Post-fader `[L; half][R; half]` per track, for sidechain keys.
+    sidechain: Vec<f32>,
     frames: usize,
     source_frames: usize,
 }
 
 impl Scratch {
-    fn new(block: usize) -> Self {
+    fn new(block: usize, tracks: usize) -> Self {
         let block = block.max(1);
         let source_frames = (block as f64 * MAX_SOURCE_FACTOR).ceil() as usize + 8;
         Self {
@@ -281,8 +587,20 @@ impl Scratch {
             planar_out: vec![0.0; block * 2],
             wrap_out: vec![0.0; block * 2],
             wrap_in: vec![0.0; block * 2],
+            fx_left: vec![0.0; block],
+            fx_right: vec![0.0; block],
+            sidechain: vec![0.0; tracks.max(1) * block * 2],
             frames: block,
             source_frames,
+        }
+    }
+
+    /// Grows the sidechain buffer to hold `tracks` post-fader blocks. Called
+    /// from the control side on a plan swap, never from `process`.
+    fn ensure_tracks(&mut self, tracks: usize) {
+        let wanted = tracks.max(1) * self.frames * 2;
+        if self.sidechain.len() < wanted {
+            self.sidechain.resize(wanted, 0.0);
         }
     }
 }
@@ -345,6 +663,9 @@ pub struct Renderer {
     block_size: usize,
     mute_frames: u32,
     param_frames: u32,
+    /// The sample the next block is expected to start at; a jump (seek) resets
+    /// the effects so a delay/reverb tail does not follow the playhead.
+    expected_start: Option<u64>,
 }
 
 impl Renderer {
@@ -369,7 +690,7 @@ impl Renderer {
     pub fn with_quality(plan: Arc<RenderPlan>, block_size: usize, quality: Quality) -> Self {
         assert!(block_size > 0, "block size must be positive");
         let sample_rate = plan.sample_rate;
-        let prepared = PreparedPlan::new(plan, quality);
+        let prepared = PreparedPlan::new(plan, quality, block_size);
         let transport = Transport::new(prepared.plan.length_samples);
         let any_solo = prepared.plan.any_solo();
         let mute_frames = ramp_frames(MUTE_RAMP_MS, sample_rate);
@@ -383,19 +704,21 @@ impl Renderer {
         let master_gain = Ramp::new(prepared.plan.master.gain, param_frames);
         let limiter = Limiter::new(prepared.plan.master.ceiling, sample_rate);
         let meters = Meters::new(prepared.plan.tracks.len());
+        let scratch = Scratch::new(block_size, prepared.plan.tracks.len());
         Self {
             prepared,
             transport,
             tracks,
             master_gain,
             limiter,
-            scratch: Scratch::new(block_size),
+            scratch,
             block: vec![0.0; block_size * 2],
             meters,
             stats: RenderStats::default(),
             block_size,
             mute_frames,
             param_frames,
+            expected_start: None,
         }
     }
 
@@ -439,21 +762,32 @@ impl Renderer {
     /// The caller swaps this on the planner side. The renderer keeps the
     /// transport position; the new plan's stream state starts fresh.
     pub fn set_prepared(&mut self, mut prepared: PreparedPlan) -> PreparedPlan {
+        // New stream state and new effects start fresh.
         prepared.reset();
-        let any_solo = prepared.plan.any_solo();
+        // Swap the new plan in, then move surviving live effects (same id and
+        // kind) out of the old one and set the new targets, so a param change
+        // glides rather than jumps (`specs/03-audio-engine.md` §4).
+        let mut previous = std::mem::replace(&mut self.prepared, prepared);
+        self.prepared.carry_fx_from(&mut previous);
+        self.prepared.apply_all_params();
+
+        let track_count = self.prepared.plan.tracks.len();
+        self.scratch.ensure_tracks(track_count);
+        let any_solo = self.prepared.plan.any_solo();
         let mute_frames = self.mute_frames;
         let param_frames = self.param_frames;
-        let previous = std::mem::take(&mut self.tracks);
+        let previous_tracks = std::mem::take(&mut self.tracks);
         // Carry the *current* ramp values over for tracks that survive, so a
         // delta or a preview that flips mute starts a 5 ms ramp instead of a
         // click.
-        self.tracks = prepared
+        let tracks: Vec<TrackRuntime> = self
+            .prepared
             .plan
             .tracks
             .iter()
             .map(|track| {
                 let mut runtime = TrackRuntime::new(track, any_solo, mute_frames, param_frames);
-                if let Some(old) = previous.iter().find(|old| old.id == track.id) {
+                if let Some(old) = previous_tracks.iter().find(|old| old.id == track.id) {
                     runtime.gain.snap(old.gain.value());
                     runtime.pan.snap(old.pan.value());
                     runtime.audible.snap(old.audible.value());
@@ -461,14 +795,18 @@ impl Renderer {
                 runtime
             })
             .collect();
-        self.transport.set_length(prepared.plan.length_samples);
-        if self.meters.len() != prepared.plan.tracks.len() {
+        self.tracks = tracks;
+        self.transport.set_length(self.prepared.plan.length_samples);
+        if self.meters.len() != track_count {
             // The track set changed; rebuild the meter vector (control thread).
-            self.meters = Meters::new(prepared.plan.tracks.len());
+            self.meters = Meters::new(track_count);
         }
-        self.master_gain = Ramp::new(prepared.plan.master.gain, param_frames);
-        self.limiter = Limiter::new(prepared.plan.master.ceiling, prepared.plan.sample_rate);
-        std::mem::replace(&mut self.prepared, prepared)
+        self.master_gain = Ramp::new(self.prepared.plan.master.gain, param_frames);
+        self.limiter = Limiter::new(
+            self.prepared.plan.master.ceiling,
+            self.prepared.plan.sample_rate,
+        );
+        previous
     }
 
     /// Drops all stream state without changing the plan (after a seek).
@@ -510,22 +848,36 @@ impl Renderer {
     ) {
         let fade = (LOOP_FADE_MS * self.prepared.plan.sample_rate as f32 / 1000.0).round() as usize;
         let schedule = self.transport.schedule(len, fade);
+        let bpm = self.prepared.plan.bpm_at_sample(schedule.first_start);
+
+        // A jump in the playhead (a seek) is not a loop wrap: drop the stream
+        // state and reset the effects so a tail does not follow the playhead.
+        if self
+            .expected_start
+            .is_some_and(|expected| expected != schedule.first_start)
+        {
+            self.prepared.reset();
+        }
 
         for sample in self.block[..len * 2].iter_mut() {
             *sample = 0.0;
         }
 
-        if schedule.playing {
-            {
-                let mut ctx = MixContext {
-                    plan: &self.prepared.plan,
-                    runtimes: &mut self.prepared.runtimes,
-                    scratch: &mut self.scratch,
-                    pcm,
-                    tracks: &mut self.tracks,
-                    meters: &mut self.meters,
-                    stats: &mut self.stats,
-                };
+        {
+            let mut ctx = MixContext {
+                plan: &self.prepared.plan,
+                runtimes: &mut self.prepared.runtimes,
+                offsets: &self.prepared.offsets,
+                fx: &mut self.prepared.fx,
+                order: &self.prepared.order,
+                scratch: &mut self.scratch,
+                pcm,
+                tracks: &mut self.tracks,
+                meters: &mut self.meters,
+                stats: &mut self.stats,
+                bpm,
+            };
+            if schedule.playing {
                 let first = schedule.first_frames.min(len);
                 let block = &mut self.block[..first * 2];
                 ctx.render_range(schedule.first_start, first, block);
@@ -556,14 +908,29 @@ impl Renderer {
                         resume_at += fade;
                     }
                 }
-                if resume_at < len {
-                    let block = &mut self.block[resume_at * 2..len * 2];
-                    ctx.render_range(schedule.resume_start, len - resume_at, block);
+                if schedule.resume_frames > 0 && resume_at < len {
+                    let frames = schedule.resume_frames.min(len - resume_at);
+                    let block = &mut self.block[resume_at * 2..(resume_at + frames) * 2];
+                    ctx.render_range(schedule.resume_start, frames, block);
+                    resume_at += frames;
                 }
+                // The arrangement ended inside this block: run the chains on the
+                // silent remainder so a tail is not gapped for one block.
+                if resume_at < len && self.transport.state() == TransportState::Stopped {
+                    let block = &mut self.block[resume_at * 2..len * 2];
+                    ctx.render_range(self.transport.playhead(), len - resume_at, block);
+                }
+            } else if self.transport.state() == TransportState::Stopped {
+                // Past the end of the arrangement (an offline render's tail) or
+                // stopped: run the chains on silence so reverb/delay ring out.
+                // Pausing stays silent while holding all stream state.
+                let block = &mut self.block[..len * 2];
+                ctx.render_range(self.transport.playhead(), len, block);
             }
         }
 
-        // Master gain (with automation) and the safety limiter.
+        // Master fx, then master gain (with automation) and the safety limiter.
+        self.process_master_fx(schedule.first_start, len, bpm);
         self.master_gain
             .set_target(self.master_gain_at(schedule.first_start));
         for frame in 0..len {
@@ -575,7 +942,55 @@ impl Renderer {
         self.limiter.process(&mut self.block[..len * 2]);
         self.meters.update_master(&self.block[..len * 2]);
 
+        self.expected_start = Some(self.transport.playhead());
         copy_out(out, offset, &self.block[..len * 2], len);
+    }
+
+    /// Runs the master chain over `self.block[..frames * 2]` in place.
+    ///
+    /// Master automation is applied per block first, then each live slot in
+    /// order — before the master gain and the safety limiter
+    /// (`specs/03-audio-engine.md` §6).
+    fn process_master_fx(&mut self, start: u64, frames: usize, bpm: f64) {
+        if frames == 0 {
+            return;
+        }
+        let frames = frames.min(self.scratch.frames);
+        if self.prepared.master_fx.is_empty() {
+            return;
+        }
+        if !self.prepared.plan.master.fx.is_empty() {
+            apply_fx_automation(
+                &self.prepared.plan.master.automation,
+                &mut self.prepared.master_fx,
+                start,
+            );
+        }
+        for index in 0..frames {
+            self.scratch.fx_left[index] = self.block[index * 2];
+            self.scratch.fx_right[index] = self.block[index * 2 + 1];
+        }
+        let slots = &self.prepared.plan.master.fx;
+        for (slot, runtime) in slots.iter().zip(self.prepared.master_fx.iter_mut()) {
+            if runtime.bypassed || slot.bypass {
+                continue;
+            }
+            if let Some(effect) = runtime.effect.as_mut() {
+                let ctx = FxContext {
+                    bpm,
+                    sidechain: None,
+                };
+                effect.process(
+                    &mut self.scratch.fx_left[..frames],
+                    &mut self.scratch.fx_right[..frames],
+                    &ctx,
+                );
+            }
+        }
+        for index in 0..frames {
+            self.block[index * 2] = self.scratch.fx_left[index];
+            self.block[index * 2 + 1] = self.scratch.fx_right[index];
+        }
     }
 
     fn master_gain_at(&self, sample: u64) -> f32 {
@@ -621,11 +1036,15 @@ fn copy_out(out: &mut [&mut [f32]], offset: usize, block: &[f32], frames: usize)
 struct MixContext<'a> {
     plan: &'a RenderPlan,
     runtimes: &'a mut Vec<SegmentRuntime>,
+    offsets: &'a [usize],
+    fx: &'a mut [Vec<FxRuntime>],
+    order: &'a [usize],
     scratch: &'a mut Scratch,
     pcm: &'a dyn PcmSource,
     tracks: &'a mut [TrackRuntime],
     meters: &'a mut Meters,
     stats: &'a mut RenderStats,
+    bpm: f64,
 }
 
 impl MixContext<'_> {
@@ -638,17 +1057,27 @@ impl MixContext<'_> {
             *sample = 0.0;
         }
         let any_solo = self.plan.any_solo();
-        let mut runtime_index = 0usize;
-        for (track_index, track) in self.plan.tracks.iter().enumerate() {
+        for order_index in 0..self.order.len() {
+            let track_index = self.order[order_index];
+            let Some(track) = self.plan.tracks.get(track_index) else {
+                continue;
+            };
             for sample in self.scratch.track[..frames * 2].iter_mut() {
                 *sample = 0.0;
             }
 
-            for segment in &track.segments {
-                let overlap = segment.overlap(start, frames);
-                let state = &mut self.runtimes[runtime_index];
-                runtime_index += 1;
-                if let Some((offset, len)) = overlap {
+            let run_start = self.offsets.get(track_index).copied().unwrap_or(0);
+            let run_end = self
+                .offsets
+                .get(track_index + 1)
+                .copied()
+                .unwrap_or(run_start);
+            for (segment, state) in track
+                .segments
+                .iter()
+                .zip(self.runtimes[run_start..run_end].iter_mut())
+            {
+                if let Some((offset, len)) = segment.overlap(start, frames) {
                     render_segment(
                         self.scratch,
                         self.pcm,
@@ -662,6 +1091,17 @@ impl MixContext<'_> {
                 }
             }
 
+            // Clips → fx chain → gain/pan/mute/solo (post-fx fader).
+            process_track_fx(
+                self.plan,
+                &mut *self.fx,
+                &mut *self.scratch,
+                track_index,
+                start,
+                frames,
+                self.bpm,
+            );
+
             let runtime = &mut self.tracks[track_index];
             let mut gain_target = track.gain;
             if let Some(db) = track_gain_automation(track, start) {
@@ -671,6 +1111,8 @@ impl MixContext<'_> {
             runtime.pan.set_target(track.pan.clamp(-1.0, 1.0));
             runtime.audible.set_target(audible_target(track, any_solo));
 
+            let half = self.scratch.frames;
+            let side_base = track_index * half * 2;
             let mut peak = 0.0f32;
             let mut sum_sq = 0.0f32;
             for frame in 0..frames {
@@ -681,11 +1123,92 @@ impl MixContext<'_> {
                 let right = self.scratch.track[index + 1] * gain * right_gain;
                 dst[index] += left;
                 dst[index + 1] += right;
+                // Post-fader copy for any `sidechain_duck` dependent.
+                if side_base + half + frame < self.scratch.sidechain.len() {
+                    self.scratch.sidechain[side_base + frame] = left;
+                    self.scratch.sidechain[side_base + half + frame] = right;
+                }
                 peak = peak.max(left.abs()).max(right.abs());
                 sum_sq += left * left + right * right;
             }
             self.meters
                 .update_track(track_index, peak, (sum_sq / (frames as f32 * 2.0)).sqrt());
+        }
+    }
+}
+
+/// De-interleaves the track block, runs its fx chain in order, and
+/// re-interleaves. A bypassed or unimplemented slot is skipped.
+fn process_track_fx(
+    plan: &RenderPlan,
+    fx: &mut [Vec<FxRuntime>],
+    scratch: &mut Scratch,
+    track_index: usize,
+    start: u64,
+    frames: usize,
+    bpm: f64,
+) {
+    let Some(track) = plan.tracks.get(track_index) else {
+        return;
+    };
+    let Some(chain) = fx.get_mut(track_index) else {
+        return;
+    };
+    if chain.is_empty() {
+        return;
+    }
+    apply_fx_automation(&track.automation, chain, start);
+
+    for index in 0..frames {
+        scratch.fx_left[index] = scratch.track[index * 2];
+        scratch.fx_right[index] = scratch.track[index * 2 + 1];
+    }
+
+    let half = scratch.frames;
+    for (slot, runtime) in track.fx.iter().zip(chain.iter_mut()) {
+        if runtime.bypassed || slot.bypass {
+            continue;
+        }
+        let mut sidechain = None;
+        if let Some(source) = slot.sidechain_source {
+            let base = source * half * 2;
+            if base + half + frames <= scratch.sidechain.len() {
+                sidechain = Some((
+                    &scratch.sidechain[base..base + frames],
+                    &scratch.sidechain[base + half..base + half + frames],
+                ));
+            }
+        }
+        let ctx = FxContext { bpm, sidechain };
+        if let Some(effect) = runtime.effect.as_mut() {
+            effect.process(
+                &mut scratch.fx_left[..frames],
+                &mut scratch.fx_right[..frames],
+                &ctx,
+            );
+        }
+    }
+
+    for index in 0..frames {
+        scratch.track[index * 2] = scratch.fx_left[index];
+        scratch.track[index * 2 + 1] = scratch.fx_right[index];
+    }
+}
+
+/// Sets each automated fx parameter to the lane's value at `start`.
+fn apply_fx_automation(lanes: &[AutomationLane], chain: &mut [FxRuntime], start: u64) {
+    for lane in lanes {
+        let AutomationTarget::FxParam { slot, index } = lane.target else {
+            continue;
+        };
+        let Some(runtime) = chain.get_mut(slot) else {
+            continue;
+        };
+        let Some(effect) = runtime.effect.as_mut() else {
+            continue;
+        };
+        if let Some(value) = lane.value_at(start) {
+            effect.set_param(index, value as f32);
         }
     }
 }

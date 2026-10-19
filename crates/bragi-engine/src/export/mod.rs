@@ -250,12 +250,14 @@ impl ExportOptions {
         }
     }
 
-    fn offline(&self, plan: &RenderPlan) -> OfflineOptions {
+    fn offline(&self, _plan: &RenderPlan) -> OfflineOptions {
         match self.frames {
             Some(frames) => OfflineOptions::range(self.start, frames),
+            // No explicit range: render the arrangement and any fx tail
+            // (`offline::render` adds `max(effect.tail())` past the end).
             None => OfflineOptions {
                 start: self.start,
-                frames: Some(plan.length_samples.saturating_sub(self.start)),
+                frames: None,
                 ..OfflineOptions::default()
             },
         }

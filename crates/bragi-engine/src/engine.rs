@@ -192,7 +192,11 @@ impl Engine {
     /// Installs a compiled plan.
     pub fn install(&mut self, plan: RenderPlan) -> u64 {
         let version = plan.plan_version;
-        let prepared = PreparedPlan::new(Arc::new(plan), crate::plan::quality_for(false));
+        let prepared = PreparedPlan::new(
+            Arc::new(plan),
+            crate::plan::quality_for(false),
+            self.block_size,
+        );
         let previous = self.renderer.set_prepared(prepared);
         drop(previous);
         self.preview = None;
@@ -210,7 +214,11 @@ impl Engine {
         if let Some(patch) = &patch {
             apply_preview(&mut plan, patch);
         }
-        let prepared = PreparedPlan::new(Arc::new(plan), crate::plan::quality_for(false));
+        let prepared = PreparedPlan::new(
+            Arc::new(plan),
+            crate::plan::quality_for(false),
+            self.block_size,
+        );
         let previous = self.renderer.set_prepared(prepared);
         drop(previous);
         self.preview = patch;

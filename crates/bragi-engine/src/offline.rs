@@ -111,10 +111,6 @@ pub fn render(plan: &RenderPlan, pcm: &dyn PcmSource, options: &OfflineOptions) 
         "offline render runs at the engine rate"
     );
     let block = options.block.max(1);
-    let total = match options.frames {
-        Some(frames) => frames,
-        None => plan.length_samples.saturating_sub(options.start),
-    };
     let mut renderer = Renderer::with_quality(
         Arc::new(plan.clone()),
         block,
@@ -123,7 +119,24 @@ pub fn render(plan: &RenderPlan, pcm: &dyn PcmSource, options: &OfflineOptions) 
     renderer.transport_mut().seek(options.start);
     renderer.transport_mut().play();
 
-    let total = total.min(plan.length_samples.saturating_sub(options.start));
+    // Past the last arrangement sample, keep processing so reverb/delay tails
+    // ring out (03 §9), capped at 30 s. An explicit range adds no tail, and a
+    // plan without fx has a zero tail — the unedited null tests are unchanged.
+    let tail = if options.frames.is_none() {
+        renderer
+            .prepared()
+            .max_tail_frames()
+            .min(30 * SAMPLE_RATE as usize) as u64
+    } else {
+        0
+    };
+    let total = match options.frames {
+        Some(frames) => frames.min(plan.length_samples.saturating_sub(options.start)),
+        None => plan
+            .length_samples
+            .saturating_sub(options.start)
+            .saturating_add(tail),
+    };
     let mut samples = Vec::with_capacity(total as usize * 2);
     let mut left = vec![0.0f32; block];
     let mut right = vec![0.0f32; block];
