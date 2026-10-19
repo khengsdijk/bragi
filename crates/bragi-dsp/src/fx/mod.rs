@@ -42,10 +42,12 @@
 
 mod biquad;
 mod gain;
+mod reverb;
 mod smooth;
 
 pub use biquad::{Biquad, BiquadCoeffs, StereoBiquad};
 pub use gain::Gain;
+pub use reverb::Reverb;
 pub use smooth::{DEFAULT_SMOOTHING_MS, Smoothed};
 
 use thiserror::Error;
@@ -382,9 +384,9 @@ pub fn create(
     if max_block == 0 {
         return Err(FxError::MaxBlock);
     }
-    let _ = max_block;
     match kind {
         FxKind::Gain => Ok(Box::new(Gain::new(sample_rate))),
+        FxKind::Reverb => Ok(Box::new(Reverb::new(sample_rate, max_block))),
         other => Err(FxError::NotImplemented(other.name())),
     }
 }
