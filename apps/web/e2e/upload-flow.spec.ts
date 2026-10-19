@@ -306,17 +306,21 @@ test.describe("upload -> live analysis -> playable, soloable canvas", () => {
     expect(errors).toEqual([]);
   });
 
-  test("sign-in and upload work with the keyboard alone", async ({ appPage }) => {
+  test("sign-in and upload work with the keyboard alone", async ({ appPage }, testInfo) => {
     const fixture = ensureFixture();
     const email = `e2e-kbd-${Date.now()}@example.test`;
     await appPage.goto("/#/");
     await expect(appPage.locator("#sign-in-email")).toBeVisible();
     await appPage.locator("body").click({ position: { x: 1, y: 1 } });
 
+    // macOS WebKit skips buttons and links on Tab unless the system setting is on; Option+Tab is
+    // its "move through every control" key, and the same keyboard-only path.
+    const tabKey = testInfo.project.name.startsWith("webkit") ? "Alt+Tab" : "Tab";
+
     /** Presses Tab until the element matching `selector` has focus (fails after 40 presses). */
     const tabTo = async (selector: string): Promise<void> => {
       for (let press = 0; press < 40; press += 1) {
-        await appPage.keyboard.press("Tab");
+        await appPage.keyboard.press(tabKey);
         if (
           await appPage.evaluate((sel) => document.activeElement?.matches(sel) ?? false, selector)
         )
