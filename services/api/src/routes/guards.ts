@@ -1,16 +1,15 @@
 /** Shared route helpers. */
 import type { FastifyRequest } from "fastify";
 
-import type { AuthInstance } from "../auth/auth.js";
-import { resolveSession, type Session } from "../auth/session.js";
+import type { Session, SessionResolver } from "../auth/session.js";
 import { ApiError } from "../errors.js";
 
 /** The signed-in user, or `401 AUTH_REQUIRED` (05 §2). */
 export async function requireSession(
-  auth: AuthInstance,
+  sessions: SessionResolver,
   request: FastifyRequest,
 ): Promise<Session> {
-  const session = await resolveSession(auth.api, request.headers);
+  const session = await sessions.resolve(request.headers);
   if (!session) throw new ApiError("AUTH_REQUIRED", "sign in to continue");
   return session;
 }

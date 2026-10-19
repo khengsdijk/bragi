@@ -6,6 +6,8 @@
  * to the API for the library. Local rows come from `library-repo` through a
  * TanStack Query cache; the flow owns the hash/upload/analysis pipeline.
  */
+
+import type { AuthMode } from "@bragi/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -28,6 +30,15 @@ import { type LibraryItem, listLibraryItems } from "../api/library-repo.js";
 import { progressText } from "./progress.js";
 
 const LOCAL_LIBRARY = ["library", "local"] as const;
+const AUTH_MODE = ["auth", "mode"] as const;
+
+/**
+ * Whether the welcome page shows the magic-link form (ADR-0014). Only multi-user
+ * mode signs in; single-user mode, a pending request and a failed one show no form.
+ */
+export function showSignIn(mode: AuthMode | undefined): boolean {
+  return mode === "multi-user";
+}
 
 export function LibrarySection() {
   const platform = usePlatform();
@@ -45,6 +56,14 @@ export function LibrarySection() {
   const library = useQuery({
     queryKey: LOCAL_LIBRARY,
     queryFn: () => listLibraryItems(platform.localDb),
+  });
+
+  // The host without an API (the in-memory test platform) has no mode to ask
+  // for, so the query stays off and the sign-in form stays hidden.
+  const authMode = useQuery({
+    queryKey: AUTH_MODE,
+    queryFn: () => apiFor(platform).getAuthMode(),
+    enabled: platform.api !== undefined,
   });
 
   useEffect(
@@ -187,22 +206,24 @@ export function LibrarySection() {
         </ul>
       )}
 
-      <form className="library__sign-in" onSubmit={signIn} noValidate>
-        <h2>{t("library.signIn.heading")}</h2>
-        <label htmlFor="sign-in-email">{t("library.signIn.email")}</label>
-        <input
-          id="sign-in-email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          aria-invalid={signInError !== null}
-        />
-        <button type="submit">{t("library.signIn.send")}</button>
-        {linkSent ? <p role="status">{t("library.signIn.sent")}</p> : null}
-        {signInError === null ? null : <p role="alert">{signInError}</p>}
-      </form>
+      {showSignIn(authMode.data?.mode) ? (
+        <form className="library__sign-in" onSubmit={signIn} noValidate>
+          <h2>{t("library.signIn.heading")}</h2>
+          <label htmlFor="sign-in-email">{t("library.signIn.email")}</label>
+          <input
+            id="sign-in-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            aria-invalid={signInError !== null}
+          />
+          <button type="submit">{t("library.signIn.send")}</button>
+          {linkSent ? <p role="status">{t("library.signIn.sent")}</p> : null}
+          {signInError === null ? null : <p role="alert">{signInError}</p>}
+        </form>
+      ) : null}
     </section>
   );
 }

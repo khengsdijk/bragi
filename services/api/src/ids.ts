@@ -23,6 +23,11 @@ export function newPlanId(): string {
   return `pln_${ulid()}`;
 }
 
+/** A local user id, `usr_` + ULID (Better Auth stores whatever string it is given). */
+export function newUserId(): string {
+  return `usr_${ulid()}`;
+}
+
 /** `sha256:<lowercase hex>` for a byte payload (05 §6). */
 export function hashBytes(bytes: Uint8Array): string {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;

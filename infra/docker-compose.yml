@@ -157,6 +157,13 @@ services:
       S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-bragi-dev-secret}
       SMTP_URL: smtp://mailpit:1025
       AUTH_SECRET: ${AUTH_SECRET:-dev-only-insecure-auth-secret-change-me}
+      # Composable auth mode (ADR-0014). Compose defaults to multi-user; the
+      # container binds 0.0.0.0, so single-user here also needs
+      # BRAGI_ALLOW_REMOTE_SINGLE_USER=1 (the loopback guard).
+      BRAGI_AUTH_MODE: ${BRAGI_AUTH_MODE:-multi-user}
+      BRAGI_OWNER_EMAIL: ${BRAGI_OWNER_EMAIL:-owner@bragi.local}
+      BRAGI_OWNER_NAME: ${BRAGI_OWNER_NAME:-Owner}
+      BRAGI_ALLOW_REMOTE_SINGLE_USER: ${BRAGI_ALLOW_REMOTE_SINGLE_USER:-0}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
       OTEL_SERVICE_NAME: bragi-api
     ports:

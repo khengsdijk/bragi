@@ -32,19 +32,28 @@ export interface Stack {
   stop(): Promise<void>;
 }
 
-/** Brings the API (+ orchestrator) and the worker up, exporting to `otelPort`. */
-export async function startStack(otelPort: number): Promise<Stack> {
-  await ensureInfra();
-  return (process.env.BRAGI_STACK ?? "compose") === "local"
-    ? startLocal(otelPort)
-    : startCompose(otelPort);
+export interface StackOptions {
+  /** Auth mode for the API (ADR-0014); the local default is single-user. */
+  authMode?: "single-user" | "multi-user";
 }
 
-function startCompose(otelPort: number): Stack {
+/** Brings the API (+ orchestrator) and the worker up, exporting to `otelPort`. */
+export async function startStack(otelPort: number, options: StackOptions = {}): Promise<Stack> {
+  const authMode = options.authMode ?? "single-user";
+  await ensureInfra();
+  return (process.env.BRAGI_STACK ?? "compose") === "local"
+    ? startLocal(otelPort, authMode)
+    : startCompose(otelPort, authMode);
+}
+
+function startCompose(otelPort: number, authMode: "single-user" | "multi-user"): Stack {
   compose(["up", "-d", "--build", "api", "worker"], {
     ...process.env,
     // Inside a container, the host's collector is host.docker.internal.
     OTEL_EXPORTER_OTLP_ENDPOINT: `http://host.docker.internal:${otelPort}`,
+    BRAGI_AUTH_MODE: authMode,
+    // The container binds 0.0.0.0, so single-user needs the override (ADR-0014).
+    ...(authMode === "single-user" ? { BRAGI_ALLOW_REMOTE_SINGLE_USER: "1" } : {}),
   });
   return {
     // Left running on purpose: a test must not tear down shared containers.
@@ -52,7 +61,10 @@ function startCompose(otelPort: number): Stack {
   };
 }
 
-async function startLocal(otelPort: number): Promise<Stack> {
+async function startLocal(
+  otelPort: number,
+  authMode: "single-user" | "multi-user",
+): Promise<Stack> {
   const apiPort = Number(process.env.API_PORT ?? "8080");
   if (await portOpen(apiPort)) {
     throw new Error(
@@ -68,6 +80,7 @@ async function startLocal(otelPort: number): Promise<Stack> {
       ...process.env,
       OTEL_ENABLED: "true",
       OTEL_EXPORTER_OTLP_ENDPOINT: endpoint,
+      BRAGI_AUTH_MODE: authMode,
     },
     stdio: "inherit",
   });

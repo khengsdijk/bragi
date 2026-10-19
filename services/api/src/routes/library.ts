@@ -50,7 +50,7 @@ interface AnalysisStageRow {
 /** Registers `/v1/library*`. */
 export function registerLibrary(app: FastifyInstance, ctx: AppContext): void {
   app.get<{ Querystring: { limit?: string; cursor?: string } }>("/v1/library", async (request) => {
-    const session = await requireSession(ctx.auth, request);
+    const session = await requireSession(ctx.sessions, request);
     const limit = clampLimit(request.query.limit);
     const cursor = request.query.cursor ?? null;
 
@@ -86,7 +86,7 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext): void {
   });
 
   app.post<{ Body: ImportBody }>("/v1/library/import", async (request) => {
-    const session = await requireSession(ctx.auth, request);
+    const session = await requireSession(ctx.sessions, request);
     const raw = request.body?.items;
     if (!Array.isArray(raw)) {
       throw new ApiError("VALIDATION_FAILED", "items must be an array");
@@ -128,7 +128,7 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext): void {
   });
 
   app.patch<{ Body: Record<string, unknown> }>("/v1/library/:id", async (request) => {
-    const session = await requireSession(ctx.auth, request);
+    const session = await requireSession(ctx.sessions, request);
     const id = pathParam(request, "id");
     const body = request.body ?? {};
     const patch: string[] = [];
@@ -157,7 +157,7 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext): void {
   });
 
   app.delete("/v1/library/:id", async (request) => {
-    const session = await requireSession(ctx.auth, request);
+    const session = await requireSession(ctx.sessions, request);
     const id = pathParam(request, "id");
     const { rowCount } = await ctx.pool.query(
       "DELETE FROM library_items WHERE id = $1 AND user_id = $2",

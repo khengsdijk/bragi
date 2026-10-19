@@ -210,6 +210,18 @@ export type TransitionKind = "cut" | "crossfade" | "generated";
  * Optional user-drawn energy target from skyline editing.
  */
 export type EnergyTarget = CurvePoint[];
+/**
+ * `single-user` resolves every request to the owner; `multi-user` uses Better Auth (ADR-0014).
+ */
+export type AuthMode = "single-user" | "multi-user";
+/**
+ * The signed-in user, or null when signed out in multi-user mode.
+ */
+export type AuthModeUserOrNull = AuthModeUser | AuthModeAnonymous;
+/**
+ * No session: only possible in multi-user mode.
+ */
+export type AuthModeAnonymous = null;
 export type AutomationClearOpOp = "automation.clear";
 export type AutomationScope = LaneAutomationScope | MasterAutomationScope;
 export type LaneAutomationScopeKind = "lane";
@@ -776,6 +788,18 @@ export interface AssetDerivation {
   process: string;
   processVersion: string;
   params: FreeformParams;
+}
+/**
+ * `GET /v1/auth/mode`: which auth mode the API runs in, and the signed-in user if there is one (specs/05-backend-and-jobs.md §8, ADR-0014). In single-user mode `user` is always the owner.
+ */
+export interface AuthModeResponse {
+  mode: AuthMode;
+  user: AuthModeUserOrNull;
+}
+export interface AuthModeUser {
+  id: string;
+  email: string;
+  name: string;
 }
 /**
  * `automation.clear` (02 §4.2). Remove a target's points, optionally only within a range.

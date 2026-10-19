@@ -9,6 +9,8 @@ Real analysis capabilities (``specs/04``) join the same list: ``ingest``, ``rhyt
 
 from __future__ import annotations
 
+import contextlib
+import importlib
 from collections.abc import Sequence
 
 from bragi_analysis.capabilities import (
@@ -48,6 +50,20 @@ CAPABILITIES: Sequence[Capability] = [
 ]
 
 
+def _preload_torch() -> None:
+    """Imports torch once, on the main thread, before any job runs.
+
+    Separation and CLAP import torch lazily inside worker threads. Meanwhile SciPy's array-API
+    check (``resample_poly`` in ``loudness_energy``) probes ``sys.modules["torch"]`` from another
+    thread and fails on the half-initialised module ("partially initialized module 'torch'").
+    Importing it up front closes that race. Without the ``models`` group there is no torch and
+    nothing to race.
+    """
+    with contextlib.suppress(ImportError):
+        importlib.import_module("torch")
+
+
 def main() -> None:
     """Runs the worker until SIGTERM (05 §4.3)."""
+    _preload_torch()
     run_worker(Settings(), CAPABILITIES)

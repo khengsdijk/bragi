@@ -11,6 +11,27 @@ describe("loadConfig", () => {
     expect(config.s3Bucket).toBe("bragi-blobs");
     expect(config.githubClientId).toBe("");
     expect(config.otelEnabled).toBe(true);
+    expect(config.authMode).toBe("multi-user");
+    expect(config.ownerEmail).toBe("owner@bragi.local");
+    expect(config.ownerName).toBe("Owner");
+    expect(config.allowRemoteSingleUser).toBe(false);
+  });
+
+  it("reads the single-user variables from the environment (WP-2.0)", () => {
+    const config = loadConfig({
+      BRAGI_AUTH_MODE: "single-user",
+      BRAGI_OWNER_EMAIL: "me@example.com",
+      BRAGI_OWNER_NAME: "Koen",
+      BRAGI_ALLOW_REMOTE_SINGLE_USER: "1",
+    });
+    expect(config.authMode).toBe("single-user");
+    expect(config.ownerEmail).toBe("me@example.com");
+    expect(config.ownerName).toBe("Koen");
+    expect(config.allowRemoteSingleUser).toBe(true);
+  });
+
+  it("rejects an unknown auth mode", () => {
+    expect(() => loadConfig({ BRAGI_AUTH_MODE: "everyone" })).toThrow(/authMode/);
   });
 
   it("reads values from the environment variables named in the spec", () => {

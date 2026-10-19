@@ -18,6 +18,12 @@
  * Options: `--no-infra` skips step 1 (the integration test checks it itself).
  * Env: `BRAGI_MODELS_DIR` (default `.bragi/models` when it exists),
  * `API_PORT`, and any OTEL_* variable, passed through unchanged.
+ *
+ * The API runs single-user by default: `BRAGI_AUTH_MODE` defaults to
+ * `single-user` and `API_HOST` to `127.0.0.1` (loopback, which single-user mode
+ * requires) unless either is already set. Set `BRAGI_AUTH_MODE=multi-user` (and
+ * `API_HOST=0.0.0.0`) to get the Better Auth flow locally. The values are passed
+ * to the orchestrator too, harmlessly.
  */
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -144,6 +150,11 @@ async function main() {
     NODE_ENV: process.env.NODE_ENV ?? "development",
     // biome-ignore lint/suspicious/noUndeclaredEnvVars: a dev launcher, not a cached turbo task
     API_PORT: process.env.API_PORT ?? "8080",
+    // Single-user by default, on loopback; see the header comment (ADR-0014).
+    // biome-ignore lint/suspicious/noUndeclaredEnvVars: a dev launcher, not a cached turbo task
+    API_HOST: process.env.API_HOST ?? "127.0.0.1",
+    // biome-ignore lint/suspicious/noUndeclaredEnvVars: a dev launcher, not a cached turbo task
+    BRAGI_AUTH_MODE: process.env.BRAGI_AUTH_MODE ?? "single-user",
   };
   const children = [
     run("orchestrator", "node", ["dist/orchestrator.js"], { cwd: API_DIR, env: apiEnv }),

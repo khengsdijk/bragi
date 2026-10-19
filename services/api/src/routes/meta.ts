@@ -26,6 +26,7 @@ export function registerMeta(app: FastifyInstance, deps: MetaDeps): void {
       magicLink: true,
       githubOAuth: deps.config.githubClientId !== "",
       echo: true,
+      singleUser: deps.config.authMode === "single-user",
     },
   }));
 
