@@ -1,0 +1,15 @@
+{
+  "description": "Label mapping for the structure stage (specs/04-analysis-pipeline.md section 5.2): model vocabulary -> SectionKind. The vocabulary is All-In-One's (start, end, intro, outro, break, bridge, inst, solo, verse, chorus); the weight-free labeller in bragi_analysis.structure.labels emits the same words, so a neural segmenter can replace it without touching this file. The packages/schemas/analysis/taxonomy.json named by 04 is the *tag* taxonomy (WP-1.6); this mapping lives next to the worker until that file exists (Q46).",
+  "map": {
+    "intro": "intro",
+    "verse": "verse",
+    "chorus": "chorus",
+    "bridge": "bridge",
+    "inst": "interlude",
+    "solo": "solo",
+    "break": "breakdown",
+    "outro": "outro",
+    "unknown": "custom"
+  },
+  "mergeIntoNeighbour": ["start", "end"]
+}
