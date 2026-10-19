@@ -10,6 +10,7 @@
 
 import type { BlobHash, Platform } from "@bragi/platform";
 import type { AssetMeta, Project } from "@bragi/schemas";
+import { useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
 import { t } from "../../../i18n/index.js";
@@ -19,7 +20,9 @@ import {
   mergeArtifacts,
   type StageArtifacts,
 } from "../../analysis/api/analysis-view.js";
-import { getProjectSnapshot } from "../../library/api/library-repo.js";
+import { apiFor, realtimeFor } from "../../analysis/api/host.js";
+import { createUploadFlow } from "../../analysis/state/flow.js";
+import { getProjectRow, getProjectSnapshot } from "../../library/api/library-repo.js";
 import { loadModel } from "../model/model-api.js";
 import { createEngineController, type EngineController } from "../state/engine-controller.js";
 import { createSongStore, type SongStore } from "../state/song-store.js";
@@ -31,6 +34,11 @@ interface Session {
   readonly store: SongStore;
   readonly controller: EngineController;
   readonly analysis: AnalysisData | null;
+}
+
+/** `#/song/<id>?e2e=1` exposes the canvas on `window.__bragi` for the end-to-end tests. */
+function wantsTestHooks(search: Record<string, unknown>): boolean {
+  return search.e2e === "1" || search.e2e === 1;
 }
 
 /** The AssetIndex metadata for every asset the document references. */
@@ -85,6 +93,7 @@ async function analysisFromSnapshot(
 
 export function StoredSongCanvas({ projectId }: { readonly projectId: string }) {
   const platform = usePlatform();
+  const search = useSearch({ strict: false }) as Record<string, unknown>;
   const [session, setSession] = useState<Session | null>(null);
   const [failed, setFailed] = useState(false);
   const dispose = useRef<(() => void)[]>([]);
@@ -116,6 +125,37 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
         () => store.dispose(),
       );
       setSession({ store, controller, analysis });
+
+      // An analysis that was still running when this page opened (a reload, or the hand-over
+      // from the drop zone) keeps merging into this document (Q82).
+      const row = await getProjectRow(platform.localDb, projectId);
+      if (!live || row?.assetHash == null || !platform.api) return;
+      const realtime = realtimeFor(platform);
+      const flow = createUploadFlow({
+        platform,
+        api: apiFor(platform),
+        realtime,
+        songStore: store,
+        onAnalysis: (data) => {
+          if (live)
+            setSession((current) => (current === null ? current : { ...current, analysis: data }));
+        },
+        onCommit: (commit, doc) => controller.commit(commit, doc),
+      });
+      cleanup.push(
+        () => flow.dispose(),
+        () => realtime.close(),
+      );
+      try {
+        await flow.resume(
+          analysis === null
+            ? { assetHash: row.assetHash }
+            : { assetHash: row.assetHash, view: analysis },
+        );
+      } catch (cause) {
+        // Offline or signed out: the stored song stays usable, it just stops growing.
+        console.warn("could not resume the analysis", cause);
+      }
     })().catch((cause: unknown) => {
       console.error("could not open the stored song", cause);
       if (live) setFailed(true);
@@ -136,6 +176,7 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
       controller={session.controller}
       analysis={session.analysis}
       selection={{ kind: "none" }}
+      testHooks={wantsTestHooks(search)}
       onSelectionChange={() => {}}
     />
   );

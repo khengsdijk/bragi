@@ -23,7 +23,7 @@ import type {
   RealtimeMessage,
 } from "@bragi/api-client";
 import type { BlobHash, Platform } from "@bragi/platform";
-import type { AnalysisStage, AssetMeta, SeparationResult } from "@bragi/schemas";
+import type { AnalysisStage, AssetMeta, Project, SeparationResult } from "@bragi/schemas";
 import { validateIngestResult, validateSeparationResult } from "@bragi/schemas";
 import {
   createProjectWithSnapshot,
@@ -31,7 +31,7 @@ import {
   saveProjectSnapshot,
 } from "../../library/api/library-repo.js";
 import type { AnalysisData } from "../../song/components/SongWorkspace.js";
-import type { SongStore } from "../../song/state/song-store.js";
+import type { Commit, SongStore } from "../../song/state/song-store.js";
 import {
   artifactsForStage,
   mergeArtifacts,
@@ -56,6 +56,12 @@ export const STANDARD_STAGES: readonly AnalysisStage[] = [
   "section_embed",
   "stem_embed",
 ];
+
+/**
+ * Stages the client merges when they arrive but does not wait for: `describe` needs an LLM
+ * and may legitimately fail (no key) without making the song any less usable.
+ */
+const OPTIONAL_STAGES: readonly AnalysisStage[] = ["describe"];
 
 export type UploadPhase =
   | "hashing"
@@ -94,12 +100,21 @@ export interface FlowDependencies {
   readonly onState?: (state: UploadState) => void;
   readonly onAnalysis?: (data: AnalysisData) => void;
   readonly onProject?: (projectId: string) => void;
+  /** Called after every document change the flow makes, so a live engine can follow. */
+  readonly onCommit?: (commit: Commit, doc: Project) => void;
   readonly now?: () => Date;
 }
 
 export interface UploadFlow {
   /** Runs the flow once. Resolves when the project exists (ingest landed). */
   start(file: PickedAudio): Promise<{ projectId: string; assetHash: string }>;
+  /**
+   * Continues the analysis of a project that is already open (reload, or navigation away from
+   * the drop zone, Q82). `songStore` must hold the project's stored document; stages the document
+   * already records are skipped, the rest are replayed from the server and merged as they land.
+   * Resolves once every stage the server has finished so far is merged.
+   */
+  resume(input: { assetHash: string; view?: AnalysisData }): Promise<void>;
   /** The state after the last update. */
   state(): UploadState;
   dispose(): void;
@@ -141,6 +156,7 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
   let ingested = false;
   let started = false;
   let finished = false;
+  let disposed = false;
   let view: StageArtifacts = {};
   const applied = new Set<string>();
 
@@ -209,6 +225,7 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
             `bragi-model rejected the ingest batch: ${JSON.stringify(outcome.errors)}`,
           );
         }
+        deps.onCommit?.(outcome.commit, outcome.doc);
         const created = await createProjectWithSnapshot(deps.platform, {
           project: outcome.doc,
           assetHash: assetHash as string,
@@ -233,6 +250,7 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
       if (!outcome.ok) {
         throw new Error(`bragi-model rejected ${stage}: ${JSON.stringify(outcome.errors)}`);
       }
+      deps.onCommit?.(outcome.commit, outcome.doc);
       await saveProjectSnapshot(deps.platform, outcome.doc, now());
     }
 
@@ -249,21 +267,22 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
   }
 
   async function handlePartial(message: { stage: string; blob: string }): Promise<void> {
-    if (finished) return;
+    if (disposed) return;
     const stage = asAnalysisStage(message.stage);
     if (stage === undefined || applied.has(stage)) return;
-    if (!STANDARD_STAGES.includes(stage)) return;
-    emit({ phase: "analysing", stage });
+    if (!STANDARD_STAGES.includes(stage) && !OPTIONAL_STAGES.includes(stage)) return;
+    if (!finished) emit({ phase: "analysing", stage });
     try {
       const json = await downloadJson(message.blob);
       await applyStage(stage, message.blob, json);
       applied.add(stage);
-      emit({ stagesDone: applied.size });
-      if (STANDARD_STAGES.every((candidate) => applied.has(candidate))) {
+      emit({ stagesDone: STANDARD_STAGES.filter((s) => applied.has(s)).length });
+      if (!finished && STANDARD_STAGES.every((candidate) => applied.has(candidate))) {
         finished = true;
         emit({ phase: "ready" });
       }
     } catch (error) {
+      if (disposed) return;
       emit({
         phase: "failed",
         message: error instanceof Error ? error.message : String(error),
@@ -280,6 +299,9 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
       // applied before anything that needs the source.
       queue = queue.then(() => handlePartial(message));
     } else if (message.t === "analysis.failed" && message.assetHash === assetHash) {
+      // An optional stage (describe) failing must not turn a playable song into a failure.
+      const failed = asAnalysisStage(message.stage);
+      if (failed !== undefined && OPTIONAL_STAGES.includes(failed)) return;
       emit({ phase: "failed", message: message.message, stage: message.stage });
     }
   }
@@ -319,21 +341,7 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
         deps.realtime.subscribe([`asset:${hash}`]);
         emit({ phase: "queueing" });
         await deps.api.postAnalyses(hash, "standard");
-
-        // The server also replays finished stages on `sub`; this covers a stage
-        // that finished before the socket opened. Replay in DAG order so ingest
-        // creates the source before the rest is applied.
-        const snapshot = await deps.api.getAnalyses(hash);
-        const order = new Map(STANDARD_STAGES.map((stage, index) => [stage, index]));
-        const stages = [...snapshot.stages].sort(
-          (a, b) =>
-            (order.get(a.stage as AnalysisStage) ?? 99) -
-            (order.get(b.stage as AnalysisStage) ?? 99),
-        );
-        for (const stage of stages) {
-          queue = queue.then(() => replayDone(stage));
-        }
-        await queue;
+        await replayFromServer(hash, false);
         return { projectId: await waitForProject(), assetHash: hash };
       } catch (error) {
         emit({
@@ -344,11 +352,52 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
       }
     },
     state: () => state,
+    async resume({ assetHash: hash, view: initialView }) {
+      if (started) throw new Error("this upload flow has already started");
+      started = true;
+      const doc = deps.songStore.store.getState().doc;
+      const source = doc?.sources[0];
+      if (doc === null || source === undefined) throw new Error("resume needs a loaded project");
+      assetHash = hash;
+      projectId = doc.id;
+      sourceId = source.id;
+      title = doc.meta.title;
+      ingested = true;
+      view = (initialView ?? {}) as StageArtifacts;
+      for (const stage of Object.keys(doc.analyses[source.id]?.blobs ?? {})) applied.add(stage);
+      const done = STANDARD_STAGES.filter((candidate) => applied.has(candidate)).length;
+      emit({ phase: "analysing", assetHash: hash, projectId: doc.id, stagesDone: done });
+      if (done === STANDARD_STAGES.length) {
+        finished = true;
+        emit({ phase: "ready" });
+        return;
+      }
+      await replayFromServer(hash);
+    },
     dispose() {
+      disposed = true;
       stopListening();
       if (assetHash !== null) deps.realtime.unsubscribe([`asset:${assetHash}`]);
     },
   };
+
+  /**
+   * The server also replays finished stages on `sub`; this covers a stage that finished before
+   * the socket opened. Replay in DAG order so ingest creates the source before the rest.
+   */
+  async function replayFromServer(hash: string, subscribe = true): Promise<void> {
+    if (subscribe) deps.realtime.subscribe([`asset:${hash}`]);
+    const snapshot = await deps.api.getAnalyses(hash);
+    const order = new Map(STANDARD_STAGES.map((stage, index) => [stage, index]));
+    const stages = [...snapshot.stages].sort(
+      (a, b) =>
+        (order.get(a.stage as AnalysisStage) ?? 99) - (order.get(b.stage as AnalysisStage) ?? 99),
+    );
+    for (const stage of stages) {
+      queue = queue.then(() => replayDone(stage));
+    }
+    await queue;
+  }
 
   async function replayDone(stage: AnalysisStageStatus): Promise<void> {
     if (stage.status === "done" && stage.blob !== undefined) {

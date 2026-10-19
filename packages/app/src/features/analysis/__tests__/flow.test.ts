@@ -368,4 +368,130 @@ describe("the upload -> live-analysis flow", () => {
     expect(h.flow.state().message).toBe("out of memory");
     expect(await getProjectSnapshot(h.platform, result.projectId)).not.toBeNull();
   });
+
+  it("ignores a failed optional stage (describe) and a disposed flow", async () => {
+    const h = await harness();
+    const workingAsset = await registerAudio(h.store, "working");
+    const ingest = await register(h.store, {
+      schemaVersion: 1,
+      workingAsset,
+      durationSec: 30,
+      channelsOriginal: 1,
+      sampleRateOriginal: 48000,
+      codec: "wav",
+      fingerprint: "fp",
+    });
+    h.postAnalysesEmit("ingest", ingest);
+    const result = await h.flow.start({ name: "song.wav", bytes: async () => new Uint8Array([8]) });
+    h.realtime.emit({
+      t: "analysis.failed",
+      assetHash: result.assetHash,
+      stage: "describe",
+      code: "MODEL_ERROR",
+      message: "ANTHROPIC_API_KEY is not set",
+      retryable: false,
+    });
+    expect(h.flow.state().phase).not.toBe("failed");
+
+    h.flow.dispose();
+    const rhythm = await register(h.store, {
+      schemaVersion: 1,
+      bpm: 100,
+      beats: [0, 0.6],
+      downbeats: [0],
+      tempoCurve: [{ beat: 0, bpm: 100 }],
+      timeSignature: { numerator: 4, denominator: 4 },
+      confidence: 0.9,
+      isTempoStable: true,
+    });
+    h.partial("rhythm", rhythm);
+    await drain();
+    const doc = await getProjectSnapshot(h.platform, result.projectId);
+    expect(doc?.analyses[doc.sources[0]?.id ?? ""]?.blobs.rhythm).toBeUndefined();
+  });
+
+  it("resumes a stored project: skips merged stages, merges the rest and reports commits (Q82)", async () => {
+    const h = await harness();
+    const workingAsset = await registerAudio(h.store, "working");
+    const ingest = await register(h.store, {
+      schemaVersion: 1,
+      workingAsset,
+      durationSec: 30,
+      channelsOriginal: 1,
+      sampleRateOriginal: 48000,
+      codec: "wav",
+      fingerprint: "fp",
+    });
+    h.postAnalysesEmit("ingest", ingest);
+    const result = await h.flow.start({ name: "song.wav", bytes: async () => new Uint8Array([7]) });
+    h.flow.dispose();
+
+    const snapshot = await getProjectSnapshot(h.platform, result.projectId);
+    if (snapshot === null) throw new Error("no snapshot");
+    const rhythm = await register(h.store, {
+      schemaVersion: 1,
+      bpm: 90,
+      beats: [0, 0.66],
+      downbeats: [0],
+      tempoCurve: [{ beat: 0, bpm: 90 }],
+      timeSignature: { numerator: 4, denominator: 4 },
+      confidence: 0.9,
+      isTempoStable: true,
+    });
+    const resumedStore = createSongStore(await loadTestModel());
+    resumedStore.load(snapshot, [
+      {
+        hash: workingAsset,
+        mime: "audio/flac",
+        bytes: 0,
+        sampleRate: 48000,
+        channels: 2,
+        durationSamples: 30 * 48000,
+      },
+    ]);
+    const realtime = new FakeRealtime();
+    const commits: string[] = [];
+    const flow = createUploadFlow({
+      platform: h.platform,
+      api: {
+        baseUrl: "",
+        meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
+        signInWithEmail: async () => {},
+        presign: async () => {
+          throw new Error("resume must not upload");
+        },
+        complete: async () => {
+          throw new Error("resume must not upload");
+        },
+        assetUrl: async (hash) => ({ url: `blob:${hash}`, expiresIn: 60 }),
+        postAnalyses: async () => {
+          throw new Error("resume must not submit");
+        },
+        getAnalyses: async (hash) => ({
+          assetHash: hash,
+          stages: [
+            { stage: "ingest", status: "done", blob: ingest.hash },
+            { stage: "rhythm", status: "done", blob: rhythm.hash },
+          ],
+        }),
+        library: async () => ({ items: [], nextCursor: null }),
+        importLibrary: async () => ({ items: [], enqueuedStages: [] }),
+      } as ApiClient,
+      realtime,
+      songStore: resumedStore,
+      fetch: (async (url: string | URL) => {
+        const bytes = h.store.get(String(url).replace(/^blob:/, ""));
+        return new Response(bytes as unknown as BodyInit, { status: bytes ? 200 : 404 });
+      }) as unknown as typeof globalThis.fetch,
+      onCommit: (commit) => commits.push(commit.batch.label),
+    });
+    await flow.resume({ assetHash: result.assetHash });
+    expect(realtime.topics()).toContain(`asset:${result.assetHash}`);
+    expect(flow.state().message).toBeUndefined();
+    expect(commits).toEqual(["Analysis: rhythm"]);
+    const doc = resumedStore.store.getState().doc;
+    expect(doc?.analyses[doc.sources[0]?.id ?? ""]?.blobs.rhythm).toBe(rhythm.hash);
+    // The ingest batch was not applied twice.
+    expect(doc?.tracks.length).toBe(snapshot.tracks.length);
+  });
 });
