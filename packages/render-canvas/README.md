@@ -13,5 +13,19 @@ Rules:
 - Whatever is drawn on the canvas also exists in the accessible DOM
   ([11 §6.1](../../specs/11-ux-and-accessibility.md)).
 
-**Status:** scaffold only. Filled by **WP-1.9**, against the frame budgets in
-[07 §9](../../specs/07-song-canvas.md).
+**Status:** built by **WP-1.9** (see [`docs/wp/1.9.md`](../../docs/wp/1.9.md)).
+
+## Surface
+
+```ts
+const canvas = await SongCanvas.create({ container, palette, strings, renderer: "webgl" /* optional */ });
+canvas.setDocument(canvasDocument);   // sections, tracks, clips, beat times (seconds)
+canvas.setAnalysis(analysisView);     // stage statuses + energy/chords/ribbons as they arrive
+canvas.setSelection(selection); canvas.setPlayhead(sec); canvas.setMeters({ trk_a: 0.4 });
+canvas.on("trackToggle", ({ trackId, field, value }) => { /* build a track.update batch */ });
+```
+
+The pure modules (`viewport`, `selection`, `geometry`, `layout`, `progressive`, `palette`) have no
+GPU dependency and are unit-tested in Node; `SongCanvas` is the Pixi stage on top. Colours come from
+the design tokens (CSS variables or `tokens.json`), never restated here. Types for the data-in
+contract are in `src/types.ts`; WP-1.10 maps analysis results onto `AnalysisView`.

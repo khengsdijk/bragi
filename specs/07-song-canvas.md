@@ -1,6 +1,6 @@
 # 07 — Song Canvas (single-song editor)
 
-Status: Draft v0.1 · Code: `packages/app/src/features/song/`, `packages/render-canvas/`
+Status: Draft v0.2 · Code: `packages/app/src/features/song/`, `packages/render-canvas/`
 
 The Song Canvas is where a song becomes visible and editable. It covers zoom levels **L2 (Song)** and **L3 (Moment)** from [00 §4](00-vision.md).
 
@@ -180,7 +180,13 @@ Each pending item shows a subtle shimmer placeholder, not a spinner. Editing is 
 - **LOD:** envelope and peak data are chosen from the pyramid ([03 §10](03-audio-engine.md)) so that there are about 1–2 bins per pixel. Offscreen geometry is culled and only meshes in the viewport ± 1 screen width are kept.
 - **No React in the render loop.** The renderer subscribes to store slices and the engine state. React renders panels, popovers and the prompt bar as DOM overlays positioned from the renderer's coordinate system.
 - **Budgets:** 60 fps while playing and zooming on a 2020-era integrated GPU, a 10-minute song with 12 ribbons, and a frame time ≤ 8 ms for rendering. Opening a cached project shows a first canvas in < 500 ms.
-- Text uses MSDF bitmap fonts for crisp labels at any zoom.
+- Text uses MSDF bitmap fonts for crisp labels at any zoom. *(WP-1.9 uses pooled Pixi `Text` at the device pixel ratio instead; see Q50.)*
+
+**As built in WP-1.9** (clarifications, not contract changes):
+- Ribbons and the skyline are meshes/polygons built **in world space** at a level of detail and moved/scaled by their container, so pan and zoom cost a transform; they are rebuilt when the zoom leaves a factor-of-two band or the viewport leaves the built window, at most three ribbons per frame. Timbre is a 3-row texture per ribbon (Q51).
+- The renderer is `render-canvas`'s `SongCanvas`: data in (`CanvasDocument`, `AnalysisView`), events out (`selectionChange`, `seek`, `trackToggle`, `viewportChange`, `hoverTrack`, `contentHeight`). Solo/mute leave as `trackToggle` and become one `track.update` batch in the Song Store.
+- Bar numbers on the ruler are always drawn where they fit (not only on hover). Dragging on the time area pans; section drag/resize (§4.1-4.2) is not built yet.
+- The `sel` URL parameter is `s:<ids>`, `t:<ids>`, `c:<ids>` or `r:<startTick>-<endTick>:<ids|*>` (`render-canvas/src/selection.ts`).
 
 ## 10. Acceptance checks (for work packages)
 
