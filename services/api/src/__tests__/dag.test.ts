@@ -101,13 +101,7 @@ describe("IMPLEMENTED_STAGES", () => {
     const stages = implementedStagesForProfile("standard");
     expect(stages[0]).toBe("ingest");
     // Every stage without a worker is gone; the terminal ones have no dependents.
-    for (const missing of [
-      "preview",
-      "energy_stems",
-      "drum_split",
-      "transcribe",
-      "lyrics",
-    ]) {
+    for (const missing of ["preview", "energy_stems", "drum_split", "transcribe", "lyrics"]) {
       expect(stages).not.toContain(missing);
     }
     expect(stages).toContain("separation");
