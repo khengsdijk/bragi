@@ -1167,6 +1167,10 @@
           "items": {
             "$ref": "#/$defs/EmbeddingVector"
           }
+        },
+        "lowConfidence": {
+          "description": "True when the audio had too little energy or duration to embed meaningfully; the vectors are still published (04 §10).",
+          "type": "boolean"
         }
       }
     },
@@ -3923,6 +3927,10 @@
         },
         "era": {
           "$ref": "#/$defs/TagScore"
+        },
+        "lowConfidence": {
+          "description": "True when the labels come from the untrained zero-shot fallback or the audio had too little energy to classify (04 §10).",
+          "type": "boolean"
         }
       }
     },

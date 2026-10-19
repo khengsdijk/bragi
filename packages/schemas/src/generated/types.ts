@@ -1247,6 +1247,10 @@ export interface EmbeddingResult {
    */
   dim: number;
   vectors: EmbeddingVector[];
+  /**
+   * True when the audio had too little energy or duration to embed meaningfully; the vectors are still published (04 §10).
+   */
+  lowConfidence?: boolean;
 }
 export interface EmbeddingVector {
   /**
@@ -1664,6 +1668,10 @@ export interface TagResult {
   instruments: TagScoreList;
   descriptors: TagScoreList;
   era?: TagScore;
+  /**
+   * True when the labels come from the untrained zero-shot fallback or the audio had too little energy to classify (04 §10).
+   */
+  lowConfidence?: boolean;
 }
 /**
  * One taxonomy label with the model's score in 0..1 (04 §6.2). The label vocabulary lives in the tagging model's head, not in the schema.

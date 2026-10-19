@@ -2036,6 +2036,12 @@ class TagResult(BaseModel):
     instruments: TagScoreList
     descriptors: TagScoreList
     era: TagScore | None = None
+    lowConfidence: Annotated[
+        bool | None,
+        Field(
+            description='True when the labels come from the untrained zero-shot fallback or the audio had too little energy to classify (04 §10).'
+        ),
+    ] = None
 
 
 class TagsEffect(BaseModel):
@@ -2270,6 +2276,12 @@ class EmbeddingResult(BaseModel):
         ),
     ]
     vectors: list[EmbeddingVector]
+    lowConfidence: Annotated[
+        bool | None,
+        Field(
+            description='True when the audio had too little energy or duration to embed meaningfully; the vectors are still published (04 §10).'
+        ),
+    ] = None
 
 
 type FxChain = Annotated[

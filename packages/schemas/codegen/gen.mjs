@@ -50,6 +50,10 @@ const OUTPUTS = {
   validators: "packages/schemas/src/generated/validators.ts",
   rust: "crates/bragi-model/src/generated/mod.rs",
   python: "services/workers/bragi_common/src/bragi_common/generated/models.py",
+  // The tagging taxonomy (specs/04 §6.2) is data, not a schema, so the schema walk ignores it; the
+  // worker container ships only `services/workers`, so it is copied into the worker package here
+  // and `--check` keeps the two files identical.
+  taxonomy: "services/workers/analysis/src/bragi_analysis/config/taxonomy.json",
 };
 
 const BANNER = (what, extra = [], comment = "//") =>
@@ -455,6 +459,11 @@ async function main() {
   const ajv = generateValidators(bundle, rootTypes);
   const validators = generateValidatorFacade(rootTypes);
 
+  // The taxonomy data file: re-serialised so the committed copy is stable and byte-checkable.
+  const taxonomyPath = join(SCHEMAS, "analysis/taxonomy.json");
+  if (!existsSync(taxonomyPath)) throw new Error(`${taxonomyPath} is missing`);
+  const taxonomy = `${JSON.stringify(JSON.parse(readFileSync(taxonomyPath, "utf8")), null, 2)}\n`;
+
   // The Rust and Python generators read the bundle from disk; they get the freshly built one (not
   // the committed file, which may be stale) so `--check` cannot pass on a stale bundle.
   const { rust, python } = withTempDir((dir) => {
@@ -473,6 +482,7 @@ async function main() {
     [OUTPUTS.validators]: validators,
     [OUTPUTS.rust]: rust,
     [OUTPUTS.python]: python,
+    [OUTPUTS.taxonomy]: taxonomy,
   };
   const code = emit(all);
   if (code === 0) {

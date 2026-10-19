@@ -15,7 +15,11 @@
     "moods": { "$ref": "#/$defs/TagScoreList" },
     "instruments": { "$ref": "#/$defs/TagScoreList" },
     "descriptors": { "$ref": "#/$defs/TagScoreList" },
-    "era": { "$ref": "common.schema.json#/$defs/TagScore" }
+    "era": { "$ref": "common.schema.json#/$defs/TagScore" },
+    "lowConfidence": {
+      "description": "True when the labels come from the untrained zero-shot fallback or the audio had too little energy to classify (04 §10).",
+      "type": "boolean"
+    }
   },
   "$defs": {
     "TagScoreList": {

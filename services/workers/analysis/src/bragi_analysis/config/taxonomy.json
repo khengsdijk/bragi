@@ -1,0 +1,3358 @@
+{
+  "version": 1,
+  "description": "The controlled tagging vocabulary (specs/04-analysis-pipeline.md section 6.2). Genres are hierarchical (parents are genre ids, most specific last); moods, instruments, descriptors and eras are flat. `prompt` is the zero-shot text template (04 section 6.2); it defaults to a label-derived phrase when absent. Generated into services/workers/analysis/src/bragi_analysis/config/taxonomy.json by `pnpm schemas:gen`; this file is the source of truth.",
+  "topK": {
+    "genres": 3,
+    "moods": 4,
+    "instruments": 8,
+    "descriptors": 6,
+    "eras": 1
+  },
+  "genres": [
+    {
+      "id": "electronic",
+      "label": "Electronic",
+      "parents": [],
+      "prompt": "a electronic song"
+    },
+    {
+      "id": "house",
+      "label": "House",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "deep-house",
+      "label": "Deep house",
+      "parents": [
+        "electronic",
+        "house"
+      ]
+    },
+    {
+      "id": "tech-house",
+      "label": "Tech house",
+      "parents": [
+        "electronic",
+        "house"
+      ]
+    },
+    {
+      "id": "progressive-house",
+      "label": "Progressive house",
+      "parents": [
+        "electronic",
+        "house"
+      ]
+    },
+    {
+      "id": "acid-house",
+      "label": "Acid house",
+      "parents": [
+        "electronic",
+        "house"
+      ]
+    },
+    {
+      "id": "soulful-house",
+      "label": "Soulful house",
+      "parents": [
+        "electronic",
+        "house"
+      ]
+    },
+    {
+      "id": "techno",
+      "label": "Techno",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "minimal-techno",
+      "label": "Minimal techno",
+      "parents": [
+        "electronic",
+        "techno"
+      ]
+    },
+    {
+      "id": "melodic-techno",
+      "label": "Melodic techno",
+      "parents": [
+        "electronic",
+        "techno"
+      ]
+    },
+    {
+      "id": "hard-techno",
+      "label": "Hard techno",
+      "parents": [
+        "electronic",
+        "techno"
+      ]
+    },
+    {
+      "id": "detroit-techno",
+      "label": "Detroit techno",
+      "parents": [
+        "electronic",
+        "techno"
+      ]
+    },
+    {
+      "id": "acid-techno",
+      "label": "Acid techno",
+      "parents": [
+        "electronic",
+        "techno"
+      ]
+    },
+    {
+      "id": "trance",
+      "label": "Trance",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "psytrance",
+      "label": "Psytrance",
+      "parents": [
+        "electronic",
+        "trance"
+      ]
+    },
+    {
+      "id": "progressive-trance",
+      "label": "Progressive trance",
+      "parents": [
+        "electronic",
+        "trance"
+      ]
+    },
+    {
+      "id": "uplifting-trance",
+      "label": "Uplifting trance",
+      "parents": [
+        "electronic",
+        "trance"
+      ]
+    },
+    {
+      "id": "drum-and-bass",
+      "label": "Drum & bass",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "liquid-dnb",
+      "label": "Liquid dnb",
+      "parents": [
+        "electronic",
+        "drum-and-bass"
+      ]
+    },
+    {
+      "id": "neurofunk",
+      "label": "Neurofunk",
+      "parents": [
+        "electronic",
+        "drum-and-bass"
+      ]
+    },
+    {
+      "id": "jungle",
+      "label": "Jungle",
+      "parents": [
+        "electronic",
+        "drum-and-bass"
+      ]
+    },
+    {
+      "id": "dubstep",
+      "label": "Dubstep",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "brostep",
+      "label": "Brostep",
+      "parents": [
+        "electronic",
+        "dubstep"
+      ]
+    },
+    {
+      "id": "riddim",
+      "label": "Riddim",
+      "parents": [
+        "electronic",
+        "dubstep"
+      ]
+    },
+    {
+      "id": "melodic-dubstep",
+      "label": "Melodic dubstep",
+      "parents": [
+        "electronic",
+        "dubstep"
+      ]
+    },
+    {
+      "id": "garage",
+      "label": "Garage",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "uk-garage",
+      "label": "Uk garage",
+      "parents": [
+        "electronic",
+        "garage"
+      ]
+    },
+    {
+      "id": "2-step",
+      "label": "2 step",
+      "parents": [
+        "electronic",
+        "garage"
+      ]
+    },
+    {
+      "id": "bassline",
+      "label": "Bassline",
+      "parents": [
+        "electronic",
+        "garage"
+      ]
+    },
+    {
+      "id": "breakbeat",
+      "label": "Breakbeat",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "big-beat",
+      "label": "Big beat",
+      "parents": [
+        "electronic",
+        "breakbeat"
+      ]
+    },
+    {
+      "id": "breaks",
+      "label": "Breaks",
+      "parents": [
+        "electronic",
+        "breakbeat"
+      ]
+    },
+    {
+      "id": "breakcore",
+      "label": "Breakcore",
+      "parents": [
+        "electronic",
+        "breakbeat"
+      ]
+    },
+    {
+      "id": "downtempo",
+      "label": "Downtempo",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "trip-hop",
+      "label": "Trip hop",
+      "parents": [
+        "electronic",
+        "downtempo"
+      ]
+    },
+    {
+      "id": "chillout",
+      "label": "Chillout",
+      "parents": [
+        "electronic",
+        "downtempo"
+      ]
+    },
+    {
+      "id": "ambient-techno",
+      "label": "Ambient techno",
+      "parents": [
+        "electronic",
+        "downtempo"
+      ]
+    },
+    {
+      "id": "edm",
+      "label": "Edm",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "big-room",
+      "label": "Big room",
+      "parents": [
+        "electronic",
+        "edm"
+      ]
+    },
+    {
+      "id": "future-house",
+      "label": "Future house",
+      "parents": [
+        "electronic",
+        "edm"
+      ]
+    },
+    {
+      "id": "future-bass",
+      "label": "Future bass",
+      "parents": [
+        "electronic",
+        "edm"
+      ]
+    },
+    {
+      "id": "tropical-house",
+      "label": "Tropical house",
+      "parents": [
+        "electronic",
+        "edm"
+      ]
+    },
+    {
+      "id": "electro",
+      "label": "Electro",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "electro-clash",
+      "label": "Electro clash",
+      "parents": [
+        "electronic",
+        "electro"
+      ]
+    },
+    {
+      "id": "electro-funk",
+      "label": "Electro funk",
+      "parents": [
+        "electronic",
+        "electro"
+      ]
+    },
+    {
+      "id": "synthwave",
+      "label": "Synthwave",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "darkwave",
+      "label": "Darkwave",
+      "parents": [
+        "electronic",
+        "synthwave"
+      ]
+    },
+    {
+      "id": "vaporwave",
+      "label": "Vaporwave",
+      "parents": [
+        "electronic",
+        "synthwave"
+      ]
+    },
+    {
+      "id": "chillwave",
+      "label": "Chillwave",
+      "parents": [
+        "electronic",
+        "synthwave"
+      ]
+    },
+    {
+      "id": "hardcore-electronic",
+      "label": "Hardcore electronic",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "gabber",
+      "label": "Gabber",
+      "parents": [
+        "electronic",
+        "hardcore-electronic"
+      ]
+    },
+    {
+      "id": "hardstyle",
+      "label": "Hardstyle",
+      "parents": [
+        "electronic",
+        "hardcore-electronic"
+      ]
+    },
+    {
+      "id": "frenchcore",
+      "label": "Frenchcore",
+      "parents": [
+        "electronic",
+        "hardcore-electronic"
+      ]
+    },
+    {
+      "id": "idm",
+      "label": "Idm",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "glitch",
+      "label": "Glitch",
+      "parents": [
+        "electronic",
+        "idm"
+      ]
+    },
+    {
+      "id": "braindance",
+      "label": "Braindance",
+      "parents": [
+        "electronic",
+        "idm"
+      ]
+    },
+    {
+      "id": "bass",
+      "label": "Bass",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "footwork",
+      "label": "Footwork",
+      "parents": [
+        "electronic",
+        "bass"
+      ]
+    },
+    {
+      "id": "trap-electronic",
+      "label": "Trap electronic",
+      "parents": [
+        "electronic",
+        "bass"
+      ]
+    },
+    {
+      "id": "industrial-electronic",
+      "label": "Industrial electronic",
+      "parents": [
+        "electronic"
+      ]
+    },
+    {
+      "id": "ebm",
+      "label": "Ebm",
+      "parents": [
+        "electronic",
+        "industrial-electronic"
+      ]
+    },
+    {
+      "id": "aggrotech",
+      "label": "Aggrotech",
+      "parents": [
+        "electronic",
+        "industrial-electronic"
+      ]
+    },
+    {
+      "id": "hip-hop",
+      "label": "Hip hop",
+      "parents": [],
+      "prompt": "a hip hop song"
+    },
+    {
+      "id": "boom-bap",
+      "label": "Boom bap",
+      "parents": [
+        "hip-hop"
+      ]
+    },
+    {
+      "id": "trap",
+      "label": "Trap",
+      "parents": [
+        "hip-hop"
+      ]
+    },
+    {
+      "id": "drill",
+      "label": "Drill",
+      "parents": [
+        "hip-hop"
+      ]
+    },
+    {
+      "id": "lo-fi-hip-hop",
+      "label": "Lo fi hip hop",
+      "parents": [
+        "hip-hop"
+      ]
+    },
+    {
+      "id": "conscious-hip-hop",
+      "label": "Conscious hip hop",
+      "parents": [
+        "hip-hop"
+      ]
+    },
+    {
+      "id": "gangsta-rap",
+      "label": "Gangsta rap",
+      "parents": [
+        "hip-hop"
+      ]
+    },
+    {
+      "id": "grime",
+      "label": "Grime",
+      "parents": [
+        "hip-hop"
+      ]
+    },
+    {
+      "id": "phonk",
+      "label": "Phonk",
+      "parents": [
+        "hip-hop"
+      ]
+    },
+    {
+      "id": "abstract-hip-hop",
+      "label": "Abstract hip hop",
+      "parents": [
+        "hip-hop"
+      ]
+    },
+    {
+      "id": "g-funk",
+      "label": "G funk",
+      "parents": [
+        "hip-hop"
+      ]
+    },
+    {
+      "id": "rock",
+      "label": "Rock",
+      "parents": [],
+      "prompt": "a rock song"
+    },
+    {
+      "id": "alternative-rock",
+      "label": "Alternative rock",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "indie-rock",
+      "label": "Indie rock",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "classic-rock",
+      "label": "Classic rock",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "hard-rock",
+      "label": "Hard rock",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "punk-rock",
+      "label": "Punk rock",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "pop-punk",
+      "label": "Pop punk",
+      "parents": [
+        "rock",
+        "punk-rock"
+      ]
+    },
+    {
+      "id": "post-punk",
+      "label": "Post punk",
+      "parents": [
+        "rock",
+        "punk-rock"
+      ]
+    },
+    {
+      "id": "garage-rock",
+      "label": "Garage rock",
+      "parents": [
+        "rock",
+        "punk-rock"
+      ]
+    },
+    {
+      "id": "psychedelic-rock",
+      "label": "Psychedelic rock",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "stoner-rock",
+      "label": "Stoner rock",
+      "parents": [
+        "rock",
+        "psychedelic-rock"
+      ]
+    },
+    {
+      "id": "space-rock",
+      "label": "Space rock",
+      "parents": [
+        "rock",
+        "psychedelic-rock"
+      ]
+    },
+    {
+      "id": "progressive-rock",
+      "label": "Progressive rock",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "art-rock",
+      "label": "Art rock",
+      "parents": [
+        "rock",
+        "progressive-rock"
+      ]
+    },
+    {
+      "id": "math-rock",
+      "label": "Math rock",
+      "parents": [
+        "rock",
+        "progressive-rock"
+      ]
+    },
+    {
+      "id": "post-rock",
+      "label": "Post rock",
+      "parents": [
+        "rock",
+        "progressive-rock"
+      ]
+    },
+    {
+      "id": "shoegaze",
+      "label": "Shoegaze",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "dream-pop",
+      "label": "Dream pop",
+      "parents": [
+        "rock",
+        "shoegaze"
+      ]
+    },
+    {
+      "id": "grunge",
+      "label": "Grunge",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "emo",
+      "label": "Emo",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "metal",
+      "label": "Metal",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "heavy-metal",
+      "label": "Heavy metal",
+      "parents": [
+        "rock",
+        "metal"
+      ]
+    },
+    {
+      "id": "thrash-metal",
+      "label": "Thrash metal",
+      "parents": [
+        "rock",
+        "metal"
+      ]
+    },
+    {
+      "id": "death-metal",
+      "label": "Death metal",
+      "parents": [
+        "rock",
+        "metal"
+      ]
+    },
+    {
+      "id": "black-metal",
+      "label": "Black metal",
+      "parents": [
+        "rock",
+        "metal"
+      ]
+    },
+    {
+      "id": "doom-metal",
+      "label": "Doom metal",
+      "parents": [
+        "rock",
+        "metal"
+      ]
+    },
+    {
+      "id": "power-metal",
+      "label": "Power metal",
+      "parents": [
+        "rock",
+        "metal"
+      ]
+    },
+    {
+      "id": "metalcore",
+      "label": "Metalcore",
+      "parents": [
+        "rock",
+        "metal"
+      ]
+    },
+    {
+      "id": "nu-metal",
+      "label": "Nu metal",
+      "parents": [
+        "rock",
+        "metal"
+      ]
+    },
+    {
+      "id": "djent",
+      "label": "Djent",
+      "parents": [
+        "rock",
+        "metal"
+      ]
+    },
+    {
+      "id": "rockabilly",
+      "label": "Rockabilly",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "surf-rock",
+      "label": "Surf rock",
+      "parents": [
+        "rock",
+        "rockabilly"
+      ]
+    },
+    {
+      "id": "britpop",
+      "label": "Britpop",
+      "parents": [
+        "rock"
+      ]
+    },
+    {
+      "id": "pop",
+      "label": "Pop",
+      "parents": [],
+      "prompt": "a pop song"
+    },
+    {
+      "id": "synth-pop",
+      "label": "Synth pop",
+      "parents": [
+        "pop"
+      ]
+    },
+    {
+      "id": "indie-pop",
+      "label": "Indie pop",
+      "parents": [
+        "pop"
+      ]
+    },
+    {
+      "id": "electropop",
+      "label": "Electropop",
+      "parents": [
+        "pop"
+      ]
+    },
+    {
+      "id": "dance-pop",
+      "label": "Dance pop",
+      "parents": [
+        "pop"
+      ]
+    },
+    {
+      "id": "k-pop",
+      "label": "K pop",
+      "parents": [
+        "pop"
+      ]
+    },
+    {
+      "id": "j-pop",
+      "label": "J pop",
+      "parents": [
+        "pop"
+      ]
+    },
+    {
+      "id": "city-pop",
+      "label": "City pop",
+      "parents": [
+        "pop"
+      ]
+    },
+    {
+      "id": "art-pop",
+      "label": "Art pop",
+      "parents": [
+        "pop"
+      ]
+    },
+    {
+      "id": "chamber-pop",
+      "label": "Chamber pop",
+      "parents": [
+        "pop"
+      ]
+    },
+    {
+      "id": "hyperpop",
+      "label": "Hyperpop",
+      "parents": [
+        "pop"
+      ]
+    },
+    {
+      "id": "pop-rock",
+      "label": "Pop rock",
+      "parents": [
+        "pop"
+      ]
+    },
+    {
+      "id": "bedroom-pop",
+      "label": "Bedroom pop",
+      "parents": [
+        "pop"
+      ]
+    },
+    {
+      "id": "jazz",
+      "label": "Jazz",
+      "parents": [],
+      "prompt": "a jazz song"
+    },
+    {
+      "id": "bebop",
+      "label": "Bebop",
+      "parents": [
+        "jazz"
+      ]
+    },
+    {
+      "id": "hard-bop",
+      "label": "Hard bop",
+      "parents": [
+        "jazz"
+      ]
+    },
+    {
+      "id": "cool-jazz",
+      "label": "Cool jazz",
+      "parents": [
+        "jazz"
+      ]
+    },
+    {
+      "id": "modal-jazz",
+      "label": "Modal jazz",
+      "parents": [
+        "jazz"
+      ]
+    },
+    {
+      "id": "free-jazz",
+      "label": "Free jazz",
+      "parents": [
+        "jazz"
+      ]
+    },
+    {
+      "id": "fusion",
+      "label": "Fusion",
+      "parents": [
+        "jazz"
+      ]
+    },
+    {
+      "id": "smooth-jazz",
+      "label": "Smooth jazz",
+      "parents": [
+        "jazz"
+      ]
+    },
+    {
+      "id": "acid-jazz",
+      "label": "Acid jazz",
+      "parents": [
+        "jazz"
+      ]
+    },
+    {
+      "id": "nu-jazz",
+      "label": "Nu jazz",
+      "parents": [
+        "jazz"
+      ]
+    },
+    {
+      "id": "bossa-nova",
+      "label": "Bossa nova",
+      "parents": [
+        "jazz"
+      ]
+    },
+    {
+      "id": "swing",
+      "label": "Swing",
+      "parents": [
+        "jazz"
+      ]
+    },
+    {
+      "id": "classical",
+      "label": "Classical",
+      "parents": [],
+      "prompt": "a classical song"
+    },
+    {
+      "id": "baroque",
+      "label": "Baroque",
+      "parents": [
+        "classical"
+      ]
+    },
+    {
+      "id": "romantic-classical",
+      "label": "Romantic classical",
+      "parents": [
+        "classical"
+      ]
+    },
+    {
+      "id": "modern-classical",
+      "label": "Modern classical",
+      "parents": [
+        "classical"
+      ]
+    },
+    {
+      "id": "contemporary-classical",
+      "label": "Contemporary classical",
+      "parents": [
+        "classical"
+      ]
+    },
+    {
+      "id": "neoclassical",
+      "label": "Neoclassical",
+      "parents": [
+        "classical"
+      ]
+    },
+    {
+      "id": "opera",
+      "label": "Opera",
+      "parents": [
+        "classical"
+      ]
+    },
+    {
+      "id": "orchestral",
+      "label": "Orchestral",
+      "parents": [
+        "classical"
+      ]
+    },
+    {
+      "id": "chamber-music",
+      "label": "Chamber music",
+      "parents": [
+        "classical"
+      ]
+    },
+    {
+      "id": "choral",
+      "label": "Choral",
+      "parents": [
+        "classical"
+      ]
+    },
+    {
+      "id": "minimalism",
+      "label": "Minimalism",
+      "parents": [
+        "classical"
+      ]
+    },
+    {
+      "id": "film-score",
+      "label": "Film score",
+      "parents": [
+        "classical"
+      ]
+    },
+    {
+      "id": "soul",
+      "label": "Soul",
+      "parents": [],
+      "prompt": "a soul song"
+    },
+    {
+      "id": "funk",
+      "label": "Funk",
+      "parents": [
+        "soul"
+      ]
+    },
+    {
+      "id": "motown",
+      "label": "Motown",
+      "parents": [
+        "soul"
+      ]
+    },
+    {
+      "id": "neo-soul",
+      "label": "Neo soul",
+      "parents": [
+        "soul"
+      ]
+    },
+    {
+      "id": "r-and-b",
+      "label": "R & b",
+      "parents": [
+        "soul"
+      ]
+    },
+    {
+      "id": "contemporary-r-and-b",
+      "label": "Contemporary r & b",
+      "parents": [
+        "soul"
+      ]
+    },
+    {
+      "id": "disco",
+      "label": "Disco",
+      "parents": [
+        "soul"
+      ]
+    },
+    {
+      "id": "boogie",
+      "label": "Boogie",
+      "parents": [
+        "soul"
+      ]
+    },
+    {
+      "id": "gospel",
+      "label": "Gospel",
+      "parents": [
+        "soul"
+      ]
+    },
+    {
+      "id": "folk",
+      "label": "Folk",
+      "parents": [],
+      "prompt": "a folk song"
+    },
+    {
+      "id": "singer-songwriter",
+      "label": "Singer songwriter",
+      "parents": [
+        "folk"
+      ]
+    },
+    {
+      "id": "americana",
+      "label": "Americana",
+      "parents": [
+        "folk"
+      ]
+    },
+    {
+      "id": "indie-folk",
+      "label": "Indie folk",
+      "parents": [
+        "folk"
+      ]
+    },
+    {
+      "id": "contemporary-folk",
+      "label": "Contemporary folk",
+      "parents": [
+        "folk"
+      ]
+    },
+    {
+      "id": "bluegrass",
+      "label": "Bluegrass",
+      "parents": [
+        "folk"
+      ]
+    },
+    {
+      "id": "celtic",
+      "label": "Celtic",
+      "parents": [
+        "folk"
+      ]
+    },
+    {
+      "id": "folk-rock",
+      "label": "Folk rock",
+      "parents": [
+        "folk"
+      ]
+    },
+    {
+      "id": "world",
+      "label": "World",
+      "parents": [],
+      "prompt": "a world song"
+    },
+    {
+      "id": "afrobeat",
+      "label": "Afrobeat",
+      "parents": [
+        "world"
+      ]
+    },
+    {
+      "id": "afropop",
+      "label": "Afropop",
+      "parents": [
+        "world"
+      ]
+    },
+    {
+      "id": "highlife",
+      "label": "Highlife",
+      "parents": [
+        "world"
+      ]
+    },
+    {
+      "id": "latin",
+      "label": "Latin",
+      "parents": [
+        "world"
+      ]
+    },
+    {
+      "id": "reggaeton",
+      "label": "Reggaeton",
+      "parents": [
+        "world"
+      ]
+    },
+    {
+      "id": "salsa",
+      "label": "Salsa",
+      "parents": [
+        "world"
+      ]
+    },
+    {
+      "id": "cumbia",
+      "label": "Cumbia",
+      "parents": [
+        "world"
+      ]
+    },
+    {
+      "id": "bachata",
+      "label": "Bachata",
+      "parents": [
+        "world"
+      ]
+    },
+    {
+      "id": "flamenco",
+      "label": "Flamenco",
+      "parents": [
+        "world"
+      ]
+    },
+    {
+      "id": "tango",
+      "label": "Tango",
+      "parents": [
+        "world"
+      ]
+    },
+    {
+      "id": "bhangra",
+      "label": "Bhangra",
+      "parents": [
+        "world"
+      ]
+    },
+    {
+      "id": "bollywood",
+      "label": "Bollywood",
+      "parents": [
+        "world"
+      ]
+    },
+    {
+      "id": "country",
+      "label": "Country",
+      "parents": [],
+      "prompt": "a country song"
+    },
+    {
+      "id": "country-pop",
+      "label": "Country pop",
+      "parents": [
+        "country"
+      ]
+    },
+    {
+      "id": "outlaw-country",
+      "label": "Outlaw country",
+      "parents": [
+        "country"
+      ]
+    },
+    {
+      "id": "alt-country",
+      "label": "Alt country",
+      "parents": [
+        "country"
+      ]
+    },
+    {
+      "id": "honky-tonk",
+      "label": "Honky tonk",
+      "parents": [
+        "country"
+      ]
+    },
+    {
+      "id": "country-rock",
+      "label": "Country rock",
+      "parents": [
+        "country"
+      ]
+    },
+    {
+      "id": "nashville-sound",
+      "label": "Nashville sound",
+      "parents": [
+        "country"
+      ]
+    },
+    {
+      "id": "blues",
+      "label": "Blues",
+      "parents": [],
+      "prompt": "a blues song"
+    },
+    {
+      "id": "delta-blues",
+      "label": "Delta blues",
+      "parents": [
+        "blues"
+      ]
+    },
+    {
+      "id": "chicago-blues",
+      "label": "Chicago blues",
+      "parents": [
+        "blues"
+      ]
+    },
+    {
+      "id": "electric-blues",
+      "label": "Electric blues",
+      "parents": [
+        "blues"
+      ]
+    },
+    {
+      "id": "acoustic-blues",
+      "label": "Acoustic blues",
+      "parents": [
+        "blues"
+      ]
+    },
+    {
+      "id": "blues-rock",
+      "label": "Blues rock",
+      "parents": [
+        "blues"
+      ]
+    },
+    {
+      "id": "reggae",
+      "label": "Reggae",
+      "parents": [],
+      "prompt": "a reggae song"
+    },
+    {
+      "id": "roots-reggae",
+      "label": "Roots reggae",
+      "parents": [
+        "reggae"
+      ]
+    },
+    {
+      "id": "dancehall",
+      "label": "Dancehall",
+      "parents": [
+        "reggae"
+      ]
+    },
+    {
+      "id": "dub-reggae",
+      "label": "Dub reggae",
+      "parents": [
+        "reggae"
+      ]
+    },
+    {
+      "id": "ska",
+      "label": "Ska",
+      "parents": [
+        "reggae"
+      ]
+    },
+    {
+      "id": "rocksteady",
+      "label": "Rocksteady",
+      "parents": [
+        "reggae"
+      ]
+    },
+    {
+      "id": "ragga",
+      "label": "Ragga",
+      "parents": [
+        "reggae"
+      ]
+    },
+    {
+      "id": "soundtrack",
+      "label": "Soundtrack",
+      "parents": [],
+      "prompt": "a soundtrack song"
+    },
+    {
+      "id": "tv-score",
+      "label": "Tv score",
+      "parents": [
+        "soundtrack"
+      ]
+    },
+    {
+      "id": "trailer-music",
+      "label": "Trailer music",
+      "parents": [
+        "soundtrack"
+      ]
+    },
+    {
+      "id": "library-music",
+      "label": "Library music",
+      "parents": [
+        "soundtrack"
+      ]
+    },
+    {
+      "id": "musical-theatre",
+      "label": "Musical theatre",
+      "parents": [
+        "soundtrack"
+      ]
+    },
+    {
+      "id": "orchestral-score",
+      "label": "Orchestral score",
+      "parents": [
+        "soundtrack"
+      ]
+    },
+    {
+      "id": "ambient",
+      "label": "Ambient",
+      "parents": [],
+      "prompt": "a ambient song"
+    },
+    {
+      "id": "drone",
+      "label": "Drone",
+      "parents": [
+        "ambient"
+      ]
+    },
+    {
+      "id": "field-recordings",
+      "label": "Field recordings",
+      "parents": [
+        "ambient"
+      ]
+    },
+    {
+      "id": "lowercase",
+      "label": "Lowercase",
+      "parents": [
+        "ambient"
+      ]
+    },
+    {
+      "id": "new-age",
+      "label": "New age",
+      "parents": [
+        "ambient"
+      ]
+    },
+    {
+      "id": "experimental",
+      "label": "Experimental",
+      "parents": [],
+      "prompt": "a experimental song"
+    },
+    {
+      "id": "noise",
+      "label": "Noise",
+      "parents": [
+        "experimental"
+      ]
+    },
+    {
+      "id": "avant-garde",
+      "label": "Avant garde",
+      "parents": [
+        "experimental"
+      ]
+    },
+    {
+      "id": "sound-art",
+      "label": "Sound art",
+      "parents": [
+        "experimental"
+      ]
+    },
+    {
+      "id": "electroacoustic",
+      "label": "Electroacoustic",
+      "parents": [
+        "experimental"
+      ]
+    },
+    {
+      "id": "musique-concrete",
+      "label": "Musique concrete",
+      "parents": [
+        "experimental"
+      ]
+    },
+    {
+      "id": "free-improvisation",
+      "label": "Free improvisation",
+      "parents": [
+        "experimental"
+      ]
+    }
+  ],
+  "moods": [
+    {
+      "id": "calm",
+      "label": "calm",
+      "prompt": "calm sounding music"
+    },
+    {
+      "id": "relaxed",
+      "label": "relaxed",
+      "prompt": "relaxed sounding music"
+    },
+    {
+      "id": "chill",
+      "label": "chill",
+      "prompt": "chill sounding music"
+    },
+    {
+      "id": "dreamy",
+      "label": "dreamy",
+      "prompt": "dreamy sounding music"
+    },
+    {
+      "id": "mellow",
+      "label": "mellow",
+      "prompt": "mellow sounding music"
+    },
+    {
+      "id": "warm",
+      "label": "warm",
+      "prompt": "warm sounding music"
+    },
+    {
+      "id": "cozy",
+      "label": "cozy",
+      "prompt": "cozy sounding music"
+    },
+    {
+      "id": "tender",
+      "label": "tender",
+      "prompt": "tender sounding music"
+    },
+    {
+      "id": "romantic",
+      "label": "romantic",
+      "prompt": "romantic sounding music"
+    },
+    {
+      "id": "sensual",
+      "label": "sensual",
+      "prompt": "sensual sounding music"
+    },
+    {
+      "id": "heartfelt",
+      "label": "heartfelt",
+      "prompt": "heartfelt sounding music"
+    },
+    {
+      "id": "nostalgic",
+      "label": "nostalgic",
+      "prompt": "nostalgic sounding music"
+    },
+    {
+      "id": "wistful",
+      "label": "wistful",
+      "prompt": "wistful sounding music"
+    },
+    {
+      "id": "melancholic",
+      "label": "melancholic",
+      "prompt": "melancholic sounding music"
+    },
+    {
+      "id": "sad",
+      "label": "sad",
+      "prompt": "sad sounding music"
+    },
+    {
+      "id": "somber",
+      "label": "somber",
+      "prompt": "somber sounding music"
+    },
+    {
+      "id": "mournful",
+      "label": "mournful",
+      "prompt": "mournful sounding music"
+    },
+    {
+      "id": "bittersweet",
+      "label": "bittersweet",
+      "prompt": "bittersweet sounding music"
+    },
+    {
+      "id": "lonely",
+      "label": "lonely",
+      "prompt": "lonely sounding music"
+    },
+    {
+      "id": "anxious",
+      "label": "anxious",
+      "prompt": "anxious sounding music"
+    },
+    {
+      "id": "tense",
+      "label": "tense",
+      "prompt": "tense sounding music"
+    },
+    {
+      "id": "dark",
+      "label": "dark",
+      "prompt": "dark sounding music"
+    },
+    {
+      "id": "brooding",
+      "label": "brooding",
+      "prompt": "brooding sounding music"
+    },
+    {
+      "id": "ominous",
+      "label": "ominous",
+      "prompt": "ominous sounding music"
+    },
+    {
+      "id": "eerie",
+      "label": "eerie",
+      "prompt": "eerie sounding music"
+    },
+    {
+      "id": "haunting",
+      "label": "haunting",
+      "prompt": "haunting sounding music"
+    },
+    {
+      "id": "mysterious",
+      "label": "mysterious",
+      "prompt": "mysterious sounding music"
+    },
+    {
+      "id": "hypnotic",
+      "label": "hypnotic",
+      "prompt": "hypnotic sounding music"
+    },
+    {
+      "id": "trippy",
+      "label": "trippy",
+      "prompt": "trippy sounding music"
+    },
+    {
+      "id": "psychedelic",
+      "label": "psychedelic",
+      "prompt": "psychedelic sounding music"
+    },
+    {
+      "id": "uplifting",
+      "label": "uplifting",
+      "prompt": "uplifting sounding music"
+    },
+    {
+      "id": "euphoric",
+      "label": "euphoric",
+      "prompt": "euphoric sounding music"
+    },
+    {
+      "id": "joyful",
+      "label": "joyful",
+      "prompt": "joyful sounding music"
+    },
+    {
+      "id": "happy",
+      "label": "happy",
+      "prompt": "happy sounding music"
+    },
+    {
+      "id": "playful",
+      "label": "playful",
+      "prompt": "playful sounding music"
+    },
+    {
+      "id": "fun",
+      "label": "fun",
+      "prompt": "fun sounding music"
+    },
+    {
+      "id": "quirky",
+      "label": "quirky",
+      "prompt": "quirky sounding music"
+    },
+    {
+      "id": "whimsical",
+      "label": "whimsical",
+      "prompt": "whimsical sounding music"
+    },
+    {
+      "id": "energetic",
+      "label": "energetic",
+      "prompt": "energetic sounding music"
+    },
+    {
+      "id": "driving",
+      "label": "driving",
+      "prompt": "driving sounding music"
+    },
+    {
+      "id": "aggressive",
+      "label": "aggressive",
+      "prompt": "aggressive sounding music"
+    },
+    {
+      "id": "angry",
+      "label": "angry",
+      "prompt": "angry sounding music"
+    },
+    {
+      "id": "intense",
+      "label": "intense",
+      "prompt": "intense sounding music"
+    },
+    {
+      "id": "fierce",
+      "label": "fierce",
+      "prompt": "fierce sounding music"
+    },
+    {
+      "id": "powerful",
+      "label": "powerful",
+      "prompt": "powerful sounding music"
+    },
+    {
+      "id": "epic",
+      "label": "epic",
+      "prompt": "epic sounding music"
+    },
+    {
+      "id": "triumphant",
+      "label": "triumphant",
+      "prompt": "triumphant sounding music"
+    },
+    {
+      "id": "heroic",
+      "label": "heroic",
+      "prompt": "heroic sounding music"
+    },
+    {
+      "id": "anthemic",
+      "label": "anthemic",
+      "prompt": "anthemic sounding music"
+    },
+    {
+      "id": "majestic",
+      "label": "majestic",
+      "prompt": "majestic sounding music"
+    },
+    {
+      "id": "hopeful",
+      "label": "hopeful",
+      "prompt": "hopeful sounding music"
+    },
+    {
+      "id": "optimistic",
+      "label": "optimistic",
+      "prompt": "optimistic sounding music"
+    },
+    {
+      "id": "serene",
+      "label": "serene",
+      "prompt": "serene sounding music"
+    },
+    {
+      "id": "peaceful",
+      "label": "peaceful",
+      "prompt": "peaceful sounding music"
+    },
+    {
+      "id": "meditative",
+      "label": "meditative",
+      "prompt": "meditative sounding music"
+    },
+    {
+      "id": "spiritual",
+      "label": "spiritual",
+      "prompt": "spiritual sounding music"
+    },
+    {
+      "id": "ethereal",
+      "label": "ethereal",
+      "prompt": "ethereal sounding music"
+    },
+    {
+      "id": "airy",
+      "label": "airy",
+      "prompt": "airy sounding music"
+    },
+    {
+      "id": "floating",
+      "label": "floating",
+      "prompt": "floating sounding music"
+    },
+    {
+      "id": "gritty",
+      "label": "gritty",
+      "prompt": "gritty sounding music"
+    },
+    {
+      "id": "confident",
+      "label": "confident",
+      "prompt": "confident sounding music"
+    },
+    {
+      "id": "smooth",
+      "label": "smooth",
+      "prompt": "smooth sounding music"
+    },
+    {
+      "id": "groovy",
+      "label": "groovy",
+      "prompt": "groovy sounding music"
+    },
+    {
+      "id": "bouncy",
+      "label": "bouncy",
+      "prompt": "bouncy sounding music"
+    },
+    {
+      "id": "catchy",
+      "label": "catchy",
+      "prompt": "catchy sounding music"
+    }
+  ],
+  "instruments": [
+    {
+      "id": "drums",
+      "label": "drums",
+      "prompt": "the sound of drums"
+    },
+    {
+      "id": "kick-drum",
+      "label": "kick drum",
+      "prompt": "the sound of kick drum"
+    },
+    {
+      "id": "snare-drum",
+      "label": "snare drum",
+      "prompt": "the sound of snare drum"
+    },
+    {
+      "id": "hi-hat",
+      "label": "hi hat",
+      "prompt": "the sound of hi hat"
+    },
+    {
+      "id": "cymbals",
+      "label": "cymbals",
+      "prompt": "the sound of cymbals"
+    },
+    {
+      "id": "toms",
+      "label": "toms",
+      "prompt": "the sound of toms"
+    },
+    {
+      "id": "drum-machine",
+      "label": "drum machine",
+      "prompt": "the sound of drum machine"
+    },
+    {
+      "id": "808",
+      "label": "808",
+      "prompt": "the sound of 808"
+    },
+    {
+      "id": "909",
+      "label": "909",
+      "prompt": "the sound of 909"
+    },
+    {
+      "id": "bass",
+      "label": "bass",
+      "prompt": "the sound of bass"
+    },
+    {
+      "id": "electric-bass",
+      "label": "electric bass",
+      "prompt": "the sound of electric bass"
+    },
+    {
+      "id": "synth-bass",
+      "label": "synth bass",
+      "prompt": "the sound of synth bass"
+    },
+    {
+      "id": "sub-bass",
+      "label": "sub bass",
+      "prompt": "the sound of sub bass"
+    },
+    {
+      "id": "upright-bass",
+      "label": "upright bass",
+      "prompt": "the sound of upright bass"
+    },
+    {
+      "id": "guitar",
+      "label": "guitar",
+      "prompt": "the sound of guitar"
+    },
+    {
+      "id": "acoustic-guitar",
+      "label": "acoustic guitar",
+      "prompt": "the sound of acoustic guitar"
+    },
+    {
+      "id": "electric-guitar",
+      "label": "electric guitar",
+      "prompt": "the sound of electric guitar"
+    },
+    {
+      "id": "distorted-guitar",
+      "label": "distorted guitar",
+      "prompt": "the sound of distorted guitar"
+    },
+    {
+      "id": "clean-guitar",
+      "label": "clean guitar",
+      "prompt": "the sound of clean guitar"
+    },
+    {
+      "id": "guitar-solo",
+      "label": "guitar solo",
+      "prompt": "the sound of guitar solo"
+    },
+    {
+      "id": "piano",
+      "label": "piano",
+      "prompt": "the sound of piano"
+    },
+    {
+      "id": "grand-piano",
+      "label": "grand piano",
+      "prompt": "the sound of grand piano"
+    },
+    {
+      "id": "electric-piano",
+      "label": "electric piano",
+      "prompt": "the sound of electric piano"
+    },
+    {
+      "id": "rhodes",
+      "label": "rhodes",
+      "prompt": "the sound of rhodes"
+    },
+    {
+      "id": "organ",
+      "label": "organ",
+      "prompt": "the sound of organ"
+    },
+    {
+      "id": "hammond-organ",
+      "label": "hammond organ",
+      "prompt": "the sound of hammond organ"
+    },
+    {
+      "id": "wurlitzer",
+      "label": "wurlitzer",
+      "prompt": "the sound of wurlitzer"
+    },
+    {
+      "id": "harp",
+      "label": "harp",
+      "prompt": "the sound of harp"
+    },
+    {
+      "id": "harpsichord",
+      "label": "harpsichord",
+      "prompt": "the sound of harpsichord"
+    },
+    {
+      "id": "celesta",
+      "label": "celesta",
+      "prompt": "the sound of celesta"
+    },
+    {
+      "id": "strings",
+      "label": "strings",
+      "prompt": "the sound of strings"
+    },
+    {
+      "id": "violin",
+      "label": "violin",
+      "prompt": "the sound of violin"
+    },
+    {
+      "id": "viola",
+      "label": "viola",
+      "prompt": "the sound of viola"
+    },
+    {
+      "id": "cello",
+      "label": "cello",
+      "prompt": "the sound of cello"
+    },
+    {
+      "id": "string-ensemble",
+      "label": "string ensemble",
+      "prompt": "the sound of string ensemble"
+    },
+    {
+      "id": "brass",
+      "label": "brass",
+      "prompt": "the sound of brass"
+    },
+    {
+      "id": "trumpet",
+      "label": "trumpet",
+      "prompt": "the sound of trumpet"
+    },
+    {
+      "id": "trombone",
+      "label": "trombone",
+      "prompt": "the sound of trombone"
+    },
+    {
+      "id": "french-horn",
+      "label": "french horn",
+      "prompt": "the sound of french horn"
+    },
+    {
+      "id": "tuba",
+      "label": "tuba",
+      "prompt": "the sound of tuba"
+    },
+    {
+      "id": "saxophone",
+      "label": "saxophone",
+      "prompt": "the sound of saxophone"
+    },
+    {
+      "id": "flute",
+      "label": "flute",
+      "prompt": "the sound of flute"
+    },
+    {
+      "id": "clarinet",
+      "label": "clarinet",
+      "prompt": "the sound of clarinet"
+    },
+    {
+      "id": "oboe",
+      "label": "oboe",
+      "prompt": "the sound of oboe"
+    },
+    {
+      "id": "bassoon",
+      "label": "bassoon",
+      "prompt": "the sound of bassoon"
+    },
+    {
+      "id": "recorder",
+      "label": "recorder",
+      "prompt": "the sound of recorder"
+    },
+    {
+      "id": "pan-flute",
+      "label": "pan flute",
+      "prompt": "the sound of pan flute"
+    },
+    {
+      "id": "synth",
+      "label": "synth",
+      "prompt": "the sound of synth"
+    },
+    {
+      "id": "analog-synth",
+      "label": "analog synth",
+      "prompt": "the sound of analog synth"
+    },
+    {
+      "id": "modular-synth",
+      "label": "modular synth",
+      "prompt": "the sound of modular synth"
+    },
+    {
+      "id": "pad",
+      "label": "pad",
+      "prompt": "the sound of pad"
+    },
+    {
+      "id": "lead-synth",
+      "label": "lead synth",
+      "prompt": "the sound of lead synth"
+    },
+    {
+      "id": "arpeggiator",
+      "label": "arpeggiator",
+      "prompt": "the sound of arpeggiator"
+    },
+    {
+      "id": "pluck",
+      "label": "pluck",
+      "prompt": "the sound of pluck"
+    },
+    {
+      "id": "bell",
+      "label": "bell",
+      "prompt": "the sound of bell"
+    },
+    {
+      "id": "glockenspiel",
+      "label": "glockenspiel",
+      "prompt": "the sound of glockenspiel"
+    },
+    {
+      "id": "xylophone",
+      "label": "xylophone",
+      "prompt": "the sound of xylophone"
+    },
+    {
+      "id": "marimba",
+      "label": "marimba",
+      "prompt": "the sound of marimba"
+    },
+    {
+      "id": "vibraphone",
+      "label": "vibraphone",
+      "prompt": "the sound of vibraphone"
+    },
+    {
+      "id": "timpani",
+      "label": "timpani",
+      "prompt": "the sound of timpani"
+    },
+    {
+      "id": "percussion",
+      "label": "percussion",
+      "prompt": "the sound of percussion"
+    },
+    {
+      "id": "congas",
+      "label": "congas",
+      "prompt": "the sound of congas"
+    },
+    {
+      "id": "bongos",
+      "label": "bongos",
+      "prompt": "the sound of bongos"
+    },
+    {
+      "id": "djembe",
+      "label": "djembe",
+      "prompt": "the sound of djembe"
+    },
+    {
+      "id": "tablas",
+      "label": "tablas",
+      "prompt": "the sound of tablas"
+    },
+    {
+      "id": "shaker",
+      "label": "shaker",
+      "prompt": "the sound of shaker"
+    },
+    {
+      "id": "tambourine",
+      "label": "tambourine",
+      "prompt": "the sound of tambourine"
+    },
+    {
+      "id": "hand-claps",
+      "label": "hand claps",
+      "prompt": "the sound of hand claps"
+    },
+    {
+      "id": "finger-snaps",
+      "label": "finger snaps",
+      "prompt": "the sound of finger snaps"
+    },
+    {
+      "id": "vocals",
+      "label": "vocals",
+      "prompt": "the sound of vocals"
+    },
+    {
+      "id": "male-vocals",
+      "label": "male vocals",
+      "prompt": "the sound of male vocals"
+    },
+    {
+      "id": "female-vocals",
+      "label": "female vocals",
+      "prompt": "the sound of female vocals"
+    },
+    {
+      "id": "choir",
+      "label": "choir",
+      "prompt": "the sound of choir"
+    },
+    {
+      "id": "vocal-chops",
+      "label": "vocal chops",
+      "prompt": "the sound of vocal chops"
+    },
+    {
+      "id": "vocoder",
+      "label": "vocoder",
+      "prompt": "the sound of vocoder"
+    },
+    {
+      "id": "talkbox",
+      "label": "talkbox",
+      "prompt": "the sound of talkbox"
+    },
+    {
+      "id": "whistle",
+      "label": "whistle",
+      "prompt": "the sound of whistle"
+    },
+    {
+      "id": "accordion",
+      "label": "accordion",
+      "prompt": "the sound of accordion"
+    },
+    {
+      "id": "banjo",
+      "label": "banjo",
+      "prompt": "the sound of banjo"
+    },
+    {
+      "id": "mandolin",
+      "label": "mandolin",
+      "prompt": "the sound of mandolin"
+    },
+    {
+      "id": "ukulele",
+      "label": "ukulele",
+      "prompt": "the sound of ukulele"
+    },
+    {
+      "id": "harmonica",
+      "label": "harmonica",
+      "prompt": "the sound of harmonica"
+    },
+    {
+      "id": "sitar",
+      "label": "sitar",
+      "prompt": "the sound of sitar"
+    },
+    {
+      "id": "koto",
+      "label": "koto",
+      "prompt": "the sound of koto"
+    },
+    {
+      "id": "steel-drum",
+      "label": "steel drum",
+      "prompt": "the sound of steel drum"
+    },
+    {
+      "id": "erhu",
+      "label": "erhu",
+      "prompt": "the sound of erhu"
+    },
+    {
+      "id": "didgeridoo",
+      "label": "didgeridoo",
+      "prompt": "the sound of didgeridoo"
+    },
+    {
+      "id": "brushes",
+      "label": "brushes",
+      "prompt": "the sound of brushes"
+    }
+  ],
+  "descriptors": [
+    {
+      "id": "dusty",
+      "label": "dusty",
+      "prompt": "a dusty sound"
+    },
+    {
+      "id": "lo-fi",
+      "label": "lo fi",
+      "prompt": "a lo fi sound"
+    },
+    {
+      "id": "warm",
+      "label": "warm",
+      "prompt": "a warm sound"
+    },
+    {
+      "id": "bright",
+      "label": "bright",
+      "prompt": "a bright sound"
+    },
+    {
+      "id": "dark",
+      "label": "dark",
+      "prompt": "a dark sound"
+    },
+    {
+      "id": "muddy",
+      "label": "muddy",
+      "prompt": "a muddy sound"
+    },
+    {
+      "id": "crisp",
+      "label": "crisp",
+      "prompt": "a crisp sound"
+    },
+    {
+      "id": "clean",
+      "label": "clean",
+      "prompt": "a clean sound"
+    },
+    {
+      "id": "gritty",
+      "label": "gritty",
+      "prompt": "a gritty sound"
+    },
+    {
+      "id": "noisy",
+      "label": "noisy",
+      "prompt": "a noisy sound"
+    },
+    {
+      "id": "hissy",
+      "label": "hissy",
+      "prompt": "a hissy sound"
+    },
+    {
+      "id": "tape-saturated",
+      "label": "tape saturated",
+      "prompt": "a tape saturated sound"
+    },
+    {
+      "id": "saturated",
+      "label": "saturated",
+      "prompt": "a saturated sound"
+    },
+    {
+      "id": "overdriven",
+      "label": "overdriven",
+      "prompt": "a overdriven sound"
+    },
+    {
+      "id": "distorted",
+      "label": "distorted",
+      "prompt": "a distorted sound"
+    },
+    {
+      "id": "crunchy",
+      "label": "crunchy",
+      "prompt": "a crunchy sound"
+    },
+    {
+      "id": "punchy",
+      "label": "punchy",
+      "prompt": "a punchy sound"
+    },
+    {
+      "id": "tight",
+      "label": "tight",
+      "prompt": "a tight sound"
+    },
+    {
+      "id": "loose",
+      "label": "loose",
+      "prompt": "a loose sound"
+    },
+    {
+      "id": "dry",
+      "label": "dry",
+      "prompt": "a dry sound"
+    },
+    {
+      "id": "wet",
+      "label": "wet",
+      "prompt": "a wet sound"
+    },
+    {
+      "id": "reverb-drenched",
+      "label": "reverb drenched",
+      "prompt": "a reverb drenched sound"
+    },
+    {
+      "id": "cavernous",
+      "label": "cavernous",
+      "prompt": "a cavernous sound"
+    },
+    {
+      "id": "spacious",
+      "label": "spacious",
+      "prompt": "a spacious sound"
+    },
+    {
+      "id": "wide",
+      "label": "wide",
+      "prompt": "a wide sound"
+    },
+    {
+      "id": "narrow",
+      "label": "narrow",
+      "prompt": "a narrow sound"
+    },
+    {
+      "id": "mono",
+      "label": "mono",
+      "prompt": "a mono sound"
+    },
+    {
+      "id": "stereo",
+      "label": "stereo",
+      "prompt": "a stereo sound"
+    },
+    {
+      "id": "sidechained",
+      "label": "sidechained",
+      "prompt": "a sidechained sound"
+    },
+    {
+      "id": "compressed",
+      "label": "compressed",
+      "prompt": "a compressed sound"
+    },
+    {
+      "id": "squashed",
+      "label": "squashed",
+      "prompt": "a squashed sound"
+    },
+    {
+      "id": "dynamic",
+      "label": "dynamic",
+      "prompt": "a dynamic sound"
+    },
+    {
+      "id": "quiet",
+      "label": "quiet",
+      "prompt": "a quiet sound"
+    },
+    {
+      "id": "loud",
+      "label": "loud",
+      "prompt": "a loud sound"
+    },
+    {
+      "id": "soft",
+      "label": "soft",
+      "prompt": "a soft sound"
+    },
+    {
+      "id": "gentle",
+      "label": "gentle",
+      "prompt": "a gentle sound"
+    },
+    {
+      "id": "subtle",
+      "label": "subtle",
+      "prompt": "a subtle sound"
+    },
+    {
+      "id": "aggressive",
+      "label": "aggressive",
+      "prompt": "a aggressive sound"
+    },
+    {
+      "id": "abrasive",
+      "label": "abrasive",
+      "prompt": "a abrasive sound"
+    },
+    {
+      "id": "harsh",
+      "label": "harsh",
+      "prompt": "a harsh sound"
+    },
+    {
+      "id": "smooth",
+      "label": "smooth",
+      "prompt": "a smooth sound"
+    },
+    {
+      "id": "silky",
+      "label": "silky",
+      "prompt": "a silky sound"
+    },
+    {
+      "id": "glossy",
+      "label": "glossy",
+      "prompt": "a glossy sound"
+    },
+    {
+      "id": "polished",
+      "label": "polished",
+      "prompt": "a polished sound"
+    },
+    {
+      "id": "raw",
+      "label": "raw",
+      "prompt": "a raw sound"
+    },
+    {
+      "id": "organic",
+      "label": "organic",
+      "prompt": "a organic sound"
+    },
+    {
+      "id": "acoustic",
+      "label": "acoustic",
+      "prompt": "a acoustic sound"
+    },
+    {
+      "id": "electronic",
+      "label": "electronic",
+      "prompt": "a electronic sound"
+    },
+    {
+      "id": "synthetic",
+      "label": "synthetic",
+      "prompt": "a synthetic sound"
+    },
+    {
+      "id": "robotic",
+      "label": "robotic",
+      "prompt": "a robotic sound"
+    },
+    {
+      "id": "mechanical",
+      "label": "mechanical",
+      "prompt": "a mechanical sound"
+    },
+    {
+      "id": "glitchy",
+      "label": "glitchy",
+      "prompt": "a glitchy sound"
+    },
+    {
+      "id": "stuttering",
+      "label": "stuttering",
+      "prompt": "a stuttering sound"
+    },
+    {
+      "id": "staccato",
+      "label": "staccato",
+      "prompt": "a staccato sound"
+    },
+    {
+      "id": "legato",
+      "label": "legato",
+      "prompt": "a legato sound"
+    },
+    {
+      "id": "sustained",
+      "label": "sustained",
+      "prompt": "a sustained sound"
+    },
+    {
+      "id": "arpeggiated",
+      "label": "arpeggiated",
+      "prompt": "a arpeggiated sound"
+    },
+    {
+      "id": "atmospheric",
+      "label": "atmospheric",
+      "prompt": "a atmospheric sound"
+    },
+    {
+      "id": "ambient",
+      "label": "ambient",
+      "prompt": "a ambient sound"
+    },
+    {
+      "id": "cinematic",
+      "label": "cinematic",
+      "prompt": "a cinematic sound"
+    },
+    {
+      "id": "epic",
+      "label": "epic",
+      "prompt": "a epic sound"
+    },
+    {
+      "id": "anthemic",
+      "label": "anthemic",
+      "prompt": "a anthemic sound"
+    },
+    {
+      "id": "dreamy",
+      "label": "dreamy",
+      "prompt": "a dreamy sound"
+    },
+    {
+      "id": "hazy",
+      "label": "hazy",
+      "prompt": "a hazy sound"
+    },
+    {
+      "id": "foggy",
+      "label": "foggy",
+      "prompt": "a foggy sound"
+    },
+    {
+      "id": "murky",
+      "label": "murky",
+      "prompt": "a murky sound"
+    },
+    {
+      "id": "shimmering",
+      "label": "shimmering",
+      "prompt": "a shimmering sound"
+    },
+    {
+      "id": "sparkling",
+      "label": "sparkling",
+      "prompt": "a sparkling sound"
+    },
+    {
+      "id": "glittering",
+      "label": "glittering",
+      "prompt": "a glittering sound"
+    },
+    {
+      "id": "twinkling",
+      "label": "twinkling",
+      "prompt": "a twinkling sound"
+    },
+    {
+      "id": "piercing",
+      "label": "piercing",
+      "prompt": "a piercing sound"
+    },
+    {
+      "id": "boomy",
+      "label": "boomy",
+      "prompt": "a boomy sound"
+    },
+    {
+      "id": "thumpy",
+      "label": "thumpy",
+      "prompt": "a thumpy sound"
+    },
+    {
+      "id": "thuddy",
+      "label": "thuddy",
+      "prompt": "a thuddy sound"
+    },
+    {
+      "id": "snappy",
+      "label": "snappy",
+      "prompt": "a snappy sound"
+    },
+    {
+      "id": "clicky",
+      "label": "clicky",
+      "prompt": "a clicky sound"
+    },
+    {
+      "id": "crackly",
+      "label": "crackly",
+      "prompt": "a crackly sound"
+    },
+    {
+      "id": "vinyl-crackle",
+      "label": "vinyl crackle",
+      "prompt": "a vinyl crackle sound"
+    },
+    {
+      "id": "tape-hiss",
+      "label": "tape hiss",
+      "prompt": "a tape hiss sound"
+    },
+    {
+      "id": "analog",
+      "label": "analog",
+      "prompt": "a analog sound"
+    },
+    {
+      "id": "vintage",
+      "label": "vintage",
+      "prompt": "a vintage sound"
+    },
+    {
+      "id": "retro",
+      "label": "retro",
+      "prompt": "a retro sound"
+    },
+    {
+      "id": "futuristic",
+      "label": "futuristic",
+      "prompt": "a futuristic sound"
+    },
+    {
+      "id": "sub-heavy",
+      "label": "sub heavy",
+      "prompt": "a sub heavy sound"
+    },
+    {
+      "id": "bass-heavy",
+      "label": "bass heavy",
+      "prompt": "a bass heavy sound"
+    },
+    {
+      "id": "mid-forward",
+      "label": "mid forward",
+      "prompt": "a mid forward sound"
+    },
+    {
+      "id": "scooped-mids",
+      "label": "scooped mids",
+      "prompt": "a scooped mids sound"
+    },
+    {
+      "id": "treble-heavy",
+      "label": "treble heavy",
+      "prompt": "a treble heavy sound"
+    },
+    {
+      "id": "honky",
+      "label": "honky",
+      "prompt": "a honky sound"
+    },
+    {
+      "id": "nasal",
+      "label": "nasal",
+      "prompt": "a nasal sound"
+    },
+    {
+      "id": "breathy",
+      "label": "breathy",
+      "prompt": "a breathy sound"
+    },
+    {
+      "id": "airy",
+      "label": "airy",
+      "prompt": "a airy sound"
+    },
+    {
+      "id": "ethereal",
+      "label": "ethereal",
+      "prompt": "a ethereal sound"
+    },
+    {
+      "id": "floating",
+      "label": "floating",
+      "prompt": "a floating sound"
+    },
+    {
+      "id": "swirling",
+      "label": "swirling",
+      "prompt": "a swirling sound"
+    },
+    {
+      "id": "phasey",
+      "label": "phasey",
+      "prompt": "a phasey sound"
+    },
+    {
+      "id": "flanged",
+      "label": "flanged",
+      "prompt": "a flanged sound"
+    },
+    {
+      "id": "chorused",
+      "label": "chorused",
+      "prompt": "a chorused sound"
+    },
+    {
+      "id": "detuned",
+      "label": "detuned",
+      "prompt": "a detuned sound"
+    },
+    {
+      "id": "wobbling",
+      "label": "wobbling",
+      "prompt": "a wobbling sound"
+    },
+    {
+      "id": "gliding",
+      "label": "gliding",
+      "prompt": "a gliding sound"
+    },
+    {
+      "id": "portamento",
+      "label": "portamento",
+      "prompt": "a portamento sound"
+    },
+    {
+      "id": "filtered",
+      "label": "filtered",
+      "prompt": "a filtered sound"
+    },
+    {
+      "id": "low-passed",
+      "label": "low passed",
+      "prompt": "a low passed sound"
+    },
+    {
+      "id": "high-passed",
+      "label": "high passed",
+      "prompt": "a high passed sound"
+    },
+    {
+      "id": "bandpassed",
+      "label": "bandpassed",
+      "prompt": "a bandpassed sound"
+    },
+    {
+      "id": "resonant",
+      "label": "resonant",
+      "prompt": "a resonant sound"
+    },
+    {
+      "id": "squeaky",
+      "label": "squeaky",
+      "prompt": "a squeaky sound"
+    },
+    {
+      "id": "metallic",
+      "label": "metallic",
+      "prompt": "a metallic sound"
+    },
+    {
+      "id": "glassy",
+      "label": "glassy",
+      "prompt": "a glassy sound"
+    },
+    {
+      "id": "wooden",
+      "label": "wooden",
+      "prompt": "a wooden sound"
+    },
+    {
+      "id": "muted",
+      "label": "muted",
+      "prompt": "a muted sound"
+    },
+    {
+      "id": "dampened",
+      "label": "dampened",
+      "prompt": "a dampened sound"
+    },
+    {
+      "id": "pizzicato",
+      "label": "pizzicato",
+      "prompt": "a pizzicato sound"
+    },
+    {
+      "id": "tremolo",
+      "label": "tremolo",
+      "prompt": "a tremolo sound"
+    },
+    {
+      "id": "vibrato",
+      "label": "vibrato",
+      "prompt": "a vibrato sound"
+    },
+    {
+      "id": "swung",
+      "label": "swung",
+      "prompt": "a swung sound"
+    },
+    {
+      "id": "straight",
+      "label": "straight",
+      "prompt": "a straight sound"
+    },
+    {
+      "id": "syncopated",
+      "label": "syncopated",
+      "prompt": "a syncopated sound"
+    },
+    {
+      "id": "polyrhythmic",
+      "label": "polyrhythmic",
+      "prompt": "a polyrhythmic sound"
+    },
+    {
+      "id": "driving",
+      "label": "driving",
+      "prompt": "a driving sound"
+    },
+    {
+      "id": "pulsing",
+      "label": "pulsing",
+      "prompt": "a pulsing sound"
+    },
+    {
+      "id": "hypnotic",
+      "label": "hypnotic",
+      "prompt": "a hypnotic sound"
+    },
+    {
+      "id": "repetitive",
+      "label": "repetitive",
+      "prompt": "a repetitive sound"
+    },
+    {
+      "id": "minimal",
+      "label": "minimal",
+      "prompt": "a minimal sound"
+    },
+    {
+      "id": "sparse",
+      "label": "sparse",
+      "prompt": "a sparse sound"
+    },
+    {
+      "id": "dense",
+      "label": "dense",
+      "prompt": "a dense sound"
+    },
+    {
+      "id": "layered",
+      "label": "layered",
+      "prompt": "a layered sound"
+    },
+    {
+      "id": "textured",
+      "label": "textured",
+      "prompt": "a textured sound"
+    },
+    {
+      "id": "granular",
+      "label": "granular",
+      "prompt": "a granular sound"
+    },
+    {
+      "id": "chopped",
+      "label": "chopped",
+      "prompt": "a chopped sound"
+    },
+    {
+      "id": "stuttered",
+      "label": "stuttered",
+      "prompt": "a stuttered sound"
+    },
+    {
+      "id": "reversed",
+      "label": "reversed",
+      "prompt": "a reversed sound"
+    },
+    {
+      "id": "pitched-up",
+      "label": "pitched up",
+      "prompt": "a pitched up sound"
+    },
+    {
+      "id": "pitched-down",
+      "label": "pitched down",
+      "prompt": "a pitched down sound"
+    },
+    {
+      "id": "halftime",
+      "label": "halftime",
+      "prompt": "a halftime sound"
+    },
+    {
+      "id": "double-time",
+      "label": "double time",
+      "prompt": "a double time sound"
+    },
+    {
+      "id": "maximalist",
+      "label": "maximalist",
+      "prompt": "a maximalist sound"
+    },
+    {
+      "id": "lush",
+      "label": "lush",
+      "prompt": "a lush sound"
+    },
+    {
+      "id": "orchestral",
+      "label": "orchestral",
+      "prompt": "a orchestral sound"
+    },
+    {
+      "id": "symphonic",
+      "label": "symphonic",
+      "prompt": "a symphonic sound"
+    },
+    {
+      "id": "chamber",
+      "label": "chamber",
+      "prompt": "a chamber sound"
+    },
+    {
+      "id": "intimate",
+      "label": "intimate",
+      "prompt": "a intimate sound"
+    },
+    {
+      "id": "lo-fi-vocals",
+      "label": "lo fi vocals",
+      "prompt": "a lo fi vocals sound"
+    },
+    {
+      "id": "vocoded",
+      "label": "vocoded",
+      "prompt": "a vocoded sound"
+    },
+    {
+      "id": "autotuned",
+      "label": "autotuned",
+      "prompt": "a autotuned sound"
+    },
+    {
+      "id": "spoken",
+      "label": "spoken",
+      "prompt": "a spoken sound"
+    },
+    {
+      "id": "whispered",
+      "label": "whispered",
+      "prompt": "a whispered sound"
+    },
+    {
+      "id": "shouted",
+      "label": "shouted",
+      "prompt": "a shouted sound"
+    },
+    {
+      "id": "chanted",
+      "label": "chanted",
+      "prompt": "a chanted sound"
+    },
+    {
+      "id": "harmonized",
+      "label": "harmonized",
+      "prompt": "a harmonized sound"
+    },
+    {
+      "id": "stacked-vocals",
+      "label": "stacked vocals",
+      "prompt": "a stacked vocals sound"
+    },
+    {
+      "id": "call-and-response",
+      "label": "call and response",
+      "prompt": "a call and response sound"
+    },
+    {
+      "id": "hooky",
+      "label": "hooky",
+      "prompt": "a hooky sound"
+    },
+    {
+      "id": "singalong",
+      "label": "singalong",
+      "prompt": "a singalong sound"
+    },
+    {
+      "id": "danceable",
+      "label": "danceable",
+      "prompt": "a danceable sound"
+    },
+    {
+      "id": "clubby",
+      "label": "clubby",
+      "prompt": "a clubby sound"
+    },
+    {
+      "id": "festival",
+      "label": "festival",
+      "prompt": "a festival sound"
+    },
+    {
+      "id": "bedroom",
+      "label": "bedroom",
+      "prompt": "a bedroom sound"
+    },
+    {
+      "id": "diy",
+      "label": "diy",
+      "prompt": "a diy sound"
+    },
+    {
+      "id": "lo-fi-beats",
+      "label": "lo fi beats",
+      "prompt": "a lo fi beats sound"
+    },
+    {
+      "id": "boom-bap-drums",
+      "label": "boom bap drums",
+      "prompt": "a boom bap drums sound"
+    },
+    {
+      "id": "trap-drums",
+      "label": "trap drums",
+      "prompt": "a trap drums sound"
+    },
+    {
+      "id": "breakbeat-drums",
+      "label": "breakbeat drums",
+      "prompt": "a breakbeat drums sound"
+    },
+    {
+      "id": "half-time-drums",
+      "label": "half time drums",
+      "prompt": "a half time drums sound"
+    },
+    {
+      "id": "four-on-the-floor",
+      "label": "four on the floor",
+      "prompt": "a four on the floor sound"
+    },
+    {
+      "id": "offbeat",
+      "label": "offbeat",
+      "prompt": "a offbeat sound"
+    },
+    {
+      "id": "shuffled",
+      "label": "shuffled",
+      "prompt": "a shuffled sound"
+    },
+    {
+      "id": "funky",
+      "label": "funky",
+      "prompt": "a funky sound"
+    },
+    {
+      "id": "groovy",
+      "label": "groovy",
+      "prompt": "a groovy sound"
+    },
+    {
+      "id": "polytonal",
+      "label": "polytonal",
+      "prompt": "a polytonal sound"
+    },
+    {
+      "id": "dissonant",
+      "label": "dissonant",
+      "prompt": "a dissonant sound"
+    },
+    {
+      "id": "consonant",
+      "label": "consonant",
+      "prompt": "a consonant sound"
+    },
+    {
+      "id": "modal",
+      "label": "modal",
+      "prompt": "a modal sound"
+    },
+    {
+      "id": "chromatic",
+      "label": "chromatic",
+      "prompt": "a chromatic sound"
+    },
+    {
+      "id": "minor-key",
+      "label": "minor key",
+      "prompt": "a minor key sound"
+    },
+    {
+      "id": "major-key",
+      "label": "major key",
+      "prompt": "a major key sound"
+    },
+    {
+      "id": "anthemic-chorus",
+      "label": "anthemic chorus",
+      "prompt": "a anthemic chorus sound"
+    },
+    {
+      "id": "vocal-forward",
+      "label": "vocal forward",
+      "prompt": "a vocal forward sound"
+    },
+    {
+      "id": "instrumental",
+      "label": "instrumental",
+      "prompt": "a instrumental sound"
+    },
+    {
+      "id": "beat-driven",
+      "label": "beat driven",
+      "prompt": "a beat driven sound"
+    },
+    {
+      "id": "sample-based",
+      "label": "sample based",
+      "prompt": "a sample based sound"
+    },
+    {
+      "id": "live-drums",
+      "label": "live drums",
+      "prompt": "a live drums sound"
+    },
+    {
+      "id": "programmed-drums",
+      "label": "programmed drums",
+      "prompt": "a programmed drums sound"
+    },
+    {
+      "id": "arpeggiated-synths",
+      "label": "arpeggiated synths",
+      "prompt": "a arpeggiated synths sound"
+    },
+    {
+      "id": "sidechained-pads",
+      "label": "sidechained pads",
+      "prompt": "a sidechained pads sound"
+    },
+    {
+      "id": "wall-of-sound",
+      "label": "wall of sound",
+      "prompt": "a wall of sound sound"
+    },
+    {
+      "id": "stripped-back",
+      "label": "stripped back",
+      "prompt": "a stripped back sound"
+    },
+    {
+      "id": "hazy-vocals",
+      "label": "hazy vocals",
+      "prompt": "a hazy vocals sound"
+    },
+    {
+      "id": "warm-bass",
+      "label": "warm bass",
+      "prompt": "a warm bass sound"
+    },
+    {
+      "id": "cold",
+      "label": "cold",
+      "prompt": "a cold sound"
+    },
+    {
+      "id": "clinical",
+      "label": "clinical",
+      "prompt": "a clinical sound"
+    },
+    {
+      "id": "lo-fi-texture",
+      "label": "lo fi texture",
+      "prompt": "a lo fi texture sound"
+    },
+    {
+      "id": "high-fidelity-fidelity",
+      "label": "high fidelity fidelity",
+      "prompt": "a high fidelity fidelity sound"
+    },
+    {
+      "id": "acoustic-drums",
+      "label": "acoustic drums",
+      "prompt": "a acoustic drums sound"
+    },
+    {
+      "id": "electric-drums",
+      "label": "electric drums",
+      "prompt": "a electric drums sound"
+    },
+    {
+      "id": "drum-break",
+      "label": "drum break",
+      "prompt": "a drum break sound"
+    },
+    {
+      "id": "one-shot",
+      "label": "one shot",
+      "prompt": "a one shot sound"
+    },
+    {
+      "id": "loop-based",
+      "label": "loop based",
+      "prompt": "a loop based sound"
+    },
+    {
+      "id": "quantized",
+      "label": "quantized",
+      "prompt": "a quantized sound"
+    },
+    {
+      "id": "humanized",
+      "label": "humanized",
+      "prompt": "a humanized sound"
+    }
+  ],
+  "eras": [
+    {
+      "id": "1950s",
+      "label": "1950s",
+      "prompt": "music from the 1950s"
+    },
+    {
+      "id": "1960s",
+      "label": "1960s",
+      "prompt": "music from the 1960s"
+    },
+    {
+      "id": "1970s",
+      "label": "1970s",
+      "prompt": "music from the 1970s"
+    },
+    {
+      "id": "1980s",
+      "label": "1980s",
+      "prompt": "music from the 1980s"
+    },
+    {
+      "id": "1990s",
+      "label": "1990s",
+      "prompt": "music from the 1990s"
+    },
+    {
+      "id": "2000s",
+      "label": "2000s",
+      "prompt": "music from the 2000s"
+    },
+    {
+      "id": "2010s",
+      "label": "2010s",
+      "prompt": "music from the 2010s"
+    },
+    {
+      "id": "2020s",
+      "label": "2020s",
+      "prompt": "music from the 2020s"
+    }
+  ]
+}

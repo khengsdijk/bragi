@@ -2644,6 +2644,12 @@ impl<'de> ::serde::Deserialize<'de> for DrumSplitResultSchemaVersion {
 pub struct EmbeddingResult {
     ///Vector length; 512 for the v1 CLAP checkpoints (04 §6.1).
     pub dim: ::std::num::NonZeroU64,
+    ///True when the audio had too little energy or duration to embed meaningfully; the vectors are still published (04 §10).
+    #[serde(
+        rename = "lowConfidence",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub low_confidence: ::std::option::Option<bool>,
     ///Model and checkpoint, e.g. "laion-clap-music-1".
     pub model: EmbeddingResultModel,
     #[serde(rename = "schemaVersion")]
@@ -8125,6 +8131,12 @@ pub struct TagResult {
     pub era: ::std::option::Option<TagScore>,
     pub genres: TagScoreList,
     pub instruments: TagScoreList,
+    ///True when the labels come from the untrained zero-shot fallback or the audio had too little energy to classify (04 §10).
+    #[serde(
+        rename = "lowConfidence",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub low_confidence: ::std::option::Option<bool>,
     pub moods: TagScoreList,
     #[serde(rename = "schemaVersion")]
     pub schema_version: TagResultSchemaVersion,
