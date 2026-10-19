@@ -15,7 +15,7 @@ use serde::Deserialize;
 use crate::assets::AssetIndex;
 use crate::clipmath::clip_end_local;
 use crate::error::{ValidationCode, ValidationError};
-use crate::generated::{FxInstance, Project, TempoPoint};
+use crate::generated::{FxInstance, FxType, Project, TempoPoint};
 use crate::time::{MAX_BPM, MIN_BPM, TempoCtx};
 
 /// The lowest pan the specification allows (`specs/02-song-model.md` §3.4).
@@ -50,7 +50,7 @@ pub fn validate(doc: &Project, assets: &AssetIndex) -> Result<(), Vec<Validation
     check_tempo_map(&doc.arrangement.timebase.tempo_map.0, &mut errors);
     check_numeric_bounds(doc, &mut errors);
     check_clips(doc, assets, &mut errors);
-    check_fx(doc, &mut errors);
+    check_fx(doc, &tracks, &mut errors);
     errors.sort_by(|a, b| (a.op_index, a.code, &a.message).cmp(&(b.op_index, b.code, &b.message)));
     if errors.is_empty() {
         Ok(())
@@ -316,24 +316,72 @@ fn check_overlaps(spans: &[ClipSpan], section: &str, errors: &mut Vec<Validation
     }
 }
 
-/// Checks invariant 5 against the shared catalogue (03 §6).
-fn check_fx(doc: &Project, errors: &mut Vec<ValidationError>) {
+/// Checks invariant 5 against the shared catalogue (03 §6), plus the routing field of
+/// `sidechain_duck` (02 §3.7, §5).
+fn check_fx(doc: &Project, tracks: &BTreeSet<String>, errors: &mut Vec<ValidationError>) {
     for track in &doc.tracks {
         for fx in &track.fx.0 {
             check_fx_params(fx, errors);
+            check_sidechain_source(fx, Some(&track.id), tracks, errors);
         }
     }
     for section in &doc.arrangement.sections {
-        for lane in section.lanes.values() {
+        for (track_id, lane) in &section.lanes.0 {
             for clip in &lane.clips {
                 for fx in clip.fx.iter().flat_map(|chain| chain.0.iter()) {
                     check_fx_params(fx, errors);
+                    check_sidechain_source(fx, Some(track_id), tracks, errors);
                 }
             }
         }
     }
     for fx in &doc.arrangement.master.fx.0 {
         check_fx_params(fx, errors);
+        check_sidechain_source(fx, None, tracks, errors);
+    }
+}
+
+/// A `sidechainSource` must name an existing track other than the duck's own track, and only
+/// `sidechain_duck` may carry one (02 §3.7).
+fn check_sidechain_source(
+    fx: &FxInstance,
+    owner: Option<&crate::generated::TrackId>,
+    tracks: &BTreeSet<String>,
+    errors: &mut Vec<ValidationError>,
+) {
+    let Some(source) = &fx.sidechain_source else {
+        return;
+    };
+    if fx.type_ != FxType::SidechainDuck {
+        push(
+            errors,
+            ValidationCode::FxParam,
+            format!(
+                "fx {} has a sidechainSource but is {}, not sidechain_duck",
+                fx.id, fx.type_
+            ),
+        );
+        return;
+    }
+    if !tracks.contains(source.as_str()) {
+        push(
+            errors,
+            ValidationCode::UnknownTrack,
+            format!(
+                "fx {} (sidechain_duck) references unknown track {source}",
+                fx.id
+            ),
+        );
+    }
+    if owner.is_some_and(|owner| owner == source) {
+        push(
+            errors,
+            ValidationCode::FxParam,
+            format!(
+                "fx {} cannot use its own track {source} as sidechainSource",
+                fx.id
+            ),
+        );
     }
 }
 

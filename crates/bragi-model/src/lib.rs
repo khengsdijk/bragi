@@ -29,6 +29,7 @@ pub mod diff;
 pub mod error;
 pub mod generated;
 mod ids;
+mod patch;
 pub mod region;
 pub mod spans;
 pub mod time;

@@ -114,13 +114,20 @@ pub struct FxSlot {
     pub params: Vec<(usize, f32)>,
     /// Bypassed in the document (or because the effect cannot run yet).
     pub bypass: bool,
-    /// Index of the source track for `sidechain_duck`.
-    ///
-    /// `None` because the document schema's `FxParams` is numeric-only and
-    /// cannot carry the `TrackId` that 03 §6 calls for; see the spec gap in
-    /// `docs/wp/2.3.md`. A duck without a source is bypassed.
+    /// Index of the source track for `sidechain_duck`, resolved from the
+    /// document's `sidechainSource` (03 §6 `sourceTrack`). A duck without a
+    /// source is bypassed; it behaves as identity.
     pub sidechain_source: Option<usize>,
+    /// The effect's algorithmic latency in frames, from
+    /// [`Effect::latency`](bragi_dsp::fx::Effect::latency) at compile time
+    /// (0 for an unimplemented kind). Used for plugin delay compensation and
+    /// to report a compensation delay beyond [`MAX_COMPENSATION_FRAMES`].
+    pub latency: usize,
 }
+
+/// The largest plugin-delay-compensation delay a track may ask for, in frames
+/// (about 171 ms at 48 kHz). A plan that would need more is clamped and warns.
+pub const MAX_COMPENSATION_FRAMES: usize = 8192;
 
 /// One clip occurrence flattened to absolute output samples.
 #[derive(Clone, Debug)]
@@ -507,6 +514,7 @@ fn compile_with(
 
     let master_fx = compile_fx_chain(
         &doc.arrangement.master.fx,
+        doc,
         sample_rate,
         "master",
         &mut warnings,
@@ -519,6 +527,24 @@ fn compile_with(
         ceiling: 10.0_f32.powf(-0.3 / 20.0),
         fx: master_fx,
     };
+
+    // Plugin delay compensation: the slowest track sets the alignment point.
+    // The renderer clamps each per-track delay to `MAX_COMPENSATION_FRAMES`;
+    // report the tracks that hit the cap (03 §6, §9).
+    let latencies: Vec<usize> = tracks
+        .iter()
+        .map(|track| chain_latency(&track.fx))
+        .collect();
+    let max_latency = latencies.iter().copied().max().unwrap_or(0);
+    for (track, latency) in tracks.iter().zip(&latencies) {
+        let compensation = max_latency.saturating_sub(*latency);
+        if compensation > MAX_COMPENSATION_FRAMES {
+            warnings.push(format!(
+                "track {}: plugin delay compensation of {compensation} frames exceeds the {} frame cap; clamped",
+                track.id, MAX_COMPENSATION_FRAMES
+            ));
+        }
+    }
 
     Ok(RenderPlan {
         sample_rate,
@@ -577,6 +603,7 @@ fn compile_track(
         automation: track_automation(track, doc, tempo, spans, sample_rate),
         fx: compile_fx_chain(
             &track.fx,
+            doc,
             sample_rate,
             &format!("track {}", track.id),
             warnings,
@@ -592,6 +619,7 @@ fn compile_track(
 /// partly landed catalogue is audible rather than fatal.
 fn compile_fx_chain(
     chain: &[FxInstance],
+    doc: &Project,
     sample_rate: u32,
     scope: &str,
     warnings: &mut Vec<String>,
@@ -606,15 +634,19 @@ fn compile_fx_chain(
             ));
             continue;
         };
-        if create(kind, sample_rate, crate::QUANTUM_FRAMES).is_err()
-            && !unavailable.contains(&kind.name())
-        {
-            unavailable.push(kind.name());
-            warnings.push(format!(
-                "{scope}: fx type {} is not implemented yet; its instances are bypassed",
-                kind.name()
-            ));
-        }
+        let latency = match create(kind, sample_rate, crate::QUANTUM_FRAMES) {
+            Ok(effect) => effect.latency(),
+            Err(_) => {
+                if !unavailable.contains(&kind.name()) {
+                    unavailable.push(kind.name());
+                    warnings.push(format!(
+                        "{scope}: fx type {} is not implemented yet; its instances are bypassed",
+                        kind.name()
+                    ));
+                }
+                0
+            }
+        };
 
         let mut params = Vec::with_capacity(instance.params.len());
         for (name, value) in instance.params.iter() {
@@ -627,17 +659,23 @@ fn compile_fx_chain(
             }
         }
 
-        // `sidechain_duck.sourceTrack` is a TrackId in 03 §6, but the schema's
-        // `FxParams` is numeric-only (`specs/02-song-model.md` §3.7), so there is
-        // nowhere to store it. A duck without a source is bypassed (the gap is
-        // recorded in `docs/wp/2.3.md`).
+        // `sidechainSource` is a routing field outside `params` (02 §3.7). The
+        // validator rejects a missing or self-referencing track; resolving it
+        // here keeps the audio thread free of IDs.
+        let sidechain_source = instance
+            .sidechain_source
+            .as_ref()
+            .and_then(|id| doc.tracks.iter().position(|track| &track.id == id));
         let mut bypass = instance.bypass;
-        if kind == FxKind::SidechainDuck {
-            bypass = true;
+        if kind == FxKind::SidechainDuck
+            && instance.sidechain_source.is_some()
+            && sidechain_source.is_none()
+        {
             warnings.push(format!(
-                "{scope}: fx {} is sidechain_duck, but sourceTrack cannot be stored in FxParams; bypassed",
+                "{scope}: fx {} sidechain_duck source is not a track; bypassed",
                 instance.id
             ));
+            bypass = true;
         }
 
         slots.push(FxSlot {
@@ -645,10 +683,21 @@ fn compile_fx_chain(
             kind,
             params,
             bypass,
-            sidechain_source: None,
+            sidechain_source,
+            latency,
         });
     }
     slots
+}
+
+/// The chain latency of compiled slots: the sum of every non-bypassed effect's
+/// algorithmic latency. A bypassed slot contributes none.
+fn chain_latency(slots: &[FxSlot]) -> usize {
+    slots
+        .iter()
+        .filter(|slot| !slot.bypass)
+        .map(|slot| slot.latency)
+        .sum()
 }
 
 #[allow(clippy::too_many_arguments)]

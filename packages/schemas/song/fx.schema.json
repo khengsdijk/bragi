@@ -10,7 +10,11 @@
     "type": { "$ref": "#/$defs/FxType" },
     "params": { "$ref": "#/$defs/FxParams" },
     "bypass": { "type": "boolean" },
-    "macroOwned": { "$ref": "common.schema.json#/$defs/MacroId" }
+    "macroOwned": { "$ref": "common.schema.json#/$defs/MacroId" },
+    "sidechainSource": {
+      "$ref": "common.schema.json#/$defs/TrackId",
+      "description": "The key track for `sidechain_duck` (03 §6 `sourceTrack`). Only valid on `sidechain_duck`."
+    }
   },
   "$defs": {
     "FxType": {

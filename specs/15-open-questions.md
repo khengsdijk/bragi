@@ -65,7 +65,7 @@ rows.
 | # | Question | Needed by | Owner | Notes |
 |---|---|---|---|---|
 | Q21 | `section.move` cannot express "smooth the transitions" (02 §5.1 says the moved section and its successor become a 1-beat `crossfade` *if smoothing is requested*, but the op payload has no flag). Should the planner/UI add a flag, make smoothing unconditional, or drop 02 §5.1's rule? WP-0.3 leaves transitions alone and only re-anchors master automation. | WP-1.8 (planner) | Agent | [02 §5.1](02-song-model.md), `packages/schemas/song/ops/section.move.schema.json` |
-| Q22 | `crates/bragi-dsp/fx_catalog.json` (03 §6) did not exist; WP-0.3 created it so `validate` can enforce invariant 5 (FX param ranges). WP-0.4/1.1 own `bragi-dsp` and may extend it (non-numeric params such as `sidechain_duck.sourceTrack`, `match_eq.bands` are in the file but not yet validated, because `FxParams` only holds numbers). Confirm the ranges and the missing structural validation. | WP-0.4 / WP-1.1 | Agent | [03 §6](03-audio-engine.md), `crates/bragi-dsp/fx_catalog.json` |
+| Q22 | `crates/bragi-dsp/fx_catalog.json` (03 §6) did not exist; WP-0.3 created it so `validate` can enforce invariant 5 (FX param ranges). WP-0.4/1.1 own `bragi-dsp` and may extend it. `sidechain_duck.sourceTrack` is now structural (`FxInstance.sidechainSource`; 02 §4.3 invariant 8), while `match_eq.bands` remains in the file but is not validated as a number array. Confirm the ranges and the remaining structural validation. | WP-0.4 / WP-1.1 | Agent | [03 §6](03-audio-engine.md), `crates/bragi-dsp/fx_catalog.json` |
 
 ## Added by WP-1.2
 

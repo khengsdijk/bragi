@@ -18,6 +18,27 @@
     },
     "bypass": {
       "type": "boolean"
+    },
+    "sidechainSource": {
+      "$ref": "#/$defs/SidechainSourcePatch",
+      "description": "The key track for `sidechain_duck` (03 §6 `sourceTrack`); `null` clears it."
+    }
+  },
+  "$defs": {
+    "SidechainSourcePatch": {
+      "description": "A new sidechain source, or `null` to clear it (02 §4.2 `fx.update`).",
+      "oneOf": [
+        {
+          "$ref": "../common.schema.json#/$defs/TrackId"
+        },
+        {
+          "$ref": "#/$defs/Null"
+        }
+      ]
+    },
+    "Null": {
+      "description": "JSON null.",
+      "type": "null"
     }
   }
 }

@@ -190,6 +190,10 @@ export type FxType =
  */
 export type MacroId = string;
 /**
+ * Track ID: `trk_` + ULID (02 §2.1).
+ */
+export type TrackId = string;
+/**
  * An ordered effect chain.
  */
 export type FxChain = FxInstance[];
@@ -213,10 +217,6 @@ export type EnergyTarget = CurvePoint[];
 export type AutomationClearOpOp = "automation.clear";
 export type AutomationScope = LaneAutomationScope | MasterAutomationScope;
 export type LaneAutomationScopeKind = "lane";
-/**
- * Track ID: `trk_` + ULID (02 §2.1).
- */
-export type TrackId = string;
 export type MasterAutomationScopeKind = "master";
 export type AutomationSetOpOp = "automation.set";
 export type ClipAddOpOp = "clip.add";
@@ -294,6 +294,14 @@ export type MasterFxScopeKind = "master";
 export type FxRemoveOpOp = "fx.remove";
 export type FxReorderOpOp = "fx.reorder";
 export type FxUpdateOpOp = "fx.update";
+/**
+ * A new sidechain source, or `null` to clear it (02 §4.2 `fx.update`).
+ */
+export type SidechainSourcePatch = TrackId | Null;
+/**
+ * JSON null.
+ */
+export type Null = null;
 export type SectionDuplicateOpOp = "section.duplicate";
 export type SectionInsertOpOp = "section.insert";
 export type SectionMergeOpOp = "section.merge";
@@ -724,6 +732,7 @@ export interface FxInstance {
   params: FxParams;
   bypass: boolean;
   macroOwned?: MacroId;
+  sidechainSource?: TrackId;
 }
 /**
  * Parameter values by name, e.g. { "cutoffHz": 800 }.
@@ -1079,6 +1088,7 @@ export interface FxUpdateOp {
   fxId: FxId;
   paramsPatch: FxParams;
   bypass?: boolean;
+  sidechainSource?: SidechainSourcePatch;
 }
 /**
  * `section.duplicate` (02 §4.2). Deep-copy a section with new IDs and set derivedFrom (02 §5.1).

@@ -166,6 +166,75 @@ fn process_never_allocates() {
 }
 
 #[test]
+fn plugin_delay_compensation_never_allocates_on_the_audio_thread() {
+    let h = hash('a');
+    let doc = |with_saturation: bool| {
+        let mut doc = project(
+            vec![track("trk_01"), track("trk_02")],
+            vec![section(
+                "sec_a",
+                BAR_TICKS * 5,
+                json!({
+                    "trk_01": lane(vec![clip_none("clp_01", &h, 0, 480_000, 0)]),
+                    "trk_02": lane(vec![clip_none("clp_02", &h, 0, 480_000, 0)]),
+                }),
+            )],
+        );
+        if with_saturation {
+            doc.tracks[0]
+                .fx
+                .0
+                .push(fx_instance("fx_sat", "saturation", &[], false));
+        }
+        doc.arrangement
+            .master
+            .fx
+            .0
+            .push(fx_instance("fx_lim", "limiter", &[], false));
+        doc
+    };
+    let with_sat = doc(true);
+    let without_sat = doc(false);
+    let asset_index = assets(&h, 480_000);
+    let first = compile(&with_sat, &asset_index, 48_000, 1).unwrap();
+    let second = compile(&without_sat, &asset_index, 48_000, 1).unwrap();
+    let source = pcm(&h, tone(480_000, 220.0, 0.4));
+
+    let mut renderer = Renderer::new(Arc::new(first), BLOCK);
+    renderer.transport_mut().play();
+    let mut left = [0.0f32; BLOCK];
+    let mut right = [0.0f32; BLOCK];
+    // Fill the compensation delay lines and the master limiter.
+    for _ in 0..8 {
+        renderer.process(&source, &mut [&mut left, &mut right]);
+    }
+    alloc_guard::reset_violations();
+
+    // 30 frames of compensation disappear; the delay line is carried over.
+    let prepared = PreparedPlan::new(Arc::new(second), quality_for(false), BLOCK);
+    let previous = renderer.set_prepared(prepared);
+    drop(previous);
+    for _ in 0..64 {
+        renderer.process(&source, &mut [&mut left, &mut right]);
+    }
+    // ...and comes back, with the compensation depth changing again.
+    let prepared = PreparedPlan::new(
+        Arc::new(compile(&with_sat, &asset_index, 48_000, 2).unwrap()),
+        quality_for(false),
+        BLOCK,
+    );
+    let previous = renderer.set_prepared(prepared);
+    drop(previous);
+    for _ in 0..64 {
+        renderer.process(&source, &mut [&mut left, &mut right]);
+    }
+
+    let violations = alloc_guard::Guard::violations();
+    println!("guarded allocations with PDC and a plan swap: {violations}");
+    alloc_guard::assert_clean();
+}
+
+#[test]
 fn a_missing_chunk_does_not_allocate() {
     let hash = hash('1');
     let doc = project(

@@ -1,6 +1,6 @@
 # 02 — Song Model & Versioning
 
-Status: Draft v0.3 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
+Status: Draft v0.4 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
 
 This is the **architectural heart** of Bragi. Every feature (canvas, AI edits, generation, fusion, export) reads and writes this model, and nothing else. If a feature can't be expressed as operations on this model, the model is extended here first (with an ADR).
 
@@ -196,7 +196,14 @@ type FxType = "eq3" | "filter" | "compressor" | "saturation" | "reverb" | "delay
             | "width" | "gain" | "transient" | "lofi" | "chorus" | "sidechain_duck"
             | "match_eq" | "limiter";   // match_eq: system-generated; limiter: master only
 
-interface FxInstance { id: FxId; type: FxType; params: Record<string, number>; bypass: boolean; macroOwned?: MacroId }
+interface FxInstance {
+  id: FxId;
+  type: FxType;
+  params: Record<string, number>;
+  bypass: boolean;
+  macroOwned?: MacroId;
+  sidechainSource?: TrackId;   // only on sidechain_duck; 03 §6 sourceTrack
+}
 
 interface Automation {
   target: string;               // param path, e.g. "track:trk_…/gainDb", "fx:fx_…/cutoffHz"
@@ -204,6 +211,7 @@ interface Automation {
 }
 ```
 - The parameter ranges and defaults for each `FxType` are defined in `crates/bragi-dsp/fx_catalog.json`, which is shared with the UI and planner. See [03-audio-engine.md §6](03-audio-engine.md).
+- `sidechainSource` is **routing**, not a numeric parameter: it names the key track for `sidechain_duck` (03 §6 `sourceTrack`) and is stored outside `params` so `FxParams` stays `Record<string, number>`. Only `sidechain_duck` may carry it.
 - **Lane automation** is relative to its section. **Master automation** uses absolute arrangement ticks (used for global fades) and is re-anchored by `section.move` ops (see §5.3).
 - `fx.add` and `automation.set`/`automation.clear` carry a **scope**, because an effect or curve can live in three different places:
   ```ts
@@ -251,10 +259,10 @@ A batch is atomic: it applies fully or not at all.
 | `project.set_meta` | title?, tags?, description?, color?, suggestedSections? | An empty `suggestedSections` clears the analysis suggestions (02 §6.3) |
 | `analysis.apply` | sourceId, stage, blob, effects[] | System op. Records an analysis stage and reconciles the document with it: creates the full-mix track and section, sets the tempo map, splits the arrangement into analysed sections, creates stem tracks and fills lanes. Deterministic and order-independent. See §6. |
 | `track.add` | track, index? | |
-| `track.remove` | trackId | Also removes its lanes |
+| `track.remove` | trackId | Also removes its lanes and clears every `sidechainSource` that pointed at it |
 | `track.update` | trackId, patch (name, color, gainDb, pan, mute, solo, hidden) | |
 | `fx.add` | scope (track/clip/master), fx, index? | |
-| `fx.update` | fxId, paramsPatch, bypass? | |
+| `fx.update` | fxId, paramsPatch, bypass?, sidechainSource? | `sidechainSource: null` clears the routing; an absent field leaves it unchanged |
 | `fx.remove` / `fx.reorder` | fxId / fxId, newIndex | |
 | `section.insert` | index, section | |
 | `section.remove` | sectionId, closeGap: true | |
@@ -289,6 +297,7 @@ Each op has a JSON Schema in `packages/schemas/song/ops/<op>.schema.json` and a 
 5. FX params are within catalogue ranges.
 6. `locked` sections are unchanged by batches authored by `ai`.
 7. IDs are unique within the document.
+8. A `sidechainSource` is only present on a `sidechain_duck`, names an existing track, and is not the track that owns the duck. `fx.add` and `fx.update` reject a violation as `fx_param` (wrong effect or self-reference) or `unknown_track` (no such track); whole-document validation reports a dangling source as `unknown_track`, like any other dangling reference. `track.remove` clears references to the removed track.
 
 A batch that violates an invariant is rejected with a structured error `{ opIndex, code, message }`.
 
@@ -315,6 +324,9 @@ Master automation points carry absolute ticks. When sections move, points lying 
 3. Copy clips and automation from the source commit's region, preserving relative positions.
 4. Add 10 ms equal-power fades at the region boundaries.
 If the section structure differs between commits, the region is matched **by absolute ticks**, and the UI warns when boundaries don't align.
+
+### 5.5 `fx.update` and `sidechainSource`
+`sidechainSource` is a tri-state patch field. Absent leaves the current routing unchanged; a `TrackId` replaces it; `null` clears it. A duck without a source is valid and behaves as identity (the engine bypasses it). `track.remove` clears every reference to the removed track; undo restores a whole document snapshot, so `track.remove` needs no inverse op for this.
 
 ## 6. Applying analysis (`analysis.apply`)
 
