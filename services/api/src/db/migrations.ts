@@ -207,4 +207,18 @@ CREATE TABLE IF NOT EXISTS usage_ledger (
 );
 `,
   },
+  {
+    // WP-1.6 populates `embeddings` (04 §6.1), so it owns the indexes 001 deliberately left out.
+    id: "002_embeddings_hnsw",
+    sql: `
+-- Approximate nearest-neighbour search over the 512-d vectors (05 §5). HNSW with cosine
+-- distance matches the L2-normalised CLAP vectors.
+CREATE INDEX IF NOT EXISTS embeddings_vec_hnsw_idx
+  ON embeddings USING hnsw (vec vector_cosine_ops);
+
+-- Lookup and upsert by (asset, scope, ref, model): the natural key of one vector.
+CREATE UNIQUE INDEX IF NOT EXISTS embeddings_identity_idx
+  ON embeddings (asset_hash, scope, coalesce(scope_ref, ''), model);
+`,
+  },
 ];

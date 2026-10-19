@@ -1,19 +1,12 @@
 {
   "version": 1,
   "description": "The controlled tagging vocabulary (specs/04-analysis-pipeline.md section 6.2). Genres are hierarchical (parents are genre ids, most specific last); moods, instruments, descriptors and eras are flat. `prompt` is the zero-shot text template (04 section 6.2); it defaults to a label-derived phrase when absent. Generated into services/workers/analysis/src/bragi_analysis/config/taxonomy.json by `pnpm schemas:gen`; this file is the source of truth.",
-  "topK": {
-    "genres": 3,
-    "moods": 4,
-    "instruments": 8,
-    "descriptors": 6,
-    "eras": 1
-  },
   "genres": [
     {
       "id": "electronic",
       "label": "Electronic",
       "parents": [],
-      "prompt": "a electronic song"
+      "prompt": "Electronic music"
     },
     {
       "id": "house",
@@ -492,7 +485,7 @@
       "id": "hip-hop",
       "label": "Hip hop",
       "parents": [],
-      "prompt": "a hip hop song"
+      "prompt": "Hip hop music"
     },
     {
       "id": "boom-bap",
@@ -568,7 +561,7 @@
       "id": "rock",
       "label": "Rock",
       "parents": [],
-      "prompt": "a rock song"
+      "prompt": "Rock music"
     },
     {
       "id": "alternative-rock",
@@ -817,7 +810,7 @@
       "id": "pop",
       "label": "Pop",
       "parents": [],
-      "prompt": "a pop song"
+      "prompt": "Pop music"
     },
     {
       "id": "synth-pop",
@@ -907,7 +900,7 @@
       "id": "jazz",
       "label": "Jazz",
       "parents": [],
-      "prompt": "a jazz song"
+      "prompt": "Jazz music"
     },
     {
       "id": "bebop",
@@ -990,7 +983,7 @@
       "id": "classical",
       "label": "Classical",
       "parents": [],
-      "prompt": "a classical song"
+      "prompt": "Classical music"
     },
     {
       "id": "baroque",
@@ -1073,7 +1066,7 @@
       "id": "soul",
       "label": "Soul",
       "parents": [],
-      "prompt": "a soul song"
+      "prompt": "Soul music"
     },
     {
       "id": "funk",
@@ -1135,7 +1128,7 @@
       "id": "folk",
       "label": "Folk",
       "parents": [],
-      "prompt": "a folk song"
+      "prompt": "Folk music"
     },
     {
       "id": "singer-songwriter",
@@ -1190,7 +1183,7 @@
       "id": "world",
       "label": "World",
       "parents": [],
-      "prompt": "a world song"
+      "prompt": "World music"
     },
     {
       "id": "afrobeat",
@@ -1280,7 +1273,7 @@
       "id": "country",
       "label": "Country",
       "parents": [],
-      "prompt": "a country song"
+      "prompt": "Country music"
     },
     {
       "id": "country-pop",
@@ -1328,7 +1321,7 @@
       "id": "blues",
       "label": "Blues",
       "parents": [],
-      "prompt": "a blues song"
+      "prompt": "Blues music"
     },
     {
       "id": "delta-blues",
@@ -1369,7 +1362,7 @@
       "id": "reggae",
       "label": "Reggae",
       "parents": [],
-      "prompt": "a reggae song"
+      "prompt": "Reggae music"
     },
     {
       "id": "roots-reggae",
@@ -1417,7 +1410,7 @@
       "id": "soundtrack",
       "label": "Soundtrack",
       "parents": [],
-      "prompt": "a soundtrack song"
+      "prompt": "Soundtrack music"
     },
     {
       "id": "tv-score",
@@ -1458,7 +1451,7 @@
       "id": "ambient",
       "label": "Ambient",
       "parents": [],
-      "prompt": "a ambient song"
+      "prompt": "Ambient music"
     },
     {
       "id": "drone",
@@ -1492,7 +1485,7 @@
       "id": "experimental",
       "label": "Experimental",
       "parents": [],
-      "prompt": "a experimental song"
+      "prompt": "Experimental music"
     },
     {
       "id": "noise",

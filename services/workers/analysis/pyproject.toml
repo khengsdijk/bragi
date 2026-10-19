@@ -24,6 +24,12 @@ ml = [
   "torch>=2.2",
   "beat-this>=1.1",
 ]
+# The CLAP embedder (WP-1.6, ADR-0011). Not installed by default: the deterministic
+# concept-basis fallback covers the CPU gate, and CLAP needs pinned weights anyway.
+clap = [
+  "torch>=2.2",
+  "transformers>=4.40",
+]
 
 [build-system]
 requires = ["hatchling"]

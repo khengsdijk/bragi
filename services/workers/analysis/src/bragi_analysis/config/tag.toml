@@ -1,0 +1,17 @@
+# Tagging limits (specs/04-analysis-pipeline.md section 6.2, WP-1.6).
+#
+# topK is how many labels of each category the blob carries (the UI shows at most these).
+# The spec fixes genres <= 3, moods <= 4 and descriptors <= 6; instruments and eras are not
+# limited by the spec, so those are v1 choices. minScore drops labels below a cosine/likelihood.
+# Thresholds are calibrated per label once trained heads exist (ADR-0011) and the eval set can
+# measure the top-3 genre gate.
+
+[topK]
+genres = 3
+moods = 4
+instruments = 8
+descriptors = 6
+eras = 1
+
+[thresholds]
+minScore = 0.0
