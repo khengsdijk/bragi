@@ -41,11 +41,13 @@
 //! ```
 
 mod biquad;
+mod delay;
 mod gain;
 mod reverb;
 mod smooth;
 
 pub use biquad::{Biquad, BiquadCoeffs, StereoBiquad};
+pub use delay::Delay;
 pub use gain::Gain;
 pub use reverb::Reverb;
 pub use smooth::{DEFAULT_SMOOTHING_MS, Smoothed};
@@ -387,6 +389,7 @@ pub fn create(
     match kind {
         FxKind::Gain => Ok(Box::new(Gain::new(sample_rate))),
         FxKind::Reverb => Ok(Box::new(Reverb::new(sample_rate, max_block))),
+        FxKind::Delay => Ok(Box::new(Delay::new(sample_rate, max_block))),
         other => Err(FxError::NotImplemented(other.name())),
     }
 }
