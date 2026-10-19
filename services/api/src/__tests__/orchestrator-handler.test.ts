@@ -156,4 +156,22 @@ describe("applyJobEvent (findings 2 and 3)", () => {
     expect(nc.published.filter((m) => m.subject.startsWith("jobs."))).toEqual([]);
     expect(pool.queries.some((q) => q.sql.includes("SET status = 'queued'"))).toBe(false);
   });
+
+  it("does not start a dependent while its dependency is still queued", async () => {
+    const pool = new FakePool();
+    pool.job = {
+      capability: "analysis.ingest",
+      user_id: "usr_1",
+      params: { assetHash: "sha256:aa", stage: "ingest" },
+    };
+    // separation is queued (not done): harmony must wait for it.
+    pool.analysisRows = [
+      { stage: "ingest", done: true, waiting: false },
+      { stage: "separation", done: false, waiting: false },
+      { stage: "harmony", done: false, waiting: true },
+    ];
+    const nc = new FakeNats();
+    await applyJobEvent(deps(pool, nc), completed({ outputs: { blobs: { result: "sha256:cc" } } }));
+    expect(pool.queries.some((q) => q.sql.includes("SET status = 'queued'"))).toBe(false);
+  });
 });

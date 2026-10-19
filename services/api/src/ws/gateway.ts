@@ -51,18 +51,25 @@ export class WsGateway {
 
   /** Handles one upgraded connection. */
   async handle(socket: WebSocket, request: Parameters<typeof resolveSession>[1]): Promise<void> {
-    const session = await resolveSession(this.ctx.auth.api, request);
+    // The session lookup is asynchronous, and a client may send `sub` the moment the
+    // socket opens. The listener is therefore attached *before* the lookup and waits
+    // for it; attaching it afterwards drops every message sent in that window.
+    const pending = resolveSession(this.ctx.auth.api, request);
+    socket.on("message", (raw: unknown) => {
+      void pending.then((session) => {
+        if (session) return this.onMessage(socket, session.user.id, raw);
+        return undefined;
+      });
+    });
+    socket.on("close", () => {
+      this.topicsBySocket.delete(socket);
+    });
+    const session = await pending;
     if (!session) {
       socket.close(4401, "AUTH_REQUIRED");
       return;
     }
     this.topicsBySocket.set(socket, new Set());
-    socket.on("message", (raw: unknown) => {
-      void this.onMessage(socket, session.user.id, raw);
-    });
-    socket.on("close", () => {
-      this.topicsBySocket.delete(socket);
-    });
     socket.send(JSON.stringify({ t: "hello", userId: session.user.id }));
   }
 
