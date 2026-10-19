@@ -100,3 +100,17 @@ See ADR-0004. Listed so the licence findings are not lost.
 |---|---|---|---|
 | `htdemucs_ft` (4 fine-tuned models) | MIT | not stated separately | ~4x the compute of `htdemucs`; not run to completion, see ADR |
 | Mel-Band RoFormer vocal checkpoint (`KimberleyJSN/melbandroformer`) | MIT (`bs-roformer`, lucidrains) | Hugging Face tag `license:mit` | see ADR-0004 for what was and was not measured |
+
+## Harmony (WP-1.5)
+
+The v1 harmony stage is **weight-free**: `analysis.harmony` matches beat-synchronous chroma against
+in-repo chord templates (no learned weights, no `torch`), so there is **no row to pin** here and
+nothing is downloaded at runtime. The choice and the neural seam are in
+[ADR-0008](../../specs/decisions/ADR-0008-chord-detection.md).
+
+Candidate neural chord recognisers to evaluate on the owner's eval set (not adopted, no weights
+pinned): BTC (Bidirectional Transformer for Chord recognition) and similar transformer recognisers
+(code licence to confirm; weights licence to verify), and **madmom chord models** — rejected for the
+same reason as its beat models above (CC BY-NC-SA 4.0 non-commercial weights). A checkerboard of
+permissively licensed key/chord tools should be verified before any commercial launch (Q64).
+

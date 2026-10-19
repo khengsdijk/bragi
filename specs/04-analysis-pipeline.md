@@ -1,6 +1,6 @@
 # 04 — Analysis Pipeline
 
-Status: Draft v0.3 · Code: `services/workers/analysis`, `services/workers/embed` · Schemas: `packages/schemas/analysis/`
+Status: Draft v0.4 · Code: `services/workers/analysis`, `services/workers/embed` · Schemas: `packages/schemas/analysis/`
 
 The analysis pipeline turns one stereo file into everything Bragi shows: stems, beat grid, sections, chords, key, energy, tags, embeddings and a plain-language description.
 
@@ -85,6 +85,7 @@ Library imports run `quick` and are upgraded to `standard` lazily when a song is
 - **Chords:** a neural chord recogniser (candidate: a transformer chord model, licence verified in WP-1.5) operating on the harmonic stems. Output: `chords[] { startSec, endSec, symbol: "F#m7", root, quality, bass?, confidence }`, aligned to beats.
 - **Derived:** `romanNumerals[]` relative to the key, and a `progressionFingerprint` per section: a normalised roman-numeral n-gram sequence such as `i-VI-III-VII`. This is used for constellations ([08-universe.md §5](08-universe.md)).
 - Licence caution: some well-known key/chord tools are AGPL/GPL or non-commercial. Prefer permissive code and record the licence for each model in `services/workers/MODELS.md`.
+- **Implementation notes (WP-1.5).** Capability `analysis.harmony`. Input: the harmonic stems `assets.stem_{bass,other,piano,guitar}` when present, else `assets.mix`, else `assets.source` (the orchestrator passes only the upload hash today — Q33). Chroma is computed at 11 025 Hz (STFT n_fft 4096, hop 1024), folding the 65-2100 Hz band into 12 pitch classes and L2-normalising each frame; when a `rhythm` blob is passed the frames are averaged per beat (beat-synchronous chroma), otherwise the frame grid is decoded directly. Key is the Krumhansl-Schmuckler profile correlation of the energy-weighted mean chroma, refined by a 50/50 mix with the duration-weighted chord templates; `key.confidence` is the absolute fit times a scaled margin over the runner-up (silence gives 0). Chords: a root-position template bank (maj, min, dim, aug, sus2/4, maj7, min7, dom7, min7b5, dim7, maj6, min6, minMaj7) plus a "no chord" state, decoded with a change-penalised Viterbi pass; sub-`minChordSec` segments merge away and silent frames become "no chord". `progressionFingerprint` is the roman-numeral sequence with immediate repeats collapsed. **The recogniser is weight-free** ([ADR-0008](decisions/ADR-0008-chord-detection.md)); a `ChordRecognizer` protocol is the seam for a neural model. Because `harmony` depends only on `separation` in the DAG, the per-section progressions use a `structure` blob when one is passed and otherwise publish one whole-song progression at `index: 0`. Audio with nothing to analyse (silence, too short, ambiguous) publishes `lowConfidence: true`, never a failure (§10).
 
 ### 5.4 `stem_activity`
 - Per stem: gated RMS (−45 dBFS gate, 250 ms hop) → `active[] { startSec, endSec }`, plus `presence` per section (0..1). This drives which ribbons appear and fade in the canvas.
@@ -163,6 +164,8 @@ Lyrics are **shown to the user only** (karaoke-style highlight in the canvas) an
 A regression job (`pnpm eval:analysis`) runs the eval set and writes a markdown report to `reports/analysis-<date>.md`. A model change is merged only if no gate regresses.
 
 **Gate semantics (WP-1.2).** A gate is `PASS` or `FAIL` only when *every* track in `fixtures/eval/manifest.json` was scored with the v1 model; no tracks, missing audio, a hash mismatch or a fallback tracker give `PENDING` and no number. Synthetic click tracks (generated, exact ground truth) prove the harness in a separate report section and never decide a gate. The beat F-measure is `mir_eval.beat.f_measure` at ±70 ms with no trimming of the first seconds, scored on the published (folded) grid. The manifest format is in `fixtures/eval/README.md`.
+
+**Gate semantics (WP-1.5).** The harmony gate is chord accuracy (majmin, duration-weighted) ≥ 0.70 and key accuracy ≥ 0.80, both on the eval set. Chord accuracy is `mir_eval.chord.evaluate(...)["majmin"]` over the published chord segments; key accuracy is the share of tracks whose `key` matches the hand label. **Neither has been run: `fixtures/eval/manifest.json` lists no tracks** (Q32), so both are `PENDING`. The synthetic chord/key suite proves the machinery and is never the gate. The WP-1.2 harness scores `rhythm` only; scoring harmony needs the eval-set manifest to carry chord and key labels (Q65).
 
 ## 9. Model registry and licensing
 
