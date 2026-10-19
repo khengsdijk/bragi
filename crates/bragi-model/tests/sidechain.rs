@@ -301,8 +301,8 @@ fn fx_update_sidechain_source_round_trips_absent_and_null() {
         r#"{"op":"fx.update","fxId":"fx_01J000000000000000000DUCK1","paramsPatch":{},"sidechainSource":"trk_drums"}"#,
     ] {
         let op: bragi_model::generated::FxUpdateOp = serde_json::from_str(json).expect("parses");
-        let back: serde_json::Value = serde_json::to_value(&op).expect("serialises");
-        let expected: serde_json::Value = serde_json::from_str(json).expect("valid json");
+        let back: Value = serde_json::to_value(&op).expect("serialises");
+        let expected: Value = serde_json::from_str(json).expect("valid json");
         assert_eq!(back, expected, "{json}");
     }
 }
