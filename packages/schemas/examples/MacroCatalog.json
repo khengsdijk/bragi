@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "macros": [
+    {
+      "id": "brightness",
+      "label": "Darker ↔ Brighter",
+      "range": [-1, 1],
+      "drives": [{ "fx": "eq3", "param": "highDb", "curve": [[-1, -9], [0, 0], [1, 6]] }]
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "$comment": "The v1 macros (specs/03-audio-engine.md §6.1). One source shared by the app (vibe sliders), the planner (macro catalogue) and @bragi/schemas (generated TS). A drive's curve maps the macro value to the parameter value; x = 0 is the parameter's catalogue default, and every y stays inside the catalogue range.",
+  "version": 1,
+  "macros": [
+    {
+      "id": "brightness",
+      "label": "Darker ↔ Brighter",
+      "range": [-1, 1],
+      "drives": [
+        { "fx": "eq3", "param": "highDb", "curve": [[-1, -9], [0, 0], [1, 6]] },
+        {
+          "fx": "filter",
+          "param": "cutoffHz",
+          "curve": [[-1, 3500], [0, 20000], [1, 20000]],
+          "mode": 0
+        }
+      ]
+    },
+    {
+      "id": "space",
+      "label": "Dry ↔ Spacious",
+      "range": [-1, 1],
+      "drives": [
+        { "fx": "reverb", "param": "mix", "curve": [[-1, 0.05], [0, 0.2], [1, 0.55]] },
+        { "fx": "reverb", "param": "size", "curve": [[-1, 0.3], [0, 0.5], [1, 0.85]] },
+        { "fx": "reverb", "param": "decaySec", "curve": [[-1, 0.8], [0, 2], [1, 6]] },
+        { "fx": "width", "param": "width", "curve": [[-1, 0.8], [0, 1], [1, 1.6]] }
+      ]
+    },
+    {
+      "id": "punch",
+      "label": "Soft ↔ Punchy",
+      "range": [-1, 1],
+      "drives": [
+        { "fx": "transient", "param": "attack", "curve": [[-1, -0.6], [0, 0], [1, 0.8]] },
+        { "fx": "compressor", "param": "ratio", "curve": [[-1, 1.5], [0, 3], [1, 8]] },
+        {
+          "fx": "compressor",
+          "param": "thresholdDb",
+          "curve": [[-1, -10], [0, -18], [1, -30]]
+        },
+        { "fx": "compressor", "param": "makeupDb", "curve": [[-1, 0], [0, 0], [1, 3]] }
+      ]
+    },
+    {
+      "id": "warmth",
+      "label": "Clean ↔ Warm",
+      "range": [-1, 1],
+      "drives": [
+        { "fx": "saturation", "param": "drive", "curve": [[-1, 0.05], [0, 0.2], [1, 0.7]] },
+        { "fx": "eq3", "param": "lowDb", "curve": [[-1, -3], [0, 0], [1, 4]] },
+        { "fx": "eq3", "param": "highDb", "curve": [[-1, -2], [0, 0], [1, -3]] }
+      ]
+    },
+    {
+      "id": "vintage",
+      "label": "Modern ↔ Vintage",
+      "range": [-1, 1],
+      "drives": [
+        { "fx": "saturation", "param": "drive", "curve": [[-1, 0.1], [0, 0.2], [1, 0.55]] },
+        { "fx": "lofi", "param": "bits", "curve": [[-1, 16], [0, 16], [1, 8]] },
+        { "fx": "lofi", "param": "rateHz", "curve": [[-1, 48000], [0, 48000], [1, 12000]] },
+        { "fx": "lofi", "param": "wow", "curve": [[-1, 0], [0, 0], [1, 0.35]] },
+        { "fx": "lofi", "param": "noise", "curve": [[-1, 0], [0, 0], [1, 0.1]] },
+        { "fx": "eq3", "param": "lowDb", "curve": [[-1, 0], [0, 0], [1, 2]] },
+        { "fx": "eq3", "param": "highDb", "curve": [[-1, 1], [0, 0], [1, -4]] }
+      ]
+    },
+    {
+      "id": "intensity",
+      "label": "Calm ↔ Intense",
+      "range": [-1, 1],
+      "drives": [
+        { "fx": "saturation", "param": "drive", "curve": [[-1, 0.05], [0, 0.2], [1, 0.75]] },
+        {
+          "fx": "compressor",
+          "param": "thresholdDb",
+          "curve": [[-1, -8], [0, -18], [1, -28]]
+        },
+        { "fx": "compressor", "param": "ratio", "curve": [[-1, 1.5], [0, 3], [1, 8]] },
+        { "fx": "compressor", "param": "makeupDb", "curve": [[-1, 0], [0, 0], [1, 2.5]] },
+        { "fx": "transient", "param": "attack", "curve": [[-1, -0.3], [0, 0], [1, 0.5]] },
+        { "fx": "gain", "param": "db", "curve": [[-1, -1.5], [0, 0], [1, 1.5]] }
+      ]
+    },
+    {
+      "id": "distance",
+      "label": "Close ↔ Distant",
+      "range": [-1, 1],
+      "drives": [
+        { "fx": "reverb", "param": "mix", "curve": [[-1, 0.05], [0, 0.2], [1, 0.55]] },
+        {
+          "fx": "filter",
+          "param": "cutoffHz",
+          "curve": [[-1, 20000], [0, 20000], [1, 2500]],
+          "mode": 0
+        },
+        { "fx": "gain", "param": "db", "curve": [[-1, 0.5], [0, 0], [1, -3]] }
+      ]
+    }
+  ]
+}

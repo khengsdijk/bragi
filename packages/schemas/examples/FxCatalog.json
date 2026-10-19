@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "fx": {
+    "gain": {
+      "params": {
+        "db": { "type": "number", "min": -60, "max": 12, "default": 0 }
+      }
+    },
+    "lofi": {
+      "params": {
+        "bits": { "type": "number", "min": 4, "max": 16, "default": 16 },
+        "wow": { "type": "number", "min": 0, "max": 1, "default": 0 }
+      }
+    }
+  }
+}

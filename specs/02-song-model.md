@@ -31,7 +31,7 @@ Project
 ### 2.1 Identifiers
 - All entity IDs are **ULIDs** prefixed by type: `prj_…`, `src_…`, `trk_…`, `sec_…`, `clp_…`, `fx_…`, `op_…`, `bat_…`.
 - The schema enforces the **prefix and the character set** (`^prj_[0-9A-Za-z]{1,64}$`), not the ULID layout: ULID is the *generation* rule, and `bragi-model` is where generation lives. That is why the hand-written `trk_mix`, `sec_01` and `clp_01` in §10 and §2.2 are valid, and why a schema test fixture never has to look like a real ULID.
-- Job, plan and macro IDs use the same rule: `job_…` ([05 §3](05-backend-and-jobs.md)), `pln_…` (edit plans, [06](06-ai-planner.md)), `mac_…` (macros). **User IDs are opaque strings**: Better Auth owns their format ([05 §8](05-backend-and-jobs.md)), so the schema only bounds the length.
+- Job, plan and macro IDs use the same rule: `job_…` ([05 §3](05-backend-and-jobs.md)), `pln_…` (edit plans, [06](06-ai-planner.md)), `mac_…` (custom macros). The seven built-in v1 macros use their plain names from [03 §6.1](03-audio-engine.md) (`brightness`, `space`, …); the schema accepts either form. **User IDs are opaque strings**: Better Auth owns their format ([05 §8](05-backend-and-jobs.md)), so the schema only bounds the length.
 - Assets are identified by **`sha256:<hex>`** of the file bytes: `sha256:` plus exactly 64 lowercase hex characters.
 - Commits are identified by `cmt_` + the first 26 chars of the base32 SHA-256 of the canonical JSON of `(parents, batch, snapshotHash)`. The canonical JSON is `canonical_json`: keys sorted, no whitespace, and an integral `number` written without a fractional part (`0`, not `0.0`), so two logically equal documents hash the same regardless of the map iteration order of the generated types (Q15).
 
