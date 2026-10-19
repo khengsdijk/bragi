@@ -45,12 +45,14 @@ mod eq3;
 mod filter;
 mod gain;
 mod smooth;
+mod width;
 
 pub use biquad::{Biquad, BiquadCoeffs, StereoBiquad};
 pub use eq3::Eq3;
 pub use filter::Filter;
 pub use gain::Gain;
 pub use smooth::{DEFAULT_SMOOTHING_MS, Smoothed};
+pub use width::Width;
 
 use thiserror::Error;
 
@@ -391,6 +393,7 @@ pub fn create(
         FxKind::Gain => Ok(Box::new(Gain::new(sample_rate))),
         FxKind::Eq3 => Ok(Box::new(Eq3::new(sample_rate, max_block))),
         FxKind::Filter => Ok(Box::new(Filter::new(sample_rate, max_block))),
+        FxKind::Width => Ok(Box::new(Width::new(sample_rate, max_block))),
         other => Err(FxError::NotImplemented(other.name())),
     }
 }
