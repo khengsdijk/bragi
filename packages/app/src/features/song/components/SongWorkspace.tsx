@@ -7,6 +7,7 @@
  * arrived. Gestures flow back as op batches into the Song Store, and each commit is forwarded to
  * the engine, so what you see, what a screen reader gets and what you hear are one document.
  */
+import { Button } from "@bragi/design";
 import type {
   AnalysisView,
   CanvasEvents,
@@ -18,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { t } from "../../../i18n/index.js";
+import { HistoryPanel } from "../../history/components/HistoryPanel.js";
 import type { History } from "../../history/state/history.js";
 import { buildGridModel } from "../api/grid-model.js";
 import { analysisView, buildCanvasDocument } from "../api/view-model.js";
@@ -75,6 +77,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
   const [level, setLevel] = useState<ZoomLevel>("L2");
   const [focus, setFocus] = useState<GridFocus | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
   const handle = useRef<SongCanvasHandle | null>(null);
   const hovered = useRef<string | null>(null);
   const selection = props.selection;
@@ -100,6 +103,19 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       if (outcome.ok) {
         controller.commit(outcome.commit, outcome.doc);
         setAnnouncement(label);
+      } else {
+        setAnnouncement(t("song.live.rejected"));
+      }
+    },
+    [controller],
+  );
+
+  /** The history panel's checkout/adopt result: forward it to the engine and announce it. */
+  const followHistory = useCallback(
+    (outcome: ApplyOutcome | null, message: string) => {
+      if (outcome?.ok) {
+        controller.commit(outcome.commit, outcome.doc);
+        setAnnouncement(message);
       } else {
         setAnnouncement(t("song.live.rejected"));
       }
@@ -252,38 +268,73 @@ export function SongWorkspace(props: SongWorkspaceProps) {
         <p className="song-workspace__selection" data-testid="selection-summary">
           {selectionText}
         </p>
+        {props.history === undefined ? null : (
+          <Button
+            variant={historyOpen ? "secondary" : "ghost"}
+            size="sm"
+            aria-pressed={historyOpen}
+            onClick={() => setHistoryOpen((open) => !open)}
+            style={{ marginInlineStart: "auto" }}
+          >
+            {t("history.panel.open")}
+          </Button>
+        )}
       </header>
-      <SongCanvasView
-        document={canvasDoc}
-        analysis={analysis}
-        selection={selection}
-        focus={focus}
-        controller={controller}
-        {...(props.renderer === undefined ? {} : { renderer: props.renderer })}
-        onSelectionChange={props.onSelectionChange}
-        onTrackToggle={onCanvasToggle}
-        onHoverTrack={(trackId) => {
-          hovered.current = trackId;
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            historyOpen && props.history !== undefined
+              ? "minmax(0, 1fr) minmax(18rem, 22rem)"
+              : "minmax(0, 1fr)",
+          gap: 12,
+          alignItems: "start",
         }}
-        onViewport={(next: ZoomLevel, _viewport: Viewport) => setLevel(next)}
-        onReady={(next) => {
-          handle.current = next;
-        }}
-      />
-      <AccessibleGrid
-        model={grid}
-        selection={selection}
-        onSelect={props.onSelectionChange}
-        onToggle={(trackId, field) => toggleTrack(trackId, field)}
-        onFocusChange={setFocus}
-      />
-      <TransportBar
-        controller={controller}
-        level={level}
-        onZoomIn={() => handle.current?.zoomBy(1.5)}
-        onZoomOut={() => handle.current?.zoomBy(1 / 1.5)}
-        onFit={() => handle.current?.fit()}
-      />
+      >
+        <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+          <SongCanvasView
+            document={canvasDoc}
+            analysis={analysis}
+            selection={selection}
+            focus={focus}
+            controller={controller}
+            {...(props.renderer === undefined ? {} : { renderer: props.renderer })}
+            onSelectionChange={props.onSelectionChange}
+            onTrackToggle={onCanvasToggle}
+            onHoverTrack={(trackId) => {
+              hovered.current = trackId;
+            }}
+            onViewport={(next: ZoomLevel, _viewport: Viewport) => setLevel(next)}
+            onReady={(next) => {
+              handle.current = next;
+            }}
+          />
+          <AccessibleGrid
+            model={grid}
+            selection={selection}
+            onSelect={props.onSelectionChange}
+            onToggle={(trackId, field) => toggleTrack(trackId, field)}
+            onFocusChange={setFocus}
+          />
+          <TransportBar
+            controller={controller}
+            level={level}
+            onZoomIn={() => handle.current?.zoomBy(1.5)}
+            onZoomOut={() => handle.current?.zoomBy(1 / 1.5)}
+            onFit={() => handle.current?.fit()}
+          />
+        </div>
+        {historyOpen && props.history !== undefined ? (
+          <HistoryPanel
+            history={props.history}
+            selection={selection}
+            model={songStore.model}
+            liveDoc={doc}
+            onClose={() => setHistoryOpen(false)}
+            onCommitOutcome={followHistory}
+          />
+        ) : null}
+      </div>
       <div className="sr-only" role="status" aria-live="polite" data-testid="live-region">
         {announcement}
       </div>
