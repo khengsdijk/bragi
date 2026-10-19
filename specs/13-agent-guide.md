@@ -143,7 +143,7 @@ package's plan in `docs/wp/`).
 | `pnpm test:rust` / `pnpm test:py` / `pnpm test:all` | `cargo test` / pytest / plus `pnpm test` |
 | `pnpm build:wasm` | `wasm32-unknown-unknown` build of every non-native crate |
 | `pnpm infra:up` / `infra:logs` / `infra:down` | Local infrastructure (Postgres+pgvector, MinIO, NATS, Mailpit) |
-| `pnpm dev:web` | Vite dev server with COOP/COEP |
+| `pnpm dev:web` | Builds the workspace packages the web app consumes (`@bragi/app`, `@bragi/platform`, …; turbo-cached), then the Vite dev server with COOP/COEP. Edits to those packages need a restart (or `pnpm build`) — Vite serves their `dist` |
 | `pnpm dev:desktop` | Tauri dev |
 | `pnpm dev:backend` | `scripts/dev-backend.mjs`: ensures the docker compose infra is up, then runs the API, the orchestrator and the Python analysis worker (all capabilities) as local processes with prefixed logs; Ctrl-C stops them. Separation weights: see the script header (`.bragi/models`, gitignored) |
 | `pnpm schemas:gen` | Regenerate TS/Rust/Python from JSON Schemas |

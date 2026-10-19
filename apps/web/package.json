@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "turbo run build --filter=@bragi/web^... --output-logs=errors-only && vite",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "build:e2e-driver": "vite build --config e2e/selftest.vite.config.ts",
