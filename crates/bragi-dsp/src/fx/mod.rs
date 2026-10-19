@@ -43,12 +43,16 @@
 mod biquad;
 mod chorus;
 mod compressor;
+mod delay;
 mod eq3;
 mod filter;
 mod gain;
 mod limiter;
 mod lofi;
+mod match_eq;
+mod reverb;
 mod saturation;
+mod sidechain_duck;
 mod smooth;
 mod transient;
 mod width;
@@ -56,12 +60,16 @@ mod width;
 pub use biquad::{Biquad, BiquadCoeffs, StereoBiquad};
 pub use chorus::Chorus;
 pub use compressor::Compressor;
+pub use delay::Delay;
 pub use eq3::Eq3;
 pub use filter::Filter;
 pub use gain::Gain;
 pub use limiter::Limiter;
 pub use lofi::Lofi;
+pub use match_eq::MatchEq;
+pub use reverb::Reverb;
 pub use saturation::Saturation;
+pub use sidechain_duck::SidechainDuck;
 pub use smooth::{DEFAULT_SMOOTHING_MS, Smoothed};
 pub use transient::Transient;
 pub use width::Width;
@@ -370,7 +378,8 @@ pub trait Effect: Send {
 /// Errors from [`create`].
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum FxError {
-    /// The kind exists in the catalogue but has no implementation yet.
+    /// The kind exists in the catalogue but has no implementation. Every current kind is
+    /// implemented; this stays for catalogue additions that land before their DSP.
     #[error("fx type {0} is not implemented")]
     NotImplemented(&'static str),
     /// The sample rate is outside 8 kHz..=384 kHz.
@@ -387,8 +396,7 @@ pub enum FxError {
 /// effects that need scratch space size it from this.
 ///
 /// # Errors
-/// [`FxError::NotImplemented`] for a kind with no implementation yet, [`FxError::SampleRate`] /
-/// [`FxError::MaxBlock`] for unusable arguments.
+/// [`FxError::SampleRate`] / [`FxError::MaxBlock`] for unusable arguments.
 pub fn create(
     kind: FxKind,
     sample_rate: u32,
@@ -411,7 +419,10 @@ pub fn create(
         FxKind::Limiter => Ok(Box::new(Limiter::new(sample_rate, max_block))),
         FxKind::Lofi => Ok(Box::new(Lofi::new(sample_rate, max_block))),
         FxKind::Chorus => Ok(Box::new(Chorus::new(sample_rate, max_block))),
-        other => Err(FxError::NotImplemented(other.name())),
+        FxKind::Reverb => Ok(Box::new(Reverb::new(sample_rate, max_block))),
+        FxKind::Delay => Ok(Box::new(Delay::new(sample_rate, max_block))),
+        FxKind::SidechainDuck => Ok(Box::new(SidechainDuck::new(sample_rate, max_block))),
+        FxKind::MatchEq => Ok(Box::new(MatchEq::new(sample_rate, max_block))),
     }
 }
 
