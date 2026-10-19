@@ -19,12 +19,12 @@ use crate::generated::{
     All, Automation, AutomationClearOp, AutomationList, AutomationPoints, AutomationScope,
     AutomationSetOp, AutomationTarget, BatchAuthor, Clip, ClipAddOp, ClipId, ClipPatch,
     ClipRemoveOp, ClipReplaceOp, ClipSplitOp, ClipUpdateOp, FadeCurve, FxAddOp, FxChain, FxId,
-    FxRemoveOp, FxReorderOp, FxScope, FxUpdateOp, KeyTransposeOp, Lane, LaneMap, Op, OpBatch,
-    Project, ProjectSetMetaOp, RegionClearOp, SectionDuplicateOp, SectionId, SectionInsertOp,
-    SectionInstance, SectionMergeOp, SectionMoveOp, SectionPatch, SectionRemoveOp,
+    FxInstance, FxRemoveOp, FxReorderOp, FxScope, FxType, FxUpdateOp, KeyTransposeOp, Lane,
+    LaneMap, Op, OpBatch, Project, ProjectSetMetaOp, RegionClearOp, SectionDuplicateOp, SectionId,
+    SectionInsertOp, SectionInstance, SectionMergeOp, SectionMoveOp, SectionPatch, SectionRemoveOp,
     SectionResizeMode, SectionResizeOp, SectionSetTransitionOp, SectionSplitOp, SectionUpdateOp,
-    TempoSetOp, Track, TrackAddOp, TrackId, TrackPatch, TrackRemoveOp, TrackUpdateOp, Transition,
-    TransitionKind, TransposeScope, Warp, WarpStretch, WarpStretchMode,
+    SidechainSourcePatch, TempoSetOp, Track, TrackAddOp, TrackId, TrackPatch, TrackRemoveOp,
+    TrackUpdateOp, Transition, TransitionKind, TransposeScope, Warp, WarpStretch, WarpStretchMode,
 };
 use crate::region::resolve_region;
 use crate::spans::{SectionSpan, section_spans};
@@ -186,11 +186,41 @@ fn apply_track_remove(
             format!("track {} does not exist", op.track_id),
         ));
     };
+    clear_sidechain_sources(doc, &op.track_id);
     doc.tracks.remove(index);
     for section in &mut doc.arrangement.sections {
         section.lanes.0.remove(&op.track_id);
     }
     Ok(())
+}
+
+/// Clears every `sidechainSource` that points at `removed` (02 §4.2, `track.remove`).
+///
+/// A source track that disappears would leave a dangling routing reference. Undo restores a whole
+/// document snapshot, so `track.remove` needs no inverse op for this.
+fn clear_sidechain_sources(doc: &mut Project, removed: &TrackId) {
+    let clear = |fx: &mut FxInstance| {
+        if fx.sidechain_source.as_ref() == Some(removed) {
+            fx.sidechain_source = None;
+        }
+    };
+    for track in &mut doc.tracks {
+        for fx in &mut track.fx.0 {
+            clear(fx);
+        }
+    }
+    for section in &mut doc.arrangement.sections {
+        for lane in section.lanes.0.values_mut() {
+            for clip in &mut lane.clips {
+                for fx in clip.fx.iter_mut().flat_map(|chain| chain.0.iter_mut()) {
+                    clear(fx);
+                }
+            }
+        }
+    }
+    for fx in &mut doc.arrangement.master.fx.0 {
+        clear(fx);
+    }
 }
 
 fn apply_track_update(
@@ -318,6 +348,53 @@ fn with_fx_chain<R>(
     }
 }
 
+/// The track that owns the chain a scope names, for the self-sidechain rule.
+///
+/// A master chain has no owning track; a clip's owner is the track its lane belongs to.
+fn fx_scope_owner(doc: &Project, scope: &FxScope) -> Option<TrackId> {
+    match scope {
+        FxScope::TrackFxScope(scope) => Some(scope.track_id.clone()),
+        FxScope::ClipFxScope(scope) => find_clip(doc, &scope.clip_id).map(|loc| loc.track),
+        FxScope::MasterFxScope(_) => None,
+    }
+}
+
+/// Checks that `fx` may route from `source` (02 §3.7, §5).
+///
+/// Only `sidechain_duck` accepts a source, the source must be an existing track, and a track may
+/// not key its own duck.
+fn check_sidechain_source(
+    doc: &Project,
+    fx_id: &FxId,
+    kind: FxType,
+    owner: Option<&TrackId>,
+    source: &TrackId,
+    op_index: usize,
+) -> Result<(), ApplyError> {
+    if kind != FxType::SidechainDuck {
+        return Err(invalid(
+            op_index,
+            ValidationCode::FxParam,
+            format!("fx {fx_id} is {kind}, but only sidechain_duck takes a sidechainSource"),
+        ));
+    }
+    if track_index(doc, source).is_none() {
+        return Err(invalid(
+            op_index,
+            ValidationCode::UnknownTrack,
+            format!("fx {fx_id} sidechainSource {source} is not a track"),
+        ));
+    }
+    if owner.is_some_and(|owner| owner == source) {
+        return Err(invalid(
+            op_index,
+            ValidationCode::FxParam,
+            format!("fx {fx_id} cannot use its own track {source} as sidechainSource"),
+        ));
+    }
+    Ok(())
+}
+
 /// The chain an `fx.add` scope names, validating the scope first.
 fn fx_chain_for_scope<'a>(
     doc: &'a mut Project,
@@ -369,6 +446,17 @@ fn apply_fx_add(doc: &mut Project, op: &FxAddOp, op_index: usize) -> Result<(), 
             ValidationCode::DuplicateId,
             format!("fx {} already exists", op.fx.id),
         ));
+    }
+    if let Some(source) = &op.fx.sidechain_source {
+        let owner = fx_scope_owner(doc, &op.scope);
+        check_sidechain_source(
+            doc,
+            &op.fx.id,
+            op.fx.type_,
+            owner.as_ref(),
+            source,
+            op_index,
+        )?;
     }
     let chain = fx_chain_for_scope(doc, &op.scope, op_index)?;
     let index = op.index.map_or(chain.0.len(), |index| index as usize);
@@ -448,6 +536,64 @@ fn apply_fx_update(doc: &mut Project, op: &FxUpdateOp, op_index: usize) -> Resul
         ));
     };
     let index = loc.index();
+    // The instance's current kind and owning track decide whether a routing patch is legal; read
+    // them before the mutable chain borrow below.
+    let (kind, owner) = match &loc {
+        FxLoc::Track { track, fx } => (
+            doc.tracks
+                .get(*track)
+                .and_then(|track| track.fx.0.get(*fx))
+                .map(|instance| instance.type_),
+            doc.tracks.get(*track).map(|track| track.id.clone()),
+        ),
+        FxLoc::Clip {
+            section,
+            track,
+            clip,
+            fx,
+        } => (
+            doc.arrangement
+                .sections
+                .get(*section)
+                .and_then(|section| section.lanes.0.get(track))
+                .and_then(|lane| lane.clips.get(*clip))
+                .and_then(|clip| clip.fx.as_ref())
+                .and_then(|chain| chain.0.get(*fx))
+                .map(|instance| instance.type_),
+            Some(track.clone()),
+        ),
+        FxLoc::Master { fx } => (
+            doc.arrangement
+                .master
+                .fx
+                .0
+                .get(*fx)
+                .map(|instance| instance.type_),
+            None,
+        ),
+    };
+    let Some(kind) = kind else {
+        return Err(invalid(
+            op_index,
+            ValidationCode::MissingTarget,
+            format!("fx {} does not exist", op.fx_id),
+        ));
+    };
+    if let Some(patch) = &op.sidechain_source {
+        if kind != FxType::SidechainDuck {
+            return Err(invalid(
+                op_index,
+                ValidationCode::FxParam,
+                format!(
+                    "fx {} is {kind}, but only sidechain_duck takes a sidechainSource",
+                    op.fx_id
+                ),
+            ));
+        }
+        if let Some(SidechainSourcePatch::TrackId(source)) = patch {
+            check_sidechain_source(doc, &op.fx_id, kind, owner.as_ref(), source, op_index)?;
+        }
+    }
     let updated = with_fx_chain(doc, &loc, |chain| {
         let Some(instance) = chain.0.get_mut(index) else {
             return false;
@@ -457,6 +603,12 @@ fn apply_fx_update(doc: &mut Project, op: &FxUpdateOp, op_index: usize) -> Resul
         }
         for (name, value) in &op.params_patch.0 {
             instance.params.0.insert(name.clone(), *value);
+        }
+        if let Some(patch) = &op.sidechain_source {
+            instance.sidechain_source = match patch {
+                Some(SidechainSourcePatch::TrackId(source)) => Some(source.clone()),
+                Some(SidechainSourcePatch::Null(_)) | None => None,
+            };
         }
         true
     });
