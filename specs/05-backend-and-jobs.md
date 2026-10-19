@@ -1,6 +1,6 @@
 # 05 — Backend, Jobs & Sync
 
-Status: Draft v0.3 · Code: `services/api`, `services/workers` · Infra: `infra/`
+Status: Draft v0.4 · Code: `services/api`, `services/workers` · Infra: `infra/`
 
 ## 1. Services
 
@@ -17,12 +17,13 @@ Status: Draft v0.3 · Code: `services/api`, `services/workers` · Infra: `infra/
 
 ## 2. REST API (v1)
 
-All endpoints are under `/v1`, JSON, and authenticated (session cookie on web, bearer token on desktop). Route schemas are defined with TypeBox/zod and exported to OpenAPI 3.1 → `packages/api-client`.
+All endpoints are under `/v1`, JSON, and authenticated (session cookie on web, bearer token on desktop; in single-user mode every request resolves to the owner, §8). Route schemas are defined with TypeBox/zod and exported to OpenAPI 3.1 → `packages/api-client`.
 
 | Method & path | Purpose |
 |---|---|
 | `GET /meta` | `{ apiVersion, minClientVersion, features }` |
 | `/auth/*` | Better Auth routes (magic link, OAuth, session, desktop PKCE) |
+| `GET /auth/mode` | `{ mode: "single-user" \| "multi-user", user }` (`AuthModeResponse`, §8); `user` is `null` when signed out in multi-user mode |
 | `POST /assets/presign` | `{ hash, bytes, mime }` → `{ exists: true }` or `{ uploadUrl, headers }` (presigned PUT, 15 min) |
 | `POST /assets/{hash}/complete` | Server verifies size + hash (S3 checksum), records ownership in `user_assets` |
 | `GET /assets/{hash}/url` | Presigned GET (1 h) if the user owns or derived the asset |
@@ -163,8 +164,14 @@ The client is the primary editor. The server is a durable replica plus the cross
 
 ## 8. Auth & accounts
 
+**Auth mode** ([ADR-0014](decisions/ADR-0014-single-user-mode.md)): `BRAGI_AUTH_MODE = single-user | multi-user`, validated in the API config.
+
+- **single-user** is the default for local use (`pnpm dev:backend`, the local integration stack). At startup the API idempotently creates one owner user (`BRAGI_OWNER_EMAIL`, default `owner@bragi.local`; `BRAGI_OWNER_NAME`, default `Owner`), and every HTTP request and WebSocket connection resolves to it with no cookie or token. The switch is in the one session resolver (`services/api/src/auth/session.ts`), so ownership checks (`user_assets`, library, jobs, analyses) are unchanged. There is no sign-in form, on web or desktop.
+- **Safety:** in single-user mode the API refuses to start unless `API_HOST` is a loopback address (`127.0.0.0/8`, `::1`, `localhost`). `BRAGI_ALLOW_REMOTE_SINGLE_USER=1` overrides this (a container binds `0.0.0.0`) and is logged as a warning.
+- **multi-user** is the default for compose and any hosted deployment, and is everything below.
+
 - **Better Auth** with email magic link + Google + GitHub OAuth.
-- **Desktop:** opens the system browser at `/v1/auth/desktop/start?code_challenge=…`, which redirects to `bragi://auth/callback?code=…`. The app exchanges the code for a long-lived refresh token and short-lived access token, and stores the refresh token in the OS keychain.
+- **Desktop (multi-user only, WP-2.9):** opens the system browser at `/v1/auth/desktop/start?code_challenge=…`, which redirects to `bragi://auth/callback?code=…`. The app exchanges the code for a long-lived refresh token and short-lived access token, and stores the refresh token in the OS keychain.
 - **Anonymous / offline use:** the desktop app works without an account for local playback and editing of non-AI features (no analysis beyond what can run locally, see §10). The web app requires sign-in for uploads (storage costs money).
 - **Account deletion:** removes the user's rows. Unreferenced blobs are GC'd. Analysis results keyed by hash may survive if another user owns the same asset, but they are not linked to the deleted user.
 
