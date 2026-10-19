@@ -61,6 +61,9 @@ fn play_start_latency_is_zero_samples() {
     let mut right = [0.0f32; QUANTUM_FRAMES];
     renderer.process(&source, &mut [&mut left, &mut right]);
     assert_eq!(left[0], 0.0, "frame 0 is the playhead sample");
+    // Frame 0 is also the first sample of a silent block, so pin the ramp at a
+    // non-zero sample too: with zero latency the ramp's sample 1 lands at frame 1.
+    assert_eq!(left[1], 1.0 / 48_000.0, "frame 1 is one sample later — zero latency");
     assert!(ms(0) < 100.0);
 }
 
