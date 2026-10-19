@@ -76,6 +76,12 @@ export interface History {
    * the project row) as the root commit. Does not apply it again.
    */
   recordRoot(batch: OpBatch): Promise<StoredCommit | null>;
+  /**
+   * Records a batch the live document already reflects, on top of HEAD: the end of a gesture
+   * whose steps were previewed with `songStore.apply` (see `coalesceBatches`). Applying `batch`
+   * to HEAD's snapshot must give the live document; the batch is not applied again.
+   */
+  commitApplied(batch: OpBatch, options?: CommitOptions): Promise<StoredCommit>;
   /** Moves HEAD to the parent. Returns `null` when there is nothing to undo. */
   undo(): Promise<ApplyOutcome | null>;
   /** Moves HEAD back along the redo stack. Returns `null` when it is empty. */
@@ -392,6 +398,11 @@ export function createHistory(options: HistoryOptions): History {
       return commit;
     },
 
+    async commitApplied(batch, options = {}) {
+      await ensureLoaded(true);
+      return storeCommit(batch, options);
+    },
+
     async undo() {
       await ensureLoaded(true);
       const currentId = view().head;
@@ -613,6 +624,7 @@ export function createHistory(options: HistoryOptions): History {
     load: () => serial(() => direct.load()),
     commit: (batch, options) => serial(() => direct.commit(batch, options)),
     recordRoot: (batch) => serial(() => direct.recordRoot(batch)),
+    commitApplied: (batch, options) => serial(() => direct.commitApplied(batch, options)),
     undo: () => serial(() => direct.undo()),
     redo: () => serial(() => direct.redo()),
     checkout: (id) => serial(() => direct.checkout(id)),

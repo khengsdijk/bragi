@@ -8,6 +8,7 @@ import { loadTestModel } from "../../song/__tests__/fixtures.js";
 import { buildDemoProject, fakeAssetHash, SHORT_DEMO } from "../../song/api/demo-song.js";
 import type { ModelApi } from "../../song/model/model-api.js";
 import { createSongStore, type SongStore } from "../../song/state/song-store.js";
+import { coalesceBatches } from "../state/coalesce.js";
 import { createHistory, type History, regionBoundariesAlign } from "../state/history.js";
 
 const MIGRATIONS_DIR = new URL("../../../../../schemas/sqlite/migrations/", import.meta.url);
@@ -182,6 +183,32 @@ describe("history store", () => {
     const doc = document(fixture);
     expect(doc.tracks.find((track) => track.id === "trk_bass")?.mute).toBe(true);
     expect(doc.tracks.find((track) => track.id === "trk_pads")?.gainDb).not.toBe(-2);
+  });
+
+  it("records a previewed gesture as one commit that undoes to the state before it", async () => {
+    const fixture = await openFixture();
+    await fixture.history.load();
+    const before = structuredClone(document(fixture));
+    const steps = [-1, -2, -4].map((gainDb) =>
+      batch([{ op: "track.update", trackId: "trk_pads", patch: { gainDb } }], "Pads volume"),
+    );
+    for (const preview of steps) expect(fixture.store.apply(preview).ok).toBe(true);
+    const live = structuredClone(document(fixture));
+
+    const gesture = coalesceBatches(steps, "Pads volume", NOW);
+    if (gesture === null) throw new Error("expected a batch");
+    expect(gesture.ops).toHaveLength(1);
+    const commit = await fixture.history.commitApplied(gesture);
+    expect(document(fixture)).toEqual(live);
+    expect(fixture.history.store.getState().head).toBe(commit.id);
+
+    // Parent snapshot + batch = the commit's snapshot.
+    const replay = await openFixture();
+    expect(replay.store.apply(gesture).ok).toBe(true);
+    expect(document(replay)).toEqual(live);
+
+    expect((await fixture.history.undo())?.ok).toBe(true);
+    expect(document(fixture)).toEqual(before);
   });
 
   it("branches naturally from a non-tip commit", async () => {
