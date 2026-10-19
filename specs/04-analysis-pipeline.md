@@ -136,7 +136,7 @@ For each section, the pipeline produces a compact record used throughout the UI 
   ```json
   { "summary": "One paragraph, plain language, no jargon.",
     "sectionNotes": [{ "index": 0, "text": "Sparse filtered piano sets a late-night mood." }],
-    "whatMakesItWork": ["The drums drop out for one bar before each chorus, so the chorus lands harder."],
+    "whatMakesItWorks": ["The drums drop out for one bar before each chorus, so the chorus lands harder."],
     "suggestedTitle": "optional, only for generated songs" }
   ```
 - **Hallucination guard:** the prompt forbids claims not grounded in the provided features (no artist names, no lyric content unless lyrics were transcribed). A post-check rejects descriptions that mention instruments absent from `instruments`/`activeStems`.

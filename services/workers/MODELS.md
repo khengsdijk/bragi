@@ -16,6 +16,17 @@ The Beat This! loader (`bragi_analysis.trackers.beat_this`) refuses any checkpoi
 differs from the pin and reads it with `torch.load(weights_only=True)`. Set
 `BRAGI_BEAT_THIS_CHECKPOINT` to the file; the worker `Dockerfile` does so for the `WITH_ML=1` build.
 
+## Hosted model (no weights in the repo) — WP-1.7
+
+| Name | Task | Version | SHA-256 | Code licence | Weights / service licence | Commercial use | Source | Verified |
+|---|---|---|---|---|---|---|---|---|
+| Anthropic Claude | `analysis.describe` text generation | configured in `bragi_analysis/config/describe.toml` (default `claude-sonnet-5-5`; `BRAGI_DESCRIBE_MODEL` or the job param `model` override it) | n/a (hosted API, no weights) | `anthropic` SDK: MIT | Anthropic commercial API terms; the ID and the key are an owner decision (Q71) | per the Anthropic API terms (owner confirms, Q71) | <https://api.anthropic.com>; SDK <https://github.com/anthropics/anthropic-sdk-python> | 2026-10-19 (SDK installed; no API key or call in this environment) |
+
+The `describe` stage sends **derived features and controlled labels only** — no audio, lyrics, file
+names, artist or title metadata ([10 §7](../../specs/10-fusion.md)) — over outbound HTTPS from the
+worker. [ADR-0012](../../specs/decisions/ADR-0012-describe-llm-client.md) records the SDK choice and
+its transitive licences.
+
 ## Not models, but licensed components the stages depend on
 
 | Component | Used by | Licence | Note |
