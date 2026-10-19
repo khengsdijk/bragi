@@ -3,7 +3,22 @@ name = "bragi-analysis"
 version = "0.0.0"
 description = "Analysis workers: ingest, separate, rhythm, harmony, structure, tag, describe"
 requires-python = ">=3.12"
-dependencies = ["bragi-common"]
+dependencies = [
+  "bragi-common",
+  # DSP for loudness, onset features and the weight-free beat tracker (BSD-3-Clause).
+  "numpy>=2.0",
+  "scipy>=1.14",
+  # Beat F-measure for the eval gate (04 §8) (MIT).
+  "mir_eval>=0.8",
+]
+
+[project.optional-dependencies]
+# The neural beat tracker (ADR-0007). Not installed by default so that the CPU
+# gate (`pnpm verify`) stays fast; the worker image installs it with `--extra ml`.
+ml = [
+  "torch>=2.2",
+  "beat-this>=1.1",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -14,3 +29,4 @@ packages = ["src/bragi_analysis"]
 
 [tool.uv.sources]
 bragi-common = { workspace = true }
+

@@ -88,9 +88,18 @@ exclude = ['^\.venv/']
 [[tool.mypy.overrides]]
 module = ["asyncpg", "asyncpg.*", "boto3", "boto3.*", "botocore", "botocore.*"]
 ignore_missing_imports = true
+# Untyped third-party libraries used by the analysis workers (13 §3: models may
+# be looser than bragi_common).
+
+[[tool.mypy.overrides]]
+module = ["scipy.*", "mir_eval.*", "torch.*", "beat_this.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "-q --strict-markers --strict-config"
+markers = [
+  "weights: needs real model weights; skipped unless BRAGI_TEST_WEIGHTS=1 (04 §9)",
+]
 testpaths = [
   "bragi_common/tests",
   "analysis/tests",

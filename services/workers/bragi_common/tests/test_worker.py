@@ -14,8 +14,9 @@ from bragi_common.generated.models import (
     JobRequest,
     JobRequestSchemaVersion,
 )
+from bragi_common.errors import JobFailure
 from bragi_common.protocol import params_of
-from bragi_common.worker import _error_code, _event, _num_delivered
+from bragi_common.worker import _error_code, _event, _num_delivered, _retryable
 
 TRACEPARENT = "00-11111111111111111111111111111111-2222222222222222-01"
 
@@ -69,3 +70,14 @@ def test_num_delivered_reads_metadata_with_a_safe_default() -> None:
 
     assert _num_delivered(cast(Msg, Message())) == 4
     assert _num_delivered(cast(Msg, object())) == 1
+
+
+def test_job_failure_carries_a_code_and_is_not_retried_by_default() -> None:
+    failure = JobFailure("ASSET_CORRUPT", "damaged")
+    assert _error_code(failure) == "ASSET_CORRUPT"
+    assert _retryable(failure) is False
+    assert _retryable(JobFailure("MODEL_ERROR", "flaky", retryable=True)) is True
+
+
+def test_an_unexpected_exception_is_retryable() -> None:
+    assert _retryable(RuntimeError("boom")) is True

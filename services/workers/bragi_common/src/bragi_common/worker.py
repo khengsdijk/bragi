@@ -28,6 +28,7 @@ from opentelemetry.trace import SpanKind, Tracer
 
 from bragi_common.cache import ResultCache
 from bragi_common.cancel import CancelToken, JobCancelledError
+from bragi_common.errors import JobFailure
 from bragi_common.config import Settings
 from bragi_common.context import JobContext
 from bragi_common.generated.models import (
@@ -229,9 +230,16 @@ class Worker:
                 _event(
                     job,
                     JobEventType.failed,
-                    error=JobError(code=_error_code(error), message=str(error), retryable=True),
+                    error=JobError(
+                        code=_error_code(error), message=str(error), retryable=_retryable(error)
+                    ),
                 ),
             )
+            if not _retryable(error):
+                # A domain failure (e.g. a corrupt upload) will fail identically
+                # on every attempt: settle it now instead of redelivering.
+                await message.ack()
+                return
             # The orchestrator is meant to own the retry count (05 §4.3); until
             # it does, cap it here from JetStream's own delivery counter so a
             # broken capability cannot loop forever.
@@ -297,6 +305,11 @@ def _event(
 def _error_code(error: Exception) -> str:
     code = getattr(error, "code", None)
     return code if isinstance(code, str) and code else "MODEL_ERROR"
+
+
+def _retryable(error: Exception) -> bool:
+    """Crashes are retryable; a :class:`JobFailure` carries its own decision."""
+    return error.retryable if isinstance(error, JobFailure) else True
 
 
 def _num_delivered(message: Msg) -> int:
