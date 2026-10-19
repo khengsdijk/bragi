@@ -197,7 +197,10 @@ const EXPORT_JOBS = [
   { name: "mixdown-wav24", job: { kind: "mixdown", format: { container: "wav", bits: 24 } } },
   { name: "mixdown-wav32", job: { kind: "mixdown", format: { container: "wav", bits: 32 } } },
   { name: "mixdown-flac24", job: { kind: "mixdown", format: { container: "flac", bits: 24 } } },
-  { name: "stems-wav24", job: { kind: "stems", tracks: "all", format: { container: "wav", bits: 24 } } },
+  {
+    name: "stems-wav24",
+    job: { kind: "stems", tracks: "all", format: { container: "wav", bits: 24 } },
+  },
 ];
 
 /**
@@ -268,14 +271,26 @@ async function compareExports(wasmModule, fixture) {
   for (const { name, job } of EXPORT_JOBS) {
     const dir = join(work, `${fixture.name}.${name}`);
     const args = [
-      "run", "--quiet", "-p", "bragi-engine-native", "--bin", "bragi-render", "--",
-      "--project", join(ROOT, fixture.project),
-      "--frames", String(fixture.frames),
-      "--out", join(work, `${fixture.name}.${name}.wav`),
-      "--export-job", JSON.stringify(job),
-      "--export-dir", dir,
+      "run",
+      "--quiet",
+      "-p",
+      "bragi-engine-native",
+      "--bin",
+      "bragi-render",
+      "--",
+      "--project",
+      join(ROOT, fixture.project),
+      "--frames",
+      String(fixture.frames),
+      "--out",
+      join(work, `${fixture.name}.${name}.wav`),
+      "--export-job",
+      JSON.stringify(job),
+      "--export-dir",
+      dir,
     ];
-    for (const asset of fixture.assets) args.push("--asset", `${asset.hash}=${join(ROOT, asset.path)}`);
+    for (const asset of fixture.assets)
+      args.push("--asset", `${asset.hash}=${join(ROOT, asset.path)}`);
     run("cargo", args);
     const wasmFiles = readExportFrame(engine.export_frame(JSON.stringify(job)));
     for (const file of wasmFiles) {
@@ -285,7 +300,14 @@ async function compareExports(wasmModule, fixture) {
       if (file.name.endsWith(".wav")) {
         level = nullLevelDb(decodeWav(nativeBytes), decodeWav(file.bytes));
       }
-      results.push({ fixture: fixture.name, job: name, file: file.name, identical, level, wav: file.name.endsWith(".wav") });
+      results.push({
+        fixture: fixture.name,
+        job: name,
+        file: file.name,
+        identical,
+        level,
+        wav: file.name.endsWith(".wav"),
+      });
     }
   }
   return results;
