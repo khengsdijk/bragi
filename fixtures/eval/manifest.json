@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "description": "Bragi analysis eval set (specs/04-analysis-pipeline.md section 8). Audio is referenced by SHA-256 and lives in the owner's private bucket; labels are small text files committed under labels/. EMPTY until the owner supplies the set: with no tracks every gate reports PENDING and no numbers are produced.",
+  "tracks": []
+}

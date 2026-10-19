@@ -175,7 +175,9 @@ async def fingerprint(path: Path) -> str | None:
     Returns ``None`` when the audio is too short for Chromaprint to produce one
     (it needs roughly three seconds); the caller substitutes an exact-match key.
     """
-    code, stdout, stderr = await _run(require_binary("fpcalc"), "-json", "-length", "120", str(path))
+    code, stdout, stderr = await _run(
+        require_binary("fpcalc"), "-json", "-length", "120", str(path)
+    )
     if code != 0:
         if b"Empty fingerprint" in stderr:
             return None

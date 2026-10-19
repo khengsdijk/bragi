@@ -313,6 +313,11 @@ dependencies = [
     { name = "bragi-generate" },
 ]
 
+[package.optional-dependencies]
+ml = [
+    { name = "bragi-analysis", extra = ["ml"] },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "datamodel-code-generator" },
@@ -324,10 +329,12 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bragi-analysis", editable = "analysis" },
+    { name = "bragi-analysis", extras = ["ml"], marker = "extra == 'ml'", editable = "analysis" },
     { name = "bragi-common", editable = "bragi_common" },
     { name = "bragi-embed", editable = "embed" },
     { name = "bragi-generate", editable = "generate" },
 ]
+provides-extras = ["ml"]
 
 [package.metadata.requires-dev]
 dev = [

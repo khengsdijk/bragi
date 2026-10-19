@@ -29,7 +29,7 @@ from bragi_common.generated.models import (
 )
 from bragi_common.protocol import params_of
 
-CAPABILITY = "ingest"
+CAPABILITY = "analysis.ingest"
 
 #: The working asset's format (02 §3.4, 04 §3.1).
 WORKING_SAMPLE_RATE = 48_000

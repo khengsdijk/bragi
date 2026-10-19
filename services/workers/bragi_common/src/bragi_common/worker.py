@@ -28,9 +28,9 @@ from opentelemetry.trace import SpanKind, Tracer
 
 from bragi_common.cache import ResultCache
 from bragi_common.cancel import CancelToken, JobCancelledError
-from bragi_common.errors import JobFailure
 from bragi_common.config import Settings
 from bragi_common.context import JobContext
+from bragi_common.errors import JobFailure
 from bragi_common.generated.models import (
     JobError,
     JobEvent,

@@ -38,10 +38,16 @@ def run_ingest(
 
 
 def ffprobe(path: Path) -> dict[str, object]:
-    out = subprocess.run(  # noqa: S603 - fixed argv, test-generated file
+    out = subprocess.run(
         [
-            "ffprobe", "-v", "error", "-print_format", "json", "-show_streams", str(path),
-        ],  # fmt: skip
+            "ffprobe",
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_streams",
+            str(path),
+        ],
         check=True,
         capture_output=True,
     )
@@ -125,10 +131,17 @@ def test_the_working_asset_is_deterministic(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "garbage",
-    [b"", b"definitely not audio", bytes(range(256)) * 64, b"RIFF\x00\x00\x00\x00WAVE" + b"\x00" * 40],
+    [
+        b"",
+        b"definitely not audio",
+        bytes(range(256)) * 64,
+        b"RIFF\x00\x00\x00\x00WAVE" + b"\x00" * 40,
+    ],
     ids=["empty", "text", "binary", "wav-header-only"],
 )
-def test_undecodable_input_is_asset_corrupt_and_not_retryable(tmp_path: Path, garbage: bytes) -> None:
+def test_undecodable_input_is_asset_corrupt_and_not_retryable(
+    tmp_path: Path, garbage: bytes
+) -> None:
     error = failure(tmp_path, garbage)
     assert error.code == "ASSET_CORRUPT"
     assert error.retryable is False
@@ -137,7 +150,10 @@ def test_undecodable_input_is_asset_corrupt_and_not_retryable(tmp_path: Path, ga
 
 def test_a_truncated_flac_is_asset_corrupt(tmp_path: Path) -> None:
     # FLAC declares its total sample count in STREAMINFO, so a cut-off file is detectable.
-    full, result = run_ingest(tmp_path, wav_bytes(np.random.default_rng(1).uniform(-0.5, 0.5, 96_000).astype(np.float32), 48_000))
+    full, result = run_ingest(
+        tmp_path,
+        wav_bytes(np.random.default_rng(1).uniform(-0.5, 0.5, 96_000).astype(np.float32), 48_000),
+    )
     flac = full.uploads[cast(str, result["workingAsset"])]
     error = failure(tmp_path, flac[: len(flac) // 2])
     assert error.code == "ASSET_CORRUPT"
@@ -146,11 +162,20 @@ def test_a_truncated_flac_is_asset_corrupt(tmp_path: Path) -> None:
 
 def test_a_file_without_an_audio_track_is_unsupported_media(tmp_path: Path) -> None:
     video = tmp_path / "video.mkv"
-    subprocess.run(  # noqa: S603 - fixed argv
+    subprocess.run(
         [
-            "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=1",
-            "-c:v", "mpeg4", "-y", str(video),
-        ],  # fmt: skip
+            "ffmpeg",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=64x64:d=1",
+            "-c:v",
+            "mpeg4",
+            "-y",
+            str(video),
+        ],
         check=True,
     )
     error = failure(tmp_path, video.read_bytes())

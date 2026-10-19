@@ -1,0 +1,14 @@
+# Energy curve weights (specs/04-analysis-pipeline.md §5.5).
+#
+#   energy = sigmoid( sum_i w_i * zscore(feature_i) )
+#
+# Before separation there is no `active_stem_weight`, so its weight is
+# redistributed proportionally across the features that exist (the weights of the
+# available features are renormalised to sum to 1). The 04 defaults are
+# 0.40 / 0.25 / 0.15 / 0.20; tune against the hand-labelled set when it exists.
+
+[weights]
+loudness_st = 0.40
+onset_density = 0.25
+spectral_centroid = 0.15
+active_stem_weight = 0.20

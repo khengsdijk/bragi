@@ -42,6 +42,10 @@ crates/bragi-engine-wasm/pkg/
 crates/bragi-dsp/stretch-lab/web/*.wasm
 crates/bragi-dsp/stretch-lab/renders/
 
+# Analysis eval (04 §8, 13 §6): the audio is private and never committed; reports are generated.
+fixtures/eval/audio/
+reports/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -6,6 +6,7 @@ from typing import cast
 
 from nats.aio.msg import Msg
 
+from bragi_common.errors import JobFailure
 from bragi_common.generated.models import (
     FreeformParams,
     JobEventType,
@@ -14,7 +15,6 @@ from bragi_common.generated.models import (
     JobRequest,
     JobRequestSchemaVersion,
 )
-from bragi_common.errors import JobFailure
 from bragi_common.protocol import params_of
 from bragi_common.worker import _error_code, _event, _num_delivered, _retryable
 
