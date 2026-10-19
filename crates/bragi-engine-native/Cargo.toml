@@ -9,7 +9,7 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
-bragi-engine = { path = "../bragi-engine", features = ["decode"] }
+bragi-engine = { path = "../bragi-engine", features = ["decode", "parallel"] }
 bragi-model = { path = "../bragi-model" }
 memmap2.workspace = true
 cpal.workspace = true

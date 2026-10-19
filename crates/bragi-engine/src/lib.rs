@@ -74,6 +74,7 @@ pub mod chunkpool;
 pub mod decode;
 pub mod engine;
 pub mod error;
+pub mod export;
 pub mod fade;
 pub mod meters;
 pub mod offline;

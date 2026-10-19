@@ -1,0 +1,400 @@
+//! WP-1.11 acceptance and export correctness.
+//!
+//! Every fixture is generated here (13 §6): a synthetic "working asset" is
+//! encoded as 24-bit FLAC, decoded back (that is the working asset the engine
+//! plays), exported through the engine, decoded again, and nulled against the
+//! working asset. Decoding goes through symphonia, so the encoders are checked
+//! by an independent implementation.
+
+mod common;
+
+use bragi_engine::decode::decode_bytes;
+use bragi_engine::export::md5::Md5;
+use bragi_engine::export::{
+    AudioFormat, ExportError, ExportMeta, ExportOptions, StemSelection, encode_flac, encode_wav,
+    export_mixdown, export_stems, run_job,
+};
+use bragi_engine::offline::null_level_dbfs;
+use bragi_engine::pcm::{MemoryPcm, PcmBuffer};
+use bragi_engine::plan::compile;
+use common::{assets, clip_none, hash, lane, project, section, track_with};
+use serde_json::json;
+
+const FRAMES: usize = 144_000; // 3 s at 48 kHz = 6 beats at 120 bpm = 5760 ticks
+
+/// Deterministic pseudo-noise in `-1..1`.
+fn noise(state: &mut u64) -> f32 {
+    *state ^= *state << 13;
+    *state ^= *state >> 7;
+    *state ^= *state << 17;
+    ((*state >> 40) as f32 / (1u64 << 23) as f32) - 1.0
+}
+
+/// A stereo mix of two tones plus noise, peaking well under the −0.3 dBFS
+/// safety limiter, with different left and right content.
+fn synthetic(frames: usize, seed: u64, amplitude: f32) -> Vec<f32> {
+    let mut state = seed;
+    let mut out = Vec::with_capacity(frames * 2);
+    for frame in 0..frames {
+        let t = frame as f32 / 48_000.0;
+        let tone = (t * std::f32::consts::TAU * 220.0).sin() * 0.5
+            + (t * std::f32::consts::TAU * 331.0).sin() * 0.3;
+        out.push((tone + noise(&mut state) * 0.1) * amplitude);
+        out.push((tone * 0.8 + noise(&mut state) * 0.1) * amplitude);
+    }
+    out
+}
+
+/// The working asset: a 24-bit FLAC round trip, as ingest would produce.
+fn working_asset(frames: usize, seed: u64, amplitude: f32) -> PcmBuffer {
+    let flac = encode_flac(
+        &synthetic(frames, seed, amplitude),
+        2,
+        24,
+        &ExportMeta::bare(),
+        None,
+    )
+    .unwrap();
+    let decoded = decode_bytes(&flac, Some("flac")).unwrap();
+    assert_eq!((decoded.channels, decoded.sample_rate), (2, 48_000));
+    decoded.into_pcm_buffer()
+}
+
+fn one_clip_project(buffer_frames: usize) -> bragi_engine::RenderPlan {
+    let h = hash('a');
+    let doc = project(
+        vec![track_with("trk_01", 0.0, 0.0, false, false)],
+        vec![section(
+            "sec_a",
+            5760,
+            json!({ "trk_01": lane(vec![clip_none("clp_a", &h, 0, buffer_frames as u64, 0)]) }),
+        )],
+    );
+    compile(&doc, &assets(&h, buffer_frames as u64), 48_000, 1).unwrap()
+}
+
+fn decode(file: &bragi_engine::export::ExportFile, extension: &str) -> Vec<f32> {
+    decode_bytes(&file.bytes, Some(extension)).unwrap().samples
+}
+
+/// Acceptance (12, WP-1.11): the mixdown of an unedited project nulls against
+/// the working asset at or below −60 dBFS. The formats are held to their own,
+/// much tighter, quantisation floors as well.
+#[test]
+fn unedited_mixdown_nulls_against_the_working_asset() {
+    let asset = working_asset(FRAMES, 0x1234_5678_9abc_def1, 0.6);
+    let reference = asset.samples.clone();
+    let mut pcm = MemoryPcm::new();
+    pcm.insert(hash('a'), asset);
+    let plan = one_clip_project(FRAMES);
+
+    let cases: [(AudioFormat, &str, f32); 4] = [
+        (AudioFormat::Wav { bits: 24 }, "wav", -130.0),
+        (AudioFormat::Flac { bits: 24 }, "flac", -130.0),
+        (AudioFormat::Wav { bits: 16 }, "wav", -85.0),
+        (AudioFormat::Flac { bits: 16 }, "flac", -85.0),
+    ];
+    for (format, extension, ceiling) in cases {
+        let options = ExportOptions::new(format, ExportMeta::titled("Null test"));
+        let file = export_mixdown(&plan, &pcm, &options).unwrap();
+        assert_eq!(file.frames as usize, FRAMES);
+        assert_eq!(file.name, format!("Null test.{extension}"));
+        let decoded = decode(&file, extension);
+        assert_eq!(decoded.len(), reference.len());
+        let level = null_level_dbfs(&decoded, &reference);
+        println!("null {format:?}: {level:.1} dBFS");
+        assert!(level <= -60.0, "{format:?} nulls at {level} dBFS (> -60)");
+        assert!(
+            level <= ceiling,
+            "{format:?} nulls at {level} dBFS (> {ceiling})"
+        );
+    }
+
+    // 32-bit float carries the engine output unchanged.
+    let float = export_mixdown(
+        &plan,
+        &pcm,
+        &ExportOptions::new(AudioFormat::Wav { bits: 32 }, ExportMeta::bare()),
+    )
+    .unwrap();
+    let level = null_level_dbfs(&decode(&float, "wav"), &reference);
+    println!("null wav32: {level} dBFS");
+    assert_eq!(level, f32::NEG_INFINITY);
+}
+
+#[test]
+fn flac_round_trips_losslessly_at_awkward_lengths() {
+    for &bits in &[16u8, 24] {
+        let scale = (1u32 << (bits - 1)) as f32;
+        for &frames in &[0usize, 1, 3, 5, 255, 256, 257, 4095, 4096, 4097, 9000] {
+            let mut state = 0x9e37_79b9_7f4a_7c15u64 ^ frames as u64;
+            let mut samples = Vec::with_capacity(frames * 2);
+            for frame in 0..frames {
+                let wave = (frame as f32 * 0.03).sin() * 0.7;
+                // Exactly representable values, so the round trip is bit exact.
+                let left = ((wave + noise(&mut state) * 0.05) * scale).round() / scale;
+                let right = ((wave * -0.5) * scale).round() / scale;
+                samples.push(left);
+                samples.push(right);
+            }
+            let bytes = encode_flac(&samples, 2, bits, &ExportMeta::bare(), None).unwrap();
+            if frames < 16 {
+                // Valid FLAC, but symphonia (like some decoders) refuses a
+                // stream whose only block is under the 16-sample minimum.
+                assert_eq!(&bytes[0..4], b"fLaC");
+                continue;
+            }
+            let decoded = decode_bytes(&bytes, Some("flac")).unwrap();
+            assert_eq!(
+                decoded.samples.len(),
+                samples.len(),
+                "{bits}-bit {frames} frames"
+            );
+            assert_eq!(decoded.samples, samples, "{bits}-bit {frames} frames");
+        }
+    }
+}
+
+#[test]
+fn flac_handles_extremes_silence_and_mono() {
+    // Full-scale square wave and silence in one stream.
+    let mut samples = Vec::new();
+    for frame in 0..6000 {
+        let value = if frame < 2000 {
+            if (frame / 7) % 2 == 0 {
+                1.0 - 1.0 / 32768.0
+            } else {
+                -1.0
+            }
+        } else {
+            0.0
+        };
+        samples.push(value);
+        // +1.0 is not representable in 16 bit; use the largest positive value.
+        samples.push(if value == -1.0 {
+            1.0 - 1.0 / 32768.0
+        } else {
+            -value
+        });
+    }
+    let bytes = encode_flac(&samples, 2, 16, &ExportMeta::bare(), None).unwrap();
+    assert_eq!(decode_bytes(&bytes, Some("flac")).unwrap().samples, samples);
+
+    let mono: Vec<f32> = (0..5000).map(|i| (i as f32 * 0.01).sin() * 0.5).collect();
+    let mono: Vec<f32> = mono
+        .iter()
+        .map(|v| (v * 32768.0).round() / 32768.0)
+        .collect();
+    let bytes = encode_flac(&mono, 1, 16, &ExportMeta::bare(), None).unwrap();
+    let decoded = decode_bytes(&bytes, Some("flac")).unwrap();
+    assert_eq!(decoded.channels, 1);
+    assert_eq!(decoded.samples, mono);
+}
+
+#[test]
+fn flac_streaminfo_md5_matches_the_audio() {
+    let samples: Vec<f32> = synthetic(10_000, 77, 0.5)
+        .iter()
+        .map(|v| (v * 8_388_608.0).round() / 8_388_608.0)
+        .collect();
+    let bytes = encode_flac(&samples, 2, 24, &ExportMeta::bare(), None).unwrap();
+    let mut md5 = Md5::new();
+    for sample in &samples {
+        let value = (sample * 8_388_608.0) as i32;
+        md5.update(&value.to_le_bytes()[..3]);
+    }
+    // "fLaC" + 4-byte block header + the 18 bytes before the signature.
+    assert_eq!(&bytes[26..42], &md5.finalize());
+}
+
+#[test]
+fn flac_is_smaller_than_wav_for_tonal_audio() {
+    let samples = synthetic(48_000, 5, 0.1);
+    let wav = encode_wav(&samples, 2, 24, &ExportMeta::bare(), None).unwrap();
+    let flac = encode_flac(&samples, 2, 24, &ExportMeta::bare(), None).unwrap();
+    println!("flac {} / wav {}", flac.len(), wav.len());
+    assert!(flac.len() < wav.len());
+}
+
+#[test]
+fn metadata_survives_in_both_containers() {
+    let meta = ExportMeta {
+        title: Some("Song".into()),
+        bpm: Some(128.0),
+        key: Some("A minor".into()),
+        created: Some("2026-10-19".into()),
+        ..ExportMeta::default()
+    };
+    let wav = encode_wav(&[0.0; 8], 2, 24, &meta, None).unwrap();
+    let flac = encode_flac(&[0.0; 8], 2, 16, &meta, None).unwrap();
+    for bytes in [wav, flac] {
+        let text = String::from_utf8_lossy(&bytes).to_string();
+        assert!(text.contains("Song"), "title");
+        assert!(text.contains("BPM 128.00"), "bpm");
+        assert!(text.contains("A minor"), "key");
+        assert!(text.contains("2026-10-19"), "date");
+        assert!(text.contains("Bragi"), "software");
+    }
+}
+
+fn three_track_plan() -> (bragi_engine::RenderPlan, MemoryPcm) {
+    let (ha, hb, hc) = (hash('a'), hash('b'), hash('c'));
+    let frames = 96_000usize;
+    let doc = project(
+        vec![
+            track_with("trk_01", 0.0, -0.5, false, false),
+            track_with("trk_02", -3.0, 0.5, true, false), // muted in the doc
+            track_with("trk_03", -6.0, 0.0, false, false),
+        ],
+        vec![section(
+            "sec_a",
+            3840,
+            json!({
+                "trk_01": lane(vec![clip_none("clp_a", &ha, 0, frames as u64, 0)]),
+                "trk_02": lane(vec![clip_none("clp_b", &hb, 0, frames as u64, 0)]),
+                "trk_03": lane(vec![clip_none("clp_c", &hc, 0, frames as u64, 0)]),
+            }),
+        )],
+    );
+    let index = bragi_model::AssetIndex::from_metas([
+        common::meta(&ha, frames as u64),
+        common::meta(&hb, frames as u64),
+        common::meta(&hc, frames as u64),
+    ]);
+    let plan = compile(&doc, &index, 48_000, 1).unwrap();
+    let mut pcm = MemoryPcm::new();
+    pcm.insert(ha, PcmBuffer::new(synthetic(frames, 1, 0.25), 2, 48_000));
+    pcm.insert(hb, PcmBuffer::new(synthetic(frames, 2, 0.25), 2, 48_000));
+    pcm.insert(hc, PcmBuffer::new(synthetic(frames, 3, 0.25), 2, 48_000));
+    (plan, pcm)
+}
+
+#[test]
+fn stems_are_named_ordered_and_sum_to_the_mixdown() {
+    let (plan, pcm) = three_track_plan();
+    let options = ExportOptions::new(AudioFormat::Wav { bits: 32 }, ExportMeta::titled("Song"));
+    let stems = export_stems(&plan, &pcm, &StemSelection::All, &options).unwrap();
+    let names: Vec<&str> = stems.iter().map(|file| file.name.as_str()).collect();
+    assert_eq!(names, ["01-trk_01.wav", "02-trk_02.wav", "03-trk_03.wav"]);
+    assert!(stems.iter().all(|file| file.frames == 96_000));
+
+    // The muted track still has a stem: a stem is the track as written.
+    let muted = decode(&stems[1], "wav");
+    assert!(muted.iter().any(|sample| sample.abs() > 0.01));
+
+    // Σ stems == mixdown of the audible tracks plus the muted stem, i.e. the
+    // mixdown of a plan where nothing is muted.
+    let mut unmuted = plan.clone();
+    for track in &mut unmuted.tracks {
+        track.mute = false;
+    }
+    let mixdown = export_mixdown(&unmuted, &pcm, &options).unwrap();
+    let mix = decode(&mixdown, "wav");
+    let mut sum = vec![0.0f32; mix.len()];
+    for stem in &stems {
+        for (acc, value) in sum.iter_mut().zip(decode(stem, "wav")) {
+            *acc += value;
+        }
+    }
+    let level = null_level_dbfs(&sum, &mix);
+    println!("stems sum vs mixdown: {level} dBFS");
+    assert!(level <= -120.0, "stems sum null {level}");
+
+    // The song mixdown honours the mute.
+    let audible = export_mixdown(&plan, &pcm, &options).unwrap();
+    assert!(null_level_dbfs(&decode(&audible, "wav"), &mix) > -60.0);
+}
+
+#[test]
+fn stem_selection_filters_and_rejects_unknown_tracks() {
+    let (plan, pcm) = three_track_plan();
+    let options = ExportOptions::new(AudioFormat::Flac { bits: 24 }, ExportMeta::bare());
+    let picked = export_stems(
+        &plan,
+        &pcm,
+        &StemSelection::Tracks(vec!["trk_03".into(), "trk_01".into()]),
+        &options,
+    )
+    .unwrap();
+    let names: Vec<&str> = picked.iter().map(|file| file.name.as_str()).collect();
+    assert_eq!(names, ["01-trk_01.flac", "03-trk_03.flac"]);
+    assert_eq!(
+        export_stems(
+            &plan,
+            &pcm,
+            &StemSelection::Tracks(vec!["trk_99".into()]),
+            &options
+        ),
+        Err(ExportError::UnknownTrack("trk_99".into()))
+    );
+}
+
+#[test]
+fn export_is_deterministic_and_dither_needs_a_seed() {
+    let (plan, pcm) = three_track_plan();
+    let mut options = ExportOptions::new(AudioFormat::Wav { bits: 16 }, ExportMeta::bare());
+    let a = export_mixdown(&plan, &pcm, &options).unwrap();
+    let b = export_mixdown(&plan, &pcm, &options).unwrap();
+    assert_eq!(a.bytes, b.bytes);
+    options.dither_seed = Some(42);
+    let c = export_mixdown(&plan, &pcm, &options).unwrap();
+    let d = export_mixdown(&plan, &pcm, &options).unwrap();
+    assert_eq!(c.bytes, d.bytes);
+    assert_ne!(a.bytes, c.bytes);
+
+    let stems_a = export_stems(&plan, &pcm, &StemSelection::All, &options).unwrap();
+    let stems_b = export_stems(&plan, &pcm, &StemSelection::All, &options).unwrap();
+    assert_eq!(stems_a, stems_b);
+}
+
+#[test]
+fn a_range_exports_only_that_range() {
+    let (plan, pcm) = three_track_plan();
+    let mut options = ExportOptions::new(AudioFormat::Wav { bits: 24 }, ExportMeta::bare());
+    options.start = 48_000;
+    options.frames = Some(24_000);
+    let part = export_mixdown(&plan, &pcm, &options).unwrap();
+    assert_eq!(part.frames, 24_000);
+    let full = export_mixdown(
+        &plan,
+        &pcm,
+        &ExportOptions::new(AudioFormat::Wav { bits: 24 }, ExportMeta::bare()),
+    )
+    .unwrap();
+    let whole = decode(&full, "wav");
+    let slice = decode(&part, "wav");
+    assert!(null_level_dbfs(&slice, &whole[96_000..96_000 + 48_000]) <= -130.0);
+}
+
+#[test]
+fn run_job_reads_the_host_json() {
+    let (plan, pcm) = three_track_plan();
+    let mixdown = run_job(
+        &plan,
+        &pcm,
+        &json!({ "kind": "mixdown", "format": { "container": "flac", "bits": 16 },
+                 "meta": { "title": "Hello / World" } }),
+    )
+    .unwrap();
+    assert_eq!(mixdown.files.len(), 1);
+    assert_eq!(mixdown.files[0].name, "Hello _ World.flac");
+
+    let stems = run_job(
+        &plan,
+        &pcm,
+        &json!({ "kind": "stems", "tracks": "all", "format": { "container": "wav", "bits": 24 } }),
+    )
+    .unwrap();
+    assert_eq!(stems.files.len(), 3);
+
+    for bad in [
+        json!({ "kind": "context", "range": {}, "tracks": "all" }),
+        json!({ "kind": "cache", "sectionId": "sec_a" }),
+        json!({ "kind": "mixdown", "format": { "container": "mp3", "kbps": 192 } }),
+        json!({ "kind": "mixdown", "format": { "container": "wav", "bits": 24 },
+                "normalize": { "lufs": -14, "truePeakDb": -1 } }),
+        json!({ "kind": "mixdown", "format": { "container": "flac", "bits": 32 } }),
+    ] {
+        assert!(run_job(&plan, &pcm, &bad).is_err(), "{bad}");
+    }
+}

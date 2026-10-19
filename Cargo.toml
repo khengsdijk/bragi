@@ -50,6 +50,9 @@ symphonia = { version = "0.5.4", default-features = false, features = [
 ] }
 # Memory-mapped PCM cache on desktop (specs/03-audio-engine.md §3.2). Native only.
 memmap2 = "0.9"
+# Parallel per-track offline render and export (specs/03-audio-engine.md §3.2). Native
+# only: bragi-engine gates it behind its `parallel` feature, which wasm32 never enables.
+rayon = "1.10"
 # Desktop audio output (specs/03-audio-engine.md §3.2). Native only.
 cpal = "0.15"
 

@@ -16,14 +16,20 @@ thiserror.workspace = true
 # One decoder for native and wasm (specs/01-architecture.md §1). Optional so a
 # host that only mixes pre-decoded PCM does not carry it.
 symphonia = { workspace = true, optional = true }
+# Per-track parallel stem export. Native only; the wasm build leaves it off.
+rayon = { workspace = true, optional = true }
 
 [features]
 default = []
 # Enables `bragi_engine::decode` (symphonia): FLAC/WAV/MP3/AAC/OGG/M4A to
 # interleaved f32. Both hosts enable it.
 decode = ["dep:symphonia"]
+# Renders stems on the rayon pool (03 §3.2). Enabled by bragi-engine-native only.
+parallel = ["dep:rayon"]
 
 [dev-dependencies]
+# The export tests decode what they encode, so they need the decoder.
+bragi-engine = { path = ".", features = ["decode"] }
 proptest.workspace = true
 insta.workspace = true
 
