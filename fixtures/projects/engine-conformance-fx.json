@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "prj_engineconfFx",
+  "meta": {
+    "title": "Engine conformance fx",
+    "createdAt": "2026-10-19T00:00:00Z",
+    "tags": ["conformance"]
+  },
+  "sources": [],
+  "analyses": {},
+  "tracks": [
+    {
+      "id": "trk_tone",
+      "name": "trk_tone",
+      "role": "synth",
+      "color": "#C9A227",
+      "gainDb": -3.0,
+      "pan": 0.0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": [
+        {
+          "id": "fx_gain",
+          "type": "gain",
+          "params": { "db": -3.0 },
+          "bypass": false
+        }
+      ]
+    }
+  ],
+  "arrangement": {
+    "timebase": {
+      "ppq": 960,
+      "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }],
+      "timeSignatures": [{ "bar": 0, "numerator": 4, "denominator": 4 }]
+    },
+    "sections": [
+      {
+        "id": "sec_a",
+        "kind": "intro",
+        "label": "A",
+        "lengthTicks": 1920,
+        "lanes": {
+          "trk_tone": {
+            "clips": [
+              {
+                "id": "clp_f1",
+                "asset": "sha256:4f0f99f60f5a81427887a233bacd5bbca2e0f7e4fe4f18ce1c39904955362f3e",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": { "mode": "none" },
+                "gainDb": 0.0,
+                "pitchSemitones": 0.0,
+                "fadeInTicks": 240,
+                "fadeOutTicks": 240,
+                "fadeCurve": "equal_power",
+                "provenance": { "kind": "user", "createdAt": "2026-10-19T00:00:00Z" }
+              }
+            ],
+            "automation": []
+          }
+        },
+        "transitionIn": { "kind": "cut", "lengthTicks": 0 }
+      }
+    ],
+    "master": {
+      "fx": [
+        {
+          "id": "fx_master",
+          "type": "gain",
+          "params": { "db": 2.0 },
+          "bypass": false
+        }
+      ],
+      "automation": [],
+      "gainDb": 0
+    }
+  }
+}
