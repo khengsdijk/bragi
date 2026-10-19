@@ -88,6 +88,19 @@ export interface Meta {
   readonly features: Readonly<Record<string, boolean>>;
 }
 
+/** How the API authenticates requests (ADR-0014). */
+export type AuthMode = "single-user" | "multi-user";
+
+/** `GET /v1/auth/mode`: the mode and, when signed in, the current user. */
+export interface AuthModeResponse {
+  readonly mode: AuthMode;
+  readonly user: {
+    readonly id: string;
+    readonly email: string;
+    readonly name: string;
+  } | null;
+}
+
 export interface ApiClientOptions {
   /** API origin, e.g. `https://api.bragi.app`; `""` means same origin. */
   readonly baseUrl?: string;
@@ -102,6 +115,8 @@ export interface ApiClientOptions {
 export interface ApiClient {
   readonly baseUrl: string;
   meta(): Promise<Meta>;
+  /** The API's auth mode; the welcome page hides sign-in in single-user mode (ADR-0014). */
+  getAuthMode(): Promise<AuthModeResponse>;
   /** Requests a magic link (05 §8). The email is sent by the API, not here. */
   signInWithEmail(email: string, callbackURL?: string): Promise<void>;
   presign(request: PresignRequest): Promise<PresignResponse>;
@@ -162,6 +177,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   return {
     baseUrl,
     meta: () => request<Meta>("GET", "/v1/meta"),
+    getAuthMode: () => request<AuthModeResponse>("GET", "/v1/auth/mode"),
     async signInWithEmail(email, callbackURL) {
       await request<unknown>("POST", "/v1/auth/sign-in/magic-link", {
         email,

@@ -109,6 +109,7 @@ async function harness(
   const api: ApiClient = {
     baseUrl: "",
     meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
+    getAuthMode: async () => ({ mode: "multi-user", user: null }),
     signInWithEmail: async () => {},
     presign: async () => ({ exists: false, uploadUrl: "blob:upload", headers: {}, expiresIn: 900 }),
     complete: async (hash) => ({ hash, bytes: 0, mime: null }),
@@ -471,6 +472,7 @@ describe("the upload -> live-analysis flow", () => {
       api: {
         baseUrl: "",
         meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
+        getAuthMode: async () => ({ mode: "multi-user", user: null }),
         signInWithEmail: async () => {},
         presign: async () => {
           throw new Error("resume must not upload");

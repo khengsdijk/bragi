@@ -26,6 +26,20 @@ function fakeFetch(response: { status?: number; body?: unknown; text?: string })
 }
 
 describe("createApiClient", () => {
+  it("reads the auth mode with the cookie credential (ADR-0014)", async () => {
+    const body = {
+      mode: "single-user",
+      user: { id: "usr_1", email: "owner@bragi.local", name: "Owner" },
+    };
+    const { fetch, calls } = fakeFetch({ body });
+    const client = createApiClient({ baseUrl: "https://api.test", fetch });
+
+    await expect(client.getAuthMode()).resolves.toEqual(body);
+    expect(calls[0]?.url).toBe("https://api.test/v1/auth/mode");
+    expect(calls[0]?.init.method).toBe("GET");
+    expect(calls[0]?.init.credentials).toBe("include");
+  });
+
   it("posts JSON with the cookie credential and a bearer token when given", async () => {
     const { fetch, calls } = fakeFetch({ body: { exists: true } });
     const client = createApiClient({ baseUrl: "https://api.test", fetch, token: "tok_1" });

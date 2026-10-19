@@ -1,14 +1,15 @@
 /**
  * WP-1.10: the M1 demo in a real browser against the real local backend.
  *
- *   sign in (magic link, read from Mailpit) -> pick the generated 4-minute fixture -> plain-language
+ *   open the app (single-user mode, no sign-in) -> pick the generated 4-minute fixture -> plain-language
  *   progress -> project -> playable canvas -> stems appear after separation and every one is
  *   soloable -> reload reopens the stored snapshot -> axe -> keyboard-only path.
  *
- * It needs the stack: `pnpm infra:up`, `pnpm dev:backend` (API on 8080, orchestrator, workers) and
- * Mailpit on 8025; Vite proxies `/v1` to the API. It is gated behind `BRAGI_E2E_STACK=1` so that
- * `pnpm test:e2e` without a stack stays green. Run it with `pnpm test:e2e:flow` (Chromium, dev
- * server). The fixture is generated (`scripts/fixture-song.mjs`); no audio is committed.
+ * It needs the stack: `pnpm infra:up` and `pnpm dev:backend` (API on 8080, orchestrator,
+ * workers) in its default single-user mode; no Mailpit. Vite proxies `/v1` to the API. It is
+ * gated behind `BRAGI_E2E_STACK=1` so that `pnpm test:e2e` without a stack stays green. Run it
+ * with `pnpm test:e2e:flow` (Chromium, dev server). The fixture is generated
+ * (`scripts/fixture-song.mjs`); no audio is committed.
  *
  * Timings are printed as `[timing] ...` lines. They are wall clock on whatever machine this runs
  * on and are recorded in docs/wp/1.10.md with that label; they are not the 60 s reference-GPU
@@ -29,7 +30,6 @@ import { expect, test } from "./app-page.js";
 import { canvasPoint, layout, type ProjectLike, withHooks } from "./song-helpers.js";
 
 const STACK = process.env.BRAGI_E2E_STACK === "1";
-const MAILPIT = process.env.MAILPIT_URL ?? "http://127.0.0.1:8025";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const FIXTURE_DIR = join(tmpdir(), "bragi-e2e");
 const FIXTURE = join(FIXTURE_DIR, "bragi-fixture-4min.wav");
@@ -79,42 +79,6 @@ async function resetAnalysis(file: string): Promise<void> {
   }
 }
 
-/** Requests the magic link through the UI and returns it from Mailpit. */
-async function requestMagicLink(page: Page, email: string): Promise<string> {
-  await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "Send me a sign-in link" }).click();
-  await expect(page.getByText("Check your email for the sign-in link.")).toBeVisible();
-  return magicLinkFor(email);
-}
-
-/** The magic link Mailpit received for `email`. */
-async function magicLinkFor(email: string): Promise<string> {
-  const deadline = Date.now() + 20_000;
-  while (Date.now() < deadline) {
-    const listing = (await (await fetch(`${MAILPIT}/api/v1/messages?limit=50`)).json()) as {
-      messages?: { ID: string; To?: { Address: string }[] }[];
-    };
-    const message = listing.messages?.find((m) => m.To?.some((to) => to.Address === email));
-    if (message) {
-      const detail = (await (await fetch(`${MAILPIT}/api/v1/message/${message.ID}`)).json()) as {
-        Text?: string;
-      };
-      const link = /https?:\/\/\S+/.exec(detail.Text ?? "")?.[0];
-      if (link) return link;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 400));
-  }
-  throw new Error("the magic-link email never arrived in Mailpit");
-}
-
-async function signIn(page: Page, email: string): Promise<void> {
-  await page.goto("/#/");
-  const link = await requestMagicLink(page, email);
-  // The link verifies the token (the API sets the session cookie) and redirects back to the app.
-  await page.goto(link);
-  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
-}
-
 function seriousOrCritical(results: Awaited<ReturnType<AxeBuilder["analyze"]>>): string[] {
   return results.violations
     .filter((v) => v.impact === "serious" || v.impact === "critical")
@@ -132,7 +96,7 @@ const hookDoc = (page: Page) =>
 test.describe("upload -> live analysis -> playable, soloable canvas", () => {
   test.setTimeout(300_000);
 
-  test("signs in, uploads the 4-minute fixture and reaches a playable canvas with soloable stems", async ({
+  test("uploads the 4-minute fixture and reaches a playable canvas with soloable stems", async ({
     appPage,
   }, testInfo) => {
     const fixture = ensureFixture();
@@ -149,9 +113,10 @@ test.describe("upload -> live analysis -> playable, soloable canvas", () => {
       if (r.status() >= 400) console.log(`[http ${r.status()}] ${r.request().method()} ${r.url()}`);
     });
 
-    await signIn(appPage, `e2e-${Date.now()}@example.test`);
+    // The default local stack is single-user (ADR-0014): no sign-in form, straight to upload.
+    await expect(appPage.locator("#sign-in-email")).toHaveCount(0);
 
-    // axe on the welcome / library page (signed in, nothing uploaded yet).
+    // axe on the welcome / library page (nothing uploaded yet).
     await expect(appPage.getByTestId("library-empty")).toBeVisible();
     expect(seriousOrCritical(await new AxeBuilder({ page: appPage }).analyze())).toEqual([]);
 
@@ -306,11 +271,11 @@ test.describe("upload -> live analysis -> playable, soloable canvas", () => {
     expect(errors).toEqual([]);
   });
 
-  test("sign-in and upload work with the keyboard alone", async ({ appPage }, testInfo) => {
+  test("upload works with the keyboard alone", async ({ appPage }, testInfo) => {
     const fixture = ensureFixture();
-    const email = `e2e-kbd-${Date.now()}@example.test`;
     await appPage.goto("/#/");
-    await expect(appPage.locator("#sign-in-email")).toBeVisible();
+    // Single-user stack (ADR-0014): no sign-in form to tab through.
+    await expect(appPage.locator("#sign-in-email")).toHaveCount(0);
     await appPage.locator("body").click({ position: { x: 1, y: 1 } });
 
     // macOS WebKit skips buttons and links on Tab unless the system setting is on; Option+Tab is
@@ -328,16 +293,6 @@ test.describe("upload -> live analysis -> playable, soloable canvas", () => {
       }
       throw new Error(`could not reach ${selector} with Tab`);
     };
-
-    // Sign in: Tab to the email field, type, Tab to the button, Enter.
-    await tabTo("#sign-in-email");
-    await appPage.keyboard.type(email);
-    await tabTo("button[type=submit]");
-    await appPage.keyboard.press("Enter");
-    await expect(appPage.getByText("Check your email for the sign-in link.")).toBeVisible();
-    const link = await magicLinkFor(email);
-    await appPage.goto(link);
-    await expect(appPage.getByRole("heading", { level: 1 }).first()).toBeVisible();
 
     // Upload: Tab to the drop button, Enter opens the file chooser.
     await tabTo("button.library__drop");
