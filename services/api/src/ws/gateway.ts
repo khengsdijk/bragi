@@ -12,7 +12,13 @@ import type { Subscription } from "nats";
 
 import type { AppContext } from "../app.js";
 import { resolveSession } from "../auth/session.js";
-import { type ServerMessage, toClientMessages, topicForSubject } from "./messages.js";
+import {
+  analysisMessages,
+  replayMessages,
+  type ServerMessage,
+  toClientMessages,
+  topicForSubject,
+} from "./messages.js";
 
 const decoder = new TextDecoder();
 
@@ -83,11 +89,35 @@ export class WsGateway {
     if (!subscribed) return;
     for (const topic of topics) {
       if (parsed.t === "sub") {
-        if (await this.canSubscribe(userId, topic)) subscribed.add(topic);
-        else socket.send(JSON.stringify({ t: "error", code: "FORBIDDEN", topic }));
+        if (await this.canSubscribe(userId, topic)) {
+          subscribed.add(topic);
+          await this.replay(socket, topic);
+        } else {
+          socket.send(JSON.stringify({ t: "error", code: "FORBIDDEN", topic }));
+        }
       } else {
         subscribed.delete(topic);
       }
+    }
+  }
+
+  /**
+   * Replays the finished analysis stages to a late subscriber (finding 6, Q25).
+   * Only `asset:` topics have a snapshot to replay; a `job:` or `project:` topic
+   * only ever hears new events, and the client fetches missed state over REST
+   * (05 §3).
+   */
+  private async replay(socket: WebSocket, topic: string): Promise<void> {
+    if (!topic.startsWith("asset:")) return;
+    const assetHash = topic.slice("asset:".length);
+    const { rows } = await this.ctx.pool.query<{
+      stage: string;
+      status: string;
+      blob_hash: string | null;
+      error: unknown;
+    }>("SELECT stage, status, blob_hash, error FROM analyses WHERE asset_hash = $1", [assetHash]);
+    for (const message of replayMessages(assetHash, rows)) {
+      socket.send(JSON.stringify(message));
     }
   }
 
@@ -158,12 +188,7 @@ export class WsGateway {
       return toClientMessages(event, capability, index);
     }
     if (topic.startsWith("asset:")) {
-      const analysis = payload as { assetHash?: unknown; stage?: unknown; blob?: unknown };
-      const { assetHash, stage, blob } = analysis;
-      if (typeof assetHash !== "string" || typeof stage !== "string" || typeof blob !== "string") {
-        return [];
-      }
-      return [{ t: "analysis.partial", assetHash, stage, blob }];
+      return analysisMessages(payload);
     }
     return [];
   }

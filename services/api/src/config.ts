@@ -48,6 +48,21 @@ export const configSchema = z.object({
   githubClientId: z.string().default(""),
   githubClientSecret: z.string().default(""),
 
+  /**
+   * Origins the API answers CORS for (comma-separated, 05 §8, finding 9). The
+   * web app is same-origin through the Vite proxy, so this mainly serves the
+   * desktop webview (`tauri://localhost`) and a direct dev-server origin.
+   */
+  corsOrigins: z
+    .string()
+    .default("tauri://localhost,http://localhost:5173,http://127.0.0.1:5173")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter((origin) => origin !== ""),
+    ),
+
   otelEnabled: booleanish.default(true),
   /** OTLP/HTTP collector base URL; `/v1/traces` is appended by the exporter. */
   otelEndpoint: z.string().url().default("http://127.0.0.1:4318"),
@@ -90,6 +105,7 @@ const ENV_KEYS: Record<keyof ConfigInput, string> = {
   authSecret: "AUTH_SECRET",
   githubClientId: "GITHUB_CLIENT_ID",
   githubClientSecret: "GITHUB_CLIENT_SECRET",
+  corsOrigins: "CORS_ORIGINS",
   otelEnabled: "OTEL_ENABLED",
   otelEndpoint: "OTEL_EXPORTER_OTLP_ENDPOINT",
   otelServiceName: "OTEL_SERVICE_NAME",

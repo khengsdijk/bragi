@@ -1,29 +1,20 @@
 /**
  * Analysis submission and status (specs/05 §2, §4.4, 04 §2–§3).
  *
- * `POST /v1/analyses` is where the DAG becomes work: cached stages return
- * immediately, and the stages whose dependencies are satisfied are published as
- * jobs. The orchestrator enqueues the dependents of each stage as it completes.
+ * `POST /v1/analyses` is the thin HTTP shell around {@link submitAnalysis}: it
+ * validates, authorises, then lets the shared helper create the missing stages
+ * and publish the ready ones. The call is **idempotent** (finding 4): a stage
+ * that is already `queued`, `running` or `done` is never submitted again, so a
+ * reload or a retry cannot duplicate work.
  */
 import type { FastifyInstance } from "fastify";
 
 import type { AppContext } from "../app.js";
 import { ApiError } from "../errors.js";
 import { isAssetHash } from "../ids.js";
-import {
-  type AnalysisProfile,
-  PROFILE_STAGES,
-  readyStages,
-  stagesForProfile,
-} from "../jobs/dag.js";
-import { submitJob } from "../jobs/service.js";
+import { type AnalysisProfile, implementedStagesForProfile, PROFILE_STAGES } from "../jobs/dag.js";
+import { submitAnalysis } from "../jobs/submit-analysis.js";
 import { pathParam, requireSession } from "./guards.js";
-
-/**
- * Placeholder stage version. Every analysis stage has its own real version
- * (`separation@htdemucs_6s-1`, 04 §1) once the stage exists in WP-1.2+.
- */
-export const STAGE_VERSION = "v0";
 
 interface AnalysesBody {
   assetHash: string;
@@ -55,43 +46,14 @@ export function registerAnalyses(app: FastifyInstance, ctx: AppContext): void {
     }
     await assertOwns(ctx, session.user.id, body.assetHash);
 
-    const stages = stagesForProfile(body.profile);
+    await submitAnalysis(ctx, session.user.id, body.assetHash, body.profile);
+
+    const stages = implementedStagesForProfile(body.profile);
     const { rows } = await ctx.pool.query<AnalysisRow>(
       "SELECT stage, status, blob_hash FROM analyses WHERE asset_hash = $1",
       [body.assetHash],
     );
     const byStage = new Map(rows.map((row) => [row.stage, row]));
-
-    const completed = new Set(stages.filter((stage) => byStage.get(stage)?.status === "done"));
-    const pending = stages.filter((stage) => !completed.has(stage));
-    const ready = readyStages(completed, pending);
-
-    for (const stage of pending) {
-      await ctx.pool.query(
-        `INSERT INTO analyses (asset_hash, stage, stage_version, status)
-         VALUES ($1, $2, $3, 'pending')
-         ON CONFLICT (asset_hash, stage, stage_version)
-         DO UPDATE SET updated_at = now()
-         WHERE analyses.status NOT IN ('done', 'running')`,
-        [body.assetHash, stage, STAGE_VERSION],
-      );
-    }
-
-    for (const stage of ready) {
-      await submitJob(ctx, session.user.id, {
-        capability: `analysis.${stage}`,
-        priority: "interactive",
-        assets: { source: body.assetHash },
-        params: { assetHash: body.assetHash, stage, profile: body.profile },
-      });
-      await ctx.pool.query(
-        `UPDATE analyses SET status = 'queued', updated_at = now()
-         WHERE asset_hash = $1 AND stage = $2 AND stage_version = $3`,
-        [body.assetHash, stage, STAGE_VERSION],
-      );
-      byStage.set(stage, { stage, status: "queued", blob_hash: null });
-    }
-
     return {
       assetHash: body.assetHash,
       profile: body.profile,

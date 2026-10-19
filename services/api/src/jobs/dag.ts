@@ -78,6 +78,34 @@ export const PROFILE_STAGES: Record<AnalysisProfile, readonly string[]> = {
   ],
 };
 
+/**
+ * The stages that have a worker today (05 §4.1, WP-1.10).
+ *
+ * The DAG lists the full 04 §2 graph, including stages no work package has built
+ * yet (`preview`, `energy_stems`, `describe`, `drum_split`, `transcribe`,
+ * `lyrics`). A `standard` analysis would never finish if it scheduled them, so a
+ * profile is filtered down to what can actually run. A stage may only be removed
+ * here when nothing in the profile depends on it: `energy_stems` and `preview`
+ * have no dependents; `describe` is terminal too.
+ *
+ * TODO(WP-1.7): add `describe` once its worker lands; it depends on
+ * `structure`/`harmony`/`tag`/`section_embed`/`stem_activity`/`stem_embed`, all
+ * of which are already here.
+ */
+export const IMPLEMENTED_STAGES: ReadonlySet<string> = new Set([
+  "ingest",
+  "rhythm",
+  "loudness_energy",
+  "embed_full",
+  "tag",
+  "separation",
+  "structure",
+  "harmony",
+  "stem_activity",
+  "section_embed",
+  "stem_embed",
+]);
+
 const BY_STAGE = new Map(ANALYSIS_DAG.map((node) => [node.stage, node]));
 
 export function stageNode(stage: string): StageNode | undefined {
@@ -111,6 +139,20 @@ export function stagesForProfile(profile: AnalysisProfile): string[] {
   };
   for (const stage of seeds) visit(stage);
   return topologicalOrder(needed);
+}
+
+/**
+ * The stages of a profile that have a worker ({@link IMPLEMENTED_STAGES}).
+ *
+ * Applied after {@link stagesForProfile}, so the closure over dependencies has
+ * already run; filtering cannot strand a dependent as long as no implemented
+ * stage depends on a missing one (checked by a test).
+ *
+ * @param profile requested profile
+ * @returns the implemented stages in a valid topological order
+ */
+export function implementedStagesForProfile(profile: AnalysisProfile): string[] {
+  return stagesForProfile(profile).filter((stage) => IMPLEMENTED_STAGES.has(stage));
 }
 
 /**

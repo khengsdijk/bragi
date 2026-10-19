@@ -23,11 +23,18 @@ import { securityHeaders } from "./src/headers.js";
  */
 export default defineConfig(({ command }) => {
   const headers = securityHeaders(command === "serve" ? "development" : "production");
+  // The API (05 §2, §3) is proxied rather than called cross-origin: the page
+  // stays same-origin, so the Better Auth session cookie is an ordinary
+  // same-site cookie and `Origin` matches the API's trusted origins. `ws: true`
+  // covers `/v1/ws` (05 §3). Finding 9.
+  const proxy = {
+    "/v1": { target: "http://127.0.0.1:8080", ws: true },
+  } as const;
   return {
     // Pinned to IPv4 so the end-to-end run polls the address the server really
     // bound to; `localhost` can resolve to ::1 only.
-    server: { headers, host: "127.0.0.1", port: 5173, strictPort: true },
-    preview: { headers, host: "127.0.0.1", port: 5174, strictPort: true },
+    server: { headers, host: "127.0.0.1", port: 5173, strictPort: true, proxy },
+    preview: { headers, host: "127.0.0.1", port: 5174, strictPort: true, proxy },
     // `@bragi/model-wasm` also locates its `.wasm` relative to its own `import.meta.url`.
     optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm", "@bragi/model-wasm"] },
     // The engine worklet (`?worker&url`) is an ES module bundle with the wasm glue inlined.

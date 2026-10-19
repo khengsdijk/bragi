@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   ANALYSIS_DAG,
   allStages,
+  IMPLEMENTED_STAGES,
+  implementedStagesForProfile,
   nodeMap,
   readyStages,
   type StageNode,
@@ -72,6 +74,46 @@ describe("readyStages", () => {
   it("returns nothing once everything is complete", () => {
     const pending = stagesForProfile("quick");
     expect(readyStages(new Set(pending), pending)).toEqual([]);
+  });
+});
+
+describe("IMPLEMENTED_STAGES", () => {
+  it("is a subset of the DAG", () => {
+    for (const stage of IMPLEMENTED_STAGES) {
+      expect(ANALYSIS_DAG.some((node) => node.stage === stage)).toBe(true);
+    }
+  });
+
+  it("never drops a dependency of an implemented stage", () => {
+    for (const profile of ["quick", "standard", "deep"] as const) {
+      const requested = new Set(stagesForProfile(profile));
+      const kept = new Set(implementedStagesForProfile(profile));
+      for (const stage of kept) {
+        const node = ANALYSIS_DAG.find((candidate) => candidate.stage === stage);
+        for (const dep of node?.dependsOn ?? []) {
+          if (requested.has(dep)) expect(kept.has(dep)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("keeps a standard analysis runnable start to finish", () => {
+    const stages = implementedStagesForProfile("standard");
+    expect(stages[0]).toBe("ingest");
+    // Every stage without a worker is gone; the terminal ones have no dependents.
+    for (const missing of [
+      "preview",
+      "energy_stems",
+      "describe",
+      "drum_split",
+      "transcribe",
+      "lyrics",
+    ]) {
+      expect(stages).not.toContain(missing);
+    }
+    expect(stages).toContain("separation");
+    expect(stages).toContain("stem_embed");
+    expect(stages).toContain("tag");
   });
 });
 

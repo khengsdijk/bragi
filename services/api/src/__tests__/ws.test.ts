@@ -1,7 +1,14 @@
 import type { JobEvent } from "@bragi/schemas";
 import { describe, expect, it } from "vitest";
 
-import { firstOutput, stageOf, toClientMessages, topicForSubject } from "../ws/messages.js";
+import {
+  analysisMessages,
+  firstOutput,
+  replayMessages,
+  stageOf,
+  toClientMessages,
+  topicForSubject,
+} from "../ws/messages.js";
 
 function event(partial: Partial<JobEvent>): JobEvent {
   return { schemaVersion: 1, jobId: "job_01ABC", type: "progress", ...partial } as JobEvent;
@@ -40,6 +47,64 @@ describe("firstOutput", () => {
     });
     expect(firstOutput({})).toBeUndefined();
     expect(firstOutput(undefined)).toBeUndefined();
+  });
+});
+
+describe("analysisMessages / replayMessages (findings 2 and 6)", () => {
+  it("maps a partial payload and a failure payload", () => {
+    expect(
+      analysisMessages({ assetHash: "sha256:aa", stage: "rhythm", blob: "sha256:bb" }),
+    ).toEqual([
+      { t: "analysis.partial", assetHash: "sha256:aa", stage: "rhythm", blob: "sha256:bb" },
+    ]);
+    expect(
+      analysisMessages({
+        assetHash: "sha256:aa",
+        stage: "harmony",
+        error: { code: "MODEL_ERROR", message: "boom", retryable: true },
+      }),
+    ).toEqual([
+      {
+        t: "analysis.failed",
+        assetHash: "sha256:aa",
+        stage: "harmony",
+        code: "MODEL_ERROR",
+        message: "boom",
+        retryable: true,
+      },
+    ]);
+  });
+
+  it("drops a malformed asset payload", () => {
+    expect(analysisMessages({ assetHash: "sha256:aa" })).toEqual([]);
+    expect(analysisMessages(null)).toEqual([]);
+  });
+
+  it("replays the finished stages and failures a late subscriber missed", () => {
+    expect(
+      replayMessages("sha256:aa", [
+        { stage: "ingest", status: "done", blob_hash: "sha256:01" },
+        { stage: "rhythm", status: "done", blob_hash: "sha256:02" },
+        { stage: "harmony", status: "queued", blob_hash: null },
+        {
+          stage: "structure",
+          status: "failed",
+          blob_hash: null,
+          error: { code: "MODEL_ERROR", message: "no sections", retryable: false },
+        },
+      ]),
+    ).toEqual([
+      { t: "analysis.partial", assetHash: "sha256:aa", stage: "ingest", blob: "sha256:01" },
+      { t: "analysis.partial", assetHash: "sha256:aa", stage: "rhythm", blob: "sha256:02" },
+      {
+        t: "analysis.failed",
+        assetHash: "sha256:aa",
+        stage: "structure",
+        code: "MODEL_ERROR",
+        message: "no sections",
+        retryable: false,
+      },
+    ]);
   });
 });
 

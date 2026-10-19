@@ -17,6 +17,7 @@ import { registerAnalyses } from "./routes/analyses.js";
 import { registerAssets } from "./routes/assets.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerJobs } from "./routes/jobs.js";
+import { registerLibrary } from "./routes/library.js";
 import { registerMeta } from "./routes/meta.js";
 import type { ObjectStore } from "./s3/client.js";
 import { WsGateway } from "./ws/gateway.js";
@@ -44,6 +45,24 @@ export async function buildApp(ctx: AppContext): Promise<BuiltApp> {
   });
   await app.register(websocket);
 
+  // CORS (05 §8, finding 9): the web bundle is same-origin through the Vite
+  // proxy, but the desktop webview and a direct dev origin are cross-origin.
+  // Handled here rather than with a plugin, and only for configured origins.
+  app.addHook("onRequest", async (request, reply) => {
+    const origin = request.headers.origin;
+    if (typeof origin === "string" && ctx.config.corsOrigins.includes(origin)) {
+      reply.header("access-control-allow-origin", origin);
+      reply.header("access-control-allow-credentials", "true");
+      reply.header("vary", "Origin");
+      reply.header("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+      reply.header("access-control-allow-headers", "content-type,authorization");
+      reply.header("access-control-max-age", "600");
+    }
+    if (request.method === "OPTIONS") {
+      await reply.status(204).send();
+    }
+  });
+
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ApiError) {
       reply.status(error.status).send(error.toBody());
@@ -66,6 +85,7 @@ export async function buildApp(ctx: AppContext): Promise<BuiltApp> {
   registerAssets(app, ctx);
   registerJobs(app, ctx);
   registerAnalyses(app, ctx);
+  registerLibrary(app, ctx);
 
   const gateway = new WsGateway(ctx);
   app.get("/v1/ws", { websocket: true }, (socket, request) => {

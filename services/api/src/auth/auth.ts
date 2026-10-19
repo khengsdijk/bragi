@@ -24,7 +24,9 @@ export function createAuth(config: Config, pool: Pool) {
     secret: config.authSecret,
     baseURL: config.publicUrl,
     basePath: "/v1/auth",
-    trustedOrigins: [config.publicUrl],
+    // The web app in dev talks to the API through Vite's proxy, so the browser's
+    // Origin is the dev-server origin; the desktop webview is the other client.
+    trustedOrigins: [config.publicUrl, ...config.corsOrigins],
     // Magic link (and OAuth) only: no passwords in v1.
     emailAndPassword: { enabled: false },
     socialProviders: githubProviders(config),

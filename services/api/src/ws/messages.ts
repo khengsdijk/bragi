@@ -12,6 +12,14 @@ export type ServerMessage =
   | { t: "job.completed"; jobId: string; outputs: unknown }
   | { t: "job.failed"; jobId: string; code: string; retryable: boolean }
   | { t: "analysis.partial"; assetHash: string; stage: string; blob: string }
+  | {
+      t: "analysis.failed";
+      assetHash: string;
+      stage: string;
+      code: string;
+      message: string;
+      retryable: boolean;
+    }
   | { t: "sync.remote"; projectId: string; commits: string[] };
 
 /**
@@ -29,7 +37,71 @@ export function topicForSubject(subject: string): string | undefined {
   return undefined;
 }
 
-/** The `stage` a capability maps to (`analysis.rhythm` → `rhythm`). */
+/**
+ * Translates the JSON published on `events.asset.<assetHash>` into the client
+ * messages of 05 §3 (a partial when it carries a blob, a failure when it carries
+ * an error). Keeping it pure is what makes the gateway and the replay share one
+ * shape.
+ */
+export function analysisMessages(payload: unknown): ServerMessage[] {
+  if (typeof payload !== "object" || payload === null) return [];
+  const { assetHash, stage, blob, error } = payload as {
+    assetHash?: unknown;
+    stage?: unknown;
+    blob?: unknown;
+    error?: unknown;
+  };
+  if (typeof assetHash !== "string" || typeof stage !== "string") return [];
+  if (typeof blob === "string") {
+    return [{ t: "analysis.partial", assetHash, stage, blob }];
+  }
+  if (typeof error === "object" && error !== null) {
+    const source = error as { code?: unknown; message?: unknown; retryable?: unknown };
+    return [
+      {
+        t: "analysis.failed",
+        assetHash,
+        stage,
+        code: typeof source.code === "string" ? source.code : "MODEL_ERROR",
+        message: typeof source.message === "string" ? source.message : "analysis stage failed",
+        retryable: source.retryable === true,
+      },
+    ];
+  }
+  return [];
+}
+
+/** One `analyses` row, as the replay reads it (05 §5). */
+export interface AnalysisReplayRow {
+  readonly stage: string;
+  readonly status: string;
+  readonly blob_hash: string | null;
+  readonly error?: unknown;
+}
+
+/**
+ * The snapshot a late subscriber gets for `asset:<hash>` (Q25, finding 6).
+ *
+ * The WebSocket is a fan-out, not a log: a client that connects after a stage
+ * finished would never hear about it. Subscribing therefore replays the finished
+ * stages from `analyses`, which is a snapshot of the current state and safe to
+ * send more than once.
+ */
+export function replayMessages(
+  assetHash: string,
+  rows: readonly AnalysisReplayRow[],
+): ServerMessage[] {
+  const messages: ServerMessage[] = [];
+  for (const row of rows) {
+    if (row.status === "done" && row.blob_hash !== null) {
+      messages.push({ t: "analysis.partial", assetHash, stage: row.stage, blob: row.blob_hash });
+    } else if (row.status === "failed") {
+      messages.push(...analysisMessages({ assetHash, stage: row.stage, error: row.error ?? {} }));
+    }
+  }
+  return messages;
+}
+
 export function stageOf(capability: string): string {
   const parts = capability.split(".");
   return parts[parts.length - 1] ?? capability;
