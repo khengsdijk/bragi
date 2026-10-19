@@ -121,7 +121,10 @@ test("10-minute song with 12 ribbons: 60 fps playing and zooming, render <= 8 ms
 
   const playing = await run("play");
   const zooming = await run("zoom");
-  const result = { project: testInfo.project.name, renderer, ...info, playing, zooming };
+  // `info.renderer` already carries the backend the canvas reported; assert above that it is the
+  // one we asked for, then log it once (a second `renderer` key here would be shadowed and is a
+  // compile error under `web#build`'s `tsc --noEmit`).
+  const result = { project: testInfo.project.name, ...info, playing, zooming };
   console.log(`[perf] ${JSON.stringify(result)}`);
   mkdirSync("test-results", { recursive: true });
   writeFileSync(
