@@ -58,12 +58,12 @@ Library imports run `quick` and are upgraded to `standard` lazily when a song is
 | v1 default | **HTDemucs 6-source** (`htdemucs_6s`): vocals, drums, bass, guitar, piano, other |
 | Quality option | Band-split RoFormer / Mel-band RoFormer family for **vocals/instrumental** (generally higher vocal quality), combined with Demucs for the rest. To be evaluated in WP-1.3. |
 | Deep option | Drum sub-separation (kick, snare, toms, hi-hat, cymbals) with a dedicated drum-separation model. The licence must be verified. |
-| Output | One 48 kHz 24-bit FLAC per stem, plus a **residual** = working mix − Σ stems ([02-song-model.md §3.4](02-song-model.md)) |
+| Output | One 48 kHz 24-bit FLAC per stem, plus a **residual** = working mix − Σ *kept* stems, computed from the stems as stored (24-bit decoded), so `Σ stems + residual` equals the mix exactly and the content of dropped silent stems stays in the residual ([02-song-model.md §3.4](02-song-model.md)) |
 | Roles | `other` may be sub-labelled later using `tag` on the stem (e.g. "synth", "strings"). The track role stays `other` with a display name such as "Synths". |
-| Chunking | 10 s segments with 1 s overlap and linear crossfade (standard Demucs practice). The GPU batch size is tuned per GPU type. |
+| Chunking | Up to 10 s segments with 1 s overlap and linear crossfade (standard Demucs practice). The segment is clamped to what the model accepts: HTDemucs' transformer is limited to **7.8 s**, so that is what v1 uses. The song is resampled once to the model rate (44.1 kHz) and back, not per chunk. The GPU batch size is tuned per GPU type. |
 | Silence | Stems whose RMS is below −60 dBFS for the whole song are dropped (no empty ribbons). |
 
-> **The model landscape moves fast.** WP-1.3 must benchmark current options on the internal eval set (§8) before committing, and record the choice in ADR-0004.
+> **The model landscape moves fast.** WP-1.3 must benchmark current options on the internal eval set (§8) before committing, and record the choice in ADR-0004 (part 1, separation: Proposed, pending the eval-set bake-off).
 
 ## 5. Musical analysis stages
 
