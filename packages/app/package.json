@@ -28,6 +28,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@bragi/schemas": "workspace:*",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.8",

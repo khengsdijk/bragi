@@ -8,6 +8,7 @@ import { t } from "../i18n/index.js";
 
 const NAVIGATION = [
   { to: "/", label: t("nav.projects") },
+  { to: "/demo", label: t("nav.demo") },
   { to: "/universe", label: t("nav.universe") },
   { to: "/fuse", label: t("nav.fuse") },
 ] as const;

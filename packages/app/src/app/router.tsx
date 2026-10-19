@@ -17,6 +17,7 @@ import {
 import { FusePage } from "../features/fuse/components/FusePage.js";
 import { ProjectsPage } from "../features/projects/components/ProjectsPage.js";
 import { SongPage } from "../features/projects/components/SongPage.js";
+import { DemoSongPage, validateDemoSearch } from "../features/song/components/DemoSongPage.js";
 import { UniversePage } from "../features/universe/components/UniversePage.js";
 import { AppShell } from "./AppShell.js";
 
@@ -34,6 +35,13 @@ export const songRoute = createRoute({
   component: SongPage,
 });
 
+export const demoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/demo",
+  validateSearch: validateDemoSearch,
+  component: DemoSongPage,
+});
+
 export const universeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/universe",
@@ -46,7 +54,13 @@ export const fuseRoute = createRoute({
   component: FusePage,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, songRoute, universeRoute, fuseRoute]);
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  songRoute,
+  demoRoute,
+  universeRoute,
+  fuseRoute,
+]);
 
 /**
  * The app's router.

@@ -77,6 +77,9 @@ importers:
       '@bragi/app':
         specifier: workspace:*
         version: link:../../packages/app
+      '@bragi/design':
+        specifier: workspace:*
+        version: link:../../packages/design
       '@bragi/platform':
         specifier: workspace:*
         version: link:../../packages/platform
@@ -148,6 +151,9 @@ importers:
         specifier: ^5.0.15
         version: 5.0.15(@types/react@19.3.0)(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
     devDependencies:
+      '@bragi/schemas':
+        specifier: workspace:*
+        version: link:../schemas
       '@testing-library/dom':
         specifier: ^10.4.2
         version: 10.4.2

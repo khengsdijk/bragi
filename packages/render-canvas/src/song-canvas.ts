@@ -23,6 +23,9 @@
  */
 
 import { roleTokenOf, sectionFamilyOf } from "@bragi/design/tokens";
+// The page runs under a strict CSP without 'unsafe-eval' (01 §10); this patches Pixi's shader
+// uniform sync so it does not compile code with `new Function`.
+import "pixi.js/unsafe-eval";
 import {
   Application,
   BufferImageSource,
@@ -980,10 +983,10 @@ export class SongCanvas {
         const barNumber = Math.floor(index / doc.beatsPerBar);
         if (barNumber % stepBars !== 0) continue;
         const x = toX(doc.beatTimesSec[index] ?? 0);
-        if (x < left + 2 || x > right - 24) continue;
+        if (x < left - 1 || x > right - 24) continue;
         this.rulerLabels.place(
           String(barNumber + 1),
-          x + 3,
+          x + 5,
           layout.ruler.y + layout.ruler.h / 2 - 2,
           { fill: palette.textMuted, fontSize: Math.max(10, fontSize - 1) },
         );

@@ -123,3 +123,112 @@ button {
   color: var(--fg-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* ---- Song Canvas (WP-1.9). Colours come from the design tokens (11 §3). ---- */
+
+.shell__main:has(.song-page) {
+  max-width: none;
+  padding: 16px;
+}
+
+.song-page {
+  display: grid;
+  gap: 12px;
+}
+
+.song-workspace {
+  display: grid;
+  gap: 12px;
+  position: relative;
+}
+
+.song-workspace__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+
+.song-workspace__header h1 {
+  margin: 0;
+  font-size: var(--text-xl, 1.25rem);
+}
+
+.song-workspace__selection {
+  margin: 0;
+  color: var(--color-text-muted, var(--fg-muted));
+}
+
+.song-canvas {
+  width: 100%;
+  min-height: 200px;
+  overflow: hidden;
+  border-radius: var(--radius-lg, 10px);
+  border: 1px solid var(--color-line, #363b43);
+  background: var(--color-canvas, #080c14);
+}
+
+.song-canvas canvas {
+  display: block;
+}
+
+.transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-lg, 10px);
+  background: var(--color-surface, #13171f);
+  border: 1px solid var(--color-line, #363b43);
+}
+
+.transport__position {
+  flex: 1 1 220px;
+  min-width: 160px;
+}
+
+.transport__time {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text, var(--fg));
+}
+
+.transport__zoom {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.transport__level {
+  color: var(--color-text-muted, var(--fg-muted));
+  min-width: 5ch;
+}
+
+.transport__note {
+  margin: 0;
+  flex-basis: 100%;
+  color: var(--color-text-muted, var(--fg-muted));
+}
+
+/* Visually hidden, still in the accessibility tree and focusable (11 §6.1). */
+.sr-only,
+.song-grid {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.song-grid {
+  border-collapse: collapse;
+}

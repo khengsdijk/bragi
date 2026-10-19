@@ -28,7 +28,10 @@ export default defineConfig(({ command }) => {
     // bound to; `localhost` can resolve to ::1 only.
     server: { headers, host: "127.0.0.1", port: 5173, strictPort: true },
     preview: { headers, host: "127.0.0.1", port: 5174, strictPort: true },
-    optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] },
+    // `@bragi/model-wasm` also locates its `.wasm` relative to its own `import.meta.url`.
+    optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm", "@bragi/model-wasm"] },
+    // The engine worklet (`?worker&url`) is an ES module bundle with the wasm glue inlined.
+    worker: { format: "es" as const },
     build: {
       target: "es2022",
       sourcemap: true,

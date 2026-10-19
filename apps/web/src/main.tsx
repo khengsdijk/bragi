@@ -9,7 +9,11 @@
  */
 import { mountApp, t } from "@bragi/app";
 import { createPlatform } from "@bragi/platform/auto";
+import workletUrl from "@bragi/platform/engine-processor?worker&url";
 
+import "@bragi/design/tokens.css";
+import "@bragi/design/fonts.css";
+import wasmUrl from "../../../crates/bragi-engine-wasm/pkg/bragi_engine_wasm_bg.wasm?url";
 import { migrations } from "./migrations.js";
 import "./main.css";
 
@@ -30,7 +34,9 @@ function showFatalError(error: unknown): void {
   container?.append(paragraph);
 }
 
-createPlatform({ migrations }).then(
+// The engine worklet and its wasm are bundled by Vite, so only this file knows their URLs; the
+// web adapter creates the audio engine lazily, on the first Play (a user gesture).
+createPlatform({ migrations, webEngine: { workletUrl, wasmUrl } }).then(
   (platform) => mountApp({ platform, container }),
   (error: unknown) => showFatalError(error),
 );
