@@ -62,6 +62,22 @@ describe("coalesceOps", () => {
     ]);
   });
 
+  it("keeps only the last move of a section drag", () => {
+    const ops = coalesceOps([
+      step({ op: "section.move", sectionId: "sec_chorus2", toIndex: 3 }),
+      step({ op: "section.move", sectionId: "sec_chorus2", toIndex: 2 }),
+      step({ op: "section.move", sectionId: "sec_chorus2", toIndex: 1 }),
+    ]);
+    expect(ops).toEqual([{ op: "section.move", sectionId: "sec_chorus2", toIndex: 1 }]);
+
+    const other = coalesceOps([
+      step({ op: "section.move", sectionId: "sec_chorus2", toIndex: 3 }),
+      step({ op: "section.move", sectionId: "sec_verse2", toIndex: 0 }),
+      step({ op: "section.move", sectionId: "sec_chorus2", toIndex: 1 }),
+    ]);
+    expect(other).toHaveLength(3);
+  });
+
   it("does not merge across an op that touches the same target or any target", () => {
     const removed = coalesceOps([
       step({ op: "fx.update", fxId: REVERB.id, paramsPatch: { mix: 0.2 } }),

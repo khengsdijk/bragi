@@ -7,7 +7,14 @@
  * to the parent snapshot must give the live document, so ops are only ever merged into an earlier
  * op on the same target, and only when nothing in between touches that target.
  */
-import type { FxAddOp, FxUpdateOp, Op, OpBatch, TrackUpdateOp } from "@bragi/schemas";
+import type {
+  FxAddOp,
+  FxUpdateOp,
+  Op,
+  OpBatch,
+  SectionMoveOp,
+  TrackUpdateOp,
+} from "@bragi/schemas";
 
 import { newBatchId } from "../../song/state/ops.js";
 
@@ -20,9 +27,16 @@ function patchTarget(op: Op): string | null {
       return `fx:${op.fxId}`;
     case "track.update":
       return `track:${op.trackId}`;
+    case "section.move":
+      return `section:${op.sectionId}`;
     default:
       return null;
   }
+}
+
+/** Whether `op` may join an earlier op on the same target. */
+function absorbs(op: Op): boolean {
+  return op.op === "fx.update" || op.op === "track.update" || op.op === "section.move";
 }
 
 /** Every target an op reads or writes; `"*"` when it can reach any of them. */
@@ -61,6 +75,10 @@ function merge(earlier: Op, later: Op): Op | null {
       } satisfies FxUpdateOp;
     }
   }
+  if (later.op === "section.move" && earlier.op === "section.move") {
+    // `toIndex` is the final position, so the last move of a drag is the whole drag.
+    return { ...earlier, toIndex: later.toIndex } satisfies SectionMoveOp;
+  }
   if (later.op === "track.update" && earlier.op === "track.update") {
     return {
       op: "track.update",
@@ -75,7 +93,7 @@ function merge(earlier: Op, later: Op): Op | null {
 export function coalesceOps(batches: readonly OpBatch[]): Op[] {
   const ops: Op[] = [];
   for (const op of batches.flatMap((batch) => batch.ops)) {
-    const target = op.op === "fx.update" || op.op === "track.update" ? patchTarget(op) : null;
+    const target = absorbs(op) ? patchTarget(op) : null;
     let merged = false;
     if (target !== null) {
       for (let index = ops.length - 1; index >= 0; index -= 1) {
