@@ -1,6 +1,6 @@
 # 04 — Analysis Pipeline
 
-Status: Draft v0.6 · Code: `services/workers/analysis`, `services/workers/embed` · Schemas: `packages/schemas/analysis/`
+Status: Draft v0.7 · Code: `services/workers/analysis`, `services/workers/embed` · Schemas: `packages/schemas/analysis/`
 
 The analysis pipeline turns one stereo file into everything Bragi shows: stems, beat grid, sections, chords, key, energy, tags, embeddings and a plain-language description.
 
@@ -57,7 +57,7 @@ Library imports run `quick` and are upgraded to `standard` lazily when a song is
 |---|---|
 | v1 default | **HTDemucs 6-source** (`htdemucs_6s`): vocals, drums, bass, guitar, piano, other |
 | Quality option | Band-split RoFormer / Mel-band RoFormer family for **vocals/instrumental** (generally higher vocal quality), combined with Demucs for the rest. To be evaluated in WP-1.3. |
-| Deep option | Drum sub-separation (kick, snare, toms, hi-hat, cymbals) with a dedicated drum-separation model. The licence must be verified. |
+| Deep option | Drum sub-separation (kick, snare, toms, hi-hat, cymbals) with a dedicated drum-separation model. |
 | Output | One 48 kHz 24-bit FLAC per stem, plus a **residual** = working mix − Σ *kept* stems, computed from the stems as stored (24-bit decoded), so `Σ stems + residual` equals the mix exactly and the content of dropped silent stems stays in the residual ([02-song-model.md §3.4](02-song-model.md)) |
 | Roles | `other` may be sub-labelled later using `tag` on the stem (e.g. "synth", "strings"). The track role stays `other` with a display name such as "Synths". |
 | Chunking | Up to 10 s segments with 1 s overlap and linear crossfade (standard Demucs practice). The segment is clamped to what the model accepts: HTDemucs' transformer is limited to **7.8 s**, so that is what v1 uses. The song is resampled once to the model rate (44.1 kHz) and back, not per chunk. The GPU batch size is tuned per GPU type. |
@@ -82,9 +82,8 @@ Library imports run `quick` and are upgraded to `standard` lazily when a song is
 
 ### 5.3 `harmony`
 - **Key:** beat-synchronous chroma (from bass + other + piano + guitar stems, *excluding drums and vocals*) matched to key profiles, refined by the chord sequence. Output: `key { tonic, mode, confidence }` and `keyChanges[] { atSec, tonic, mode }`.
-- **Chords:** a neural chord recogniser (candidate: a transformer chord model, licence verified in WP-1.5) operating on the harmonic stems. Output: `chords[] { startSec, endSec, symbol: "F#m7", root, quality, bass?, confidence }`, aligned to beats.
+- **Chords:** a neural chord recogniser (candidate: a transformer chord model, chosen in WP-1.5) operating on the harmonic stems. Output: `chords[] { startSec, endSec, symbol: "F#m7", root, quality, bass?, confidence }`, aligned to beats.
 - **Derived:** `romanNumerals[]` relative to the key, and a `progressionFingerprint` per section: a normalised roman-numeral n-gram sequence such as `i-VI-III-VII`. This is used for constellations ([08-universe.md §5](08-universe.md)).
-- Licence caution: some well-known key/chord tools are AGPL/GPL or non-commercial. Prefer permissive code and record the licence for each model in `services/workers/MODELS.md`.
 - **Implementation notes (WP-1.5).** Capability `analysis.harmony`. Input: the harmonic stems `assets.stem_{bass,other,piano,guitar}` when present, else `assets.mix`, else `assets.source` (the orchestrator passes only the upload hash today — Q33). Chroma is computed at 11 025 Hz (STFT n_fft 4096, hop 1024), folding the 65-2100 Hz band into 12 pitch classes and L2-normalising each frame; when a `rhythm` blob is passed the frames are averaged per beat (beat-synchronous chroma), otherwise the frame grid is decoded directly. Key is the Krumhansl-Schmuckler profile correlation of the energy-weighted mean chroma, refined by a 50/50 mix with the duration-weighted chord templates; `key.confidence` is the absolute fit times a scaled margin over the runner-up (silence gives 0). Chords: a root-position template bank (maj, min, dim, aug, sus2/4, maj7, min7, dom7, min7b5, dim7, maj6, min6, minMaj7) plus a "no chord" state, decoded with a change-penalised Viterbi pass; sub-`minChordSec` segments merge away and silent frames become "no chord". `progressionFingerprint` is the roman-numeral sequence with immediate repeats collapsed. **The recogniser is weight-free** ([ADR-0008](decisions/ADR-0008-chord-detection.md)); a `ChordRecognizer` protocol is the seam for a neural model. Because `harmony` depends only on `separation` in the DAG, the per-section progressions use a `structure` blob when one is passed and otherwise publish one whole-song progression at `index: 0`. Audio with nothing to analyse (silence, too short, ambiguous) publishes `lowConfidence: true`, never a failure (§10).
 
 ### 5.4 `stem_activity`
@@ -120,18 +119,18 @@ For each section, the pipeline produces a compact record used throughout the UI 
 ### 6.1 `embed_full`, `section_embed`, `stem_embed`
 - **Primary embedding model: a CLAP-family joint audio–text model** (e.g. LAION-CLAP music checkpoint), producing 512-d L2-normalised vectors. A joint text–audio space is essential, because it powers text search ("sad piano intro") and zero-shot tagging.
 - Windowing: 10 s windows with 5 s hop, mean-pooled. Song = pool over the whole song, section = pool within the section, stem = pool over the stem's active regions.
-- **Optional secondary embedding** (spike in WP-3.1): a music-representation model (MERT/MuQ class) for "sounds-like" similarity, which can be more musically sensitive than CLAP. Many such checkpoints are non-commercial, so check licences.
+- **Optional secondary embedding** (spike in WP-3.1): a music-representation model (MERT/MuQ class) for "sounds-like" similarity, which can be more musically sensitive than CLAP.
 - Vectors are stored in Postgres/pgvector (`embeddings` table, see [05-backend-and-jobs.md §5](05-backend-and-jobs.md)) and returned to the client for the Universe.
-- **Implementation notes (WP-1.6).** Capabilities `analysis.embed_full` (whole song), `analysis.section_embed` (one vector per `structure` section) and `analysis.stem_embed` (one vector per stem, pooled over its active regions). Windowing is formalised as 10 s windows with a 5 s hop, each window overlap-weighted by how much of it lies inside the requested scope, summed and L2-normalised (Q16's embedding part). The v1 *target* model is LAION-CLAP `laion/larger_clap_music` (512-d, Apache-2.0 weights, MIT code), loaded behind a SHA-256-pinned checkpoint in `BRAGI_MODELS_DIR`; because weights cannot be fetched here, a deterministic weight-free **concept-basis** embedder (`model` `bragi-concept-basis-1`) is the CI/runtime fallback ([ADR-0011](decisions/ADR-0011-embeddings-and-tags.md)). `EmbeddingResult.lowConfidence` is added for silent/too-short audio (04 §10).
+- **Implementation notes (WP-1.6).** Capabilities `analysis.embed_full` (whole song), `analysis.section_embed` (one vector per `structure` section) and `analysis.stem_embed` (one vector per stem, pooled over its active regions). Windowing is formalised as 10 s windows with a 5 s hop, each window overlap-weighted by how much of it lies inside the requested scope, summed and L2-normalised (Q16's embedding part). The v1 *target* model is LAION-CLAP `laion/larger_clap_music` (512-d), loaded behind a SHA-256-pinned checkpoint in `BRAGI_MODELS_DIR`; because weights cannot be fetched here, a deterministic weight-free **concept-basis** embedder (`model` `bragi-concept-basis-1`) is the CI/runtime fallback ([ADR-0011](decisions/ADR-0011-embeddings-and-tags.md)). `EmbeddingResult.lowConfidence` is added for silent/too-short audio (04 §10).
 
 ### 6.2 `tag`
 - A **controlled taxonomy** in `packages/schemas/analysis/taxonomy.json`: ~150 genres (hierarchical, e.g. `electronic > house > deep house`), ~60 moods, ~80 instruments, ~200 descriptors (production/timbre words: "dusty", "sidechained", "lo-fi", "wide", "punchy"), and eras (decade-style descriptors).
-- Method: **small MLP heads trained on CLAP embeddings** (genre, mood, instrument) using a permissively licensed tagging dataset (e.g. MTG-Jamendo, CC-licensed), plus **zero-shot CLAP similarity** for descriptors. Thresholds are calibrated per label.
+- Method: **small MLP heads trained on CLAP embeddings** (genre, mood, instrument) using a tagging dataset (e.g. MTG-Jamendo), plus **zero-shot CLAP similarity** for descriptors. Thresholds are calibrated per label.
 - Output: `{ genres: [{label, score}], moods: [...], instruments: [...], descriptors: [...], era?: {label, score} }`. The top-k shown in the UI is genres ≤ 3, moods ≤ 4, descriptors ≤ 6.
 - **Implementation notes (WP-1.6).** The file exists at `packages/schemas/analysis/taxonomy.json` (source of truth) and is copied into the worker by `pnpm schemas:gen` (the worker image ships only `services/workers`). It ships **211 genres** (hierarchy to three levels, e.g. `electronic > house > deep-house`), **65 moods**, **88 instruments**, **201 descriptors** and **8 eras**, each with a zero-shot `prompt` template; `config/tag.toml` holds the top-k limits. Genre/mood/instrument use small MLP heads on CLAP embeddings when trained heads are present in `BRAGI_TAG_HEADS`, otherwise every category falls back to zero-shot cosine over the prompts and the result is flagged `lowConfidence` (the field added to `TagResult` for 04 §10). Descriptors and era are always zero-shot. The heads, their training data (MTG-Jamendo, CC) and the per-label thresholds are [ADR-0011](decisions/ADR-0011-embeddings-and-tags.md) owner actions; the training script and notebook live in `services/workers/embed/training/`.
 
 ### 6.3 `describe`
-- **Input:** the structured analysis (summary, sections table §5.6, tags, key/bpm, energy shape). Optionally it also takes a **caption from an audio-language model** (candidate in WP-1.7, licence check required). The LLM does not hear audio, so it writes from these features.
+- **Input:** the structured analysis (summary, sections table §5.6, tags, key/bpm, energy shape). Optionally it also takes a **caption from an audio-language model** (candidate in WP-1.7). The LLM does not hear audio, so it writes from these features.
 - **LLM:** any OpenRouter model (slug in `config/describe.toml`, default `deepseek/deepseek-v4.1-flash`, overridable by `BRAGI_DESCRIBE_MODEL`; key `OPENROUTER_API_KEY`; [ADR-0012](decisions/ADR-0012-describe-llm-client.md)), asked for JSON via `response_format` (json_schema, falling back to json_object), with a fixed system prompt and a JSON output schema:
   ```json
   { "summary": "One paragraph, plain language, no jargon.",
@@ -146,14 +145,14 @@ For each section, the pipeline produces a compact record used throughout the UI 
 | Stage | Method (candidate) | Output |
 |---|---|---|
 | `drum_split` | Drum-separation model on the drum stem | kick/snare/toms/hats/cymbals sub-stems |
-| `transcribe` | Polyphonic note transcription (e.g. Spotify basic-pitch, Apache-2.0) on bass, piano, guitar, other and vocals | MIDI per stem (`notes[] {pitch, startSec, endSec, velocity}`) |
+| `transcribe` | Polyphonic note transcription (e.g. Spotify basic-pitch) on bass, piano, guitar, other and vocals | MIDI per stem (`notes[] {pitch, startSec, endSec, velocity}`) |
 | `lyrics` | Whisper-class ASR on the vocal stem + forced word alignment | `words[] {text, startSec, endSec}`, `lines[]` |
 
 Lyrics are **shown to the user only** (karaoke-style highlight in the canvas) and fed to the planner as section context. They are never stored publicly or used for training.
 
 ## 8. Evaluation set and quality gates
 
-`fixtures/eval/` contains a manifest of **~50 tracks** spanning genres. Audio is stored outside the repo (the owner's own library and CC-licensed music), and the repo holds only references, hand-labelled sections, beats and chords.
+`fixtures/eval/` contains a manifest of **~50 tracks** spanning genres. Audio is stored outside the repo (the owner's own library and freely available music), and the repo holds only references, hand-labelled sections, beats and chords.
 
 | Stage | Metric | Gate (v1) |
 |---|---|---|
@@ -172,14 +171,13 @@ A regression job (`pnpm eval:analysis`) runs the eval set and writes a markdown 
 
 **Gate semantics (WP-1.6).** The `tag` gate is top-3 genre agreement ≥ 0.70 and the text query `"drums"` ranks the drum stem above the other stems for ≥ 90 % of eval songs. Both are `PENDING`: the first needs the eval set (Q32) *and* trained heads (no labelled training data here, Q67); the second needs the eval set's per-stem references. The `"drums"`-ranking *metric* is proven on a synthetic multi-stem fixture through the deterministic concept-basis fallback embedder (`test_the_text_query_drums_ranks_the_drum_stem_highest`) — that proves the embedding/tagging wiring and the ranking metric, not the CLAP model, and is reported as synthetic. The WP-1.2 harness does not score embeddings yet; it prints the `tag` gate row as `not implemented yet`/`PENDING`.
 
-## 9. Model registry and licensing
+## 9. Model registry
 
-`services/workers/MODELS.md` is the **mandatory** registry. Each model has: name, version or checkpoint hash, task, code licence, **weights licence**, commercial use allowed (yes/no/unclear), source URL, and the date verified.
+`services/workers/MODELS.md` is the **mandatory** registry. Each model has: name, version or checkpoint hash, task, source URL, and the date verified.
 
 Rules:
-- A model with a non-commercial weights licence may be used in `local`/`staging` and for personal use. It must be **flagged** and needs replacement before any commercial launch.
 - Model weights are pulled at container build time and pinned by hash. Workers never download weights at runtime.
-- **WP-1.6** pins the v1 embedding target **LAION-CLAP `laion/larger_clap_music`** (512-d, Apache-2.0 weights, MIT code) in [services/workers/MODELS.md](../services/workers/MODELS.md); the exact commit and the file SHA-256 are **PENDING** (the weights were not downloadable here, Q68) and the loader refuses an unverified checkpoint. The deterministic concept-basis fallback (`bragi-concept-basis-1`) and the trained tag heads are recorded there too; the heads' MTG-Jamendo training data's per-subset licence is an owner check (Q67).
+- **WP-1.6** pins the v1 embedding target **LAION-CLAP `laion/larger_clap_music`** (512-d) in [services/workers/MODELS.md](../services/workers/MODELS.md); the exact commit and the file SHA-256 are **PENDING** (the weights were not downloadable here, Q68) and the loader refuses an unverified checkpoint. The deterministic concept-basis fallback (`bragi-concept-basis-1`) and the trained tag heads are recorded there too.
 
 ## 10. Failure handling
 

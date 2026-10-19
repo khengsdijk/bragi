@@ -1,6 +1,6 @@
 # 13 — Agent Implementation Guide
 
-Status: Draft v0.2
+Status: Draft v0.3
 
 This guide is for coding agents (and humans) implementing Bragi. Read it fully before starting any work package.
 
@@ -12,7 +12,7 @@ This guide is for coding agents (and humans) implementing Bragi. Read it fully b
 4. **The document is only changed by `bragi-model`.** TS code never mutates a song document directly. It builds op batches.
 5. **The audio thread is sacred.** No allocation, locks, I/O, logging or panics in `process()` paths. Use the provided lock-free primitives.
 6. **No new frameworks, languages or major dependencies without an ADR** in `specs/decisions/` (template in §8).
-7. **No secrets, no copyrighted audio in the repo.** Fixtures must be self-made, CC0, or generated, with a licence note next to each file.
+7. **No secrets, no copyrighted audio in the repo.** Fixtures must be self-made or generated; note the source of each fixture.
 8. **Respect the content policy** ([10 §7](10-fusion.md)) in any AI-facing code.
 9. **Platform-agnostic UI.** Anything that differs between web and desktop goes behind an interface in `packages/platform`. `packages/app` must not import `@tauri-apps/*`.
 
@@ -60,7 +60,7 @@ A WP is Done when:
 - [ ] Performance budgets from the relevant spec are measured and recorded in the PR.
 - [ ] New UI passes axe with no serious or critical issues, is keyboard reachable, and is reflected in the accessible DOM where it lives on a canvas.
 - [ ] Schemas, generated code and docs are updated. Any spec deviations are reflected in the specs.
-- [ ] No new licence-unclear dependency or model. `MODELS.md` is updated if models changed.
+- [ ] `MODELS.md` is updated if models changed.
 - [ ] WP status updated.
 
 ## 5. PR template
@@ -104,7 +104,7 @@ WP that cannot test a platform says so in its PR instead of implying coverage.
 | Planner bench | `pnpm bench:planner` (weekly, costs API credits) | Linux |
 
 **Fixtures:**
-- `fixtures/audio/`: tiny clips (≤ 30 s, ≤ 5 MB total in git), self-made or CC0, each with `LICENSE.txt` entries.
+- `fixtures/audio/`: tiny clips (≤ 30 s, ≤ 5 MB total in git), self-made, each with a `SOURCE.txt` entry.
 - `fixtures/projects/`: song documents for model/engine tests.
 - `fixtures/eval/manifest.json`: the larger eval set referenced by hash. Audio is stored in a private bucket and fetched by `scripts/fetch-eval.sh` (requires credentials). It is never committed.
 

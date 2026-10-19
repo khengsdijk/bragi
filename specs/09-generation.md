@@ -1,6 +1,6 @@
 # 09 — AI Generation
 
-Status: Draft v0.1 · Code: `services/workers/generate/` · Schemas: `packages/schemas/jobs/capabilities/`
+Status: Draft v0.2 · Code: `services/workers/generate/` · Schemas: `packages/schemas/jobs/capabilities/`
 
 Generation in Bragi is **always in service of editing**. Every generated piece of audio lands in the song model as clips with provenance, gets analysed and separated like any other source, and can be edited, auditioned and undone.
 
@@ -45,14 +45,14 @@ interface MusicalContext {
 
 ## 3. Model candidates (to be confirmed in ADR-0004)
 
-> The open music-generation landscape changes month to month. WP-4.0 runs a **bake-off** on the eval set before committing. Record licences in `MODELS.md` ([04 §9](04-analysis-pipeline.md)).
+> The open music-generation landscape changes month to month. WP-4.0 runs a **bake-off** on the eval set before committing. Record the chosen models in `MODELS.md` ([04 §9](04-analysis-pipeline.md)).
 
 | Capability | Candidate families | Notes |
 |---|---|---|
-| extend / inpaint / variation / text2music | **ACE-Step-class** open song models (full songs, lyrics, repaint/extend editing) · **MusicGen-class** (continuation, melody conditioning) · hosted music APIs | Check weights licences: some are non-commercial (MusicGen weights are CC-BY-NC). Hosted APIs: check ToS on audio-input conditioning. |
-| fx | **Stable Audio Open-class** text-to-audio | Good for short SFX/ambience, licence terms apply |
+| extend / inpaint / variation / text2music | **ACE-Step-class** open song models (full songs, lyrics, repaint/extend editing) · **MusicGen-class** (continuation, melody conditioning) · hosted music APIs | Hosted APIs: check ToS on audio-input conditioning. |
+| fx | **Stable Audio Open-class** text-to-audio | Good for short SFX/ambience |
 | stem | Stem-conditioned generation (accompaniment / single-instrument models) **or** full generation + separation fallback | The fallback: generate full music with strong context, separate, keep the target role |
-| timbre | **Strategy A (v1):** transcribe the stem to MIDI ([04 §7](04-analysis-pipeline.md)), then render with a high-quality sampler/SoundFont (permissive licences) with velocity/expression mapping. **Strategy B (later):** neural timbre transfer (DDSP/diffusion). | A is deterministic, fast and good for piano/strings/brass. B is a research spike. |
+| timbre | **Strategy A (v1):** transcribe the stem to MIDI ([04 §7](04-analysis-pipeline.md)), then render with a high-quality sampler/SoundFont with velocity/expression mapping. **Strategy B (later):** neural timbre transfer (DDSP/diffusion). | A is deterministic, fast and good for piano/strings/brass. B is a research spike. |
 | style | Melody/chroma-conditioned generation, or audio-to-audio "repaint" with partial strength | Strength 0.3–0.7 maps to "keep more of the original" ↔ "more new style" |
 | stem_resynth | Audio-to-audio at low strength (0.2–0.35) conditioned on the stem itself | Removes warble while keeping the performance |
 
@@ -103,7 +103,7 @@ For stems with audible separation artifacts. Audio-to-audio at low strength cond
 ### 4.7 `transform.timbre` (Strategy A detail)
 1. Run `transcribe` for the stem if it's missing (deep stage on demand).
 2. Quantise lightly (preserving the groove: ≤ 30% strength toward the grid).
-3. Render with the target instrument preset (sampler with velocity layers, round-robin and release tails). Presets live in `services/workers/generate/instruments/` with licence notes.
+3. Render with the target instrument preset (sampler with velocity layers, round-robin and release tails). Presets live in `services/workers/generate/instruments/`.
 4. Match the original stem's loudness envelope (gain automation, smoothed) and place it on the same track (replace) or a new track (layer).
 
 ## 5. Latency tiers

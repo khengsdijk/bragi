@@ -1,6 +1,6 @@
 # 10 — Fusion (combining music)
 
-Status: Draft v0.1 · Code: `packages/app/src/features/fusion/`, `services/workers/generate/fusion/`
+Status: Draft v0.2 · Code: `packages/app/src/features/fusion/`, `services/workers/generate/fusion/`
 
 Fusion combines songs, sections and stems the user has into something new: mashups, stem collages, style transfers and blends. All fusion results are ordinary projects, editable in the Song Canvas.
 
@@ -80,7 +80,6 @@ This section applies to fusion **and** all generation. It is enforced in the pla
 5. **No voice cloning.** No generation of new vocals in the voice of a real person, including the user's uploaded vocal stems used as a "voice prompt". Reusing an existing vocal stem *as-is* (mashups, remixes) is allowed. Generated vocals use the model's synthetic voices.
 6. **Provenance is always recorded** and embedded in exports ([09 §8](09-generation.md)).
 7. **No training on user audio.**
-8. **Before any commercial launch:** legal review of the ToS, model licences (non-commercial weights must be replaced, [04 §9](04-analysis-pipeline.md)), and the takedown process. This spec is not legal advice.
 
 ## 8. Acceptance checks
 

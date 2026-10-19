@@ -97,5 +97,5 @@ Bragi is deliberately ambitious. These are the hardest problems, so each gets ex
 | R4 | Mapping vague intent to concrete edits | [06-ai-planner.md](06-ai-planner.md) |
 | R5 | 60 fps zoom from galaxy to waveform in a browser and three different webviews | [07-song-canvas.md §9](07-song-canvas.md), [08-universe.md §8](08-universe.md) |
 | R6 | GPU inference cost | [05-backend-and-jobs.md §9](05-backend-and-jobs.md) |
-| R7 | Model licensing and copyright | [10-fusion.md §7](10-fusion.md), [04-analysis-pipeline.md §9](04-analysis-pipeline.md) |
+| R7 | Copyright and content policy | [10-fusion.md §7](10-fusion.md), [04-analysis-pipeline.md §9](04-analysis-pipeline.md) |
 | R8 | Cross-platform audio parity (WASM in browser vs native on desktop) | [03-audio-engine.md §3](03-audio-engine.md) |

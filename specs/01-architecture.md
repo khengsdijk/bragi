@@ -1,6 +1,6 @@
 # 01 — System Architecture
 
-Status: Draft v0.3 · Decision record: [ADR-0001](decisions/ADR-0001-tech-stack.md)
+Status: Draft v0.4 · Decision record: [ADR-0001](decisions/ADR-0001-tech-stack.md)
 
 ## 1. Stack at a glance
 
@@ -131,7 +131,7 @@ bragi/
 ├─ infra/
 │  ├─ docker-compose.yml      # postgres, minio, nats, api, workers (CPU), mailpit
 │  └─ deploy/                 # IaC (added in Phase 3+)
-├─ fixtures/                  # Small, license-clean audio fixtures + golden analysis outputs
+├─ fixtures/                  # Small, self-made audio fixtures + golden analysis outputs
 └─ specs/                     # These documents
 ```
 

@@ -1,6 +1,6 @@
 # 11 — UX, Design System & Accessibility
 
-Status: Draft v0.2 · Code: `packages/design/`, `packages/app/src/features/onboarding/`
+Status: Draft v0.3 · Code: `packages/design/`, `packages/app/src/features/onboarding/`
 
 ## 1. Experience pillars
 
@@ -44,8 +44,8 @@ committed as hex.
 - **Dark-first** theme (the canvas glows best on dark), with a full light theme. Both themes are
   complete: `:root` carries the dark values, `[data-theme="light"]` the light ones.
 - **Typography:** **Geist** (UI, variable `wght` 100–900) plus **Geist Mono** (times, BPM and values,
-  tabular figures), both SIL OFL 1.1, self-hosted as `woff2` (latin + latin-ext) in
-  `packages/design/fonts/` with the licence file next to them — no remote font loading (strict CSP,
+  tabular figures), self-hosted as `woff2` (latin + latin-ext) in
+  `packages/design/fonts/` — no remote font loading (strict CSP,
   [01 §10](01-architecture.md)). Pending the owner's sign-off (Q8 in [15](15-open-questions.md));
   swapping a family is a token change plus a file swap. Base size 14 px (`0.875rem`), scale 1.2, five
   steps (`xs`, `base`, `lg`, `xl`, `2xl`), all in `rem` so text follows the user's font size (200 %).
@@ -113,7 +113,7 @@ committed as hex.
 
 ## 4. Onboarding (first run)
 
-1. **Welcome:** one screen with "Drop a song to see inside it" and a big drop zone. A secondary button says "Try with a demo song". Demo songs are licence-clean: made for Bragi or CC0, and stored in `fixtures/demo/` with licence notes.
+1. **Welcome:** one screen with "Drop a song to see inside it" and a big drop zone. A secondary button says "Try with a demo song". Demo songs are made for Bragi and stored in `fixtures/demo/`, with a note on how each was made.
 2. **Song comes alive:** progressive analysis ([07 §8](07-song-canvas.md)) with a one-line coach mark per stage ("These are the parts of your song", "Each ribbon is an instrument. Click one to hear it alone").
 3. **Three quests** (dismissible checklist, bottom-left):
    - "Hear just the vocals" (solo a ribbon)

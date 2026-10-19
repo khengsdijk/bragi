@@ -1,6 +1,6 @@
 # 03 — Audio Engine
 
-Status: Draft v0.4 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
+Status: Draft v0.5 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
 
 ## 1. Responsibilities
 
@@ -184,8 +184,8 @@ v1 macros: `brightness`, `space` (reverb + width), `punch` (transient + compress
 
 Behind a trait in `bragi-dsp::stretch`; the implementation chosen in
 [ADR-0002](decisions/ADR-0002-time-stretch.md) is the pure-Rust phase vocoder `PhaseVocoder`
-(Signalsmith Stretch is evaluated and held for offline renders; Rubber Band is rejected on
-licence). The trait is:
+(Signalsmith Stretch is evaluated and held for offline renders; Rubber Band is a candidate
+for the quality bake-off). The trait is:
 
 ```rust
 pub trait Stretcher: Send {
@@ -258,7 +258,7 @@ type AudioFormat = { container: "wav"; bits: 16 | 24 | 32 } | { container: "flac
 - **FLAC** is written by an in-repo encoder (fixed predictors 0-4, partitioned Rice, stereo decorrelation, MD5 in STREAMINFO, 4096-sample blocks; a remainder under 16 samples switches the stream to variable block size because decoders reject a shorter last block).
 - **Wire format:** hosts return the files as one binary *export frame* (`"BXPT" | u32 LE jsonLen | json | file bytes…`, `ExportResult::to_frame`, read by `decodeExportFrame`), so Tauri never serialises megabytes of audio as a JSON array.
 - **Export bundle ("Open in your DAW")**: a zip containing stems aligned to bar 1 (24-bit WAV), `tempo_and_markers.mid` (tempo map + section markers), `chords.mid` (if harmony analysis is present), and a `README.txt` listing BPM, key and section times. A native Ableton `.als` export is post-v1.
-- The MP3 encoder is chosen in a later export work package (not WP-1.11, whose scope is WAV/FLAC; Q37). It must be licence-clean and compile on all targets. In the browser it may run as a separate WASM module in a worker.
+- The MP3 encoder is chosen in a later export work package (not WP-1.11, whose scope is WAV/FLAC; Q37). It must compile on all targets. In the browser it may run as a separate WASM module in a worker.
 
 ## 10. Visual data
 
@@ -271,7 +271,7 @@ type AudioFormat = { container: "wav"; bits: 16 | 24 | 32 } | { container: "flac
 
 ## 11. Testing
 
-- **Golden renders:** `fixtures/projects/*.json` + `fixtures/audio/*` (CC0/self-made). Offline render output is compared with `insta`-stored hashes and a **null test** (residual ≤ −90 dBFS) against golden WAVs.
+- **Golden renders:** `fixtures/projects/*.json` + `fixtures/audio/*` (self-made). Offline render output is compared with `insta`-stored hashes and a **null test** (residual ≤ −90 dBFS) against golden WAVs.
 - **Parity:** the same fixtures rendered via WASM (in Node with a WASM runtime) and native must null to ≤ −90 dBFS.
 - **Real-time safety:** a custom allocator in debug builds panics if the audio thread allocates (`assert_no_alloc`).
 - **Stress:** 24 tracks × 4 fx × 10 minutes with no underruns at 128 frames (browser, mid-range laptop) or 256 frames (desktop).
