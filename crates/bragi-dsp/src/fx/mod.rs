@@ -41,10 +41,12 @@
 //! ```
 
 mod biquad;
+mod compressor;
 mod gain;
 mod smooth;
 
 pub use biquad::{Biquad, BiquadCoeffs, StereoBiquad};
+pub use compressor::Compressor;
 pub use gain::Gain;
 pub use smooth::{DEFAULT_SMOOTHING_MS, Smoothed};
 
@@ -382,9 +384,9 @@ pub fn create(
     if max_block == 0 {
         return Err(FxError::MaxBlock);
     }
-    let _ = max_block;
     match kind {
         FxKind::Gain => Ok(Box::new(Gain::new(sample_rate))),
+        FxKind::Compressor => Ok(Box::new(Compressor::new(sample_rate, max_block))),
         other => Err(FxError::NotImplemented(other.name())),
     }
 }
