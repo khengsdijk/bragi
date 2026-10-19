@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 
 import numpy as np
@@ -154,5 +155,7 @@ def test_the_packaged_taxonomy_matches_the_schema_source() -> None:
     packaged = (
         Path(__file__).resolve().parents[1] / "src" / "bragi_analysis" / "config" / "taxonomy.json"
     )
-    assert packaged.read_bytes() == source.read_bytes()
+    # Content, not bytes: the copy is codegen's re-serialisation (`pnpm schemas:check` pins its
+    # exact bytes), while the source is Biome-formatted.
+    assert json.loads(packaged.read_text()) == json.loads(source.read_text())
     assert taxonomy.default().version == 1
