@@ -2,8 +2,8 @@
 
 Reads the analysis blobs the orchestrator passes (``structure``, ``loudness_energy``, ``harmony``,
 ``rhythm``, ``tag``, ``stem_activity``; any may be absent), builds the feature digest, asks Claude
-for the description through the ``DescribeClient`` seam, runs the grounding post-check, and publishes
-a ``DescriptionResult`` blob under ``describe``.
+for the description through the ``DescribeClient`` seam, runs the grounding post-check, and
+publishes a ``DescriptionResult`` blob under ``describe``.
 
 Input: ``blobs.*`` only (no audio is read). Output: ``blobs.describe`` (a ``DescriptionResult``).
 A missing API key, or a description the post-check cannot ground, fails the stage with a clear
@@ -14,10 +14,21 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from bragi_analysis.describe import features as feature_builder
+from bragi_analysis.describe import pipeline
+from bragi_analysis.describe.grounding import GroundingRejectedError
+from bragi_analysis.describe.llm import (
+    AnthropicClient,
+    DescribeClient,
+    DescribeUnavailableError,
+)
+from bragi_analysis.describe.pipeline import DescriptionInvalidError
+from bragi_analysis.describe.prompt import PROMPT_VERSION
+from bragi_analysis.describe.settings import load as load_config
+from bragi_analysis.describe.settings import resolve_model
 from bragi_common.cancel import JobCancelledError
 from bragi_common.context import JobContext
 from bragi_common.generated.models import (
@@ -32,20 +43,9 @@ from bragi_common.generated.models import (
 )
 from bragi_common.protocol import params_of
 
-from bragi_analysis.describe import features as feature_builder
-from bragi_analysis.describe import pipeline
-from bragi_analysis.describe.grounding import GroundingRejected
-from bragi_analysis.describe.llm import AnthropicClient, DescribeClient, DescribeUnavailable
-from bragi_analysis.describe.pipeline import DescriptionInvalid
-from bragi_analysis.describe.prompt import PROMPT_VERSION
-from bragi_analysis.describe.settings import load as load_config
-from bragi_analysis.describe.settings import resolve_model
-
 CAPABILITY = "analysis.describe"
 
 _logger = logging.getLogger("bragi_analysis.describe")
-
-_T = TypeVar("_T", bound=BaseModel)
 
 #: Builds the client. Tests replace this with a fake; production uses the environment key.
 client_factory: Callable[[], DescribeClient] = AnthropicClient.from_env
@@ -89,7 +89,7 @@ async def run(job: JobRequest, ctx: JobContext) -> JobOutputs:
 
     try:
         client = client_factory()
-    except DescribeUnavailable as exc:
+    except DescribeUnavailableError as exc:
         raise ValueError(str(exc)) from None
     if await ctx.cancelled():
         raise JobCancelledError(f"job {job.jobId} cancelled")
@@ -99,12 +99,12 @@ async def run(job: JobRequest, ctx: JobContext) -> JobOutputs:
             features,
             client,
             model=model,
-            max_tokens=config.maxTokens,
-            blocked_terms=config.blockedTerms,
+            max_tokens=config.max_tokens,
+            blocked_terms=config.blocked_terms,
         )
-    except DescriptionInvalid as exc:
+    except DescriptionInvalidError as exc:
         raise ValueError(f"the model's description was not valid JSON: {exc}") from None
-    except GroundingRejected as exc:
+    except GroundingRejectedError as exc:
         raise ValueError(f"the description could not be grounded in the analysis: {exc}") from None
     await ctx.progress(0.9)
 
@@ -125,7 +125,9 @@ async def run(job: JobRequest, ctx: JobContext) -> JobOutputs:
     return JobOutputs(blobs={CAPABILITY.removeprefix("analysis."): blob_hash})
 
 
-async def _load(ctx: JobContext, blobs: dict[str, str], name: str, model: type[_T]) -> _T | None:
+async def _load[T: BaseModel](
+    ctx: JobContext, blobs: dict[str, str], name: str, model: type[T]
+) -> T | None:
     """Downloads and validates one optional blob. A blob that does not validate is an error."""
     content_hash = blobs.get(name)
     if content_hash is None:

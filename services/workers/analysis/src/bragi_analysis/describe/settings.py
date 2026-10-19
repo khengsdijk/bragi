@@ -16,8 +16,8 @@ class DescribeConfig:
     """The parsed ``config/describe.toml``."""
 
     model: str
-    maxTokens: int
-    blockedTerms: tuple[str, ...]
+    max_tokens: int
+    blocked_terms: tuple[str, ...]
 
 
 def load() -> DescribeConfig:
@@ -26,8 +26,8 @@ def load() -> DescribeConfig:
     raw = tomllib.loads(text)
     return DescribeConfig(
         model=str(raw["model"]),
-        maxTokens=int(raw["maxTokens"]),
-        blockedTerms=tuple(str(term) for term in raw.get("blockedTerms", [])),
+        max_tokens=int(raw["maxTokens"]),
+        blocked_terms=tuple(str(term) for term in raw.get("blockedTerms", [])),
     )
 
 

@@ -10,7 +10,8 @@ Inputs are the ``structure``, ``loudness_energy``, ``harmony``, ``rhythm``, ``ta
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 from bragi_common.generated.models import (
     HarmonyResult,
@@ -19,6 +20,7 @@ from bragi_common.generated.models import (
     StemActivityResult,
     StructureResult,
     TagResult,
+    TagScore,
 )
 
 #: A stem counts as "present" in a section when its gate is open for at least this share of it.
@@ -35,35 +37,36 @@ class SectionRecord:
 
     index: int
     kind: str
-    startSec: float
-    endSec: float
+    startSec: float  # noqa: N815
+    endSec: float  # noqa: N815
+    repeatGroup: str | None  # noqa: N815
     bars: int | None
-    meanEnergy: float | None
-    energySlope: float | None
+    meanEnergy: float | None  # noqa: N815
+    energySlope: float | None  # noqa: N815
     chords: str | None
-    activeStems: tuple[str, ...]
+    activeStems: tuple[str, ...]  # noqa: N815
 
 
 @dataclass(frozen=True)
 class DescribeFeatures:
     """Everything the describe prompt may say something about."""
 
-    durationSec: float | None = None
-    tempoBpm: float | None = None
-    keyTonic: str | None = None
-    keyMode: str | None = None
-    energyShape: str | None = None
-    energyMin: float | None = None
-    energyMax: float | None = None
+    durationSec: float | None = None  # noqa: N815 - mirrors the §5.6 field names
+    tempoBpm: float | None = None  # noqa: N815
+    keyTonic: str | None = None  # noqa: N815
+    keyMode: str | None = None  # noqa: N815
+    energyShape: str | None = None  # noqa: N815
+    energyMin: float | None = None  # noqa: N815
+    energyMax: float | None = None  # noqa: N815
     sections: tuple[SectionRecord, ...] = ()
     genres: tuple[str, ...] = ()
     moods: tuple[str, ...] = ()
     instruments: tuple[str, ...] = ()
     descriptors: tuple[str, ...] = ()
-    activeStems: tuple[str, ...] = ()
-    lowConfidenceStages: tuple[str, ...] = ()
+    activeStems: tuple[str, ...] = ()  # noqa: N815
+    lowConfidenceStages: tuple[str, ...] = ()  # noqa: N815
     #: Stage names whose blob was not passed (for the prompt's "unknown" note).
-    missingStages: tuple[str, ...] = field(default=())
+    missingStages: tuple[str, ...] = ()  # noqa: N815
 
     @property
     def section_indices(self) -> frozenset[int]:
@@ -91,16 +94,16 @@ def build(
     key_tonic = harmony.key.tonic if harmony is not None else None
     key_mode = str(harmony.key.mode.value) if harmony is not None else None
 
-    lowconf = tuple(
+    # ``loudness_energy`` has no ``lowConfidence`` field (04 §5.5), so only these four can flag.
+    low_confidence = tuple(
         name
-        for name, blob in (
-            ("structure", structure),
-            ("loudness_energy", loudness),
-            ("harmony", harmony),
-            ("rhythm", rhythm),
-            ("tag", tags),
+        for name, flag in (
+            ("structure", structure is not None and bool(structure.lowConfidence)),
+            ("harmony", harmony is not None and bool(harmony.lowConfidence)),
+            ("rhythm", rhythm is not None and bool(rhythm.lowConfidence)),
+            ("tag", tags is not None and bool(tags.lowConfidence)),
         )
-        if blob is not None and bool(blob.lowConfidence)
+        if flag
     )
     missing = tuple(
         name
@@ -128,12 +131,12 @@ def build(
         moods=_labels(tags.moods) if tags is not None else (),
         instruments=_labels(tags.instruments) if tags is not None else (),
         descriptors=_labels(tags.descriptors) if tags is not None else (),
-        activeStems=tuple(
-            sorted(str(stem.role.value) for stem in stems.stems if stem.active)
-        )
-        if stems is not None
-        else (),
-        lowConfidenceStages=lowconf,
+        activeStems=(
+            tuple(sorted(str(stem.role.value) for stem in stems.stems if stem.active))
+            if stems is not None
+            else ()
+        ),
+        lowConfidenceStages=low_confidence,
         missingStages=missing,
     )
 
@@ -211,9 +214,15 @@ def _sections(
 ) -> tuple[SectionRecord, ...]:
     if structure is None:
         return ()
-    energy_by_index = {int(e.index): e for e in loudness.sections} if loudness else {}
+    energy_by_index = (
+        {int(e.index): e for e in loudness.sections}
+        if loudness is not None and loudness.sections
+        else {}
+    )
     chords_by_index = (
-        {int(p.index): _collapse(p.romanNumerals) for p in harmony.sections} if harmony else {}
+        {int(p.index): _collapse(p.romanNumerals) for p in harmony.sections}
+        if harmony is not None and harmony.sections
+        else {}
     )
     records: list[SectionRecord] = []
     for index, section in enumerate(structure.sections):
@@ -227,6 +236,7 @@ def _sections(
                 kind=str(section.kind.value),
                 startSec=round(start, 2),
                 endSec=round(end, 2),
+                repeatGroup=section.repeatGroup,
                 bars=_bars(end - start, tempo, beats_per_bar),
                 meanEnergy=round(float(energy.meanEnergy), 3) if energy is not None else None,
                 energySlope=round(float(energy.energySlope), 3) if energy is not None else None,
@@ -254,4 +264,4 @@ def _collapse(numerals: list[str]) -> str | None:
     return "-".join(out) if out else None
 
 
-__all__ = ["DescribeFeatures", "SectionRecord", "build", "STEM_PRESENCE_MIN"]
+__all__ = ["STEM_PRESENCE_MIN", "DescribeFeatures", "SectionRecord", "build"]

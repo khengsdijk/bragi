@@ -14,10 +14,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from bragi_common.generated.models import DescriptionResult
-
 from bragi_analysis.describe import grounding
 from bragi_analysis.describe.features import DescribeFeatures
+from bragi_common.generated.models import DescriptionResult
 
 #: Plain-language rule (04 §6.3 "no jargon"). A match is a hard failure.
 JARGON_TERMS: tuple[str, ...] = (

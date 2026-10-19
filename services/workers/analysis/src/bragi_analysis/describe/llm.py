@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 API_KEY_ENV = "ANTHROPIC_API_KEY"
 
 
-class DescribeUnavailable(RuntimeError):
+class DescribeUnavailableError(RuntimeError):
     """The describe stage cannot run here (no key, or the SDK is missing). A permanent error."""
 
 
@@ -36,6 +36,7 @@ class AnthropicClient:
     """``DescribeClient`` over the official ``anthropic`` SDK (``AsyncAnthropic``)."""
 
     def __init__(self, client: AsyncAnthropic) -> None:
+        """Wraps an already-configured ``AsyncAnthropic`` instance."""
         self._client = client
 
     @classmethod
@@ -43,20 +44,22 @@ class AnthropicClient:
         """Builds the client from ``ANTHROPIC_API_KEY``.
 
         Raises:
-            DescribeUnavailable: when the key is unset or the ``anthropic`` package is missing.
+            DescribeUnavailableError: when the key is unset or the ``anthropic`` package is
+                missing.
         """
         if not os.environ.get(API_KEY_ENV):
-            raise DescribeUnavailable(
+            raise DescribeUnavailableError(
                 f"{API_KEY_ENV} is not set, so the description cannot be generated"
             )
         try:
             import anthropic
         except ImportError as exc:  # pragma: no cover - the package is a declared dependency
-            raise DescribeUnavailable("the anthropic package is not installed") from exc
+            raise DescribeUnavailableError("the anthropic package is not installed") from exc
         # The SDK reads the key from the environment itself; nothing here holds it.
         return cls(anthropic.AsyncAnthropic(max_retries=2, timeout=120.0))
 
     async def complete(self, *, model: str, system: str, user: str, max_tokens: int) -> str:
+        """Sends one message and returns the concatenated text blocks of the reply."""
         message = await self._client.messages.create(
             model=model,
             max_tokens=max_tokens,
@@ -66,4 +69,9 @@ class AnthropicClient:
         return "".join(block.text for block in message.content if block.type == "text")
 
 
-__all__ = ["API_KEY_ENV", "AnthropicClient", "DescribeClient", "DescribeUnavailable"]
+__all__ = [
+    "API_KEY_ENV",
+    "AnthropicClient",
+    "DescribeClient",
+    "DescribeUnavailableError",
+]
