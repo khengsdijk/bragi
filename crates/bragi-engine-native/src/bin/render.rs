@@ -9,7 +9,12 @@
 //! bragi-render --project fixtures/projects/engine-conformance.json \
 //!              --asset sha256:…=fixtures/audio/drums_120.wav \
 //!              --frames 96000 --out out.wav --raw out.f32 [--start 0] [--block 512]
+//!              [--export-job '{"kind":"mixdown",...}' --export-dir dir]
 //! ```
+//!
+//! With `--export-job` (a host `RenderJob`) and `--export-dir` it also runs the
+//! WP-1.11 export and writes each encoded file into the directory, printing one
+//! `file:<name>:<bytes>` line per file.
 //!
 //! It prints three lines to stdout: `sha256:<hex>` of the raw f32 output,
 //! `frames:<n>`, and `peak:<dbFS>`.
@@ -58,6 +63,8 @@ fn run() -> Result<(), String> {
     let mut start: u64 = 0;
     let mut block: usize = 512;
     let mut assets: Vec<(String, String)> = Vec::new();
+    let mut export_job: Option<String> = None;
+    let mut export_dir: Option<String> = None;
 
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -69,6 +76,8 @@ fn run() -> Result<(), String> {
             "--frames" => frames = Some(value()?.parse().map_err(|_| "bad --frames")?),
             "--start" => start = value()?.parse().map_err(|_| "bad --start")?,
             "--block" => block = value()?.parse().map_err(|_| "bad --block")?,
+            "--export-job" => export_job = Some(value()?),
+            "--export-dir" => export_dir = Some(value()?),
             "--asset" => {
                 let pair = value()?;
                 let (hash, path) = pair
@@ -144,6 +153,19 @@ fn run() -> Result<(), String> {
     let mut hex = String::with_capacity(64);
     for byte in digest {
         hex.push_str(&format!("{byte:02x}"));
+    }
+    if let (Some(job), Some(dir)) = (&export_job, &export_dir) {
+        let job: serde_json::Value =
+            serde_json::from_str(job).map_err(|error| format!("--export-job: {error}"))?;
+        let exported = bragi_engine::export::run_job(&plan, &pcm, &job)
+            .map_err(|error| format!("export: {error}"))?;
+        std::fs::create_dir_all(dir).map_err(|error| format!("creating {dir}: {error}"))?;
+        for file in &exported.files {
+            let path = std::path::Path::new(dir).join(&file.name);
+            std::fs::write(&path, &file.bytes)
+                .map_err(|error| format!("writing {}: {error}", path.display()))?;
+            println!("file:{}:{}", file.name, file.bytes.len());
+        }
     }
     println!("sha256:{hex}");
     println!("frames:{}", output.frames);

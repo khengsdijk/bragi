@@ -15,11 +15,11 @@
  * | `engine_transport` | `{ cmd }` | – |
  * | `engine_set_preview` | `{ patch }` | – |
  * | `engine_state` | – | `EngineState` |
- * | `engine_render` | `{ job }` | `RenderResult` |
+ * | `engine_render` | `{ job }` | binary export frame (`decodeExportFrame`) |
  * | `engine_peaks` | `{ asset, level }` | `number[]` |
  * | `engine_dispose` | – | – |
  */
-import { float32ToBytes, pyramidLevel } from "../engine/codec.js";
+import { decodeExportFrame, jobFormat, pyramidLevel } from "../engine/codec.js";
 import type {
   AssetHash,
   AudioFormat,
@@ -117,24 +117,10 @@ export async function createTauriEngineHost(options: TauriEngineOptions): Promis
       void invoke("engine_transport", { cmd: { kind: "audition", on: target !== null } });
     },
     async render(job: RenderJob): Promise<RenderResult> {
-      // The Rust service returns interleaved `f32`; encoding to WAV/FLAC/MP3 is
-      // the export work package (WP-1.11), so the bytes here are raw f32.
-      const rendered = (await invoke("engine_render", { job })) as {
-        channels: 2;
-        sampleRate: 48000;
-        frames: number;
-        samples: number[];
-      };
-      return {
-        channels: 2,
-        sampleRate: 48000,
-        format:
-          job.kind === "mixdown" || job.kind === "stems"
-            ? job.format
-            : { container: "wav", bits: 32 },
-        bytes: float32ToBytes(Float32Array.from(rendered.samples)),
-        frames: rendered.frames,
-      };
+      // The Rust service encodes the files and replies with one binary export
+      // frame (a raw IPC response, so it arrives as an ArrayBuffer).
+      const reply = await invoke("engine_render", { job });
+      return decodeExportFrame(toBytes(reply), jobFormat(job));
     },
     async peaks(asset: AssetHash, level: PeakLevel) {
       // The command returns the whole pyramid; pick the level here.
@@ -163,3 +149,11 @@ export async function createTauriEngineHost(options: TauriEngineOptions): Promis
 
 /** Re-exported for the app's convenience. */
 export type { AudioFormat, Unsubscribe };
+
+/** Normalises what `invoke` hands back for a raw IPC response. */
+function toBytes(reply: unknown): Uint8Array {
+  if (reply instanceof Uint8Array) return reply;
+  if (reply instanceof ArrayBuffer) return new Uint8Array(reply);
+  if (Array.isArray(reply)) return Uint8Array.from(reply as number[]);
+  throw new Error("engine_render returned an unexpected reply");
+}

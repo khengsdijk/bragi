@@ -344,18 +344,7 @@ export async function createBrowserEngineHost(options: {
   };
   const offline: EngineOfflineBridge = {
     render(job) {
-      const format: import("../engine/types.js").AudioFormat =
-        job.kind === "mixdown" || job.kind === "stems"
-          ? job.format
-          : { container: "wav", bits: 32 };
-      const startSample = job.kind === "mixdown" ? (job.startSample ?? 0) : 0;
-      const frames = job.kind === "mixdown" ? (job.frames ?? 0) : 0;
-      return request<RenderResult>(options.worker, {
-        type: "render",
-        start: startSample,
-        frames,
-        format,
-      });
+      return request<RenderResult>(options.worker, { type: "render", job });
     },
     peaks(asset, level) {
       return request<Float32Array>(options.worker, { type: "peaks", asset, level });

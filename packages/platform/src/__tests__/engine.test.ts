@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   bytesToFloat32,
+  decodeExportFrame,
   decodeStateWords,
   encodeTransport,
   float32ToBytes,
@@ -127,6 +128,30 @@ function pyramidBytes(): Uint8Array {
   return bytes;
 }
 
+/** Builds an export frame the way `bragi_engine::export::ExportResult::to_frame` does. */
+function exportFrame(files: { name: string; bytes: number[]; frames: number }[]): Uint8Array {
+  const header = new TextEncoder().encode(
+    JSON.stringify({
+      version: 1,
+      channels: 2,
+      sampleRate: 48000,
+      frames: Math.max(0, ...files.map((file) => file.frames)),
+      files: files.map((file) => ({
+        name: file.name,
+        length: file.bytes.length,
+        frames: file.frames,
+      })),
+    }),
+  );
+  const payload = files.flatMap((file) => file.bytes);
+  const out = new Uint8Array(8 + header.length + payload.length);
+  out.set([0x42, 0x58, 0x50, 0x54], 0); // BXPT
+  new DataView(out.buffer).setUint32(4, header.length, true);
+  out.set(header, 8);
+  out.set(payload, 8 + header.length);
+  return out;
+}
+
 function fakePlayback() {
   const sent: bigint[][] = [];
   const loaded: unknown[] = [];
@@ -154,7 +179,7 @@ function fakeOffline(): EngineOfflineBridge {
           job.kind === "mixdown" || job.kind === "stems"
             ? job.format
             : { container: "wav", bits: 32 },
-        bytes: new Uint8Array(0),
+        files: [{ name: "Song.wav", bytes: new Uint8Array(0), frames: 0 }],
         frames: 0,
       };
     },
@@ -247,7 +272,7 @@ describe("the tauri engine host", () => {
       if (command === "engine_state") return state;
       if (command === "engine_peaks") return pyramidBytes();
       if (command === "engine_render")
-        return { channels: 2, sampleRate: 48000, frames: 1, samples: [0.25, -0.25] };
+        return exportFrame([{ name: "Song.flac", bytes: [1, 2, 3], frames: 7 }]);
       return null;
     });
     const host = await createTauriEngineHost({
@@ -267,8 +292,14 @@ describe("the tauri engine host", () => {
     host.setPreview({ kind: "trackGain", trackId: "trk_01", db: -3 });
     host.transport({ kind: "play" });
     host.audition({ commitId: "cmt_1", doc: { id: "prj_01" } });
-    const rendered = await host.render({ kind: "cache", sectionId: "sec_01" });
+    const rendered = await host.render({
+      kind: "mixdown",
+      format: { container: "flac", bits: 24 },
+    });
     expect(rendered.channels).toBe(2);
+    expect(rendered.format).toEqual({ container: "flac", bits: 24 });
+    expect(rendered.files.map((file) => file.name)).toEqual(["Song.flac"]);
+    expect([...(rendered.files[0]?.bytes ?? [])]).toEqual([1, 2, 3]);
     const peaks = await host.peaks(hash, 256);
     expect([...peaks]).toEqual([-1, 1]);
     await host.dispose();
@@ -285,6 +316,36 @@ describe("the tauri engine host", () => {
       expect(calls).toContain(command);
     }
     expect(events.some((event) => event.kind === "error" && event.code === "no-device")).toBe(true);
+  });
+});
+
+describe("the export frame reader", () => {
+  const wav = { container: "wav", bits: 24 } as const;
+
+  it("splits one frame into named files", () => {
+    const frame = exportFrame([
+      { name: "01-Drums.wav", bytes: [1, 2], frames: 5 },
+      { name: "02-Bass.wav", bytes: [3, 4, 5], frames: 5 },
+    ]);
+    const result = decodeExportFrame(frame, wav);
+    expect(result.format).toEqual(wav);
+    expect(result.frames).toBe(5);
+    expect(result.files.map((file) => file.name)).toEqual(["01-Drums.wav", "02-Bass.wav"]);
+    expect([...(result.files[1]?.bytes ?? [])]).toEqual([3, 4, 5]);
+  });
+
+  it("reads a frame that is a view into a bigger buffer", () => {
+    const frame = exportFrame([{ name: "a.wav", bytes: [9, 8], frames: 1 }]);
+    const padded = new Uint8Array(frame.length + 6);
+    padded.set(frame, 3);
+    const result = decodeExportFrame(padded.subarray(3, 3 + frame.length), wav);
+    expect([...(result.files[0]?.bytes ?? [])]).toEqual([9, 8]);
+  });
+
+  it("rejects garbage and truncation", () => {
+    expect(() => decodeExportFrame(new Uint8Array([1, 2, 3]), wav)).toThrow("not an export frame");
+    const frame = exportFrame([{ name: "a.wav", bytes: [1, 2, 3], frames: 1 }]);
+    expect(() => decodeExportFrame(frame.subarray(0, frame.length - 1), wav)).toThrow("truncated");
   });
 });
 

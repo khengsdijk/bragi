@@ -189,6 +189,108 @@ function renderNative(fixture, outWav, outRaw) {
   };
 }
 
+/**
+ * The export jobs run through both hosts on the gated fixtures (WP-1.11).
+ * The same Rust encoders produce the files, so native and WASM must agree.
+ */
+const EXPORT_JOBS = [
+  { name: "mixdown-wav24", job: { kind: "mixdown", format: { container: "wav", bits: 24 } } },
+  { name: "mixdown-wav32", job: { kind: "mixdown", format: { container: "wav", bits: 32 } } },
+  { name: "mixdown-flac24", job: { kind: "mixdown", format: { container: "flac", bits: 24 } } },
+  { name: "stems-wav24", job: { kind: "stems", tracks: "all", format: { container: "wav", bits: 24 } } },
+];
+
+/**
+ * Reads an export frame (bragi_engine::export::ExportResult::to_frame).
+ * @param {Uint8Array} frame
+ * @returns {{ name: string, bytes: Buffer }[]}
+ */
+function readExportFrame(frame) {
+  const buffer = Buffer.from(frame.buffer, frame.byteOffset, frame.byteLength);
+  if (buffer.toString("ascii", 0, 4) !== "BXPT") throw new Error("not an export frame");
+  const jsonLength = buffer.readUInt32LE(4);
+  const header = JSON.parse(buffer.toString("utf8", 8, 8 + jsonLength));
+  let offset = 8 + jsonLength;
+  return header.files.map((/** @type {{ name: string, length: number }} */ entry) => {
+    const bytes = buffer.subarray(offset, offset + entry.length);
+    offset += entry.length;
+    return { name: entry.name, bytes };
+  });
+}
+
+/**
+ * Decodes a PCM or float WAV to f32, whatever its bit depth.
+ * @param {Buffer} bytes
+ */
+function decodeWav(bytes) {
+  let offset = 12;
+  let format = 1;
+  let bits = 16;
+  let data = null;
+  while (offset + 8 <= bytes.length) {
+    const id = bytes.toString("ascii", offset, offset + 4);
+    const size = bytes.readUInt32LE(offset + 4);
+    const body = offset + 8;
+    if (id === "fmt ") {
+      format = bytes.readUInt16LE(body);
+      bits = bytes.readUInt16LE(body + 14);
+    } else if (id === "data") {
+      data = bytes.subarray(body, body + size);
+    }
+    offset = body + size + (size % 2);
+  }
+  if (!data) throw new Error("no data chunk");
+  const count = data.length / (bits / 8);
+  const out = new Float32Array(count);
+  for (let index = 0; index < count; index += 1) {
+    if (format === 3) out[index] = data.readFloatLE(index * 4);
+    else if (bits === 24) out[index] = data.readIntLE(index * 3, 3) / 8388608;
+    else out[index] = data.readInt16LE(index * 2) / 32768;
+  }
+  return out;
+}
+
+/**
+ * Runs the export jobs through native and WASM and compares the files.
+ * WAV is gated on the decoded null (the encoders are shared, so the only
+ * possible difference is a last-bit render difference crossing a rounding
+ * boundary); FLAC is reported as byte-identical or not.
+ * @param {any} wasmModule
+ * @param {typeof FIXTURES[number]} fixture
+ */
+async function compareExports(wasmModule, fixture) {
+  const engine = new wasmModule.EngineWasm(512);
+  for (const asset of fixture.assets) {
+    engine.add_asset(asset.hash, new Uint8Array(readFileSync(join(ROOT, asset.path))), asset.mime);
+  }
+  engine.load_project(readFileSync(join(ROOT, fixture.project), "utf8"));
+  const results = [];
+  for (const { name, job } of EXPORT_JOBS) {
+    const dir = join(work, `${fixture.name}.${name}`);
+    const args = [
+      "run", "--quiet", "-p", "bragi-engine-native", "--bin", "bragi-render", "--",
+      "--project", join(ROOT, fixture.project),
+      "--frames", String(fixture.frames),
+      "--out", join(work, `${fixture.name}.${name}.wav`),
+      "--export-job", JSON.stringify(job),
+      "--export-dir", dir,
+    ];
+    for (const asset of fixture.assets) args.push("--asset", `${asset.hash}=${join(ROOT, asset.path)}`);
+    run("cargo", args);
+    const wasmFiles = readExportFrame(engine.export_frame(JSON.stringify(job)));
+    for (const file of wasmFiles) {
+      const nativeBytes = readFileSync(join(dir, file.name));
+      const identical = Buffer.compare(nativeBytes, file.bytes) === 0;
+      let level = Number.NEGATIVE_INFINITY;
+      if (file.name.endsWith(".wav")) {
+        level = nullLevelDb(decodeWav(nativeBytes), decodeWav(file.bytes));
+      }
+      results.push({ fixture: fixture.name, job: name, file: file.name, identical, level, wav: file.name.endsWith(".wav") });
+    }
+  }
+  return results;
+}
+
 if (BUILD) {
   process.stdout.write("building the native render binary…\n");
   run("cargo", ["build", "-p", "bragi-engine-native", "--bin", "bragi-render"]);
@@ -242,6 +344,22 @@ for (const fixture of FIXTURES) {
     ok,
     gate: fixture.gate,
   });
+}
+
+const exportRows = [];
+for (const fixture of FIXTURES.filter((entry) => entry.gate)) {
+  exportRows.push(...(await compareExports(module, fixture)));
+}
+process.stdout.write("\nexport parity (native vs WASM)\n");
+for (const row of exportRows) {
+  const ok = row.wav ? row.level <= NULL_TARGET_DB : true;
+  failed ||= !ok;
+  process.stdout.write(
+    `${row.fixture.padEnd(22)} ${row.job.padEnd(15)} ${row.file.padEnd(18)} ` +
+      `${row.identical ? "bytes identical" : "bytes differ    "}  ` +
+      `${row.wav ? `null ${row.level === Number.NEGATIVE_INFINITY ? "-inf" : row.level.toFixed(1)} dBFS` : "(flac: byte comparison only)"}` +
+      `${ok ? "" : "  FAIL"}\n`,
+  );
 }
 
 /** @param {number} value */

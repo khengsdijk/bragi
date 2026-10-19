@@ -93,6 +93,16 @@ export type AudioFormat =
   | { readonly container: "flac"; readonly bits: 16 | 24 }
   | { readonly container: "mp3"; readonly kbps: 128 | 192 | 320 };
 
+/** Descriptive metadata written into exported files (WAV INFO / FLAC Vorbis comments). */
+export interface ExportMeta {
+  /** The song title; also names the mixdown file. */
+  readonly title?: string;
+  readonly bpm?: number;
+  readonly key?: string;
+  /** ISO 8601 creation date. The engine never reads the clock, so the caller supplies it. */
+  readonly created?: string;
+}
+
 /** An offline render request (03 §9). */
 export type RenderJob =
   | {
@@ -106,12 +116,20 @@ export type RenderJob =
       readonly startSample?: number;
       readonly frames?: number;
       readonly format: AudioFormat;
+      /** Not in v1: needs loudness metering (Q26). The host rejects it. */
       readonly normalize?: { readonly lufs: number; readonly truePeakDb: number };
+      readonly meta?: ExportMeta;
+      /** TPDF dither seed for 16/24-bit output. Without one there is no dither (03 §9). */
+      readonly ditherSeed?: number;
     }
   | {
       readonly kind: "stems";
       readonly tracks: readonly string[] | "all";
       readonly format: AudioFormat;
+      readonly startSample?: number;
+      readonly frames?: number;
+      readonly meta?: ExportMeta;
+      readonly ditherSeed?: number;
     }
   | {
       readonly kind: "context";
@@ -120,16 +138,28 @@ export type RenderJob =
     }
   | { readonly kind: "cache"; readonly sectionId: string };
 
-/** An offline render result. */
+/** One encoded file of an export. */
+export interface ExportedFile {
+  /** A portable file name, for example `Song.flac` or `02-Drums.wav`. */
+  readonly name: string;
+  /** Encoded bytes in the requested format. */
+  readonly bytes: Uint8Array;
+  /** Frames of audio in the file. */
+  readonly frames: number;
+}
+
+/**
+ * An offline render result: one file for a mixdown, one per track (in
+ * document order) for stems.
+ */
 export interface RenderResult {
   /** Always stereo at 48 kHz (`specs/02-song-model.md` §2.2). */
   readonly channels: 2;
   readonly sampleRate: 48000;
   readonly format: AudioFormat;
-  /** Encoded bytes in the requested format. */
-  readonly bytes: Uint8Array;
-  /** Frames rendered. */
+  /** Frames rendered per file. */
   readonly frames: number;
+  readonly files: readonly ExportedFile[];
 }
 
 /** An engine event (03 §3.3): underruns, device changes, errors. */

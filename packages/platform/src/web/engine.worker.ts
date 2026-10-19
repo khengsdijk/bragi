@@ -7,12 +7,12 @@
  * AudioWorklet. Messages are the `request`/response shape of
  * `web/engine.ts`'s `request()`: `{ id, type, … }` in, `{ id, ok, result }` out.
  *
- * The bytes `render` returns are raw interleaved f32; encoding to WAV/FLAC/MP3
- * is the export work package (WP-1.11), and the `format` field records what was
- * asked for.
+ * `render` runs the engine's export (WP-1.11): the wasm module encodes WAV/FLAC
+ * mixdowns and stems and returns one binary export frame, which `postMessage`
+ * transfers back as a `RenderResult`.
  */
-import { float32ToBytes, pyramidLevel } from "../engine/codec.js";
-import type { AssetHash, AudioFormat, PeakLevel, RenderResult } from "../engine/types.js";
+import { decodeExportFrame, jobFormat, pyramidLevel } from "../engine/codec.js";
+import type { AssetHash, PeakLevel, RenderJob } from "../engine/types.js";
 
 type EngineRequest =
   | {
@@ -24,9 +24,7 @@ type EngineRequest =
   | {
       readonly id: number;
       readonly type: "render";
-      readonly start: number;
-      readonly frames: number;
-      readonly format: AudioFormat;
+      readonly job: RenderJob;
     }
   | {
       readonly id: number;
@@ -45,6 +43,7 @@ interface WasmEngine {
   add_asset(hash: string, bytes: Uint8Array, mime: string): void;
   load_project(json: string): void;
   render(start: bigint, frames: bigint, block: number): Float32Array;
+  export_frame(jobJson: string): Uint8Array;
   peaks(hash: string): Uint8Array;
   length_samples(): bigint;
 }
@@ -85,15 +84,16 @@ async function handle(request: EngineRequest): Promise<unknown> {
       return Number(instance.length_samples());
     }
     case "render": {
-      const samples = instance.render(BigInt(request.start), BigInt(request.frames), 512);
-      const result: RenderResult = {
-        channels: 2,
-        sampleRate: 48000,
-        format: request.format,
-        bytes: float32ToBytes(samples),
-        frames: samples.length / 2,
+      // The wasm engine encodes WAV/FLAC with the same code as the desktop and
+      // returns one export frame.
+      const frame = instance.export_frame(JSON.stringify(request.job));
+      const decoded = decodeExportFrame(frame, jobFormat(request.job));
+      // Give each file its own buffer so `postMessage` can transfer them
+      // instead of structured-cloning the whole frame once per view.
+      return {
+        ...decoded,
+        files: decoded.files.map((file) => ({ ...file, bytes: file.bytes.slice() })),
       };
-      return result;
     }
     case "peaks":
       return pyramidLevel(instance.peaks(request.asset), request.level);
@@ -102,10 +102,17 @@ async function handle(request: EngineRequest): Promise<unknown> {
   }
 }
 
+/** `self` as a dedicated worker, whichever lib the build type-checks against. */
+const workerScope = self as unknown as {
+  postMessage(message: unknown, transfer?: Transferable[]): void;
+};
+
 self.addEventListener("message", (event: MessageEvent<EngineRequest>) => {
   const request = event.data;
   void handle(request)
-    .then((result) => self.postMessage({ id: request.id, ok: true, result }))
+    .then((result) =>
+      workerScope.postMessage({ id: request.id, ok: true, result }, transferables(result)),
+    )
     .catch((error: unknown) =>
       self.postMessage({
         id: request.id,
@@ -114,3 +121,10 @@ self.addEventListener("message", (event: MessageEvent<EngineRequest>) => {
       }),
     );
 });
+
+/** Buffers a `render` result can hand over without copying. */
+function transferables(result: unknown): Transferable[] {
+  if (typeof result !== "object" || result === null || !("files" in result)) return [];
+  const files = (result as { files: { bytes: Uint8Array }[] }).files;
+  return files.map((file) => file.bytes.buffer);
+}

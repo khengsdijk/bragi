@@ -14,7 +14,14 @@
  * Every function here is pure and synchronous so the layout can be unit-tested
  * without a browser.
  */
-import type { EngineState, MeterValue, TransportStateName } from "./types.js";
+import type {
+  AudioFormat,
+  EngineState,
+  ExportedFile,
+  MeterValue,
+  RenderResult,
+  TransportStateName,
+} from "./types.js";
 
 /** Opcodes, mirroring `bragi-engine-wasm`'s `TRANSPORT_*` constants. */
 export const OP_PLAY = 0;
@@ -194,4 +201,50 @@ export function pyramidLevel(bytes: Uint8Array, level: number): Float32Array {
     offset = end;
   }
   throw new Error(`peak level ${level} is not in the pyramid`);
+}
+
+/**
+ * Reads an export frame (`bragi_engine::export::ExportResult::to_frame`), the
+ * one binary buffer both hosts use to return encoded files.
+ *
+ * Layout: `"BXPT" | u32 LE jsonLen | json | file 0 | file 1 | …`, where `json`
+ * is `{ version, channels, sampleRate, frames, files: [{ name, length, frames }] }`.
+ * The returned files are views into `frame`, not copies.
+ */
+export function decodeExportFrame(frame: Uint8Array, format: AudioFormat): RenderResult {
+  if (
+    frame.byteLength < 8 ||
+    frame[0] !== 0x42 ||
+    frame[1] !== 0x58 ||
+    frame[2] !== 0x50 ||
+    frame[3] !== 0x54
+  ) {
+    throw new Error("not an export frame");
+  }
+  const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+  const jsonLength = view.getUint32(4, true);
+  if (8 + jsonLength > frame.byteLength) throw new Error("truncated export frame");
+  const header = JSON.parse(new TextDecoder().decode(frame.subarray(8, 8 + jsonLength))) as {
+    version: number;
+    frames: number;
+    files: { name: string; length: number; frames: number }[];
+  };
+  if (header.version !== 1) throw new Error(`unsupported export frame version ${header.version}`);
+  let offset = 8 + jsonLength;
+  const files: ExportedFile[] = [];
+  for (const entry of header.files) {
+    if (offset + entry.length > frame.byteLength) throw new Error("truncated export frame");
+    files.push({
+      name: entry.name,
+      bytes: frame.subarray(offset, offset + entry.length),
+      frames: entry.frames,
+    });
+    offset += entry.length;
+  }
+  return { channels: 2, sampleRate: 48000, format, frames: header.frames, files };
+}
+
+/** The format a job asks for; `context` and `cache` have no export format. */
+export function jobFormat(job: { kind: string; format?: AudioFormat }): AudioFormat {
+  return job.format ?? { container: "wav", bits: 32 };
 }

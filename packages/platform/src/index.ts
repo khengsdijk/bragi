@@ -9,9 +9,11 @@ export const PACKAGE_NAME = "@bragi/platform";
 export { assertBlobHash, blobHashOf, isBlobHash } from "./blob-hash.js";
 export {
   bytesToFloat32,
+  decodeExportFrame,
   decodeStateWords,
   encodeTransport,
   float32ToBytes,
+  jobFormat,
   packCommand,
   pyramidLevel,
   STATE_HEADER_WORDS,
@@ -25,6 +27,8 @@ export type {
   EngineEvent,
   EngineHost,
   EngineState,
+  ExportedFile,
+  ExportMeta,
   MeterValue,
   PeakLevel,
   PreviewPatch,
