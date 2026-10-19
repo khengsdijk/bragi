@@ -1,0 +1,14 @@
+# Configuration for the `describe` capability (specs/04-analysis-pipeline.md §6.3, WP-1.7).
+#
+# model is the Claude model ID. It lives here, not in code (specs/06 §4: model IDs are configuration).
+# Override it with BRAGI_DESCRIBE_MODEL or the job param `model`. The default is the tier the WP-1.7
+# brief names; the production choice is open (Q71).
+#
+# blockedTerms are names the description must never contain (specs/10 §7, no artist imitation by
+# name). The curated list is not in the repo yet (Q74), so v1 ships it empty.
+#
+# maxTokens bounds one reply. A description is a short JSON object, so this is generous.
+
+model = "claude-sonnet-5-5"
+maxTokens = 2048
+blockedTerms = []

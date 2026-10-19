@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from bragi_analysis.capabilities import (
+    describe,
     echo,
     embed_full,
     harmony,
@@ -31,6 +32,7 @@ from bragi_common.worker import run_worker
 
 #: Every capability this process serves (13 §3: one module per capability).
 CAPABILITIES: Sequence[Capability] = [
+    describe,
     echo,
     embed_full,
     harmony,
