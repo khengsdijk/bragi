@@ -41,10 +41,12 @@
 //! ```
 
 mod biquad;
+mod eq3;
 mod gain;
 mod smooth;
 
 pub use biquad::{Biquad, BiquadCoeffs, StereoBiquad};
+pub use eq3::Eq3;
 pub use gain::Gain;
 pub use smooth::{DEFAULT_SMOOTHING_MS, Smoothed};
 
@@ -385,6 +387,7 @@ pub fn create(
     let _ = max_block;
     match kind {
         FxKind::Gain => Ok(Box::new(Gain::new(sample_rate))),
+        FxKind::Eq3 => Ok(Box::new(Eq3::new(sample_rate, max_block))),
         other => Err(FxError::NotImplemented(other.name())),
     }
 }
