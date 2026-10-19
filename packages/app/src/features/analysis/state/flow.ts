@@ -389,6 +389,14 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
       await reopen.load();
       view = (initialView ?? {}) as StageArtifacts;
       for (const stage of Object.keys(doc.analyses[source.id]?.blobs ?? {})) applied.add(stage);
+      // A stage any version already applied is done, even when HEAD is a version from before it
+      // (the user went back and edited there): replaying it would graft the analysis onto that
+      // branch again.
+      for (const commit of reopen.store.getState().commits.values()) {
+        for (const op of commit.batch.ops) {
+          if (op.op === "analysis.apply" && op.sourceId === source.id) applied.add(op.stage);
+        }
+      }
       const done = STANDARD_STAGES.filter((candidate) => applied.has(candidate)).length;
       emit({ phase: "analysing", assetHash: hash, projectId: doc.id, stagesDone: done });
       if (done === STANDARD_STAGES.length) {
