@@ -18,10 +18,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@bragi/api-client": "workspace:*",
     "@bragi/design": "workspace:*",
     "@bragi/model-wasm": "workspace:*",
     "@bragi/platform": "workspace:*",
     "@bragi/render-canvas": "workspace:*",
+    "@tanstack/react-query": "^5.90.2",
     "@tanstack/react-router": "^1.170.45",
     "react": "catalog:",
     "react-dom": "catalog:",

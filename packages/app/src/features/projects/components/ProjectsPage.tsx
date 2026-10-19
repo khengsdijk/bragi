@@ -66,7 +66,7 @@ export function ProjectsPage() {
 
   return (
     <section className="projects">
-      <h1>{t("projects.heading")}</h1>
+      <h2>{t("projects.heading")}</h2>
 
       <form className="projects__new" onSubmit={submit} noValidate>
         <label htmlFor="project-title">{t("projects.nameLabel")}</label>

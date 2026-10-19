@@ -6,6 +6,7 @@
  */
 
 import type { Platform } from "@bragi/platform";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -23,11 +24,18 @@ export interface MountOptions {
 /** Renders the app into `container` and returns a function that tears it down. */
 export function mountApp({ platform, container }: MountOptions): () => void {
   const root = createRoot(container);
+  // Server data (the library, analyses) lives in TanStack Query; the Song
+  // document stays in the Song Store (13 §3). One client per application.
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
+  });
   root.render(
     <StrictMode>
-      <PlatformProvider platform={platform}>
-        <RouterProvider router={createAppRouter()} />
-      </PlatformProvider>
+      <QueryClientProvider client={queryClient}>
+        <PlatformProvider platform={platform}>
+          <RouterProvider router={createAppRouter()} />
+        </PlatformProvider>
+      </QueryClientProvider>
     </StrictMode>,
   );
   return () => root.unmount();

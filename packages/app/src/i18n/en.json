@@ -78,5 +78,22 @@
   "transport.error": "We could not start audio.",
   "transport.announce.playing": "Playing at {position}",
   "transport.announce.paused": "Paused at {position}",
-  "nav.demo": "Demo song"
+  "nav.demo": "Demo song",
+  "library.heading": "Your songs",
+  "library.drop": "Drop a song here, or choose a file",
+  "library.choose": "Choose a file",
+  "library.empty": "No songs yet. Drop one above and Bragi will look inside it.",
+  "library.open": "Open",
+  "library.analysis.hashing": "Reading the file",
+  "library.analysis.checking": "Checking whether we already have this song",
+  "library.analysis.uploading": "Uploading the song",
+  "library.analysis.queueing": "Getting the analysis ready",
+  "library.analysis.analysing": "Looking inside your song: {done} of {total} steps done",
+  "library.analysis.ready": "Your song is ready",
+  "library.analysis.failed": "We could not analyse that song: {message}",
+  "library.signIn.heading": "Sign in",
+  "library.signIn.email": "Email",
+  "library.signIn.send": "Send me a sign-in link",
+  "library.signIn.sent": "Check your email for the sign-in link.",
+  "library.signIn.failed": "We could not send the link."
 }

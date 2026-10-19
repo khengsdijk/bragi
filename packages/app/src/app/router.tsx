@@ -15,7 +15,7 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { FusePage } from "../features/fuse/components/FusePage.js";
-import { ProjectsPage } from "../features/projects/components/ProjectsPage.js";
+import { WelcomePage } from "../features/library/components/WelcomePage.js";
 import { SongPage } from "../features/projects/components/SongPage.js";
 import { DemoSongPage, validateDemoSearch } from "../features/song/components/DemoSongPage.js";
 import { UniversePage } from "../features/universe/components/UniversePage.js";
@@ -26,7 +26,7 @@ export const rootRoute = createRootRoute({ component: AppShell });
 export const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: ProjectsPage,
+  component: WelcomePage,
 });
 
 export const songRoute = createRoute({

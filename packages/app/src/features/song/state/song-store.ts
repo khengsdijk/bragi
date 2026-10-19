@@ -52,6 +52,12 @@ export interface SongStore {
   handle(): number | null;
   /** Replaces the document (project open). */
   load(project: Project, assets?: readonly AssetMeta[]): void;
+  /**
+   * Adds metadata for assets an analysis stage introduces (the stems, the
+   * residual). `analysis.apply` needs it to validate clip ranges against the
+   * asset's length (02 §6).
+   */
+  addAssets(assets: readonly AssetMeta[]): void;
   /** Applies an op batch atomically. */
   apply(batch: OpBatch): ApplyOutcome;
   /** Frees the model handle. */
@@ -100,6 +106,14 @@ export function createSongStore(model: ModelApi): SongStore {
         revision: state.revision + 1,
         lastCommit: null,
       }));
+    },
+    addAssets(assets) {
+      if (handle === null) return;
+      const known = new Set(assetMetas.map((asset) => asset.hash));
+      const fresh = assets.filter((asset) => !known.has(asset.hash));
+      if (fresh.length === 0) return;
+      model.assetAdd(handle, JSON.stringify(fresh));
+      assetMetas = [...assetMetas, ...fresh];
     },
     apply(batch) {
       if (handle === null) {

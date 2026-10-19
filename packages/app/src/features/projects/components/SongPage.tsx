@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 
 import { t } from "../../../i18n/index.js";
 import { usePlatform } from "../../../platform-context.js";
+import { getProjectRow } from "../../library/api/library-repo.js";
+import { StoredSongCanvas } from "../../song/components/StoredSongCanvas.js";
 import { getProject, type Project, verifyProjectCard } from "../api/projects-repo.js";
 
 type SongState =
@@ -18,6 +20,7 @@ type SongState =
       readonly status: "ready";
       readonly project: Project;
       readonly cardOk: boolean;
+      readonly hasSnapshot: boolean;
     };
 
 export function SongPage() {
@@ -31,10 +34,12 @@ export function SongPage() {
     getProject(platform.localDb, id)
       .then(async (project) => {
         if (project === null) return { status: "missing" } as const;
+        const row = await getProjectRow(platform.localDb, id);
         return {
           status: "ready",
           project,
           cardOk: await verifyProjectCard(platform, project),
+          hasSnapshot: row?.snapshotHash !== null && row?.snapshotHash !== undefined,
         } as const;
       })
       .then(
@@ -74,6 +79,7 @@ export function SongPage() {
         {state.cardOk ? t("song.cardOk") : t("song.cardMissing")}
       </p>
       <Link to="/">{t("song.back")}</Link>
+      {state.hasSnapshot ? <StoredSongCanvas projectId={state.project.id} /> : null}
     </section>
   );
 }
