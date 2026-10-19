@@ -1525,6 +1525,10 @@
         },
         "sections": {
           "$ref": "#/$defs/SectionProgressionList"
+        },
+        "lowConfidence": {
+          "description": "Set when the key/chord estimate is not trustworthy (silence, too short, ambiguous key): the UI keeps the harmony strip but marks it uncertain (04 §10).",
+          "type": "boolean"
         }
       }
     },

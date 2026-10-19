@@ -3618,6 +3618,12 @@ pub struct HarmonyResult {
         skip_serializing_if = "::std::option::Option::is_none"
     )]
     pub key_changes: ::std::option::Option<KeyChangeList>,
+    ///Set when the key/chord estimate is not trustworthy (silence, too short, ambiguous key): the UI keeps the harmony strip but marks it uncertain (04 §10).
+    #[serde(
+        rename = "lowConfidence",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub low_confidence: ::std::option::Option<bool>,
     #[serde(rename = "schemaVersion")]
     pub schema_version: HarmonyResultSchemaVersion,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]

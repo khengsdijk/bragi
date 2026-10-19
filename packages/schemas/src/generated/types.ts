@@ -1267,6 +1267,10 @@ export interface HarmonyResult {
    */
   chords: Chord[];
   sections?: SectionProgressionList;
+  /**
+   * Set when the key/chord estimate is not trustworthy (silence, too short, ambiguous key): the UI keeps the harmony strip but marks it uncertain (04 §10).
+   */
+  lowConfidence?: boolean;
 }
 export interface KeyEstimate {
   /**

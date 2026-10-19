@@ -2300,6 +2300,12 @@ class HarmonyResult(BaseModel):
         list[Chord], Field(description='Chord segments, aligned to beats.')
     ]
     sections: SectionProgressionList | None = None
+    lowConfidence: Annotated[
+        bool | None,
+        Field(
+            description='Set when the key/chord estimate is not trustworthy (silence, too short, ambiguous key): the UI keeps the harmony strip but marks it uncertain (04 §10).'
+        ),
+    ] = None
 
 
 class JobEvent(BaseModel):
