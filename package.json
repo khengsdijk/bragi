@@ -17,7 +17,7 @@
     "test:rust": "cargo test --workspace",
     "test:py": "uv run --directory services/workers pytest",
     "test:all": "pnpm test && pnpm test:rust && pnpm test:py",
-    "verify": "pnpm lint && pnpm schemas:check && pnpm build && pnpm typecheck && pnpm test && pnpm lint:rust && pnpm test:rust && pnpm build:wasm && pnpm build:model-wasm && pnpm build:engine-wasm && pnpm test:conformance && pnpm lint:py && pnpm test:py",
+    "verify": "pnpm lint && pnpm schemas:check && pnpm build:wasm && pnpm build:model-wasm && pnpm build:engine-wasm && pnpm build && pnpm typecheck && pnpm test && pnpm lint:rust && pnpm test:rust && pnpm test:conformance && pnpm lint:py && pnpm test:py",
     "lint": "biome check . && pnpm lint:layout",
     "lint:fix": "biome check --write .",
     "lint:layout": "node scripts/check-layout.mjs",

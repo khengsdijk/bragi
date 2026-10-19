@@ -14,9 +14,9 @@ import { defineConfig } from "@playwright/test";
  * the "firefox" projects run Chromium (Playwright's default); WP-1.9 found that and
  * fixed it (see docs/wp/1.9.md).
  *
- * `chromium-webgpu` is the "WebGPU on" half of the visual-regression pair (13 §6):
+ * `chromium-webgl` and `chromium-webgpu` are the "WebGPU off" and "WebGPU on" halves of the visual-regression pair (13 §6):
  * headless Chromium has no WebGPU adapter by default, so Pixi falls back to WebGL2
- * in every other project, and this one opts into a real adapter. The flags differ
+ * in the other projects, and `chromium-webgpu` opts into a real adapter. The flags differ
  * per OS; only the macOS (Metal) set has been exercised.
  *
  * macOS WebKit is the engine Safari uses, but it is *Playwright WebKit*, not
@@ -27,10 +27,14 @@ const PREVIEW_PORT = 5174;
 const dev = `http://127.0.0.1:${DEV_PORT}`;
 const preview = `http://127.0.0.1:${PREVIEW_PORT}`;
 
-const WEBGPU_ARGS =
+// Headless Chromium rasterises WebGL in software unless it is pointed at the GPU, which makes any
+// timing meaningless; `chromium-webgl` and `chromium-webgpu` do that. Only the macOS (Metal) flags have
+// been exercised.
+const GPU_ARGS =
   process.platform === "darwin"
-    ? ["--enable-unsafe-webgpu", "--use-angle=metal", "--ignore-gpu-blocklist"]
-    : ["--enable-unsafe-webgpu", "--enable-features=Vulkan", "--ignore-gpu-blocklist"];
+    ? ["--use-angle=metal", "--ignore-gpu-blocklist"]
+    : ["--enable-features=Vulkan", "--ignore-gpu-blocklist"];
+const WEBGPU_ARGS = ["--enable-unsafe-webgpu", ...GPU_ARGS];
 
 export default defineConfig({
   testDir: "e2e",
@@ -81,6 +85,11 @@ export default defineConfig({
     { name: "firefox-preview", use: { browserName: "firefox", baseURL: preview } },
     { name: "webkit-dev", use: { browserName: "webkit", baseURL: dev } },
     { name: "webkit-preview", use: { browserName: "webkit", baseURL: preview } },
+    {
+      // WebGL2 on the real GPU: the "WebGPU off" half of the visual pair and the WebGL timings.
+      name: "chromium-webgl",
+      use: { browserName: "chromium", baseURL: preview, launchOptions: { args: GPU_ARGS } },
+    },
     {
       name: "chromium-webgpu",
       use: {

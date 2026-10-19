@@ -9,7 +9,14 @@
 import AxeBuilder from "@axe-core/playwright";
 
 import { expect, test } from "./app-page.js";
-import { canvasPoint, currentDoc, layout, openDemo, waitForFrame, withHooks } from "./song-helpers.js";
+import {
+  canvasPoint,
+  currentDoc,
+  layout,
+  openDemo,
+  waitForFrame,
+  withHooks,
+} from "./song-helpers.js";
 
 test("draws the demo song and exposes its layout as an accessible grid", async ({ appPage }) => {
   await openDemo(appPage, { audio: false });

@@ -85,11 +85,12 @@ export async function withHooks<R, A = undefined>(
 ): Promise<Awaited<R>> {
   // JSHandle.evaluate runs `fn` through the protocol, not as page script, so the app's strict CSP
   // (no 'unsafe-eval') stays in force during the tests.
-  const hooks = await page.evaluateHandle(
-    () => (window as unknown as { __bragi: Hooks }).__bragi,
-  );
+  const hooks = await page.evaluateHandle(() => (window as unknown as { __bragi: Hooks }).__bragi);
   try {
-    return (await hooks.evaluate(fn as (hooks: Hooks, arg: unknown) => R, arg as unknown)) as Awaited<R>;
+    return (await hooks.evaluate(
+      fn as (hooks: Hooks, arg: unknown) => R,
+      arg as unknown,
+    )) as Awaited<R>;
   } finally {
     await hooks.dispose();
   }
