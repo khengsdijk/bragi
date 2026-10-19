@@ -67,6 +67,22 @@ rows.
 | Q21 | `section.move` cannot express "smooth the transitions" (02 §5.1 says the moved section and its successor become a 1-beat `crossfade` *if smoothing is requested*, but the op payload has no flag). Should the planner/UI add a flag, make smoothing unconditional, or drop 02 §5.1's rule? WP-0.3 leaves transitions alone and only re-anchors master automation. | WP-1.8 (planner) | Agent | [02 §5.1](02-song-model.md), `packages/schemas/song/ops/section.move.schema.json` |
 | Q22 | `crates/bragi-dsp/fx_catalog.json` (03 §6) did not exist; WP-0.3 created it so `validate` can enforce invariant 5 (FX param ranges). WP-0.4/1.1 own `bragi-dsp` and may extend it (non-numeric params such as `sidechain_duck.sourceTrack`, `match_eq.bands` are in the file but not yet validated, because `FxParams` only holds numbers). Confirm the ranges and the missing structural validation. | WP-0.4 / WP-1.1 | Agent | [03 §6](03-audio-engine.md), `crates/bragi-dsp/fx_catalog.json` |
 
+## Added by WP-1.2
+
+| # | Question | Needed by | Owner | Notes |
+|---|---|---|---|---|
+| Q32 | **The eval set does not exist.** WP-1.2 ships the manifest format, `scripts/fetch-eval.sh` and the harness, but `fixtures/eval/manifest.json` has no tracks, so the rhythm gate (beat F ≥ 0.85) is `PENDING` and nothing about Beat This!'s accuracy on real music is known. Who supplies the ~50 labelled tracks (audio into a private bucket; hand-labelled beats/downbeats as `.beats` files in `fixtures/eval/labels/`), and where is the bucket? | before WP-1.4 (its gates need the same set) | Koen | `fixtures/eval/README.md`, 04 §8 |
+| Q33 | The orchestrator passes the *uploaded* asset hash as `assets.source` to every stage (`services/api/src/orchestrator/handler.ts`), so `rhythm` and `loudness_energy` decode the original upload, not the `ingest` working asset, and `ingest`'s `workingAsset` output is never fed forward. The decode paths are identical in effect, but 04 §1.4 says times are in seconds *of the working asset*. Should the orchestrator pass `workingAsset` to downstream stages, and should it also record each capability's `stageVersion` (the workers know it: `rhythm@beat_this-final0-1`, but `JobEvent.metrics` is not populated yet)? | WP-1.10 | Agent | `bragi_analysis.trackers`, 04 §1.5, 05 §4.2 |
+| Q34 | Beat This! code and weights are MIT, but its README notes that some *training* files are copyrighted or under limited CC licences. Is that acceptable for a commercial launch, or should it be treated as unclear until legal review? (Tied to Q6.) | before any commercial launch | Koen | `services/workers/MODELS.md`, ADR-0007 |
+| Q35 | `timeSignature.denominator` is always 4: beat positions cannot separate 6/8 from 3/4 or 12/8 from 4/4. Add a compound-meter heuristic (beat-subdivision analysis) in `rhythm`, or defer to `structure`/`harmony` evidence? | WP-1.4 | Agent | `bragi_analysis.rhythm_post.time_signature` |
+| Q36 | Q23 (who owns the retry count) is still open: WP-1.2 added `JobFailure(code, message, retryable)` so deterministic rejections (corrupt, too long) are acked immediately instead of being redelivered, but crashes still retry from JetStream's delivery counter. | WP-1.10 | Koen | `bragi_common.errors`, `bragi_common.worker` |
+
+## Resolved by WP-1.2
+
+| # | Question | Answer | Reference |
+|---|---|---|---|
+| Q16 (part) | Hop and length of the short-term loudness series | Hop 0.5 s, `ceil(durationSec / 0.5)` entries, each a 3 s window centred on the hop (edge-truncated), floored at −70 LUFS; the energy curve has the same length. The embedding and `drum_split`/`transcribe`/`lyrics` parts stay open for WP-1.6. | [04 §5.5](04-analysis-pipeline.md), [`docs/wp/1.2.md`](../docs/wp/1.2.md) |
+
 ## Resolved by WP-1.8
 
 Appended rather than folded into the tables above, so parallel work packages never edit the same

@@ -1,6 +1,6 @@
 # 04 — Analysis Pipeline
 
-Status: Draft v0.2 · Code: `services/workers/analysis`, `services/workers/embed` · Schemas: `packages/schemas/analysis/`
+Status: Draft v0.3 · Code: `services/workers/analysis`, `services/workers/embed` · Schemas: `packages/schemas/analysis/`
 
 The analysis pipeline turns one stereo file into everything Bragi shows: stems, beat grid, sections, chords, key, energy, tags, embeddings and a plain-language description.
 
@@ -46,6 +46,10 @@ Library imports run `quick` and are upgraded to `standard` lazily when a song is
 - Produce the **working asset**: 48 kHz, stereo (mono is duplicated, >2 channels are downmixed), 24-bit FLAC.
 - Compute `durationSamples`, an audio fingerprint (Chromaprint, used only for duplicate detection in the user's own library), and a peak pyramid (also computed client-side, but generated here for the Universe thumbnails).
 - Output blob: `IngestResult { workingAsset, durationSec, channelsOriginal, sampleRateOriginal, codec, fingerprint }`.
+- **Implementation notes (WP-1.2).** Capability `analysis.ingest`; input `assets.source`, outputs `assets.workingAsset` and `blobs.result`.
+  Mono is duplicated at unity gain (not ffmpeg's −3 dB up-mix). Decoding is bounded at the duration limit + 1 s, so a container that lies about its length cannot make the worker decode without limit.
+  Error codes (all non-retryable): `ASSET_CORRUPT` (undecodable, not audio, or truncated: much less audio decodes than the container declares), `UNSUPPORTED_MEDIA_TYPE` (no audio track), `ASSET_TOO_LONG`, `PAYLOAD_TOO_LARGE`. Chromaprint needs ~3 s of audio; for shorter clips `fingerprint` is `exact:<sha256 of the working PCM, first 32 hex>`, which only matches an identical clip.
+  `peakPyramid` is `{ sampleRate, levels: [{ samplesPerPeak, peaks: [min0, max0, min1, max1, …] }] }` on the mono mix (levels of 4096 and 65 536 samples per pair).
 
 ## 4. Stem separation
 
@@ -67,6 +71,7 @@ Library imports run `quick` and are upgraded to `standard` lazily when a song is
 - Beat and downbeat tracking with a modern neural tracker. **Beat This!** is the v1 candidate. The **All-In-One** music structure model is an alternative that jointly produces beats, downbeats and segments.
 - Output: `beats[]` and `downbeats[]` (sec), a global `bpm`, `tempoCurve[]` (bpm per beat, smoothed), `timeSignature` (numerator/denominator, from the downbeat spacing), `confidence`, and `isTempoStable` (bpm std-dev < 1% → treated as constant tempo).
 - Half/double-time ambiguity: prefer bpm in [70, 180]. Store `alternativeBpm`.
+- **Implementation notes (WP-1.2).** Capability `analysis.rhythm`. When the tracked tempo is outside [70, 180] the *beat grid is folded too* (midpoints inserted, or every second beat dropped keeping the downbeats), so `beats`, `tempoCurve` and `bpm` always describe the same pulse; `alternativeBpm` is then the tracker's original reading, otherwise the other octave (double below 125 bpm, half above). `bpm` is a least-squares fit when the tempo is stable (a 20 ms frame grid would otherwise bias a median), the median of the curve when not. `tempoCurve` averages ±4 beats. `timeSignature.numerator` is the most common beats-per-bar; the denominator is fixed at 4 (6/8 cannot be told from 3/4 by beat positions alone). Beat This! reports no confidence: `confidence` = (share of inter-beat intervals within 10 % of their local median) × (share of the song between first and last beat), and `lowConfidence` is `confidence < 0.4`. Audio with no pulse publishes `beats: []`, `confidence: 0`, `lowConfidence: true`, never a failure (§10).
 
 ### 5.2 `structure`
 - Section boundaries and functional labels, using an All-In-One-class model or a boundary model + label classifier.
@@ -90,6 +95,7 @@ Library imports run `quick` and are upgraded to `standard` lazily when a song is
   energy = normalise( 0.40·loudness_st + 0.25·onset_density + 0.15·spectral_centroid + 0.20·active_stem_weight )
   ```
   Each feature is z-scored per song, then a sigmoid is applied. `active_stem_weight` is only available after separation, so before then its weight is redistributed across the other three. The weights are tunable in `config/energy.toml` and evaluated against a small hand-labelled set.
+- **Implementation notes (WP-1.2).** Capability `analysis.loudness_energy`. The formula is `energy = sigmoid( Σ wᵢ · zscore(featureᵢ) )` with the weights of the *available* features renormalised to sum to 1 (before separation there is no `active_stem_weight`, so 0.40 / 0.25 / 0.15 become 0.5 / 0.3125 / 0.1875), and digital silence (short-term loudness at the −70 LUFS floor) pinned to 0. Features per 0.5 s hop: short-term loudness, onset density (peaks of log-spectral flux per second), energy-weighted spectral centroid. The weights live in `bragi_analysis/config/energy.toml`. `shortTermLufs[i]` and `energy[i]` both describe hop `i`: the 3 s short-term loudness is *centred* on the hop's midpoint and truncated at the file edges; both series have `ceil(durationSec / 0.5)` entries; loudness is floored at −70 LUFS (JSON has no −∞). Integrated loudness, LRA and true peak follow BS.1770-4 / EBU Tech 3342 (4× oversampled true peak). `absoluteEnergy` and the per-section aggregates are omitted until library-wide constants and `structure` exist.
 - **Absolute energy** (`0..1` comparable across songs) uses library-wide normalisation constants. It feeds the Universe's energy lens.
 - Per-section aggregates: `meanEnergy`, `peakEnergy`, `energySlope` (rising/falling), which feed the skyline and the planner.
 
@@ -154,6 +160,8 @@ Lyrics are **shown to the user only** (karaoke-style highlight in the canvas) an
 | describe | Manual review checklist (grounded, no jargon, no artist names) | 0 hard failures on the eval set |
 
 A regression job (`pnpm eval:analysis`) runs the eval set and writes a markdown report to `reports/analysis-<date>.md`. A model change is merged only if no gate regresses.
+
+**Gate semantics (WP-1.2).** A gate is `PASS` or `FAIL` only when *every* track in `fixtures/eval/manifest.json` was scored with the v1 model; no tracks, missing audio, a hash mismatch or a fallback tracker give `PENDING` and no number. Synthetic click tracks (generated, exact ground truth) prove the harness in a separate report section and never decide a gate. The beat F-measure is `mir_eval.beat.f_measure` at ±70 ms with no trimming of the first seconds, scored on the published (folded) grid. The manifest format is in `fixtures/eval/README.md`.
 
 ## 9. Model registry and licensing
 
