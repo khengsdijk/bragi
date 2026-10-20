@@ -571,7 +571,9 @@ export function HistoryPanel({
                       top: index * HISTORY_ROW_HEIGHT,
                       height: HISTORY_ROW_HEIGHT,
                       paddingLeft: row.depth === 1 ? laneX(row.lane) + 28 : laneX(row.lane) + 12,
-                      opacity: faded ? 0.55 : 1,
+                      // Faded by colour, not opacity: muted text at reduced opacity fails
+                      // contrast (11 §3), and the label must stay readable.
+                      color: faded ? "var(--color-text-muted)" : undefined,
                       background: row.isHead ? "var(--color-accent-quiet)" : undefined,
                       borderInlineStartColor: row.isHead ? "var(--color-accent)" : "transparent",
                       cursor:
