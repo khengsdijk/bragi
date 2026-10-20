@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { PlanRequest } from "@bragi/schemas";
+
 import {
   ApiClientError,
   createApiClient,
   createRealtime,
+  PlannerApiError,
   type RealtimeMessage,
   realtimeUrl,
   type SocketLike,
@@ -96,6 +99,68 @@ describe("createApiClient", () => {
     expect(JSON.parse(String(calls[0]?.init.body))).toEqual({
       email: "a@b.test",
       callbackURL: "http://localhost:5173/",
+    });
+  });
+
+  it("posts a plan request and returns the EditPlan", async () => {
+    const plan = {
+      planId: "pln_01",
+      interpretation: "I'll make the drums quieter.",
+      variants: [],
+      estimatedCredits: 0,
+      estimatedSeconds: 0,
+    };
+    const { fetch, calls } = fakeFetch({ body: plan });
+    const client = createApiClient({ baseUrl: "https://api.test", fetch });
+    const request = {
+      doc: { id: "prj_1" },
+      prompt: "quieter drums",
+      uiContext: { view: "song", selectedTrackIds: ["trk_d"], selectedSectionIds: [] },
+      variantCount: 3,
+    } as unknown as PlanRequest;
+
+    await expect(client.plan(request)).resolves.toEqual(plan);
+    expect(calls[0]?.url).toBe("https://api.test/v1/plans");
+    expect(calls[0]?.init.method).toBe("POST");
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual(request);
+  });
+
+  it("maps the planner error codes to plain-language typed errors", async () => {
+    const cases = [
+      ["PLANNER_UNAVAILABLE", "The AI planner isn't set up on this computer yet."],
+      [
+        "PLAN_INVALID",
+        "I couldn't turn that into a plan. Try describing the change a little more specifically.",
+      ],
+      ["PROMPT_POLICY", "I can't use artist or song names here. Describe the sound instead."],
+    ] as const;
+    for (const [code, message] of cases) {
+      const { fetch } = fakeFetch({
+        status: 503,
+        body: { error: { code, message: "server wording" } },
+      });
+      const client = createApiClient({ baseUrl: "", fetch });
+      const failure = client.plan({} as PlanRequest);
+      await expect(failure).rejects.toBeInstanceOf(PlannerApiError);
+      await expect(failure).rejects.toMatchObject({
+        code,
+        plannerCode: code,
+        message,
+        serverMessage: "server wording",
+        status: 503,
+      });
+    }
+  });
+
+  it("leaves other failures as the generic API error", async () => {
+    const { fetch } = fakeFetch({
+      status: 502,
+      body: { error: { code: "MODEL_ERROR", message: "The planner model is unavailable." } },
+    });
+    const client = createApiClient({ baseUrl: "", fetch });
+    await expect(client.plan({} as PlanRequest)).rejects.toMatchObject({
+      code: "MODEL_ERROR",
+      message: "The planner model is unavailable.",
     });
   });
 });

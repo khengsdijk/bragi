@@ -3105,6 +3105,10 @@
         "libraryNames": {
           "description": "Artist and title strings from the user's library, for the content-policy pre-pass (10 §7).",
           "$ref": "#/$defs/LibraryNameList"
+        },
+        "sectionFeatures": {
+          "description": "Per-section analysis the client already has (energy, chords, active stems), because `bragi-model` never reads analysis blobs (docs/wp/2.6.md, deviation A). Optional: an older client still gets a usable summary.",
+          "$ref": "#/$defs/SectionFeatureList"
         }
       }
     },
@@ -3644,6 +3648,24 @@
         }
       }
     },
+    "SectionActiveStemList": {
+      "title": "SectionActiveStemList",
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "$ref": "#/$defs/TrackId"
+      }
+    },
+    "SectionChordList": {
+      "title": "SectionChordList",
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 32
+      }
+    },
     "SectionDuplicateOp": {
       "title": "SectionDuplicateOp",
       "description": "`section.duplicate` (02 §4.2). Deep-copy a section with new IDs and set derivedFrom (02 §5.1).",
@@ -3715,6 +3737,42 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/SectionEnergy"
+      }
+    },
+    "SectionFeatureList": {
+      "title": "SectionFeatureList",
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/SectionFeatures"
+      }
+    },
+    "SectionFeatures": {
+      "title": "SectionFeatures",
+      "description": "One section's compact analysis features. Values come from the analysis view, never from the model.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sectionId"
+      ],
+      "properties": {
+        "sectionId": {
+          "$ref": "#/$defs/SectionId"
+        },
+        "energy": {
+          "description": "Mean short-term energy over the section, 0..1.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "chords": {
+          "description": "Chord symbols heard in the section, in time order.",
+          "$ref": "#/$defs/SectionChordList"
+        },
+        "activeStems": {
+          "description": "Track ids that carry audio in the section.",
+          "$ref": "#/$defs/SectionActiveStemList"
+        }
       }
     },
     "SectionId": {

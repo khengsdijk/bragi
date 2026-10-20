@@ -498,6 +498,106 @@ export type LibraryName = string;
  */
 export type LibraryNameList = LibraryName[];
 /**
+ * @maxItems 8
+ */
+export type SectionChordList =
+  | []
+  | [string]
+  | [string, string]
+  | [string, string, string]
+  | [string, string, string, string]
+  | [string, string, string, string, string]
+  | [string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string]
+  | [string, string, string, string, string, string, string, string];
+/**
+ * @maxItems 16
+ */
+export type SectionActiveStemList =
+  | []
+  | [TrackId]
+  | [TrackId, TrackId]
+  | [TrackId, TrackId, TrackId]
+  | [TrackId, TrackId, TrackId, TrackId]
+  | [TrackId, TrackId, TrackId, TrackId, TrackId]
+  | [TrackId, TrackId, TrackId, TrackId, TrackId, TrackId]
+  | [TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId]
+  | [TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId]
+  | [TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId]
+  | [TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId]
+  | [TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId]
+  | [TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId, TrackId]
+  | [
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId
+    ]
+  | [
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId
+    ]
+  | [
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId
+    ]
+  | [
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId,
+      TrackId
+    ];
+/**
+ * @maxItems 64
+ */
+export type SectionFeatureList = SectionFeatures[];
+/**
  * Blob schema version (01 §7).
  */
 export type PreviewResultSchemaVersion = 1;
@@ -1780,6 +1880,7 @@ export interface PlanRequest {
    */
   explain?: boolean;
   libraryNames?: LibraryNameList;
+  sectionFeatures?: SectionFeatureList;
 }
 /**
  * A song document: the single source of truth for a project (specs/02-song-model.md §2, §3.1). Changed only through bragi-model ops.
@@ -1837,6 +1938,18 @@ export interface PlannerUiContext {
 export interface PlanPreferences {
   keepVocals?: boolean;
   maxCredits?: number;
+}
+/**
+ * One section's compact analysis features. Values come from the analysis view, never from the model.
+ */
+export interface SectionFeatures {
+  sectionId: SectionId;
+  /**
+   * Mean short-term energy over the section, 0..1.
+   */
+  energy?: number;
+  chords?: SectionChordList;
+  activeStems?: SectionActiveStemList;
 }
 /**
  * The `preview` stage result: the highest-energy 12 s window, encoded as Opus for hover-to-hear (specs/04-analysis-pipeline.md §5.7).

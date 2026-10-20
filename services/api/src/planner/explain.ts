@@ -51,7 +51,13 @@ export async function explain(request: PlanRequest, deps: ExplainDeps): Promise<
     selectedSectionIds: request.uiContext.selectedSectionIds,
   };
   const summary = await deps.summarizer.summarize(request.doc, focus);
-  const user = buildUserMessage({ summary, prompt: request.prompt });
+  const user = buildUserMessage({
+    summary,
+    prompt: request.prompt,
+    ...(request.sectionFeatures === undefined
+      ? {}
+      : { sectionFeatures: request.sectionFeatures }),
+  });
   const system = `${systemPrompt()}\n\n${explainPrompt()}`;
   const messages: ChatMessage[] = [
     { role: "system", content: system },
