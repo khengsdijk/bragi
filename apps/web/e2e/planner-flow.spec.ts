@@ -87,9 +87,23 @@ async function fakePlanner(
   endTick: number,
 ): Promise<void> {
   await page.route("**/v1/plans", async (route: Route) => {
+    // The app calls the API on another origin with credentials, so the fake answers the CORS
+    // preflight and echoes the origin like the real server does.
+    const origin = (await route.request().headerValue("origin")) ?? "*";
+    const cors = {
+      "access-control-allow-origin": origin,
+      "access-control-allow-credentials": "true",
+      "access-control-allow-headers": "content-type, authorization",
+      "access-control-allow-methods": "POST, OPTIONS",
+    };
+    if (route.request().method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: cors });
+      return;
+    }
     const body = route.request().postDataJSON() as { explain?: boolean } | null;
     await route.fulfill({
       status: 200,
+      headers: cors,
       contentType: "application/json",
       body: JSON.stringify(
         body?.explain === true ? fakeExplanation(trackId, endTick) : fakePlan(trackId, gainDb),
@@ -154,7 +168,7 @@ test.describe("the planner on a real song", () => {
     await expect(
       prompt.getByRole("button", {
         name: /Half-time|More lo-fi|More reverb|Warmer|Brighter|More space|More punch|Quieter|Remove/,
-      }),
+      }).first(),
     ).toBeVisible();
     expect(
       await withHooks(appPage, (hooks) => hooks.canvas?.getLassoRegion() ?? null),

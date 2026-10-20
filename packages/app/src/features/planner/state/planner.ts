@@ -451,6 +451,8 @@ export function createPlanner(options: PlannerOptions): PlannerController {
           return;
         }
         if (ticket !== generation) return;
+        // Anything but a planner API error is a bug or a network failure; keep the cause.
+        if (!(error instanceof PlannerApiError)) console.warn("the planner request failed", error);
         const message = errorMessage(error);
         store.setState({ phase: "error", message });
         options.onAnnounce(message);
