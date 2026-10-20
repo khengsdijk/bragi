@@ -246,25 +246,54 @@ function slicePoints(
   const current = (relativeTick: number): number =>
     automationValue(existingPoints(doc, slice.section.id, trackId, target), relativeTick, baseline);
 
+  // An edge ramps outside the stroke when the lane has room for it (the stroke keeps its full
+  // length), and inside the stroke when it does not — at a section start or end, where lanes
+  // stop. Either way every edge gets its ≥ 50 ms ramp (07 §10 check 3); only a slice shorter than
+  // two ramps shares its length between them.
+  const span = slice.endRel - slice.startRel;
+  const startRamp = first ? rampTicksAt(doc, slice.startTick) : 0;
+  const endRamp = last ? rampTicksAt(doc, slice.endTick) : 0;
+  const startOutside = first && slice.startRel - startRamp >= 0;
+  const endOutside = last && slice.endRel + endRamp <= slice.lengthTicks;
+  const insideBudget = (first && !startOutside ? 1 : 0) + (last && !endOutside ? 1 : 0);
+  const share = (ramp: number): number =>
+    insideBudget === 0 ? ramp : Math.min(ramp, Math.floor(span / insideBudget));
+
   if (first) {
-    const ramp = rampTicksAt(doc, slice.startTick);
-    const rampStart = Math.max(0, slice.startRel - ramp);
-    points.push({ tick: rampStart, value: current(rampStart), curve: "linear" });
+    if (startOutside) {
+      const rampStart = slice.startRel - startRamp;
+      points.push({ tick: rampStart, value: current(rampStart), curve: "linear" });
+      points.push({ tick: slice.startRel, value: inside(slice.startTick), curve: insideCurve });
+    } else {
+      const reach = slice.startRel + share(startRamp);
+      points.push({ tick: slice.startRel, value: current(slice.startRel), curve: "linear" });
+      points.push({
+        tick: reach,
+        value: inside(slice.startTick + (reach - slice.startRel)),
+        curve: insideCurve,
+      });
+    }
+  } else {
+    points.push({ tick: slice.startRel, value: inside(slice.startTick), curve: insideCurve });
   }
-  points.push({
-    tick: slice.startRel,
-    value: inside(slice.startTick),
-    curve: insideCurve,
-  });
-  if (slice.endRel > slice.startRel) {
-    points.push({ tick: slice.endRel, value: inside(slice.endTick), curve: "linear" });
-  }
-  if (last) {
-    const ramp = rampTicksAt(doc, slice.endTick);
-    const rampEnd = Math.min(slice.lengthTicks, slice.endRel + ramp);
-    // With no room left in the section the ramp cannot exist; keep the hold's last point.
-    if (rampEnd > slice.endRel) {
-      points.push({ tick: rampEnd, value: current(rampEnd), curve: "step" });
+  if (last && !endOutside) {
+    const leave = slice.endRel - share(endRamp);
+    points.push({
+      tick: leave,
+      value: inside(slice.startTick + (leave - slice.startRel)),
+      curve: "linear",
+    });
+    points.push({ tick: slice.endRel, value: current(slice.endRel), curve: "step" });
+  } else {
+    if (span > 0) {
+      points.push({ tick: slice.endRel, value: inside(slice.endTick), curve: "linear" });
+    }
+    if (last) {
+      points.push({
+        tick: slice.endRel + endRamp,
+        value: current(slice.endRel + endRamp),
+        curve: "step",
+      });
     }
   }
 

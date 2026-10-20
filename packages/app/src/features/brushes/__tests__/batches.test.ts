@@ -146,6 +146,53 @@ describe("brushBatch", () => {
     }
   });
 
+  it("ramps inside the stroke at a section's start and end, where the lane has no room", async () => {
+    for (const brush of AUTOMATION_BRUSHES) {
+      const fixture = await openBrushFixture();
+      await fixture.history.load();
+      // Exactly Verse 1 (bars 2–7): neither edge has room in the lane for an outside ramp.
+      const handle = fixture.model.loadProject(JSON.stringify(documentOf(fixture)));
+      const spans = JSON.parse(fixture.model.sectionSpans(handle)) as {
+        startTick: number;
+        endTick: number;
+      }[];
+      fixture.model.freeDoc(handle);
+      const verse = spans[1];
+      if (verse === undefined) throw new Error("no second section");
+      const before = structuredClone(documentOf(fixture));
+      await commitBrush(
+        fixture,
+        brush,
+        region(verse.startTick, verse.endTick),
+        0.7,
+        brush === "filterSweep" ? "down" : undefined,
+      );
+      const doc = documentOf(fixture);
+      const lane = doc.arrangement.sections[1]?.lanes.trk_drums?.automation ?? [];
+      const beforeLane = before.arrangement.sections[1]?.lanes.trk_drums?.automation ?? [];
+      for (const entry of lane) {
+        if (beforeLane.some((old) => old.target === entry.target)) continue;
+        // The value the parameter has outside any automation: the effect's own setting, or the
+        // track's fader.
+        const [scope, param] = entry.target.split("/");
+        const id = scope?.slice(scope.indexOf(":") + 1);
+        const track = doc.tracks.find((candidate) => candidate.id === "trk_drums");
+        const resting = scope?.startsWith("fx:")
+          ? track?.fx.find((fx) => fx.id === id)?.params[param ?? ""]
+          : track?.gainDb;
+        const first = entry.points[0];
+        const last = entry.points.at(-1);
+        // The lane starts and ends at the resting value, so the join into the section and out of
+        // it has no step; the move to the brushed value is a ramp inside the stroke.
+        expect(first?.tick, `${brush} ${entry.target}`).toBe(0);
+        expect(first?.value, `${brush} ${entry.target}`).toBeCloseTo(resting ?? Number.NaN, 6);
+        expect(last?.tick, `${brush} ${entry.target}`).toBe(verse.endTick - verse.startTick);
+        expect(last?.value, `${brush} ${entry.target}`).toBeCloseTo(resting ?? Number.NaN, 6);
+      }
+      expectRampsLongEnough(fixture, doc);
+    }
+  });
+
   it("writes one lane per section for a region across two sections, with relative ticks", async () => {
     const fixture = await openBrushFixture();
     await fixture.history.load();
