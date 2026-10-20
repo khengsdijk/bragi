@@ -181,7 +181,7 @@ function inspectVariant(
   let before: Project;
   let after: Project;
   try {
-    ({ before, after } = dryRun(variant, options.request, options.model));
+    ({ before, after } = dryRunVariant(variant, options.request, options.model));
   } catch (error) {
     return {
       errors: [
@@ -199,7 +199,7 @@ function inspectVariant(
 }
 
 /** Applies a variant's ops to a fresh handle and returns the canonical before/after documents. */
-function dryRun(
+export function dryRunVariant(
   variant: PlanVariant,
   request: PlanRequest,
   model: DryRunModel,
@@ -418,7 +418,14 @@ function regionErrors(
   }
 
   const region = request.region;
-  if (region === undefined) return errors;
+  if (region === undefined) {
+    // Without a region there is no tick boundary to check, but a structural or master change is
+    // still song-wide: declare it so the UI can warn before the user applies it (06 §7).
+    if (diff.songWide && variant.scope !== "song") {
+      errors.push('It changes the song structure, which needs a song-wide variant (scope "song").');
+    }
+    return errors;
+  }
 
   if (diff.songWide) {
     errors.push('It changes the song structure, which needs a song-wide request (scope "song").');

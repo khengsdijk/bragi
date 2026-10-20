@@ -80,11 +80,22 @@ export interface LlmRequest {
   responseFormat?: ResponseFormat;
 }
 
+/** Token usage OpenRouter reports (`usage: { include: true }`); absent when a provider omits it. */
+export interface LlmUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  /** Charged cost in USD, when OpenRouter prices the model. */
+  costUsd?: number;
+}
+
 /** A completion reply: text and, when the model used the tool, its JSON arguments. */
 export interface LlmReply {
   text: string;
   /** Raw `arguments` string of the tool call; the caller parses and validates it. */
   toolArguments?: string;
+  /** Optional usage and cost, requested for the bench (06 §9); the planner ignores it. */
+  usage?: LlmUsage;
 }
 
 /** The seam the planner sees; tests implement it with a fake. */
@@ -102,13 +113,14 @@ export class PlannerUnavailableError extends Error {
 
 /** An OpenRouter failure, mapped like ADR-0012 §5. */
 export class PlannerModelError extends Error {
-  constructor(
-    message: string,
-    readonly retryable: boolean,
-    readonly status?: number,
-  ) {
+  readonly retryable: boolean;
+  readonly status: number | undefined;
+
+  constructor(message: string, retryable: boolean, status?: number) {
     super(message);
     this.name = "PlannerModelError";
+    this.retryable = retryable;
+    this.status = status;
   }
 }
 
@@ -237,6 +249,9 @@ export class OpenRouterClient implements PlannerLlm {
       max_tokens: request.maxTokens,
       messages: request.messages,
       provider: { data_collection: this.dataCollection },
+      // OpenRouter's usage accounting (06 §9): token counts and, where priced, cost in USD.
+      // Optional by contract: a provider that omits `usage` leaves the reply without it.
+      usage: { include: true },
     };
     if (request.tool === true) {
       body.tools = [planToolDefinition()];
@@ -321,10 +336,13 @@ export class OpenRouterClient implements PlannerLlm {
         retryable: true,
       };
     }
-    return {
-      value: toolArguments === undefined ? { text } : { text, toolArguments },
-      retryable: false,
+    const usage = usageOf(data);
+    const value: LlmReply = {
+      text,
+      ...(toolArguments === undefined ? {} : { toolArguments }),
+      ...(usage === undefined ? {} : { usage }),
     };
+    return { value, retryable: false };
   }
 
   /** Exponential backoff between retryable attempts. */
@@ -371,11 +389,56 @@ function firstMessage(data: Record<string, unknown>): Record<string, unknown> | 
 function toolCallArguments(message: Record<string, unknown>): string | undefined {
   const calls = message.tool_calls;
   if (!Array.isArray(calls)) return undefined;
+  let first: string | undefined;
   for (const call of calls) {
     if (!isRecord(call) || !isRecord(call.function)) continue;
-    if (typeof call.function.arguments === "string") return call.function.arguments;
+    const argumentsJson = call.function.arguments;
+    if (typeof argumentsJson !== "string") continue;
+    first ??= argumentsJson;
+    // Some providers return more than one call; prefer a well-formed one over the first.
+    if (parses(argumentsJson)) return argumentsJson;
   }
-  return undefined;
+  return first;
+}
+
+/** True when `text` is JSON. */
+function parses(text: string): boolean {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The usage object OpenRouter reports at the top level (not per choice).
+ *
+ * `cost` is documented for usage accounting and `total_cost` appears in some responses; either
+ * is accepted so the bench reports a cost when the provider prices the model.
+ */
+function usageOf(data: Record<string, unknown>): LlmUsage | undefined {
+  if (!isRecord(data.usage)) return undefined;
+  const promptTokens = numberField(data.usage.prompt_tokens);
+  const completionTokens = numberField(data.usage.completion_tokens);
+  const totalTokens = numberField(data.usage.total_tokens);
+  if (promptTokens === undefined && completionTokens === undefined && totalTokens === undefined) {
+    return undefined;
+  }
+  const prompt = promptTokens ?? 0;
+  const completion = completionTokens ?? 0;
+  const cost = numberField(data.usage.cost) ?? numberField(data.usage.total_cost);
+  return {
+    promptTokens: prompt,
+    completionTokens: completion,
+    totalTokens: totalTokens ?? prompt + completion,
+    ...(cost === undefined ? {} : { costUsd: cost }),
+  };
+}
+
+/** A finite number, or undefined. */
+function numberField(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 /** A plain object, not an array or null. */

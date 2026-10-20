@@ -34,13 +34,14 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
 
 /** An error that is safe to serialise to the client verbatim. */
 export class ApiError extends Error {
-  constructor(
-    readonly code: ErrorCode,
-    override readonly message: string,
-    readonly details?: Record<string, unknown>,
-  ) {
+  readonly code: ErrorCode;
+  readonly details: Record<string, unknown> | undefined;
+
+  constructor(code: ErrorCode, message: string, details?: Record<string, unknown>) {
     super(message);
     this.name = "ApiError";
+    this.code = code;
+    this.details = details;
   }
 
   get status(): number {

@@ -87,6 +87,30 @@ describe("validateRawPlan — region discipline", () => {
     expect(asked.ok).toBe(true);
   });
 
+  it("requires song scope for a structural change even without a region", async () => {
+    const structural = (scope: "song" | undefined): PlanVariant => ({
+      label: "Remove",
+      description: "Remove the chorus",
+      steps: [{ kind: "ops", ops: [{ op: "section.remove", sectionId: "sec_c", closeGap: true }] }],
+      ...(scope === undefined ? {} : { scope }),
+    });
+    const request = testRequest({ prompt: "remove the chorus" });
+    const unscoped = await validateRawPlan(draftPlan([structural(undefined)]), {
+      ...options(),
+      request,
+      songWideIntent: true,
+    });
+    expect(unscoped.ok).toBe(false);
+    expect(unscoped.errors.join(" ")).toMatch(/song-wide/);
+
+    const scoped = await validateRawPlan(draftPlan([structural("song")]), {
+      ...options(),
+      request,
+      songWideIntent: true,
+    });
+    expect(scoped.ok).toBe(true);
+  });
+
   it("rejects a structural change without song scope", async () => {
     const result = await validateRawPlan(
       draftPlan([
