@@ -19,15 +19,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { t } from "../../../i18n/index.js";
+import { CommandPaletteDialog } from "../../commands/components/CommandPaletteDialog.js";
+import { createCommandRegistry } from "../../commands/state/commands.js";
+import { SONG_COMMANDS } from "../../commands/state/song-commands.js";
 import { HistoryPanel } from "../../history/components/HistoryPanel.js";
 import type { History } from "../../history/state/history.js";
 import { Inspector } from "../../inspector/components/Inspector.js";
+import type { SettingsStore } from "../../settings/state/settings-store.js";
 import { buildGridModel } from "../api/grid-model.js";
 import { analysisView, buildCanvasDocument } from "../api/view-model.js";
+import { useSongActions } from "../hooks/use-song-actions.js";
 import type { EngineController } from "../state/engine-controller.js";
 import { trackToggleBatch } from "../state/ops.js";
+import { resolveSongShortcut } from "../state/shortcuts.js";
 import type { ApplyOutcome, SongStore } from "../state/song-store.js";
 import { AccessibleGrid, type GridFocus } from "./AccessibleGrid.js";
+import { SectionActionDialogs } from "./SectionActionDialogs.js";
+import { SectionMenu, type SectionMenuAnchor } from "./SectionMenu.js";
 import { type SongCanvasHandle, SongCanvasView } from "./SongCanvasView.js";
 import { formatTime, TransportBar } from "./TransportBar.js";
 
@@ -39,6 +47,8 @@ export interface SongWorkspaceProps {
   readonly controller: EngineController;
   /** The open project's version tree; absent for the demo, which has no project row. */
   readonly history?: History;
+  /** Device settings, e.g. smart transitions; the route loads them from `local_settings`. */
+  readonly settings: SettingsStore;
   /** Energy, chords and ribbon data; `null` before any of it has arrived (WP-1.10 feeds this). */
   readonly analysis: AnalysisData | null;
   readonly selection: Selection;
@@ -72,6 +82,19 @@ function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
+/**
+ * Panels, dialogs and menus own their keys: the section shortcuts must not fire from the
+ * Inspector's sliders, the version tree, an open palette or a dialog (task B note).
+ */
+function ownsKeys(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return (
+    target.closest(
+      '[data-testid="inspector-panel"], [data-testid="history-panel"], [role="dialog"], [role="menu"], [role="listbox"]',
+    ) !== null
+  );
+}
+
 export function SongWorkspace(props: SongWorkspaceProps) {
   const { songStore, controller } = props;
   const doc = useStore(songStore.store, (state) => state.doc);
@@ -80,9 +103,12 @@ export function SongWorkspace(props: SongWorkspaceProps) {
   const [announcement, setAnnouncement] = useState("");
   /** One side panel at a time: the Inspector or the version tree. */
   const [sidePanel, setSidePanel] = useState<"inspector" | "history" | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<SectionMenuAnchor | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const handle = useRef<SongCanvasHandle | null>(null);
   const hovered = useRef<string | null>(null);
   const selection = props.selection;
+  const smartTransitions = useStore(props.settings.store, (state) => state.smartTransitions);
   const selectedTrack =
     selection.kind === "tracks" && selection.ids.length === 1 ? (selection.ids[0] ?? null) : null;
 
@@ -156,27 +182,55 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     [songStore, props.history, follow],
   );
 
-  /** Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z (07 §4); the command is announced for screen readers. */
-  const undoOrRedo = useCallback(
-    (redo: boolean) => {
-      const history = props.history;
-      if (history === undefined) return;
-      const state = history.store.getState();
-      const targetId = redo ? state.redo.at(-1) : (state.head ?? undefined);
-      const label = targetId === undefined ? "" : (state.commits.get(targetId)?.label ?? "");
-      void (redo ? history.redo() : history.undo())
-        .then((outcome) => {
-          if (outcome === null || !outcome.ok) return;
-          controller.commit(outcome.commit, outcome.doc);
-          if (label !== "") {
-            setAnnouncement(t(redo ? "history.redo" : "history.undo", { label }));
-          }
-        })
-        .catch((cause: unknown) => {
-          console.warn("could not move HEAD", cause);
-        });
+  const toggleHistory = useCallback(() => {
+    setSidePanel((panel) => (panel === "history" ? null : "history"));
+  }, []);
+
+  const actions = useSongActions({
+    songStore,
+    controller,
+    settings: props.settings,
+    ...(props.history === undefined ? {} : { history: props.history }),
+    model: songStore.model,
+    selection,
+    focus,
+    historyOpen: sidePanel === "history",
+    onToggleHistory: toggleHistory,
+    onAnnounce: setAnnouncement,
+  });
+  const commandRegistry = useMemo(() => createCommandRegistry(SONG_COMMANDS), []);
+
+  /** Right-click or Shift+F10: select the part and open the shared menu at that point. */
+  const openSectionMenu = useCallback(
+    (sectionId: string, x: number, y: number, returnFocus: HTMLElement | null) => {
+      // The grid's focus doubles as the fallback context when a view (the stored song) does not
+      // keep a selection in the URL.
+      setFocus({ kind: "section", id: sectionId });
+      props.onSelectionChange({ kind: "sections", ids: [sectionId] });
+      setMenuAnchor({ x, y, returnFocus });
     },
-    [props.history, controller],
+    [props.onSelectionChange],
+  );
+
+  const onSectionContextMenu = useCallback(
+    (event: CanvasEvents["sectionContextMenu"]) => {
+      const focused = document.activeElement;
+      openSectionMenu(
+        event.sectionId,
+        event.clientX,
+        event.clientY,
+        focused instanceof HTMLElement ? focused : null,
+      );
+    },
+    [openSectionMenu],
+  );
+
+  const onGridContextMenu = useCallback(
+    (sectionId: string, element: HTMLElement) => {
+      const rect = element.getBoundingClientRect();
+      openSectionMenu(sectionId, rect.left + Math.min(64, rect.width / 2), rect.bottom, element);
+    },
+    [openSectionMenu],
   );
 
   const onCanvasToggle = useCallback(
@@ -199,16 +253,33 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     };
   }, [props.testHooks, songStore, controller, props.history]);
 
-  // Global shortcuts (07 §3). The grid handles M and O itself when it has focus.
+  // Global shortcuts (07 §3, 11 §6.2). The grid handles M and O itself when it has focus.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.defaultPrevented || isTypingTarget(event.target)) return;
-      // Undo/redo live on the platform modifier; other shortcuts stay unmodified.
-      if (event.metaKey || event.ctrlKey) {
-        if (!event.altKey && event.key.toLowerCase() === "z" && props.history !== undefined) {
+      if (event.defaultPrevented || isTypingTarget(event.target) || ownsKeys(event.target)) return;
+      const shortcut = resolveSongShortcut(event);
+      if (shortcut !== null) {
+        const context = actions.context;
+        const target = context.section;
+        if (shortcut.kind === "move" || shortcut.kind === "resize" || shortcut.kind === "remove") {
           event.preventDefault();
-          undoOrRedo(event.shiftKey);
+          if (target === null) {
+            setAnnouncement(t("song.announce.noSection"));
+            return;
+          }
+          if (shortcut.kind === "move") {
+            context.actions.moveSection(target.id, shortcut.delta);
+          } else if (shortcut.kind === "resize") {
+            actions.resizeByBar(target.id, shortcut.delta);
+          } else {
+            context.actions.removeSection(target.id);
+          }
+          return;
         }
+        event.preventDefault();
+        if (shortcut.kind === "palette") setPaletteOpen(true);
+        else if (shortcut.kind === "undo") context.actions.undo();
+        else context.actions.redo();
         return;
       }
       if (event.altKey) return;
@@ -258,7 +329,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [controller, toggleTrack, undoOrRedo, props.history, props.onSelectionChange]);
+  }, [actions, controller, toggleTrack, props.onSelectionChange]);
 
   if (canvasDoc === null || grid === null || analysis === null) {
     return <p data-testid="song-loading">{t("song.canvas.loading")}</p>;
@@ -324,6 +395,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             {...(props.renderer === undefined ? {} : { renderer: props.renderer })}
             onSelectionChange={props.onSelectionChange}
             onTrackToggle={onCanvasToggle}
+            onSectionContextMenu={onSectionContextMenu}
             onHoverTrack={(trackId) => {
               hovered.current = trackId;
             }}
@@ -337,6 +409,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             selection={selection}
             onSelect={props.onSelectionChange}
             onToggle={(trackId, field) => toggleTrack(trackId, field)}
+            onContextMenu={onGridContextMenu}
             onFocusChange={setFocus}
           />
           <TransportBar
@@ -368,6 +441,27 @@ export function SongWorkspace(props: SongWorkspaceProps) {
           />
         ) : null}
       </div>
+      <SectionMenu
+        anchor={menuAnchor}
+        onClose={() => setMenuAnchor(null)}
+        commands={commandRegistry.list()}
+        context={actions.context}
+        smartTransitions={smartTransitions}
+        onSmartTransitionsChange={actions.setSmartTransitions}
+      />
+      <CommandPaletteDialog
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        commands={commandRegistry.list()}
+        context={actions.context}
+      />
+      <SectionActionDialogs
+        dialog={actions.dialog}
+        onClose={actions.closeDialog}
+        onRename={actions.rename}
+        onChangeKind={actions.changeKind}
+        onResize={actions.resize}
+      />
       <div className="sr-only" role="status" aria-live="polite" data-testid="live-region">
         {announcement}
       </div>

@@ -51,7 +51,7 @@ import {
   windowCovers,
 } from "./geometry.js";
 import { LabelPool } from "./label-pool.js";
-import { computeLayout, hitTest, type Layout, type Rect } from "./layout.js";
+import { computeLayout, hitTest, type Layout, type Rect, sectionAtPoint } from "./layout.js";
 import { chordFill, mixColors, numberToRgb, type Palette, readableOn } from "./palette.js";
 import {
   appeared,
@@ -546,6 +546,12 @@ export class SongCanvas {
   /** The current layout, so the DOM overlay can position things from the renderer's coordinates. */
   getLayout(): Layout {
     return this.layout;
+  }
+
+  /** The section under a point in canvas CSS pixels, or `null`. */
+  sectionAt(x: number, y: number): string | null {
+    if (!this.doc) return null;
+    return sectionAtPoint(this.layout, this.viewport, this.doc, x, y);
   }
 
   destroy(): void {
@@ -1372,7 +1378,7 @@ export class SongCanvas {
     const element = this.app.canvas;
     let drag: { startX: number; lastX: number; moved: boolean; scrub: boolean } | null = null;
 
-    const point = (event: PointerEvent | WheelEvent): { x: number; y: number } => {
+    const point = (event: MouseEvent): { x: number; y: number } => {
       const rect = element.getBoundingClientRect();
       return { x: event.clientX - rect.left, y: event.clientY - rect.top };
     };
@@ -1489,12 +1495,25 @@ export class SongCanvas {
       }
     };
 
+    const onContextMenu = (event: MouseEvent): void => {
+      const { x, y } = point(event);
+      const sectionId = this.sectionAt(x, y);
+      if (sectionId === null) return;
+      event.preventDefault();
+      this.emit("sectionContextMenu", {
+        sectionId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+    };
+
     element.addEventListener("wheel", onWheel, { passive: false });
     element.addEventListener("pointerdown", onDown);
     element.addEventListener("pointermove", onMove);
     element.addEventListener("pointerup", onUp);
     element.addEventListener("pointercancel", onUp);
     element.addEventListener("pointerleave", onLeave);
+    element.addEventListener("contextmenu", onContextMenu);
     this.dispose.push(() => {
       element.removeEventListener("wheel", onWheel);
       element.removeEventListener("pointerdown", onDown);
@@ -1502,6 +1521,7 @@ export class SongCanvas {
       element.removeEventListener("pointerup", onUp);
       element.removeEventListener("pointercancel", onUp);
       element.removeEventListener("pointerleave", onLeave);
+      element.removeEventListener("contextmenu", onContextMenu);
     });
     void timeToX;
   }

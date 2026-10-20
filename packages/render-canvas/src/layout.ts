@@ -149,3 +149,15 @@ export function hitTest(
   }
   return { kind: "none" };
 }
+
+/** The section under a canvas point, or `null` (the context-menu hit test). */
+export function sectionAtPoint(
+  layout: Layout,
+  viewport: Viewport,
+  doc: CanvasDocument,
+  x: number,
+  y: number,
+): string | null {
+  const hit = hitTest(layout, viewport, doc, x, y);
+  return hit.kind === "section" ? hit.id : null;
+}

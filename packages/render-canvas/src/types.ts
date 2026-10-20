@@ -213,6 +213,12 @@ export interface CanvasEvents {
   readonly viewportChange: { readonly viewport: Viewport; readonly level: ZoomLevel };
   /** The pointer is over a ribbon (for `M`/`O` shortcuts), or left all of them. */
   readonly hoverTrack: { readonly trackId: string | null };
+  /** A right-click landed on a section block; `clientX/Y` position the context menu. */
+  readonly sectionContextMenu: {
+    readonly sectionId: string;
+    readonly clientX: number;
+    readonly clientY: number;
+  };
   /** The canvas wants a different height (lanes grow with the number of ribbons). */
   readonly contentHeight: { readonly px: number };
 }

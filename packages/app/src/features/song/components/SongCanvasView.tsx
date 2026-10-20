@@ -35,6 +35,7 @@ export interface SongCanvasViewProps {
   readonly renderer?: "webgpu" | "webgl";
   readonly onSelectionChange: (selection: Selection) => void;
   readonly onTrackToggle: (event: CanvasEvents["trackToggle"]) => void;
+  readonly onSectionContextMenu: (event: CanvasEvents["sectionContextMenu"]) => void;
   readonly onHoverTrack: (trackId: string | null) => void;
   readonly onViewport: (level: ZoomLevel, viewport: Viewport) => void;
   /** Receives the live canvas once it exists (and `null` when it is destroyed). */
@@ -115,6 +116,11 @@ export function SongCanvasView(props: SongCanvasViewProps): ReactNode {
           next.on("selectionChange", (selection) => latest.current.onSelectionChange(selection)),
           next.on("seek", ({ sec }) => latest.current.controller.seek(sec)),
           next.on("trackToggle", (event) => latest.current.onTrackToggle(event)),
+          next.on("sectionContextMenu", (event) => {
+            // Focus the canvas first, so closing the menu returns focus here.
+            host.current?.focus();
+            latest.current.onSectionContextMenu(event);
+          }),
           next.on("hoverTrack", ({ trackId }) => latest.current.onHoverTrack(trackId)),
           next.on("viewportChange", ({ level, viewport }) =>
             latest.current.onViewport(level, viewport),
@@ -173,7 +179,7 @@ export function SongCanvasView(props: SongCanvasViewProps): ReactNode {
   }, [canvas, props.controller]);
 
   return (
-    <div className="song-canvas" ref={host} data-testid="song-canvas">
+    <div className="song-canvas" ref={host} data-testid="song-canvas" tabIndex={-1}>
       {failed ? (
         <p role="alert" data-testid="song-canvas-failed">
           {t("song.canvas.failed")} {t("song.canvas.fallback")}

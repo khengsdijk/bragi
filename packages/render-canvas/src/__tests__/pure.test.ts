@@ -14,7 +14,7 @@ import {
   skylineOutline,
   windowCovers,
 } from "../geometry.js";
-import { computeLayout, hitTest, sectionAt } from "../layout.js";
+import { computeLayout, hitTest, sectionAt, sectionAtPoint } from "../layout.js";
 import { chordFill, energyColor, hexToNumber, paletteFromTokens, readableOn } from "../palette.js";
 import { appeared, isAnalysing, layerStates, shimmerPhase } from "../progressive.js";
 import {
@@ -374,6 +374,11 @@ describe("layout and hit testing", () => {
       kind: "skyline",
     });
     expect(hitTest(layout, viewport, song, 5, layout.harmony.y + 2)).toEqual({ kind: "none" });
+    // The context-menu hit test only answers for the section lane.
+    expect(sectionAtPoint(layout, viewport, song, layout.gutter + 5 * pxPerSec, sectionY)).toBe(
+      "sec_a",
+    );
+    expect(sectionAtPoint(layout, viewport, song, layout.gutter + 100, lane.rect.y + 5)).toBeNull();
   });
 });
 

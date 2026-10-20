@@ -24,6 +24,7 @@ afterEach(cleanup);
 const NOOP = {
   onSelect: () => {},
   onToggle: () => {},
+  onContextMenu: () => {},
   onFocusChange: () => {},
 };
 
@@ -255,6 +256,40 @@ describe("grid keyboard access (11 §6.2)", () => {
     fireEvent.click(mute);
     expect(onToggle).toHaveBeenCalledWith("trk_drums", "mute");
     expect(screen.getByRole("button", { name: "Solo Bass" })).toBeTruthy();
+  });
+
+  it("leaves modified keys to the workspace (Alt+arrows, Cmd/Ctrl+K)", async () => {
+    await renderGrid();
+    const cell = document.querySelector(
+      '[data-row-kind="layout"] [role="gridcell"]',
+    ) as HTMLElement;
+    cell.focus();
+    // `fireEvent` returns false when a handler called preventDefault.
+    expect(fireEvent.keyDown(cell, { key: "ArrowRight", altKey: true })).toBe(true);
+    expect(document.activeElement).toBe(cell);
+    expect(fireEvent.keyDown(cell, { key: "k", ctrlKey: true })).toBe(true);
+    expect(document.activeElement).toBe(cell);
+  });
+
+  it("opens the section menu with Shift+F10, the context-menu key or a right-click", async () => {
+    const onContextMenu = vi.fn();
+    await renderGrid(SHORT_DEMO, true, { onContextMenu });
+    const cell = document.querySelector(
+      '[data-row-kind="layout"] [role="gridcell"]:nth-child(4)',
+    ) as HTMLElement;
+    cell.focus();
+
+    fireEvent.keyDown(cell, { key: "F10", shiftKey: true });
+    expect(onContextMenu).toHaveBeenLastCalledWith("sec_002", cell);
+    fireEvent.keyDown(cell, { key: "ContextMenu" });
+    expect(onContextMenu).toHaveBeenLastCalledWith("sec_002", cell);
+
+    onContextMenu.mockClear();
+    fireEvent.contextMenu(cell);
+    expect(onContextMenu).toHaveBeenCalledWith("sec_002", cell);
+    // Plain F10 belongs to the browser.
+    fireEvent.keyDown(cell, { key: "F10" });
+    expect(onContextMenu).toHaveBeenCalledTimes(1);
   });
 
   it("reports focus so the canvas can draw its ring, and clears it on blur", async () => {

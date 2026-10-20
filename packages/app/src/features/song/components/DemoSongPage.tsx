@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { t } from "../../../i18n/index.js";
 import { usePlatform } from "../../../platform-context.js";
+import { createSettingsStore } from "../../settings/state/settings-store.js";
 import { createDemoSession, type DemoSession } from "../api/demo-session.js";
 import { SongWorkspace } from "./SongWorkspace.js";
 
@@ -67,6 +68,10 @@ export function DemoSongPage() {
   const navigate = useNavigate({ from: "/demo" });
   const [session, setSession] = useState<DemoSession | null>(null);
   const [failed, setFailed] = useState(false);
+  const settings = useMemo(() => createSettingsStore(platform.localDb), [platform.localDb]);
+  useEffect(() => {
+    void settings.load();
+  }, [settings]);
 
   const params = useMemo(
     () => ({
@@ -125,6 +130,7 @@ export function DemoSongPage() {
       <SongWorkspace
         songStore={session.songStore}
         controller={session.controller}
+        settings={settings}
         analysis={session.analysis}
         selection={selection}
         onSelectionChange={onSelectionChange}

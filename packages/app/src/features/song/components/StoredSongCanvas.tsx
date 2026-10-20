@@ -11,7 +11,7 @@
 import type { BlobHash, Platform } from "@bragi/platform";
 import type { AssetMeta, Project } from "@bragi/schemas";
 import { useSearch } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { t } from "../../../i18n/index.js";
 import { usePlatform } from "../../../platform-context.js";
@@ -26,6 +26,7 @@ import { listCommits, readCommitSnapshot } from "../../history/api/history-repo.
 import { createHistory, type History } from "../../history/state/history.js";
 import { getProjectRow, getProjectSnapshot } from "../../library/api/library-repo.js";
 import { progressText } from "../../library/components/progress.js";
+import { createSettingsStore } from "../../settings/state/settings-store.js";
 import { loadModel } from "../model/model-api.js";
 import { createEngineController, type EngineController } from "../state/engine-controller.js";
 import { createSongStore, type SongStore } from "../state/song-store.js";
@@ -102,6 +103,11 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
   const [failed, setFailed] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const dispose = useRef<(() => void)[]>([]);
+  const settings = useMemo(() => createSettingsStore(platform.localDb), [platform.localDb]);
+
+  useEffect(() => {
+    void settings.load();
+  }, [settings]);
 
   useEffect(() => {
     let live = true;
@@ -209,6 +215,7 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
         songStore={session.store}
         controller={session.controller}
         history={session.history}
+        settings={settings}
         analysis={session.analysis}
         selection={{ kind: "none" }}
         testHooks={wantsTestHooks(search)}

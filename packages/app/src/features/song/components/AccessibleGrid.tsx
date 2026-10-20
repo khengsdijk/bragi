@@ -27,6 +27,8 @@ export interface AccessibleGridProps {
   readonly selection: Selection;
   readonly onSelect: (selection: Selection) => void;
   readonly onToggle: (trackId: string, field: "mute" | "solo") => void;
+  /** Shift+F10, the context-menu key or a right-click on a cell: open the section menu here. */
+  readonly onContextMenu: (sectionId: string, element: HTMLElement) => void;
   /** The cell that has keyboard focus, or `null` when focus left the grid. */
   readonly onFocusChange: (focus: GridFocus | null) => void;
 }
@@ -49,6 +51,7 @@ export function AccessibleGrid({
   selection,
   onSelect,
   onToggle,
+  onContextMenu,
   onFocusChange,
 }: AccessibleGridProps): ReactNode {
   const [active, setActive] = useState<Position>({ row: 0, col: 0 });
@@ -84,6 +87,9 @@ export function AccessibleGrid({
   );
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>, position: Position): void => {
+    // Modified keys belong to the workspace (Alt+arrows move or resize a part, Cmd/Ctrl+K opens
+    // the palette). The grid only owns the unmodified navigation keys.
+    if (event.altKey || event.metaKey || event.ctrlKey) return;
     const row = model.rows[position.row];
     const column = model.columns[position.col];
     if (!row || !column) return;
@@ -114,6 +120,16 @@ export function AccessibleGrid({
           onSelect({ kind: "tracks", ids: [row.id] });
         } else {
           onSelect({ kind: "sections", ids: [column.sectionId] });
+        }
+        return;
+      case "ContextMenu":
+        event.preventDefault();
+        onContextMenu(column.sectionId, event.currentTarget);
+        return;
+      case "F10":
+        if (event.shiftKey) {
+          event.preventDefault();
+          onContextMenu(column.sectionId, event.currentTarget);
         }
         return;
       case "Escape":
@@ -234,6 +250,10 @@ export function AccessibleGrid({
                     onFocus={() => {
                       setActive(position);
                       report(position);
+                    }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      onContextMenu(cell.sectionId, event.currentTarget);
                     }}
                     onKeyDown={(event) => onKeyDown(event, position)}
                   >
