@@ -34,6 +34,12 @@ interface PlanRequest {
 
 The API loads the commit snapshot and analyses and calls `bragi-model::summarize_for_llm(doc, analyses, focus)` (using the same WASM build, `packages/model-wasm`, running in Node). It produces a **compact LLM context** of about 2–6k tokens:
 
+> **v1 note (WP-2.6):** the server holds no projects (history is local-first), so `POST /v1/plans`
+> carries the `Project` document in the request (`PlanRequest.doc`) and the API never stores it.
+> Analyses travel inside the document, which is everything `summarize_for_llm` needs. The
+> `projectId`/`commitId` pair above stays the shape for a future hosted sync; the current schema
+> takes the document instead ([`docs/wp/2.6.md`](../docs/wp/2.6.md), Deviation 1).
+
 ```
 SONG: "Midnight Drive" · 118 BPM · F# minor · 4/4 · 4:00 · genres: synthwave · moods: nostalgic, driving
 TRACKS: trk_v Vocals | trk_d Drums | trk_b Bass | trk_o Synths(other) | trk_p Piano | trk_r residual(hidden)
