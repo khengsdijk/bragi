@@ -23,6 +23,8 @@ export { applyMixDelta } from "./engine/delta.js";
 export type {
   AssetHash,
   AudioFormat,
+  AuditionSlot,
+  CandidateSlot,
   CommitId,
   EngineDelta,
   EngineEvent,

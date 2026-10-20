@@ -38,6 +38,15 @@ import {
 } from "pixi.js";
 
 import {
+  advanceSectionDrag,
+  barDeltaLabel,
+  beginSectionDrag,
+  dropSlotAt,
+  IDLE_DRAG,
+  resizeTargetBars,
+  type SectionDragState,
+} from "./drag.js";
+import {
   activityMask,
   buildRibbonStrip,
   buildWaveformStrip,
@@ -51,7 +60,14 @@ import {
   windowCovers,
 } from "./geometry.js";
 import { LabelPool } from "./label-pool.js";
-import { computeLayout, hitTest, type Layout, type Rect, sectionAtPoint } from "./layout.js";
+import {
+  computeLayout,
+  hitTest,
+  type Layout,
+  type Rect,
+  sectionAtPoint,
+  sectionHitAt,
+} from "./layout.js";
 import { chordFill, mixColors, numberToRgb, type Palette, readableOn } from "./palette.js";
 import {
   appeared,
@@ -89,6 +105,10 @@ import {
 export interface CanvasStrings {
   readonly mute: string;
   readonly solo: string;
+  /** "+8 bars" for the resize ghost; the app pluralises it. */
+  readonly barsLonger: (bars: number) => string;
+  /** "−2 bars" for the resize ghost. */
+  readonly barsShorter: (bars: number) => string;
 }
 
 export interface SongCanvasOptions {
@@ -146,6 +166,22 @@ interface Anim {
   readonly start: number;
 }
 
+/** What the canvas draws while a section is being moved or resized (07 §4.1–4.2). */
+interface DragVisual {
+  readonly sectionId: string;
+  readonly mode: "move" | "resize";
+  /** The span the block had when the drag started. */
+  readonly startSec: number;
+  readonly endSec: number;
+  /** The block's length in whole bars at drag start. */
+  readonly bars: number;
+  /** Pointer offset into the block, so a move does not jump to the pointer. */
+  readonly grabOffsetX: number;
+  pointerX: number;
+  /** The target length in whole bars, for the resize ghost. */
+  targetBars: number;
+}
+
 export class SongCanvas {
   private readonly app: Application;
   private readonly options: SongCanvasOptions;
@@ -183,6 +219,12 @@ export class SongCanvas {
   private meters: Readonly<Record<string, number>> = {};
   private hoverTrack: string | null = null;
   private hoverSection: string | null = null;
+
+  /** Click-versus-drag state (11 §6.4) and the visuals drawn while it is active. */
+  private dragState: SectionDragState = IDLE_DRAG;
+  private dragVisual: DragVisual | null = null;
+  /** The arrangement at drag start, so the drop slot does not move under the preview. */
+  private dragDoc: CanvasDocument | null = null;
 
   private readonly ribbons = new Map<string, RibbonView>();
   private clipsByTrack = new Map<string, { startSec: number; endSec: number }[]>();
@@ -1063,6 +1105,8 @@ export class SongCanvas {
     const s = layout.sections;
     const energyAvailable = this.sectionEnergy.size > 0;
     for (const section of doc.sections) {
+      // The lifted block is drawn under the pointer instead (07 §4.1: "the block lifts").
+      if (this.dragVisual?.mode === "move" && this.dragVisual.sectionId === section.id) continue;
       const x0 = toX(section.startSec);
       const x1 = toX(section.endSec);
       if (x1 < left || x0 > right) continue;
@@ -1103,6 +1147,7 @@ export class SongCanvas {
       }
     }
     if (states.sections === "pending") this.shimmerBar(sg, s, now, true, 0.5);
+    this.drawDragVisual(sg, toX, pps, fontSize);
     this.sectionLabels.end();
 
     // Harmony strip ---------------------------------------------------------------------------
@@ -1283,6 +1328,87 @@ export class SongCanvas {
     void pps;
   }
 
+  /**
+   * The lifted block of a move (shadow, slight offset, following the pointer) or the ghost end of
+   * a resize with its bar count (07 §4.1–4.2). Everything else on the lane is drawn from the
+   * document the app supplies, which is its preview while the drag runs.
+   */
+  private drawDragVisual(
+    g: Graphics,
+    toX: (sec: number) => number,
+    pps: number,
+    fontSize: number,
+  ): void {
+    const drag = this.dragVisual;
+    const doc = this.doc;
+    if (drag === null || doc === null) return;
+    const section = doc.sections.find((candidate) => candidate.id === drag.sectionId);
+    if (section === undefined) return;
+    const lane = this.layout.sections;
+    const palette = this.palette;
+
+    if (drag.mode === "move") {
+      const width = Math.max(2, (drag.endSec - drag.startSec) * pps);
+      const x = drag.pointerX - drag.grabOffsetX;
+      const y = lane.y - 3;
+      // Shadow first, then the block a few pixels higher: it reads as lifted.
+      g.roundRect(x + 4, y + 6, width, lane.h, 4).fill({ color: 0x000000, alpha: 0.35 });
+      const base = palette.sectionFill[sectionFamilyOf(section.kind)];
+      const energy = this.sectionEnergy.get(section.id) ?? 0.7;
+      const fill = mixColors(palette.canvas, base, 0.55 + 0.45 * energy);
+      g.roundRect(x, y, width, lane.h, 4).fill({ color: fill, alpha: 0.97 });
+      g.roundRect(x, y, width, lane.h, 4).stroke({
+        width: 2,
+        color: palette.accent,
+        alpha: 1,
+      });
+      const style = { fill: readableOn(fill), fontSize, fontWeight: "500" } as const;
+      if (width > 26 && this.sectionLabels.measure(section.label, style) <= width - 16) {
+        this.sectionLabels.place(section.label, x + 8, y + lane.h / 2, style);
+      }
+      return;
+    }
+
+    // Resize: a ghost of the new end and the signed bar count (snapped to whole bars).
+    const startX = toX(drag.startSec);
+    const oldEndX = toX(drag.endSec);
+    const barPx = drag.bars > 0 ? (oldEndX - startX) / drag.bars : 0;
+    if (barPx <= 0) return;
+    const newEndX = startX + drag.targetBars * barPx;
+    const from = Math.min(oldEndX, newEndX);
+    const to = Math.max(oldEndX, newEndX);
+    if (to - from >= 1) {
+      g.rect(from, lane.y, to - from, lane.h).fill({ color: palette.accent, alpha: 0.16 });
+    }
+    g.rect(newEndX - 1, lane.y - 2, 2, lane.h + 4).fill({
+      color: palette.accent,
+      alpha: 0.95,
+    });
+    const label = barDeltaLabel(
+      drag.targetBars,
+      drag.bars,
+      this.options.strings.barsLonger,
+      this.options.strings.barsShorter,
+    );
+    if (label === "") return;
+    const pillW = label.length * 7 + 12;
+    const pillX = Math.min(
+      this.width - pillW - 4,
+      Math.max(this.layout.gutter, newEndX - pillW / 2),
+    );
+    const pillY = lane.y - 22;
+    g.roundRect(pillX, pillY, pillW, 18, 4).fill({ color: palette.surfaceRaised, alpha: 0.97 });
+    g.roundRect(pillX, pillY, pillW, 18, 4).stroke({ width: 1, color: palette.lineStrong });
+    this.sectionLabels.place(
+      label,
+      pillX + pillW / 2,
+      pillY + 9,
+      { fill: palette.text, fontSize: Math.max(10, fontSize - 1), fontWeight: "600" },
+      0.5,
+      0.5,
+    );
+  }
+
   private drawOverlays(g: Graphics, toX: (sec: number) => number): void {
     const doc = this.doc;
     if (!doc) return;
@@ -1385,6 +1511,25 @@ export class SongCanvas {
     const hit = (x: number, y: number) =>
       this.doc ? hitTest(this.layout, this.viewport, this.doc, x, y) : ({ kind: "none" } as const);
 
+    /** Pointer x in content coordinates: px from the time area's left edge. */
+    const contentX = (x: number): number => x - this.layout.gutter;
+
+    /** The insertion slot under `x` in the arrangement as it was at drag start. */
+    const dropIndexAt = (x: number): number => {
+      const doc = this.dragDoc;
+      if (doc === null) return 0;
+      const sec = xToTime(this.viewport, doc.bpm, Math.max(0, contentX(x)));
+      return dropSlotAt(doc.sections, sec);
+    };
+
+    const resetDrag = (): void => {
+      this.dragState = IDLE_DRAG;
+      this.dragVisual = null;
+      this.dragDoc = null;
+      this.chromeDirty = true;
+      this.schedule();
+    };
+
     const onWheel = (event: WheelEvent): void => {
       if (!this.doc) return;
       const { x } = point(event);
@@ -1413,6 +1558,41 @@ export class SongCanvas {
         });
         return;
       }
+
+      // Section bodies drag and their right edge resizes; both start as a click (11 §6.4).
+      const sectionHit = sectionHitAt(this.layout, this.viewport, this.doc, x, y);
+      if (sectionHit !== null) {
+        const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+        this.emit(
+          "selectionChange",
+          clickSelection(this.selection, "sections", sectionHit.sectionId, additive),
+        );
+        const section = this.doc.sections.find(
+          (candidate) => candidate.id === sectionHit.sectionId,
+        );
+        if (section === undefined) return;
+        const pps = pxPerSecond(this.viewport.pxPerBeat, this.doc.bpm);
+        const startX = this.layout.gutter + (section.startSec - this.viewport.originSec) * pps;
+        const mode = sectionHit.kind === "rightEdge" ? "resize" : "move";
+        this.dragDoc = this.doc;
+        this.dragState = beginSectionDrag(section.id, mode, x, y, event.altKey);
+        this.dragVisual = {
+          sectionId: section.id,
+          mode,
+          startSec: section.startSec,
+          endSec: section.endSec,
+          bars: section.bars,
+          grabOffsetX: x - startX,
+          pointerX: x,
+          targetBars: section.bars,
+        };
+        element.setPointerCapture(event.pointerId);
+        element.style.cursor = "grabbing";
+        this.chromeDirty = true;
+        this.schedule();
+        return;
+      }
+
       const additive = event.shiftKey || event.metaKey || event.ctrlKey;
       if (target.kind === "ruler") {
         element.setPointerCapture(event.pointerId);
@@ -1420,12 +1600,7 @@ export class SongCanvas {
         this.emit("seek", { sec: clampSec(target.sec, this.doc.durationSec) });
         return;
       }
-      if (target.kind === "section") {
-        this.emit(
-          "selectionChange",
-          clickSelection(this.selection, "sections", target.id, additive),
-        );
-      } else if (target.kind === "ribbon") {
+      if (target.kind === "ribbon") {
         if (target.trackId.startsWith(GHOST_PREFIX)) return;
         this.emit(
           "selectionChange",
@@ -1438,9 +1613,54 @@ export class SongCanvas {
       drag = { startX: x, lastX: x, moved: false, scrub: false };
     };
 
+    const emitDragMove = (event: PointerEvent, mode: "move" | "resize", start: boolean): void => {
+      const doc = this.doc;
+      const visual = this.dragVisual;
+      if (doc === null || visual === null) return;
+      const { x } = point(event);
+      if (mode === "move") {
+        const payload = {
+          sectionId: visual.sectionId,
+          pointerX: contentX(x),
+          dropIndex: dropIndexAt(x),
+          altKey: this.dragState.phase === "dragging" ? this.dragState.altKey : false,
+        };
+        if (start) this.emit("sectionDragStart", payload);
+        this.emit("sectionDragMove", payload);
+        return;
+      }
+      const pps = pxPerSecond(this.viewport.pxPerBeat, doc.bpm);
+      const barPx = (60 / doc.bpm) * doc.beatsPerBar * pps;
+      const edgeX = this.layout.gutter + (visual.endSec - this.viewport.originSec) * pps;
+      visual.targetBars = resizeTargetBars(visual.bars, x - edgeX, barPx);
+      const payload = {
+        sectionId: visual.sectionId,
+        pointerX: contentX(x),
+        bars: visual.targetBars,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      };
+      if (start) this.emit("sectionResizeStart", payload);
+      this.emit("sectionResizeMove", payload);
+    };
+
     const onMove = (event: PointerEvent): void => {
       if (!this.doc) return;
       const { x, y } = point(event);
+
+      if (this.dragState.phase !== "idle") {
+        const previous = this.dragState;
+        const next = advanceSectionDrag(this.dragState, x, y, event.altKey);
+        this.dragState = next;
+        if (next.phase === "dragging" && this.dragVisual !== null) {
+          this.dragVisual.pointerX = x;
+          emitDragMove(event, next.mode, previous.phase === "pending");
+          this.chromeDirty = true;
+          this.schedule();
+        }
+        return;
+      }
+
       if (drag) {
         if (drag.scrub) {
           const sec = xToTime(this.viewport, this.doc.bpm, x - this.layout.gutter);
@@ -1469,20 +1689,80 @@ export class SongCanvas {
         this.chromeDirty = true;
         this.schedule();
       }
+      const sectionHit = sectionHitAt(this.layout, this.viewport, this.doc, x, y);
       element.style.cursor =
-        target.kind === "toggle" ||
-        target.kind === "section" ||
-        target.kind === "ribbon" ||
-        target.kind === "ruler"
-          ? "pointer"
-          : "default";
+        sectionHit === null
+          ? target.kind === "toggle" || target.kind === "ribbon" || target.kind === "ruler"
+            ? "pointer"
+            : "default"
+          : sectionHit.kind === "rightEdge"
+            ? "ew-resize"
+            : "grab";
     };
 
     const onUp = (event: PointerEvent): void => {
+      if (this.dragState.phase !== "idle") {
+        const state = this.dragState;
+        if (state.phase === "dragging" && this.dragVisual !== null) {
+          if (state.mode === "move") {
+            const { x } = point(event);
+            this.emit("sectionDragEnd", {
+              sectionId: state.sectionId,
+              pointerX: contentX(x),
+              dropIndex: dropIndexAt(x),
+              altKey: state.altKey,
+            });
+          } else {
+            const { x } = point(event);
+            this.emit("sectionResizeEnd", {
+              sectionId: state.sectionId,
+              pointerX: contentX(x),
+              bars: this.dragVisual.targetBars,
+              clientX: event.clientX,
+              clientY: event.clientY,
+            });
+          }
+        }
+        if (element.hasPointerCapture(event.pointerId)) {
+          element.releasePointerCapture(event.pointerId);
+        }
+        element.style.cursor = "default";
+        resetDrag();
+        return;
+      }
       if (drag && element.hasPointerCapture(event.pointerId)) {
         element.releasePointerCapture(event.pointerId);
       }
       drag = null;
+    };
+
+    const onCancel = (event: PointerEvent): void => {
+      if (this.dragState.phase === "dragging") {
+        const state = this.dragState;
+        this.emit(state.mode === "move" ? "sectionDragCancel" : "sectionResizeCancel", {
+          sectionId: state.sectionId,
+        });
+      }
+      if (element.hasPointerCapture(event.pointerId)) {
+        element.releasePointerCapture(event.pointerId);
+      }
+      element.style.cursor = "default";
+      resetDrag();
+      drag = null;
+    };
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape" || this.dragState.phase === "idle") return;
+      const state = this.dragState;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (state.phase === "dragging") {
+        this.emit(state.mode === "move" ? "sectionDragCancel" : "sectionResizeCancel", {
+          sectionId: state.sectionId,
+        });
+      }
+      element.style.cursor = "default";
+      resetDrag();
     };
 
     const onLeave = (): void => {
@@ -1511,17 +1791,19 @@ export class SongCanvas {
     element.addEventListener("pointerdown", onDown);
     element.addEventListener("pointermove", onMove);
     element.addEventListener("pointerup", onUp);
-    element.addEventListener("pointercancel", onUp);
+    element.addEventListener("pointercancel", onCancel);
     element.addEventListener("pointerleave", onLeave);
     element.addEventListener("contextmenu", onContextMenu);
+    window.addEventListener("keydown", onKeyDown);
     this.dispose.push(() => {
       element.removeEventListener("wheel", onWheel);
       element.removeEventListener("pointerdown", onDown);
       element.removeEventListener("pointermove", onMove);
       element.removeEventListener("pointerup", onUp);
-      element.removeEventListener("pointercancel", onUp);
+      element.removeEventListener("pointercancel", onCancel);
       element.removeEventListener("pointerleave", onLeave);
       element.removeEventListener("contextmenu", onContextMenu);
+      window.removeEventListener("keydown", onKeyDown);
     });
     void timeToX;
   }

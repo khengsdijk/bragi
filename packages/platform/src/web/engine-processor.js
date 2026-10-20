@@ -18,6 +18,9 @@
  * - `{ type: "load", doc, assets }` register decoded PCM, then compile the project; answered
  *   with `{ type: "loaded", tracks }` so the host can size the state block. Each asset is
  *   `{ hash, samples, channels, sampleRate }`; the decoder worker produced it off this thread.
+ * - `{ type: "warm", slot, doc, assets }` register only the new PCM, then compile a candidate
+ *   into a warm slot (03 §5.4); answered with `{ type: "warmed", slot, ok }`. Switching and
+ *   releasing are command words (`OP_AUDITION_SLOT`, `OP_RELEASE_SLOT` in `web/engine.ts`).
  *
  * `add_asset_pcm`/`load_project` run in message handlers, never inside `process`. Decoding used
  * to happen here (a v1 shortcut, docs/wp/1.9.md); it now happens in `engine.worker.ts`, so the
@@ -37,6 +40,8 @@ const OP_LOOP = 4;
 const OP_LOOP_CLEAR = 5;
 const OP_AUDITION = 6;
 const OP_LOOP_END = 7;
+const OP_AUDITION_SLOT = 19;
+const OP_RELEASE_SLOT = 20;
 const PAYLOAD_MASK = 0x00ff_ffff_ffff_ffffn;
 const HEADER_WORDS = 8;
 /** Publish the state block every n-th quantum: ~2.7 ms each, so ~21 ms between publishes. */
@@ -68,6 +73,9 @@ class BragiEngineProcessor extends AudioWorkletProcessor {
       case "load":
         this.load(message);
         break;
+      case "warm":
+        this.warm(message);
+        break;
       default:
         break;
     }
@@ -88,6 +96,24 @@ class BragiEngineProcessor extends AudioWorkletProcessor {
       });
     } catch (error) {
       this.port.postMessage({ type: "error", message: String(error?.message ?? error) });
+    }
+  }
+
+  warm(message) {
+    if (!this.engine) return;
+    try {
+      for (const asset of message.assets ?? []) {
+        this.engine.add_asset_pcm(asset.hash, asset.samples, asset.channels, asset.sampleRate);
+      }
+      const ok = this.engine.warm_project(message.slot, JSON.stringify(message.doc));
+      this.port.postMessage({ type: "warmed", slot: message.slot, ok });
+    } catch (error) {
+      this.port.postMessage({
+        type: "warmed",
+        slot: message.slot,
+        ok: false,
+        message: String(error?.message ?? error),
+      });
     }
   }
 
@@ -119,6 +145,12 @@ class BragiEngineProcessor extends AudioWorkletProcessor {
         break;
       case OP_AUDITION:
         this.engine.transport(6, payload, 0);
+        break;
+      case OP_AUDITION_SLOT:
+        this.engine.audition(payload);
+        break;
+      case OP_RELEASE_SLOT:
+        this.engine.release_slot(payload);
         break;
       default:
         break;

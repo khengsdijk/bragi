@@ -170,6 +170,12 @@ export type EngineEvent =
   | { readonly kind: "deviceChanged"; readonly deviceId: string }
   | { readonly kind: "error"; readonly code: string; readonly message: string };
 
+/** A warm candidate slot (03 §5.4); slot 0 is the main document. */
+export type CandidateSlot = 1 | 2 | 3;
+
+/** Anything `audition` can switch to: the main document or a warm candidate. */
+export type AuditionSlot = 0 | CandidateSlot;
+
 /** A state subscription's cancel handle. */
 export type Unsubscribe = () => void;
 
@@ -190,8 +196,15 @@ export interface EngineHost {
   setPreview(preview: PreviewPatch | null): void;
   /** Play, pause, stop, seek, loop, scrub, audition. */
   transport(cmd: TransportCmd): void;
-  /** A/B audition of a candidate commit (03 §5.4). */
-  audition(target: { readonly commitId: CommitId; readonly doc: ProjectJson } | null): void;
+  /**
+   * Prepares a candidate document in a warm slot for instant A/B switching (03 §5.4). Assets the
+   * engine already holds are not sent again. Resolves once the slot can be auditioned.
+   */
+  warm(slot: CandidateSlot, doc: ProjectJson): Promise<void>;
+  /** Drops a warm candidate. An audible slot stays until `audition(0)`. */
+  release(slot: CandidateSlot): void;
+  /** Crossfades (30 ms, same playhead) to a warm slot; `0` is the main (HEAD) document. */
+  audition(slot: AuditionSlot): void;
   /** Offline render (03 §9). */
   render(job: RenderJob): Promise<RenderResult>;
   /** Waveform peaks at one pyramid level (03 §10). */

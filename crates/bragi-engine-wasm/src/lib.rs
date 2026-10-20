@@ -31,7 +31,7 @@
 use wasm_bindgen::prelude::*;
 
 use bragi_engine::engine::Engine;
-use bragi_engine::offline::{OfflineOptions, render};
+use bragi_engine::offline::{OfflineOptions, PlanSwitch, render, render_switching};
 use bragi_engine::pcm::{MemoryPcm, PcmBuffer};
 use bragi_engine::peaks::PeakPyramid;
 use bragi_engine::plan::compile;
@@ -187,6 +187,62 @@ impl EngineWasm {
         self.state = StateBlock::new(self.engine.plan().tracks.len(), 0);
         self.meter_words = vec![0u32; self.state.word_count()];
         Ok(())
+    }
+
+    /// Warms a candidate plan in `slot` (1–3) for A/B auditioning
+    /// (`specs/03-audio-engine.md` §5.4). The assets it needs must already be
+    /// added. Returns `false` when the slot is invalid, audible or fading.
+    ///
+    /// # Errors
+    /// A JavaScript `Error` for an invalid project or a plan that fails to compile.
+    pub fn warm_project(&mut self, slot: usize, json: &str) -> Result<bool, JsError> {
+        let doc: bragi_model::generated::Project = serde_json::from_str(json)
+            .map_err(|error| JsError::new(&format!("invalid project: {error}")))?;
+        let version = self.engine.plan().plan_version;
+        let plan = compile(&doc, &self.index, SAMPLE_RATE, version)
+            .map_err(|error| JsError::new(&format!("plan failed: {error}")))?;
+        Ok(self.engine.warm(slot, plan))
+    }
+
+    /// Drops the warm plan in `slot` (1–3). An audible slot is kept; audition
+    /// back to slot 0 first. Returns whether a plan was released.
+    pub fn release_slot(&mut self, slot: usize) -> bool {
+        self.engine.release_slot(slot).is_some()
+    }
+
+    /// Crossfades to a warm slot over 30 ms at the same playhead; `0` is the
+    /// main plan. Returns `false` when the slot is not warm.
+    pub fn audition(&mut self, slot: usize) -> bool {
+        self.engine.audition((slot != 0).then_some(slot))
+    }
+
+    /// Offline render that switches between warm plans at fixed samples, for
+    /// the conformance harness. `at[i]` is the sample of switch `i` and
+    /// `slots[i]` its slot (`0` = main). It drives the live engine's transport,
+    /// so call it on a freshly loaded engine only.
+    pub fn render_switching(
+        &mut self,
+        start: u64,
+        frames: u64,
+        block: usize,
+        at: &[f64],
+        slots: &[u32],
+    ) -> Vec<f32> {
+        let switches: Vec<PlanSwitch> = at
+            .iter()
+            .zip(slots)
+            .map(|(at, slot)| PlanSwitch {
+                at: at.max(0.0) as u64,
+                slot: (*slot != 0).then_some(*slot as usize),
+            })
+            .collect();
+        let options = OfflineOptions {
+            start,
+            frames: Some(frames),
+            block: if block == 0 { self.block } else { block },
+            sample_rate: SAMPLE_RATE,
+        };
+        render_switching(&mut self.engine, &self.pcm, &options, &switches).samples
     }
 
     /// Renders one live block into `left`/`right` (one `Float32Array` each).

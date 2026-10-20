@@ -18,6 +18,8 @@ function fakeHost() {
     transport: vi.fn((cmd: TransportCmd) => {
       commands.push(cmd);
     }),
+    warm: vi.fn(async () => {}),
+    release: vi.fn(),
     audition: vi.fn(),
     render: vi.fn(),
     peaks: vi.fn(),

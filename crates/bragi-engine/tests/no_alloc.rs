@@ -166,6 +166,72 @@ fn process_never_allocates() {
 }
 
 #[test]
+fn audition_switching_between_four_warm_plans_never_allocates() {
+    let h = hash('5');
+    let index = assets(&h, 480_000);
+    let document = |gain_db: f64, with_fx: bool, mute: bool| {
+        let mut first = track_with("trk_01", gain_db, 0.0, mute, false);
+        if with_fx {
+            first["fx"] = json!([{
+                "id": "fx_candidate", "type": "gain", "params": { "db": -6.0 }, "bypass": false
+            }]);
+        }
+        project(
+            vec![first, track_with("trk_02", -6.0, 0.0, false, false)],
+            vec![section(
+                "sec_a",
+                BAR_TICKS * 5,
+                json!({
+                    "trk_01": lane(vec![clip_none("clp_01", &h, 0, 480_000, 0)]),
+                    "trk_02": lane(vec![clip_none("clp_02", &h, 0, 480_000, 0)]),
+                }),
+            )],
+        )
+    };
+    let documents = [
+        document(0.0, false, false),
+        document(-6.0, false, false),
+        document(0.0, true, false),
+        document(0.0, false, true),
+    ];
+    let plans: Vec<_> = documents
+        .iter()
+        .enumerate()
+        .map(|(version, doc)| compile(doc, &index, 48_000, version as u64 + 1).unwrap())
+        .collect();
+    let source = pcm(&h, tone(480_000, 220.0, 0.4));
+
+    let mut engine = Engine::new(plans[0].clone(), BLOCK);
+    for (slot, plan) in plans
+        .iter()
+        .enumerate()
+        .take(bragi_engine::MAX_WARM_PLANS)
+        .skip(1)
+    {
+        // Warming is a planner-side call: it allocates, outside any guard.
+        assert!(engine.warm(slot, plan.clone()));
+    }
+    engine.transport_mut().play();
+    let mut left = [0.0f32; BLOCK];
+    let mut right = [0.0f32; BLOCK];
+    for _ in 0..50 {
+        engine.process(&source, &mut [&mut left, &mut right]);
+    }
+
+    alloc_guard::reset_violations();
+    for block in 0..400 {
+        if block % 20 == 10 {
+            let slot = (block / 20) % bragi_engine::MAX_WARM_PLANS;
+            assert!(engine.audition(if slot == 0 { None } else { Some(slot) }));
+        }
+        engine.process(&source, &mut [&mut left, &mut right]);
+    }
+    let violations = alloc_guard::Guard::violations();
+    println!("guarded allocations over 400 audition blocks: {violations}");
+    alloc_guard::assert_clean();
+}
+
+#[test]
 fn plugin_delay_compensation_never_allocates_on_the_audio_thread() {
     let h = hash('a');
     let doc = |with_saturation: bool| {

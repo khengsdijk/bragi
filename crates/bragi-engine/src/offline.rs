@@ -25,6 +25,7 @@
 use std::sync::Arc;
 
 use crate::SAMPLE_RATE;
+use crate::engine::Engine;
 use crate::pcm::PcmSource;
 use crate::plan::RenderPlan;
 use crate::render::{RenderStats, Renderer};
@@ -96,6 +97,124 @@ impl RenderOutput {
         } else {
             20.0 * self.peak.log10()
         }
+    }
+}
+
+/// A scheduled audition switch for [`render_switching`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlanSwitch {
+    /// The absolute output sample at which the crossfade starts.
+    pub at: u64,
+    /// The warm slot to switch to (`None` = the main plan).
+    pub slot: Option<usize>,
+}
+
+/// Renders an arrangement while switching between warm plans at fixed samples.
+///
+/// The caller warms the slots on `engine` first (`Engine::warm`). This is the
+/// deterministic hook the engine conformance harness uses to compare a WASM
+/// switch against a native one (`specs/03-audio-engine.md` §11): both hosts
+/// drive the same engine, so the only possible difference is the platform's
+/// arithmetic. Output is not latency-trimmed; a switch fixture has no latency to
+/// trim.
+///
+/// # Examples
+///
+/// ```
+/// # use bragi_engine::engine::Engine;
+/// # use bragi_engine::offline::{PlanSwitch, OfflineOptions, render_switching};
+/// # use bragi_engine::pcm::MemoryPcm;
+/// # use bragi_engine::plan::compile;
+/// # use bragi_model::AssetIndex;
+/// # fn plan() -> bragi_engine::plan::RenderPlan {
+/// #   let doc: bragi_model::generated::Project = serde_json::from_value(serde_json::json!({
+/// #     "schemaVersion": 1, "id": "prj_01",
+/// #     "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+/// #     "sources": [], "analyses": {}, "tracks": [],
+/// #     "arrangement": { "timebase": { "ppq": 960,
+/// #         "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }], "timeSignatures": [] },
+/// #         "sections": [], "master": { "fx": [], "automation": [], "gainDb": 0 } } })).unwrap();
+/// #   compile(&doc, &AssetIndex::new(), 48_000, 1).unwrap()
+/// # }
+/// let mut engine = Engine::new(plan(), 128);
+/// assert!(engine.warm(1, plan()));
+/// let out = render_switching(
+///     &mut engine,
+///     &MemoryPcm::new(),
+///     &OfflineOptions::range(0, 128),
+///     &[PlanSwitch { at: 64, slot: Some(1) }],
+/// );
+/// // An empty arrangement has no frames; the call still switches cleanly.
+/// assert_eq!(out.underruns, 0);
+/// assert!(out.finite);
+/// ```
+#[must_use]
+pub fn render_switching(
+    engine: &mut Engine,
+    pcm: &dyn PcmSource,
+    options: &OfflineOptions,
+    switches: &[PlanSwitch],
+) -> RenderOutput {
+    debug_assert_eq!(
+        options.sample_rate, SAMPLE_RATE,
+        "switching renders run at the engine rate"
+    );
+    let block = options.block.max(1);
+    let length = engine.plan().length_samples;
+    let total = match options.frames {
+        Some(frames) => frames.min(length.saturating_sub(options.start)),
+        None => length.saturating_sub(options.start),
+    };
+    engine.transport_mut().seek(options.start);
+    engine.transport_mut().play();
+
+    let end = options.start.saturating_add(total);
+    let mut position = options.start;
+    let mut next = 0usize;
+    let mut left = vec![0.0f32; block];
+    let mut right = vec![0.0f32; block];
+    let mut samples = Vec::with_capacity(total as usize * 2);
+    let mut underruns = 0u64;
+    while position < end {
+        while next < switches.len() && switches[next].at <= position {
+            engine.audition(switches[next].slot);
+            next += 1;
+        }
+        let boundary = switches.get(next).map_or(end, |switch| switch.at.min(end));
+        let frames = (boundary.saturating_sub(position).max(1) as usize)
+            .min(block)
+            .min((end - position) as usize);
+        let stats: RenderStats =
+            engine.process(pcm, &mut [&mut left[..frames], &mut right[..frames]]);
+        underruns += stats.underruns;
+        for index in 0..frames {
+            samples.push(left[index]);
+            samples.push(right[index]);
+        }
+        position += frames as u64;
+    }
+
+    let mut peak = 0.0f32;
+    let mut sum_sq = 0.0f64;
+    let mut finite = true;
+    for sample in &samples {
+        finite &= sample.is_finite();
+        peak = peak.max(sample.abs());
+        sum_sq += f64::from(*sample) * f64::from(*sample);
+    }
+    let rms = if samples.is_empty() {
+        0.0
+    } else {
+        (sum_sq / samples.len() as f64).sqrt() as f32
+    };
+    RenderOutput {
+        frames: samples.len() / 2,
+        channels: 2,
+        samples,
+        peak,
+        rms,
+        underruns,
+        finite,
     }
 }
 

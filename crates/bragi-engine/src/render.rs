@@ -37,7 +37,9 @@ use bragi_dsp::fx::{Effect, FxContext, FxKind, create};
 use bragi_dsp::stretch::{PhaseVocoder, Quality, Stretcher};
 use bragi_model::generated::AutomationCurve;
 
+use crate::AUDITION_FADE_MS;
 use crate::LOOP_FADE_MS;
+use crate::MAX_WARM_PLANS;
 use crate::MUTE_RAMP_MS;
 use crate::PARAM_RAMP_MS;
 use crate::meters::Meters;
@@ -47,11 +49,17 @@ use crate::plan::{
     AutomationLane, FxSlot, MAX_COMPENSATION_FRAMES, RenderPlan, Segment, TrackPlan, db_to_gain,
 };
 use crate::rt::alloc_guard;
-use crate::transport::{Transport, TransportState};
+use crate::transport::{BlockSchedule, Transport, TransportState};
 
 /// The largest source-frames-per-output-frame factor a segment may have. Plans
 /// above this are clamped; the scratch buffers are sized once.
 const MAX_SOURCE_FACTOR: f64 = 8.0;
+
+/// Track capacity of the shared sidechain scratch. A warm candidate may have
+/// more tracks than the main plan, and warming never allocates, so the buffers
+/// are pre-sized for the common upper bound. A main plan above this grows them
+/// on a control-side `set_prepared`.
+const MAX_MIX_TRACKS: usize = 64;
 
 /// Counters and warnings produced by a block of rendering.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -484,6 +492,273 @@ impl PreparedPlan {
     }
 }
 
+/// A prepared plan plus the mutable mix state one renderer needs to play it.
+///
+/// A slot is built off the audio thread by [`PreparedPlan::into_slot`], so
+/// installing or warming one is a move: no vector of [`TrackRuntime`]s is
+/// allocated in `process`. Slot 0 is the main (HEAD) plan; slots 1–3 are
+/// candidates (`specs/03-audio-engine.md` §5.4).
+pub struct PreparedSlot {
+    prepared: PreparedPlan,
+    tracks: Vec<TrackRuntime>,
+    master_gain: Ramp,
+    limiter: Limiter,
+}
+
+impl std::fmt::Debug for PreparedSlot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PreparedSlot")
+            .field("plan_version", &self.prepared.plan.plan_version)
+            .field("tracks", &self.tracks.len())
+            .finish()
+    }
+}
+
+impl PreparedPlan {
+    /// Builds the per-plan mix state a warm slot needs, off the audio thread.
+    ///
+    /// The renderer keeps up to [`MAX_WARM_PLANS`] of these: slot 0 is the main
+    /// plan, slots 1–3 are candidates. Warming is the only allocation; switching
+    /// between slots only moves state.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::sync::Arc;
+    /// use bragi_engine::plan::quality_for;
+    /// use bragi_engine::render::PreparedPlan;
+    /// # fn plan() -> bragi_engine::plan::RenderPlan {
+    /// #   let doc: bragi_model::generated::Project = serde_json::from_value(serde_json::json!({
+    /// #     "schemaVersion": 1, "id": "prj_01",
+    /// #     "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+    /// #     "sources": [], "analyses": {}, "tracks": [],
+    /// #     "arrangement": { "timebase": { "ppq": 960,
+    /// #         "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }], "timeSignatures": [] },
+    /// #         "sections": [], "master": { "fx": [], "automation": [], "gainDb": 0 } } })).unwrap();
+    /// #   bragi_engine::plan::compile(&doc, &bragi_model::AssetIndex::new(), 48_000, 1).unwrap()
+    /// # }
+    /// let slot = PreparedPlan::new(Arc::new(plan()), quality_for(false), 128).into_slot();
+    /// assert_eq!(slot.plan().plan_version, 1);
+    /// ```
+    #[must_use]
+    pub fn into_slot(self) -> PreparedSlot {
+        let sample_rate = self.plan.sample_rate;
+        let any_solo = self.plan.any_solo();
+        let mute_frames = ramp_frames(MUTE_RAMP_MS, sample_rate);
+        let param_frames = ramp_frames(PARAM_RAMP_MS, sample_rate);
+        let tracks = self
+            .plan
+            .tracks
+            .iter()
+            .map(|track| TrackRuntime::new(track, any_solo, mute_frames, param_frames))
+            .collect();
+        let master_gain = Ramp::new(self.plan.master.gain, param_frames);
+        let limiter = Limiter::new(self.plan.master.ceiling, sample_rate);
+        PreparedSlot {
+            prepared: self,
+            tracks,
+            master_gain,
+            limiter,
+        }
+    }
+}
+
+impl PreparedSlot {
+    /// This slot's immutable plan.
+    #[must_use]
+    pub fn plan(&self) -> &RenderPlan {
+        &self.prepared.plan
+    }
+
+    /// Drops all stream state (seek semantics) without touching the plan.
+    fn reset(&mut self) {
+        self.prepared.reset();
+    }
+
+    /// Moves surviving effects, delay lines and current ramp values from
+    /// `previous` into a freshly installed main plan, so a plan swap glides
+    /// instead of clicking (`specs/03-audio-engine.md` §4).
+    fn carry_from(&mut self, previous: &mut PreparedSlot) {
+        self.prepared.reset();
+        self.prepared.carry_fx_from(&mut previous.prepared);
+        self.prepared.carry_delays_from(&mut previous.prepared);
+        self.prepared.apply_all_params();
+        for runtime in &mut self.tracks {
+            if let Some(old) = previous.tracks.iter().find(|old| old.id == runtime.id) {
+                runtime.gain.snap(old.gain.value());
+                runtime.pan.snap(old.pan.value());
+                runtime.audible.snap(old.audible.value());
+            }
+        }
+    }
+
+    /// Renders one block of this slot's full chain (tracks → master fx →
+    /// master gain → safety limiter) into `dst`, interleaved stereo.
+    ///
+    /// The transport has already advanced; `schedule` is shared by every slot
+    /// audible in this block, so two plans stay at the same playhead.
+    #[allow(clippy::too_many_arguments)]
+    fn render_block(
+        &mut self,
+        scratch: &mut Scratch,
+        pcm: &dyn PcmSource,
+        stats: &mut RenderStats,
+        schedule: &BlockSchedule,
+        start: u64,
+        len: usize,
+        dst: &mut [f32],
+        bpm: f64,
+        state: TransportState,
+        end_playhead: u64,
+        meters: &mut Meters,
+    ) {
+        for sample in dst[..len * 2].iter_mut() {
+            *sample = 0.0;
+        }
+
+        {
+            let mut ctx = MixContext {
+                plan: &self.prepared.plan,
+                runtimes: &mut self.prepared.runtimes,
+                offsets: &self.prepared.offsets,
+                fx: &mut self.prepared.fx,
+                delays: &mut self.prepared.delays,
+                compensation: &self.prepared.compensation,
+                order: &self.prepared.order,
+                scratch,
+                pcm,
+                tracks: &mut self.tracks,
+                meters,
+                stats,
+                bpm,
+            };
+            if schedule.playing {
+                let first = schedule.first_frames.min(len);
+                let block = &mut dst[..first * 2];
+                ctx.render_range(schedule.first_start, first, block);
+
+                let mut resume_at = first;
+                if let Some(wrap) = schedule.wrap {
+                    let fade = wrap.frames.min(len - first);
+                    if fade > 0 {
+                        // `mem::take` moves the scratch buffers out so they can
+                        // be passed to a method that borrows the rest of `ctx`;
+                        // it does not allocate.
+                        let mut outgoing = std::mem::take(&mut ctx.scratch.wrap_out);
+                        let mut incoming = std::mem::take(&mut ctx.scratch.wrap_in);
+                        ctx.render_range(wrap.outgoing_start, fade, &mut outgoing[..fade * 2]);
+                        ctx.render_range(wrap.incoming_start, fade, &mut incoming[..fade * 2]);
+                        for index in 0..fade {
+                            let x = (index as f32 + 0.5) / fade as f32;
+                            let fade_in = (x * std::f32::consts::FRAC_PI_2).sin();
+                            let fade_out = (x * std::f32::consts::FRAC_PI_2).cos();
+                            let out_index = (first + index) * 2;
+                            dst[out_index] =
+                                outgoing[index * 2] * fade_out + incoming[index * 2] * fade_in;
+                            dst[out_index + 1] = outgoing[index * 2 + 1] * fade_out
+                                + incoming[index * 2 + 1] * fade_in;
+                        }
+                        ctx.scratch.wrap_out = outgoing;
+                        ctx.scratch.wrap_in = incoming;
+                        resume_at += fade;
+                    }
+                }
+                if schedule.resume_frames > 0 && resume_at < len {
+                    let frames = schedule.resume_frames.min(len - resume_at);
+                    let block = &mut dst[resume_at * 2..(resume_at + frames) * 2];
+                    ctx.render_range(schedule.resume_start, frames, block);
+                    resume_at += frames;
+                }
+                // The arrangement ended inside this block: run the chains on the
+                // silent remainder so a tail is not gapped for one block.
+                if resume_at < len && state == TransportState::Stopped {
+                    let block = &mut dst[resume_at * 2..len * 2];
+                    ctx.render_range(end_playhead, len - resume_at, block);
+                }
+            } else if state == TransportState::Stopped {
+                // Past the end of the arrangement (an offline render's tail) or
+                // stopped: run the chains on silence so reverb/delay ring out.
+                // Pausing stays silent while holding all stream state.
+                let block = &mut dst[..len * 2];
+                ctx.render_range(end_playhead, len, block);
+            }
+        }
+
+        // Master fx, then master gain (with automation) and the safety limiter.
+        self.process_master_fx(scratch, dst, start, len, bpm);
+        self.master_gain.set_target(self.master_gain_at(start));
+        for frame in 0..len {
+            let gain = self.master_gain.next();
+            let index = frame * 2;
+            dst[index] *= gain;
+            dst[index + 1] *= gain;
+        }
+        self.limiter.process(&mut dst[..len * 2]);
+    }
+
+    /// Runs the master chain over `dst[..frames * 2]` in place.
+    fn process_master_fx(
+        &mut self,
+        scratch: &mut Scratch,
+        dst: &mut [f32],
+        start: u64,
+        frames: usize,
+        bpm: f64,
+    ) {
+        if frames == 0 {
+            return;
+        }
+        let frames = frames.min(scratch.frames);
+        if self.prepared.master_fx.is_empty() {
+            return;
+        }
+        if !self.prepared.plan.master.fx.is_empty() {
+            apply_fx_automation(
+                &self.prepared.plan.master.automation,
+                &mut self.prepared.master_fx,
+                start,
+            );
+        }
+        for index in 0..frames {
+            scratch.fx_left[index] = dst[index * 2];
+            scratch.fx_right[index] = dst[index * 2 + 1];
+        }
+        let slots = &self.prepared.plan.master.fx;
+        for (slot, runtime) in slots.iter().zip(self.prepared.master_fx.iter_mut()) {
+            if runtime.bypassed || slot.bypass {
+                continue;
+            }
+            if let Some(effect) = runtime.effect.as_mut() {
+                let ctx = FxContext {
+                    bpm,
+                    sidechain: None,
+                };
+                effect.process(
+                    &mut scratch.fx_left[..frames],
+                    &mut scratch.fx_right[..frames],
+                    &ctx,
+                );
+            }
+        }
+        for index in 0..frames {
+            dst[index * 2] = scratch.fx_left[index];
+            dst[index * 2 + 1] = scratch.fx_right[index];
+        }
+    }
+
+    fn master_gain_at(&self, sample: u64) -> f32 {
+        let mut gain = self.prepared.plan.master.gain;
+        for lane in &self.prepared.plan.master.automation {
+            if lane.target == AutomationTarget::MasterGain
+                && let Some(db) = lane.value_at(sample)
+            {
+                gain *= db_to_gain(db);
+            }
+        }
+        gain
+    }
+}
+
 /// The latency of a live chain: the sum of the non-bypassed effects'
 /// algorithmic latency, exactly what the renderer has to compensate.
 fn live_chain_latency(slots: &[FxSlot], chain: &[FxRuntime]) -> usize {
@@ -743,6 +1018,7 @@ impl Scratch {
     fn new(block: usize, tracks: usize) -> Self {
         let block = block.max(1);
         let source_frames = (block as f64 * MAX_SOURCE_FACTOR).ceil() as usize + 8;
+        let tracks = tracks.max(MAX_MIX_TRACKS);
         Self {
             track: vec![0.0; block * 2],
             segment: vec![0.0; block * 2],
@@ -812,21 +1088,39 @@ impl Limiter {
     }
 }
 
+/// An in-progress equal-power crossfade between warm plans.
+///
+/// `from` is the mix that was audible when the switch started and `to` is the
+/// target slot, so a switch during a running crossfade continues from the
+/// current mix instead of jumping.
+#[derive(Clone, Copy, Debug)]
+struct AuditionFade {
+    from: [f32; MAX_WARM_PLANS],
+    to: [f32; MAX_WARM_PLANS],
+    pos: usize,
+    len: usize,
+}
+
 /// The audio-thread renderer.
 #[derive(Debug)]
 pub struct Renderer {
-    prepared: PreparedPlan,
+    /// Slot 0 is the main (HEAD) plan; 1–3 are candidates. Fixed length, so
+    /// warming and releasing never resize this vector.
+    slots: Vec<Option<PreparedSlot>>,
+    /// The slot a switch is heading to (or the only audible one).
+    active: usize,
+    /// Audible weight per slot outside a fade (`[1, 0, 0, 0]` at rest).
+    gains: [f32; MAX_WARM_PLANS],
+    /// The running audition crossfade, if any.
+    fade: Option<AuditionFade>,
     transport: Transport,
-    tracks: Vec<TrackRuntime>,
-    master_gain: Ramp,
-    limiter: Limiter,
     scratch: Scratch,
     block: Vec<f32>,
+    /// The slot being rendered, mixed into `block` with the fade weights.
+    slot_block: Vec<f32>,
     meters: Meters,
     stats: RenderStats,
     block_size: usize,
-    mute_frames: u32,
-    param_frames: u32,
     /// The sample the next block is expected to start at; a jump (seek) resets
     /// the effects so a delay/reverb tail does not follow the playhead.
     expected_start: Option<u64>,
@@ -853,37 +1147,59 @@ impl Renderer {
     #[must_use]
     pub fn with_quality(plan: Arc<RenderPlan>, block_size: usize, quality: Quality) -> Self {
         assert!(block_size > 0, "block size must be positive");
-        let sample_rate = plan.sample_rate;
         let prepared = PreparedPlan::new(plan, quality, block_size);
         let transport = Transport::new(prepared.plan.length_samples);
-        let any_solo = prepared.plan.any_solo();
-        let mute_frames = ramp_frames(MUTE_RAMP_MS, sample_rate);
-        let param_frames = ramp_frames(PARAM_RAMP_MS, sample_rate);
-        let tracks = prepared
-            .plan
-            .tracks
-            .iter()
-            .map(|track| TrackRuntime::new(track, any_solo, mute_frames, param_frames))
-            .collect();
-        let master_gain = Ramp::new(prepared.plan.master.gain, param_frames);
-        let limiter = Limiter::new(prepared.plan.master.ceiling, sample_rate);
-        let meters = Meters::new(prepared.plan.tracks.len());
-        let scratch = Scratch::new(block_size, prepared.plan.tracks.len());
+        let track_count = prepared.plan.tracks.len();
+        let mut slots: Vec<Option<PreparedSlot>> = (0..MAX_WARM_PLANS).map(|_| None).collect();
+        slots[0] = Some(prepared.into_slot());
+        let mut gains = [0.0; MAX_WARM_PLANS];
+        gains[0] = 1.0;
+        let meters = Meters::new(track_count);
+        let scratch = Scratch::new(block_size, track_count);
         Self {
-            prepared,
+            slots,
+            active: 0,
+            gains,
+            fade: None,
             transport,
-            tracks,
-            master_gain,
-            limiter,
             scratch,
             block: vec![0.0; block_size * 2],
+            slot_block: vec![0.0; block_size * 2],
             meters,
             stats: RenderStats::default(),
             block_size,
-            mute_frames,
-            param_frames,
             expected_start: None,
         }
+    }
+
+    /// The main (HEAD) plan, slot 0.
+    #[must_use]
+    #[allow(clippy::expect_used)] // slot 0 is installed by `new` and never removed
+    pub fn plan(&self) -> &RenderPlan {
+        &self
+            .slots
+            .first()
+            .and_then(Option::as_ref)
+            .expect("slot 0 holds the main plan")
+            .prepared
+            .plan
+    }
+
+    /// The plan that is currently audible (a candidate during an audition).
+    #[must_use]
+    #[allow(clippy::expect_used)] // `active` always names a loaded slot
+    pub fn active_plan(&self) -> &RenderPlan {
+        &self.slots[self.active]
+            .as_ref()
+            .expect("the active slot is loaded")
+            .prepared
+            .plan
+    }
+
+    /// Whether `slot` holds a prepared plan.
+    #[must_use]
+    pub fn has_slot(&self, slot: usize) -> bool {
+        self.slots.get(slot).is_some_and(Option::is_some)
     }
 
     /// The active transport.
@@ -897,16 +1213,14 @@ impl Renderer {
         &mut self.transport
     }
 
-    /// The active plan.
+    /// The prepared plan that is audible, for hosts that inspect stream state.
     #[must_use]
-    pub fn plan(&self) -> &RenderPlan {
-        &self.prepared.plan
-    }
-
-    /// The prepared plan, for hosts that need to inspect stream state.
-    #[must_use]
+    #[allow(clippy::expect_used)] // `active` always names a loaded slot
     pub fn prepared(&self) -> &PreparedPlan {
-        &self.prepared
+        &self.slots[self.active]
+            .as_ref()
+            .expect("the active slot is loaded")
+            .prepared
     }
 
     /// The meters from the last rendered block.
@@ -948,66 +1262,205 @@ impl Renderer {
     /// assert_eq!(renderer.output_latency_frames(), 0);
     /// ```
     #[must_use]
+    #[allow(clippy::expect_used)] // slot 0 is installed by `new`
     pub fn output_latency_frames(&self) -> usize {
-        self.prepared.output_latency_frames()
+        self.slots[0]
+            .as_ref()
+            .expect("slot 0 holds the main plan")
+            .prepared
+            .output_latency_frames()
     }
 
-    /// Installs a prepared plan and returns the previous one.
+    /// Installs a prepared plan as slot 0 (the main plan) and returns the
+    /// previous one.
     ///
     /// The caller swaps this on the planner side. The renderer keeps the
-    /// transport position; the new plan's stream state starts fresh.
-    pub fn set_prepared(&mut self, mut prepared: PreparedPlan) -> PreparedPlan {
-        // New stream state and new effects start fresh.
-        prepared.reset();
-        // Swap the new plan in, then move surviving live effects (same id and
-        // kind) out of the old one and set the new targets, so a param change
-        // glides rather than jumps (`specs/03-audio-engine.md` §4).
-        let mut previous = std::mem::replace(&mut self.prepared, prepared);
-        self.prepared.carry_fx_from(&mut previous);
-        self.prepared.carry_delays_from(&mut previous);
-        self.prepared.apply_all_params();
-
-        let track_count = self.prepared.plan.tracks.len();
-        self.scratch.ensure_tracks(track_count);
-        let any_solo = self.prepared.plan.any_solo();
-        let mute_frames = self.mute_frames;
-        let param_frames = self.param_frames;
-        let previous_tracks = std::mem::take(&mut self.tracks);
-        // Carry the *current* ramp values over for tracks that survive, so a
-        // delta or a preview that flips mute starts a 5 ms ramp instead of a
-        // click.
-        let tracks: Vec<TrackRuntime> = self
-            .prepared
-            .plan
-            .tracks
-            .iter()
-            .map(|track| {
-                let mut runtime = TrackRuntime::new(track, any_solo, mute_frames, param_frames);
-                if let Some(old) = previous_tracks.iter().find(|old| old.id == track.id) {
-                    runtime.gain.snap(old.gain.value());
-                    runtime.pan.snap(old.pan.value());
-                    runtime.audible.snap(old.audible.value());
-                }
-                runtime
-            })
-            .collect();
-        self.tracks = tracks;
-        self.transport.set_length(self.prepared.plan.length_samples);
+    /// transport position; the new plan's stream state starts fresh. If a
+    /// candidate slot was audible, the renderer crossfades to the new HEAD
+    /// instead of cutting, so accepting while auditioning has no gap.
+    #[allow(clippy::expect_used)] // slot 0 is installed by `new` and never removed
+    pub fn set_prepared(&mut self, prepared: PreparedPlan) -> PreparedPlan {
+        let mut slot = prepared.into_slot();
+        // Move surviving live effects (same id and kind) and the current ramp
+        // values out of the main plan, so a param change glides rather than
+        // jumps (`specs/03-audio-engine.md` §4). When a candidate is audible it
+        // keeps its own state and fades out.
+        if self.active == 0
+            && let Some(previous) = self.slots[0].as_mut()
+        {
+            slot.carry_from(previous);
+        }
+        let previous = self.slots[0]
+            .replace(slot)
+            .map(|slot| slot.prepared)
+            .expect("slot 0 holds the main plan");
+        self.transport.set_length(self.plan().length_samples);
+        let track_count = self.plan().tracks.len();
         if self.meters.len() != track_count {
             // The track set changed; rebuild the meter vector (control thread).
             self.meters = Meters::new(track_count);
         }
-        self.master_gain = Ramp::new(self.prepared.plan.master.gain, param_frames);
-        self.limiter = Limiter::new(
-            self.prepared.plan.master.ceiling,
-            self.prepared.plan.sample_rate,
-        );
+        let max_tracks = self
+            .slots
+            .iter()
+            .flatten()
+            .map(|slot| slot.tracks.len())
+            .max()
+            .unwrap_or(track_count);
+        self.scratch.ensure_tracks(max_tracks);
+        if self.active == 0 {
+            self.gains = [0.0; MAX_WARM_PLANS];
+            self.gains[0] = 1.0;
+            self.fade = None;
+        } else {
+            self.start_fade_to(0);
+        }
         previous
+    }
+
+    /// Warms `slot` (1–3) with a prepared plan.
+    ///
+    /// Returns `Ok` with the plan it replaced (if any), for an off-thread drop.
+    /// The slot must be idle: a slot that is audible or still fading out is left
+    /// alone and `prepared` comes back as `Err`. Nothing here allocates, so a
+    /// host may call it from its control path (a worklet message handler or a
+    /// drained command) without violating the audio-thread rule.
+    ///
+    /// # Errors
+    /// `Err(prepared)` for slot 0, an out-of-range slot, or a slot that is
+    /// audible or fading.
+    // The refused plan is handed back by value: boxing it would allocate on the
+    // audio thread of the native host, which calls this from its callback.
+    #[allow(clippy::result_large_err)]
+    pub fn warm_slot(
+        &mut self,
+        slot: usize,
+        prepared: PreparedSlot,
+    ) -> Result<Option<PreparedSlot>, PreparedSlot> {
+        if slot == 0
+            || slot >= MAX_WARM_PLANS
+            || self.gains[slot] > 0.0
+            || self.fade.is_some_and(|fade| fade.to[slot] > 0.0)
+        {
+            return Err(prepared);
+        }
+        Ok(self.slots[slot].replace(prepared))
+    }
+
+    /// Sizes the shared mix scratch for a plan with `tracks` tracks.
+    ///
+    /// This allocates when the plan is larger than [`MAX_MIX_TRACKS`] and any
+    /// plan seen before, so call it on the control side before
+    /// [`Renderer::warm_slot`]. A candidate warmed without it still plays; a
+    /// track past the scratch's capacity only loses its sidechain feed.
+    pub fn reserve_tracks(&mut self, tracks: usize) {
+        self.scratch.ensure_tracks(tracks);
+    }
+
+    /// Releases the plan in `slot` (1–3), if it is idle, and returns it for an
+    /// off-thread drop.
+    pub fn release_slot(&mut self, slot: usize) -> Option<PreparedSlot> {
+        if slot == 0
+            || slot >= MAX_WARM_PLANS
+            || self.gains[slot] > 0.0
+            || self.fade.is_some_and(|fade| fade.to[slot] > 0.0)
+        {
+            return None;
+        }
+        self.slots[slot].take()
+    }
+
+    /// Switches the audible plan to `slot` (`None` = slot 0, the main plan).
+    ///
+    /// The switch is an equal-power crossfade of [`AUDITION_FADE_MS`] at the
+    /// same playhead. A switch during a running crossfade starts a new one from
+    /// the current mix, so it never jumps. A slot that was idle is reset first
+    /// (seek semantics); stretched segments re-prime inside their first block.
+    ///
+    /// Returns `false` when the target slot is not warm.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use bragi_engine::render::Renderer;
+    /// # fn plan(version: u64) -> bragi_engine::plan::RenderPlan {
+    /// #   let doc: bragi_model::generated::Project = serde_json::from_value(serde_json::json!({
+    /// #     "schemaVersion": 1, "id": "prj_01",
+    /// #     "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+    /// #     "sources": [], "analyses": {}, "tracks": [],
+    /// #     "arrangement": { "timebase": { "ppq": 960,
+    /// #         "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }], "timeSignatures": [] },
+    /// #         "sections": [], "master": { "fx": [], "automation": [], "gainDb": 0 } } })).unwrap();
+    /// #   bragi_engine::plan::compile(&doc, &bragi_model::AssetIndex::new(), 48_000, version).unwrap()
+    /// # }
+    /// use bragi_engine::plan::quality_for;
+    /// use bragi_engine::render::PreparedPlan;
+    /// let mut renderer = Renderer::new(Arc::new(plan(1)), 128);
+    /// let warm = PreparedPlan::new(Arc::new(plan(2)), quality_for(false), 128).into_slot();
+    /// assert!(matches!(renderer.warm_slot(1, warm), Ok(None)));
+    /// assert!(renderer.audition(Some(1)));
+    /// assert!(renderer.audition(None));
+    /// assert!(!renderer.audition(Some(2)));
+    /// ```
+    pub fn audition(&mut self, slot: Option<usize>) -> bool {
+        let target = slot.unwrap_or(0);
+        if target >= MAX_WARM_PLANS || self.slots[target].is_none() {
+            return false;
+        }
+        if self.fade.is_none() && target == self.active && self.gains[target] >= 1.0 {
+            self.update_audition_flag();
+            return true;
+        }
+        // Entering an idle slot is a seek: drop its old stream and effect state
+        // so a tail from the last activation does not follow the playhead.
+        if self.gains[target] <= 0.0
+            && let Some(slot) = self.slots[target].as_mut()
+        {
+            slot.reset();
+        }
+        self.start_fade_to(target);
+        true
+    }
+
+    fn start_fade_to(&mut self, target: usize) {
+        let frames = (AUDITION_FADE_MS * self.plan().sample_rate as f32 / 1000.0).round() as usize;
+        let mut to = [0.0; MAX_WARM_PLANS];
+        to[target] = 1.0;
+        self.fade = Some(AuditionFade {
+            from: self.gains,
+            to,
+            pos: 0,
+            len: frames.max(1),
+        });
+        self.active = target;
+        self.update_audition_flag();
+    }
+
+    fn update_audition_flag(&mut self) {
+        // A slot other than the main plan is audible now, or still fading out
+        // of one, which is what the transport overlay means (03 §5.1).
+        let other = self.active != 0 || self.gains.iter().skip(1).any(|gain| *gain > 0.0);
+        self.transport.set_auditioning(other);
     }
 
     /// Drops all stream state without changing the plan (after a seek).
     pub fn reset_stream(&mut self) {
-        self.prepared.reset();
+        self.reset_audible();
+    }
+
+    fn reset_audible(&mut self) {
+        if self.fade.is_some() {
+            for (index, slot) in self.slots.iter_mut().enumerate() {
+                if self.gains[index] > 0.0
+                    && let Some(slot) = slot.as_mut()
+                {
+                    slot.reset();
+                }
+            }
+        } else if let Some(slot) = self.slots[self.active].as_mut() {
+            slot.reset();
+        }
     }
 
     /// Renders into `out[0]` (left) and `out[1]` (right).
@@ -1042,7 +1495,7 @@ impl Renderer {
         len: usize,
         out: &mut [&mut [f32]],
     ) {
-        let fade = (LOOP_FADE_MS * self.prepared.plan.sample_rate as f32 / 1000.0).round() as usize;
+        let fade = (LOOP_FADE_MS * self.plan().sample_rate as f32 / 1000.0).round() as usize;
         let schedule = self.transport.schedule(len, fade);
         // A silent (stopped) block still renders effect tails, so use the
         // playhead rather than the silent schedule's placeholder start.
@@ -1051,7 +1504,8 @@ impl Renderer {
         } else {
             self.transport.playhead()
         };
-        let bpm = self.prepared.plan.bpm_at_sample(start);
+        let state = self.transport.state();
+        let end_playhead = self.transport.playhead();
 
         // A jump in the playhead (a seek) is not a loop wrap: drop the stream
         // state and reset the effects so a tail does not follow the playhead.
@@ -1059,154 +1513,95 @@ impl Renderer {
             .expected_start
             .is_some_and(|expected| expected != start)
         {
-            self.prepared.reset();
+            self.reset_audible();
         }
 
         for sample in self.block[..len * 2].iter_mut() {
             *sample = 0.0;
         }
 
-        {
-            let mut ctx = MixContext {
-                plan: &self.prepared.plan,
-                runtimes: &mut self.prepared.runtimes,
-                offsets: &self.prepared.offsets,
-                fx: &mut self.prepared.fx,
-                delays: &mut self.prepared.delays,
-                compensation: &self.prepared.compensation,
-                order: &self.prepared.order,
-                scratch: &mut self.scratch,
-                pcm,
-                tracks: &mut self.tracks,
-                meters: &mut self.meters,
-                stats: &mut self.stats,
-                bpm,
-            };
-            if schedule.playing {
-                let first = schedule.first_frames.min(len);
-                let block = &mut self.block[..first * 2];
-                ctx.render_range(schedule.first_start, first, block);
+        let fade_state = self.fade;
+        // Render the outgoing plans first and the target last, so the meters
+        // describe the plan the user is switching to. The array is fixed: no
+        // allocation in `process`.
+        let mut order = [0usize; MAX_WARM_PLANS];
+        let mut count = 0;
+        if let Some(fade) = fade_state {
+            for index in 0..MAX_WARM_PLANS {
+                if index != self.active
+                    && (fade.from[index] > 0.0 || fade.to[index] > 0.0)
+                    && self.slots[index].is_some()
+                {
+                    order[count] = index;
+                    count += 1;
+                }
+            }
+        }
+        if self.slots[self.active].is_some() {
+            order[count] = self.active;
+            count += 1;
+        }
 
-                let mut resume_at = first;
-                if let Some(wrap) = schedule.wrap {
-                    let fade = wrap.frames.min(len - first);
-                    if fade > 0 {
-                        // `mem::take` moves the scratch buffers out so they can
-                        // be passed to a method that borrows the rest of `ctx`;
-                        // it does not allocate.
-                        let mut outgoing = std::mem::take(&mut ctx.scratch.wrap_out);
-                        let mut incoming = std::mem::take(&mut ctx.scratch.wrap_in);
-                        ctx.render_range(wrap.outgoing_start, fade, &mut outgoing[..fade * 2]);
-                        ctx.render_range(wrap.incoming_start, fade, &mut incoming[..fade * 2]);
-                        for index in 0..fade {
-                            let x = (index as f32 + 0.5) / fade as f32;
-                            let fade_in = (x * std::f32::consts::FRAC_PI_2).sin();
-                            let fade_out = (x * std::f32::consts::FRAC_PI_2).cos();
-                            let out_index = (first + index) * 2;
-                            self.block[out_index] =
-                                outgoing[index * 2] * fade_out + incoming[index * 2] * fade_in;
-                            self.block[out_index + 1] = outgoing[index * 2 + 1] * fade_out
-                                + incoming[index * 2 + 1] * fade_in;
-                        }
-                        ctx.scratch.wrap_out = outgoing;
-                        ctx.scratch.wrap_in = incoming;
-                        resume_at += fade;
-                    }
+        for &index in &order[..count] {
+            let bpm = self.slots[index]
+                .as_ref()
+                .map_or(120.0, |slot| slot.prepared.plan.bpm_at_sample(start));
+            let Some(slot) = self.slots[index].as_mut() else {
+                continue;
+            };
+            slot.render_block(
+                &mut self.scratch,
+                pcm,
+                &mut self.stats,
+                &schedule,
+                start,
+                len,
+                &mut self.slot_block[..len * 2],
+                bpm,
+                state,
+                end_playhead,
+                &mut self.meters,
+            );
+
+            if let Some(fade) = fade_state {
+                let from = fade.from[index];
+                let to = fade.to[index];
+                if from == 0.0 && to == 0.0 {
+                    continue;
                 }
-                if schedule.resume_frames > 0 && resume_at < len {
-                    let frames = schedule.resume_frames.min(len - resume_at);
-                    let block = &mut self.block[resume_at * 2..(resume_at + frames) * 2];
-                    ctx.render_range(schedule.resume_start, frames, block);
-                    resume_at += frames;
+                for frame in 0..len {
+                    let x = ((fade.pos + frame + 1) as f32 / fade.len as f32).min(1.0);
+                    let (fade_in, fade_out) = (x * std::f32::consts::FRAC_PI_2).sin_cos();
+                    let gain = from * fade_out + to * fade_in;
+                    let source = frame * 2;
+                    self.block[source] += gain * self.slot_block[source];
+                    self.block[source + 1] += gain * self.slot_block[source + 1];
                 }
-                // The arrangement ended inside this block: run the chains on the
-                // silent remainder so a tail is not gapped for one block.
-                if resume_at < len && self.transport.state() == TransportState::Stopped {
-                    let block = &mut self.block[resume_at * 2..len * 2];
-                    ctx.render_range(self.transport.playhead(), len - resume_at, block);
-                }
-            } else if self.transport.state() == TransportState::Stopped {
-                // Past the end of the arrangement (an offline render's tail) or
-                // stopped: run the chains on silence so reverb/delay ring out.
-                // Pausing stays silent while holding all stream state.
-                let block = &mut self.block[..len * 2];
-                ctx.render_range(self.transport.playhead(), len, block);
+            } else {
+                self.block[..len * 2].copy_from_slice(&self.slot_block[..len * 2]);
             }
         }
 
-        // Master fx, then master gain (with automation) and the safety limiter.
-        self.process_master_fx(start, len, bpm);
-        self.master_gain.set_target(self.master_gain_at(start));
-        for frame in 0..len {
-            let gain = self.master_gain.next();
-            let index = frame * 2;
-            self.block[index] *= gain;
-            self.block[index + 1] *= gain;
+        if let Some(mut fade) = self.fade {
+            let end = fade.pos + len;
+            if end >= fade.len {
+                self.gains = fade.to;
+                self.fade = None;
+            } else {
+                fade.pos = end;
+                let x = end as f32 / fade.len as f32;
+                let (fade_in, fade_out) = (x * std::f32::consts::FRAC_PI_2).sin_cos();
+                for index in 0..MAX_WARM_PLANS {
+                    self.gains[index] = fade.from[index] * fade_out + fade.to[index] * fade_in;
+                }
+                self.fade = Some(fade);
+            }
         }
-        self.limiter.process(&mut self.block[..len * 2]);
         self.meters.update_master(&self.block[..len * 2]);
+        self.update_audition_flag();
 
         self.expected_start = Some(self.transport.playhead());
         copy_out(out, offset, &self.block[..len * 2], len);
-    }
-
-    /// Runs the master chain over `self.block[..frames * 2]` in place.
-    ///
-    /// Master automation is applied per block first, then each live slot in
-    /// order — before the master gain and the safety limiter
-    /// (`specs/03-audio-engine.md` §6).
-    fn process_master_fx(&mut self, start: u64, frames: usize, bpm: f64) {
-        if frames == 0 {
-            return;
-        }
-        let frames = frames.min(self.scratch.frames);
-        if self.prepared.master_fx.is_empty() {
-            return;
-        }
-        if !self.prepared.plan.master.fx.is_empty() {
-            apply_fx_automation(
-                &self.prepared.plan.master.automation,
-                &mut self.prepared.master_fx,
-                start,
-            );
-        }
-        for index in 0..frames {
-            self.scratch.fx_left[index] = self.block[index * 2];
-            self.scratch.fx_right[index] = self.block[index * 2 + 1];
-        }
-        let slots = &self.prepared.plan.master.fx;
-        for (slot, runtime) in slots.iter().zip(self.prepared.master_fx.iter_mut()) {
-            if runtime.bypassed || slot.bypass {
-                continue;
-            }
-            if let Some(effect) = runtime.effect.as_mut() {
-                let ctx = FxContext {
-                    bpm,
-                    sidechain: None,
-                };
-                effect.process(
-                    &mut self.scratch.fx_left[..frames],
-                    &mut self.scratch.fx_right[..frames],
-                    &ctx,
-                );
-            }
-        }
-        for index in 0..frames {
-            self.block[index * 2] = self.scratch.fx_left[index];
-            self.block[index * 2 + 1] = self.scratch.fx_right[index];
-        }
-    }
-
-    fn master_gain_at(&self, sample: u64) -> f32 {
-        let mut gain = self.prepared.plan.master.gain;
-        for lane in &self.prepared.plan.master.automation {
-            if lane.target == AutomationTarget::MasterGain
-                && let Some(db) = lane.value_at(sample)
-            {
-                gain *= db_to_gain(db);
-            }
-        }
-        gain
     }
 }
 

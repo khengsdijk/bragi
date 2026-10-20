@@ -1,6 +1,6 @@
 # 03 — Audio Engine
 
-Status: Draft v0.7 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
+Status: Draft v0.8 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
 
 ## 1. Responsibilities
 
@@ -59,7 +59,9 @@ interface EngineHost {
   applyDelta(delta: EngineDelta): void;                   // after each commit
   setPreview(preview: PreviewPatch | null): void;          // transient drag state, see §5.3
   transport(cmd: TransportCmd): void;                      // play, pause, stop, seek, loop, scrub
-  audition(target: { commitId: CommitId; doc: ProjectJson } | null): void; // §5.4
+  warm(slot: 1 | 2 | 3, doc: ProjectJson): Promise<void>;        // §5.4: prepare a candidate
+  release(slot: 1 | 2 | 3): void;                                  // §5.4
+  audition(slot: 0 | 1 | 2 | 3): void;                             // §5.4: 0 = HEAD
   render(job: RenderJob): Promise<RenderResult>;           // offline, §9
   peaks(asset: AssetHash, level: PeakLevel): Promise<Float32Array>;
   spectrogram(asset: AssetHash, tile: TileSpec): Promise<Uint8Array>;
@@ -156,7 +158,14 @@ copy back to the document returns the engine. (The earlier `PreviewPatch`/shadow
 superseded: it duplicated op semantics inside the engine.)
 
 ### 5.4 Audition (A/B)
-`audition(commit)` compiles a second plan for the candidate commit and **crossfades (30 ms) between plans at the same playhead position**. Switching between the original and candidates 1/2/3 must be instant and gapless. This is the key interaction for AI edits ([07-song-canvas.md §6](07-song-canvas.md)). At most **4 plans** are kept warm (HEAD + 3 candidates).
+The renderer keeps up to **4 warm plans** (`MAX_WARM_PLANS`): **slot 0** is the main (HEAD) plan installed by the normal load path, **slots 1–3** are candidates. `warm(slot, doc)` compiles and prepares a candidate *off the audio thread* (allocation allowed there; on the web it runs in the worklet's message handler, like `load`) and only sends the PCM of hashes the engine does not hold yet. `audition(slot)` **crossfades (equal-power, `AUDITION_FADE_MS` = 30 ms) from whatever is audible to the target at the same playhead**; `audition(0)` returns to HEAD. Switching between the original and candidates 1/2/3 is instant and gapless. This is the key interaction for AI edits ([07-song-canvas.md §6](07-song-canvas.md)).
+
+**As built (WP-2.5):**
+- Each slot owns its whole chain state (segment runtimes, fx, delay lines, track ramps, master gain, limiter); only the audible slot renders, plus the outgoing one(s) during a crossfade. Idle slots hold their state but do not process. The transport and its block schedule are shared, so every slot renders the same playhead.
+- A switch during a running crossfade starts a new 30 ms crossfade **from the current mix weights**, so it never jumps. Entering a slot that was idle is a seek for that slot (its stream and effect state are reset); stretched segments re-prime inside their first block, which the crossfade covers (tested: no dip at the switch).
+- `release(slot)` and a re-`warm` are refused while that slot is audible or fading; the replaced plan goes back to the control side and is dropped there (native: a release ring drained by the playback thread; WASM: the message handler). Installing a new HEAD while a candidate is audible crossfades back to slot 0 rather than cutting.
+- The transport's `auditioning` flag means "a slot other than 0 is audible or fading out".
+- Measured (M2 Pro, release): the WP-2.2 boundary metric at every switch stays within +0.01 of the signal's own maximum step (−30.6 vs −33.3 dBFS); a 0 ms switch measures −12.1 dBFS and fails it. Four warm plans of 6 tracks × 3 fx render at 0.51 % of real time. The conformance fixture `engine-conformance-f-audition` (three candidates, a switch inside a running crossfade) nulls WASM vs native at −184.9 dBFS.
 
 ### 5.5 Section boundaries
 The planner joins section *i* to the previous one at its absolute start sample *B*

@@ -19,6 +19,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { t } from "../../../i18n/index.js";
+import { AuditionBar } from "../../audition/components/AuditionBar.js";
+import {
+  type Audition,
+  createAudition,
+  EMPTY_AUDITION_STORE,
+} from "../../audition/state/audition.js";
+import type { CandidateSource } from "../../audition/state/candidate-status.js";
 import { CommandPaletteDialog } from "../../commands/components/CommandPaletteDialog.js";
 import { createCommandRegistry } from "../../commands/state/commands.js";
 import { SONG_COMMANDS } from "../../commands/state/song-commands.js";
@@ -28,6 +35,7 @@ import { Inspector } from "../../inspector/components/Inspector.js";
 import type { SettingsStore } from "../../settings/state/settings-store.js";
 import { buildGridModel } from "../api/grid-model.js";
 import { analysisView, buildCanvasDocument } from "../api/view-model.js";
+import { useSectionDrag } from "../hooks/use-section-drag.js";
 import { useSongActions } from "../hooks/use-song-actions.js";
 import type { EngineController } from "../state/engine-controller.js";
 import { trackToggleBatch } from "../state/ops.js";
@@ -36,6 +44,7 @@ import type { ApplyOutcome, SongStore } from "../state/song-store.js";
 import { AccessibleGrid, type GridFocus } from "./AccessibleGrid.js";
 import { SectionActionDialogs } from "./SectionActionDialogs.js";
 import { SectionMenu, type SectionMenuAnchor } from "./SectionMenu.js";
+import { SectionResizePopover } from "./SectionResizePopover.js";
 import { type SongCanvasHandle, SongCanvasView } from "./SongCanvasView.js";
 import { formatTime, TransportBar } from "./TransportBar.js";
 
@@ -56,6 +65,8 @@ export interface SongWorkspaceProps {
   readonly renderer?: "webgpu" | "webgl";
   /** Exposes the canvas on `window.__bragi` for the end-to-end tests. */
   readonly testHooks?: boolean;
+  /** Job events for AI candidates (WP-2.6/2.7); the Audition bar works without one. */
+  readonly candidateSource?: CandidateSource;
 }
 
 /** What the e2e tests reach through `window.__bragi`. */
@@ -64,6 +75,7 @@ export interface BragiTestHooks {
   store: SongStore;
   controller: EngineController;
   history: History | null;
+  audition: Audition | null;
 }
 
 declare global {
@@ -98,9 +110,44 @@ function ownsKeys(target: EventTarget | null): boolean {
 export function SongWorkspace(props: SongWorkspaceProps) {
   const { songStore, controller } = props;
   const doc = useStore(songStore.store, (state) => state.doc);
+  /** A running drag's copy (01 §5): the canvas and the grid show it while the document waits. */
+  const preview = useStore(songStore.store, (state) => state.preview);
+  const [announcement, setAnnouncement] = useState("");
+  const history = props.history;
+  const candidateSource = props.candidateSource;
+  /** The open candidate group or comparison (07 §6); needs a version tree. */
+  const audition = useMemo(
+    () =>
+      history === undefined
+        ? null
+        : createAudition({
+            controller,
+            history,
+            document: () => songStore.store.getState().doc,
+            ...(candidateSource === undefined ? {} : { source: candidateSource }),
+            onOutcome: (outcome, message) => {
+              if (outcome?.ok) {
+                controller.commit(outcome.commit, outcome.doc);
+                setAnnouncement(message);
+              } else {
+                setAnnouncement(t("song.live.rejected"));
+              }
+            },
+            onAnnounce: setAnnouncement,
+          }),
+    [controller, history, songStore, candidateSource],
+  );
+  useEffect(() => () => audition?.dispose(), [audition]);
+  /** The selected candidate's document: the canvas draws what is audible (07 §6). */
+  const auditionDoc = useStore(audition?.store ?? EMPTY_AUDITION_STORE, (state) =>
+    state.selected === 0
+      ? null
+      : (state.group?.candidates.find((candidate) => candidate.slot === state.selected)?.doc ??
+        null),
+  );
+  const viewDoc = auditionDoc ?? preview ?? doc;
   const [level, setLevel] = useState<ZoomLevel>("L2");
   const [focus, setFocus] = useState<GridFocus | null>(null);
-  const [announcement, setAnnouncement] = useState("");
   /** One side panel at a time: the Inspector or the version tree. */
   const [sidePanel, setSidePanel] = useState<"inspector" | "history" | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<SectionMenuAnchor | null>(null);
@@ -119,15 +166,26 @@ export function SongWorkspace(props: SongWorkspaceProps) {
   }, [selectedTrack]);
 
   const canvasDoc = useMemo(() => {
-    const live = songStore.handle();
-    if (doc === null || live === null) return null;
-    return buildCanvasDocument(songStore.model, live, doc);
-    // `doc` is replaced, never mutated, on every load and commit: it is the cache key.
-  }, [songStore, doc]);
+    if (viewDoc === null) return null;
+    if (viewDoc === auditionDoc) {
+      // A candidate is not loaded in the store: read its spans from a short-lived handle.
+      const detached = songStore.detachedHandle(viewDoc);
+      try {
+        return buildCanvasDocument(songStore.model, detached, viewDoc);
+      } finally {
+        songStore.model.freeDoc(detached);
+      }
+    }
+    // The spans come from the matching model handle: the preview's own copy during a drag.
+    const handle = viewDoc === doc ? songStore.handle() : songStore.previewHandle();
+    if (handle === null) return null;
+    return buildCanvasDocument(songStore.model, handle, viewDoc);
+    // `doc`/`preview` are replaced, never mutated, on every load and step: they are the cache key.
+  }, [auditionDoc, doc, songStore, viewDoc]);
 
   const analysis = useMemo<AnalysisView | null>(
-    () => (doc === null ? null : analysisView(doc, props.analysis)),
-    [doc, props.analysis],
+    () => (viewDoc === null ? null : analysisView(viewDoc, props.analysis)),
+    [viewDoc, props.analysis],
   );
   const grid = useMemo(
     () => (canvasDoc === null ? null : buildGridModel(canvasDoc, analysis)),
@@ -198,6 +256,14 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     onToggleHistory: toggleHistory,
     onAnnounce: setAnnouncement,
   });
+  const drag = useSectionDrag({
+    songStore,
+    controller,
+    settings: props.settings,
+    ...(props.history === undefined ? {} : { history: props.history }),
+    onAnnounce: setAnnouncement,
+    onResize: actions.resize,
+  });
   const commandRegistry = useMemo(() => createCommandRegistry(SONG_COMMANDS), []);
 
   /** Right-click or Shift+F10: select the part and open the shared menu at that point. */
@@ -247,11 +313,12 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       store: songStore,
       controller,
       history: props.history ?? null,
+      audition,
     } as BragiTestHooks;
     return () => {
       window.__bragi = undefined;
     };
-  }, [props.testHooks, songStore, controller, props.history]);
+  }, [props.testHooks, songStore, controller, props.history, audition]);
 
   // Global shortcuts (07 §3, 11 §6.2). The grid handles M and O itself when it has focus.
   useEffect(() => {
@@ -386,6 +453,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
         }}
       >
         <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+          {audition === null ? null : <AuditionBar audition={audition} />}
           <SongCanvasView
             document={canvasDoc}
             analysis={analysis}
@@ -396,6 +464,14 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             onSelectionChange={props.onSelectionChange}
             onTrackToggle={onCanvasToggle}
             onSectionContextMenu={onSectionContextMenu}
+            onSectionDragStart={drag.onSectionDragStart}
+            onSectionDragMove={drag.onSectionDragMove}
+            onSectionDragEnd={drag.onSectionDragEnd}
+            onSectionDragCancel={drag.onSectionDragCancel}
+            onSectionResizeStart={drag.onSectionResizeStart}
+            onSectionResizeMove={drag.onSectionResizeMove}
+            onSectionResizeEnd={drag.onSectionResizeEnd}
+            onSectionResizeCancel={drag.onSectionResizeCancel}
             onHoverTrack={(trackId) => {
               hovered.current = trackId;
             }}
@@ -428,6 +504,9 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             liveDoc={doc}
             onClose={() => setSidePanel(null)}
             onCommitOutcome={followHistory}
+            {...(audition === null
+              ? {}
+              : { onCompare: (a: string, b: string) => void audition.openCompare(a, b) })}
           />
         ) : null}
         {sidePanel === "inspector" ? (
@@ -461,6 +540,11 @@ export function SongWorkspace(props: SongWorkspaceProps) {
         onRename={actions.rename}
         onChangeKind={actions.changeKind}
         onResize={actions.resize}
+      />
+      <SectionResizePopover
+        prompt={drag.resizePrompt}
+        onClose={drag.closeResizePrompt}
+        onChoose={drag.chooseResizeMode}
       />
       <div className="sr-only" role="status" aria-live="polite" data-testid="live-region">
         {announcement}

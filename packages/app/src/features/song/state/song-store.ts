@@ -73,6 +73,16 @@ export interface SongStore {
   readonly model: ModelApi;
   /** The live model handle; valid until {@link SongStore.dispose}. `null` before `load`. */
   handle(): number | null;
+  /**
+   * The model handle of the running gesture's copy, so views can derive spans from the preview
+   * (`preview ?? doc`) without parsing the document again. `null` when no gesture runs.
+   */
+  previewHandle(): number | null;
+  /**
+   * A model handle for a document that is not the song's (an audition candidate), with the
+   * song's asset index, so views can derive its spans. The caller frees it with `model.freeDoc`.
+   */
+  detachedHandle(doc: Project): number;
   /** Replaces the document (project open). */
   load(project: Project, assets?: readonly AssetMeta[]): void;
   /**
@@ -132,6 +142,8 @@ export function createSongStore(model: ModelApi): SongStore {
   let handle: number | null = null;
   let assetMetas: readonly AssetMeta[] = [];
   let endPreview: (() => EngineDeltaJson) | null = null;
+  /** The copy behind `state.preview`, so `buildCanvasDocument` can read its spans. */
+  let previewCopy: number | null = null;
 
   /** A second handle holding the same document and asset index as `source`. */
   const copyOf = (source: number): number => {
@@ -180,8 +192,15 @@ export function createSongStore(model: ModelApi): SongStore {
     store,
     model,
     handle: () => handle,
+    previewHandle: () => previewCopy,
+    detachedHandle(doc) {
+      const detached = model.loadProject(JSON.stringify(doc));
+      if (assetMetas.length > 0) model.assetAdd(detached, JSON.stringify(assetMetas));
+      return detached;
+    },
     assets: () => assetMetas,
     load(project, assets = []) {
+      endPreview?.();
       free();
       assetMetas = assets;
       handle = model.loadProject(JSON.stringify(project));
@@ -241,12 +260,15 @@ export function createSongStore(model: ModelApi): SongStore {
       endPreview?.();
       if (handle === null) return null;
       let copy: number | null = copyOf(handle);
+      previewCopy = copy;
       const end = (): EngineDeltaJson => {
-        if (copy === null) return {};
-        const delta =
-          handle === null ? {} : (JSON.parse(model.diffDocs(copy, handle)) as EngineDeltaJson);
-        model.freeDoc(copy);
+        const current = copy;
         copy = null;
+        if (current === null) return {};
+        const delta =
+          handle === null ? {} : (JSON.parse(model.diffDocs(current, handle)) as EngineDeltaJson);
+        model.freeDoc(current);
+        if (previewCopy === current) previewCopy = null;
         if (endPreview === end) endPreview = null;
         store.setState({ preview: null });
         return delta;
