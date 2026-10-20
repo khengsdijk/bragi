@@ -179,7 +179,7 @@ test.describe("the planner on a real song", () => {
     await expect.poll(() => hookDoc(appPage)).toEqual(before);
 
     // Explain mode: toggle, click a part, read the popover and see the highlight.
-    await appPage.getByRole("button", { name: "Explain this part", exact: true }).click();
+    await appPage.getByRole("button", { name: "Explain", exact: true }).click();
     const lanes = await layout(appPage);
     const x = lanes.gutter + 24;
     const y = lanes.sections.y + lanes.sections.h / 2;

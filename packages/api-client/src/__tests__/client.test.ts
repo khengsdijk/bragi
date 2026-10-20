@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-
 import type { PlanRequest } from "@bragi/schemas";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   ApiClientError,

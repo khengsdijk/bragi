@@ -450,5 +450,6 @@
   "commands.planner.ask": "Ask AI…",
   "commands.planner.explain": "Explain this part",
   "shortcut.askAi": "Ctrl/⌘ Shift L",
-  "shortcut.explain": "?"
+  "shortcut.explain": "?",
+  "planner.explainToggle": "Explain"
 }

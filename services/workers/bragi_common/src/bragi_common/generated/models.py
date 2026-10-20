@@ -856,6 +856,14 @@ class SecRange(BaseModel):
     endSec: Annotated[float, Field(ge=0.0)]
 
 
+type SectionChordListItem = Annotated[str, Field(max_length=32, min_length=1)]
+
+
+type SectionChordList = Annotated[
+    list[SectionChordListItem], Field(max_length=8, title='SectionChordList')
+]
+
+
 class SectionDuplicateOpOp(StrEnum):
     section_duplicate = 'section.duplicate'
 
@@ -1999,6 +2007,11 @@ class RhythmTimeSignature(BaseModel):
     denominator: TimeSigDenominator
 
 
+type SectionActiveStemList = Annotated[
+    list[TrackId], Field(max_length=16, title='SectionActiveStemList')
+]
+
+
 class SectionDuplicateOp(BaseModel):
     """
     `section.duplicate` (02 §4.2). Deep-copy a section with new IDs and set derivedFrom (02 §5.1).
@@ -2011,6 +2024,31 @@ class SectionDuplicateOp(BaseModel):
     sectionId: SectionId
     toIndex: Annotated[int, Field(description='Position of the copy.', ge=0)]
     newId: SectionId
+
+
+class SectionFeatures(BaseModel):
+    """
+    One section's compact analysis features. Values come from the analysis view, never from the model.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    sectionId: SectionId
+    energy: Annotated[
+        float | None,
+        Field(
+            description='Mean short-term energy over the section, 0..1.', ge=0.0, le=1.0
+        ),
+    ] = None
+    chords: Annotated[
+        SectionChordList | None,
+        Field(description='Chord symbols heard in the section, in time order.'),
+    ] = None
+    activeStems: Annotated[
+        SectionActiveStemList | None,
+        Field(description='Track ids that carry audio in the section.'),
+    ] = None
 
 
 class SectionMergeOp(BaseModel):
@@ -2851,6 +2889,11 @@ class RhythmResult(BaseModel):
     ] = None
 
 
+type SectionFeatureList = Annotated[
+    list[SectionFeatures], Field(max_length=64, title='SectionFeatureList')
+]
+
+
 class SectionSetTransitionOp(BaseModel):
     """
     `section.set_transition` (02 §4.2). Replace how a section is entered.
@@ -3471,6 +3514,12 @@ class PlanRequest(BaseModel):
         LibraryNameList | None,
         Field(
             description="Artist and title strings from the user's library, for the content-policy pre-pass (10 §7)."
+        ),
+    ] = None
+    sectionFeatures: Annotated[
+        SectionFeatureList | None,
+        Field(
+            description='Per-section analysis the client already has (energy, chords, active stems), because `bragi-model` never reads analysis blobs (docs/wp/2.6.md, deviation A). Optional: an older client still gets a usable summary.'
         ),
     ] = None
 

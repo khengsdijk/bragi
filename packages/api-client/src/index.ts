@@ -31,7 +31,8 @@ export type PlannerErrorCode = "PLANNER_UNAVAILABLE" | "PLAN_INVALID" | "PROMPT_
 /** Plain-language messages for the planner failures (11 §2), never the server's wording. */
 const PLANNER_MESSAGES: Readonly<Record<PlannerErrorCode, string>> = {
   PLANNER_UNAVAILABLE: "The AI planner isn't set up on this computer yet.",
-  PLAN_INVALID: "I couldn't turn that into a plan. Try describing the change a little more specifically.",
+  PLAN_INVALID:
+    "I couldn't turn that into a plan. Try describing the change a little more specifically.",
   PROMPT_POLICY: "I can't use artist or song names here. Describe the sound instead.",
 };
 

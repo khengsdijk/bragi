@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  beginLasso,
-  extendLasso,
-  lassoHasRegion,
-  lassoRegion,
-  setLassoAlt,
-} from "../lasso.js";
+import { beginLasso, extendLasso, lassoHasRegion, lassoRegion, setLassoAlt } from "../lasso.js";
 
 const point = (sec: number, trackId: string | null, y = 40) => ({ sec, trackId, y });
 
@@ -44,9 +38,7 @@ describe("the lasso shape", () => {
   it("is usable only with time and a ribbon", () => {
     expect(lassoRegion([])).toEqual({ startSec: 0, endSec: 0, trackIds: [] });
     expect(lassoHasRegion(lassoRegion([point(4, "trk_drums")]))).toBe(false);
-    expect(lassoHasRegion(lassoRegion([point(4, "trk_drums"), point(5, "trk_drums")]))).toBe(
-      true,
-    );
+    expect(lassoHasRegion(lassoRegion([point(4, "trk_drums"), point(5, "trk_drums")]))).toBe(true);
     expect(lassoHasRegion(lassoRegion([point(4, null), point(5, null)]))).toBe(false);
   });
 });

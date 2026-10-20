@@ -60,12 +60,7 @@ import {
   windowCovers,
 } from "./geometry.js";
 import { LabelPool } from "./label-pool.js";
-import {
-  beginLasso,
-  extendLasso,
-  lassoHasRegion,
-  setLassoAlt,
-} from "./lasso.js";
+import { beginLasso, extendLasso, lassoHasRegion, setLassoAlt } from "./lasso.js";
 import {
   computeLayout,
   hitTest,
@@ -1773,9 +1768,7 @@ export class SongCanvas {
       const alpha = 0.1 + 0.1 * pulse;
       const x0 = toX(region.startSec);
       const x1 = toX(region.endSec);
-      const lanes = this.layout.ribbons.filter((lane) =>
-        region.trackIds.includes(lane.trackId),
-      );
+      const lanes = this.layout.ribbons.filter((lane) => region.trackIds.includes(lane.trackId));
       const targets = lanes.length === 0 ? [this.layout.sections] : lanes.map((lane) => lane.rect);
       for (const rect of targets) {
         if (x1 > x0) {
@@ -1888,7 +1881,10 @@ export class SongCanvas {
     const beginLassoAt = (event: PointerEvent, x: number, y: number, trackId: string): void => {
       const doc = this.doc;
       if (doc === null) return;
-      const sec = clampSec(xToTime(this.viewport, doc.bpm, x - this.layout.gutter), doc.durationSec);
+      const sec = clampSec(
+        xToTime(this.viewport, doc.bpm, x - this.layout.gutter),
+        doc.durationSec,
+      );
       this.lassoStroke = beginLasso({ sec, trackId, y }, event.altKey);
       this.pendingLasso = null;
       this.lassoWaiting = false;
@@ -2105,7 +2101,8 @@ export class SongCanvas {
           const found = ribbonAt(this.layout, this.viewport, this.doc, at.x, at.y);
           next = extendLasso(next, {
             sec,
-            trackId: found?.trackId.startsWith(GHOST_PREFIX) === true ? null : (found?.trackId ?? null),
+            trackId:
+              found?.trackId.startsWith(GHOST_PREFIX) === true ? null : (found?.trackId ?? null),
             y: at.y,
           });
         }

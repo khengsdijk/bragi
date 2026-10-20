@@ -338,6 +338,8 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     planner.closeExplanation();
   }, [planner]);
 
+  const onLassoIdle = useCallback((): void => {}, []);
+
   const onLassoEnd = useCallback(
     (event: CanvasEvents["lassoEnd"]): void => {
       planner.openForLasso({
@@ -621,7 +623,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             aria-pressed={explainMode}
             onClick={toggleExplain}
           >
-            {t("commands.planner.explain")}
+            {t("planner.explainToggle")}
           </Button>
           <Button
             variant={sidePanel === "inspector" ? "secondary" : "ghost"}
@@ -678,9 +680,9 @@ export function SongWorkspace(props: SongWorkspaceProps) {
               onPaintEnd={paint.onPaintEnd}
               onPaintCancel={paint.onPaintCancel}
               onLassoStart={onLassoStart}
-              onLassoMove={onLassoStart}
+              onLassoMove={onLassoIdle}
               onLassoEnd={onLassoEnd}
-              onLassoCancel={onLassoStart}
+              onLassoCancel={onLassoIdle}
               onExplainAt={onExplainAt}
               explainMode={explainMode}
               lassoRegion={plannerOpen ? canvasLasso : null}
