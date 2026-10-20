@@ -28,6 +28,7 @@ import { Inspector } from "../../inspector/components/Inspector.js";
 import type { SettingsStore } from "../../settings/state/settings-store.js";
 import { buildGridModel } from "../api/grid-model.js";
 import { analysisView, buildCanvasDocument } from "../api/view-model.js";
+import { useSectionDrag } from "../hooks/use-section-drag.js";
 import { useSongActions } from "../hooks/use-song-actions.js";
 import type { EngineController } from "../state/engine-controller.js";
 import { trackToggleBatch } from "../state/ops.js";
@@ -36,6 +37,7 @@ import type { ApplyOutcome, SongStore } from "../state/song-store.js";
 import { AccessibleGrid, type GridFocus } from "./AccessibleGrid.js";
 import { SectionActionDialogs } from "./SectionActionDialogs.js";
 import { SectionMenu, type SectionMenuAnchor } from "./SectionMenu.js";
+import { SectionResizePopover } from "./SectionResizePopover.js";
 import { type SongCanvasHandle, SongCanvasView } from "./SongCanvasView.js";
 import { formatTime, TransportBar } from "./TransportBar.js";
 
@@ -98,6 +100,9 @@ function ownsKeys(target: EventTarget | null): boolean {
 export function SongWorkspace(props: SongWorkspaceProps) {
   const { songStore, controller } = props;
   const doc = useStore(songStore.store, (state) => state.doc);
+  /** A running drag's copy (01 §5): the canvas and the grid show it while the document waits. */
+  const preview = useStore(songStore.store, (state) => state.preview);
+  const viewDoc = preview ?? doc;
   const [level, setLevel] = useState<ZoomLevel>("L2");
   const [focus, setFocus] = useState<GridFocus | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -119,15 +124,17 @@ export function SongWorkspace(props: SongWorkspaceProps) {
   }, [selectedTrack]);
 
   const canvasDoc = useMemo(() => {
-    const live = songStore.handle();
-    if (doc === null || live === null) return null;
-    return buildCanvasDocument(songStore.model, live, doc);
-    // `doc` is replaced, never mutated, on every load and commit: it is the cache key.
-  }, [songStore, doc]);
+    if (viewDoc === null) return null;
+    // The spans come from the matching model handle: the preview's own copy during a drag.
+    const handle = viewDoc === doc ? songStore.handle() : songStore.previewHandle();
+    if (handle === null) return null;
+    return buildCanvasDocument(songStore.model, handle, viewDoc);
+    // `doc`/`preview` are replaced, never mutated, on every load and step: they are the cache key.
+  }, [doc, songStore, viewDoc]);
 
   const analysis = useMemo<AnalysisView | null>(
-    () => (doc === null ? null : analysisView(doc, props.analysis)),
-    [doc, props.analysis],
+    () => (viewDoc === null ? null : analysisView(viewDoc, props.analysis)),
+    [viewDoc, props.analysis],
   );
   const grid = useMemo(
     () => (canvasDoc === null ? null : buildGridModel(canvasDoc, analysis)),
@@ -197,6 +204,14 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     historyOpen: sidePanel === "history",
     onToggleHistory: toggleHistory,
     onAnnounce: setAnnouncement,
+  });
+  const drag = useSectionDrag({
+    songStore,
+    controller,
+    settings: props.settings,
+    ...(props.history === undefined ? {} : { history: props.history }),
+    onAnnounce: setAnnouncement,
+    onResize: actions.resize,
   });
   const commandRegistry = useMemo(() => createCommandRegistry(SONG_COMMANDS), []);
 
@@ -396,6 +411,14 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             onSelectionChange={props.onSelectionChange}
             onTrackToggle={onCanvasToggle}
             onSectionContextMenu={onSectionContextMenu}
+            onSectionDragStart={drag.onSectionDragStart}
+            onSectionDragMove={drag.onSectionDragMove}
+            onSectionDragEnd={drag.onSectionDragEnd}
+            onSectionDragCancel={drag.onSectionDragCancel}
+            onSectionResizeStart={drag.onSectionResizeStart}
+            onSectionResizeMove={drag.onSectionResizeMove}
+            onSectionResizeEnd={drag.onSectionResizeEnd}
+            onSectionResizeCancel={drag.onSectionResizeCancel}
             onHoverTrack={(trackId) => {
               hovered.current = trackId;
             }}
@@ -461,6 +484,11 @@ export function SongWorkspace(props: SongWorkspaceProps) {
         onRename={actions.rename}
         onChangeKind={actions.changeKind}
         onResize={actions.resize}
+      />
+      <SectionResizePopover
+        prompt={drag.resizePrompt}
+        onClose={drag.closeResizePrompt}
+        onChoose={drag.chooseResizeMode}
       />
       <div className="sr-only" role="status" aria-live="polite" data-testid="live-region">
         {announcement}
