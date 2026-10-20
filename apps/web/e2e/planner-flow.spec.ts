@@ -16,6 +16,7 @@ import type { Page, Route } from "@playwright/test";
 import { expect, test } from "./app-page.js";
 import { canvasPoint, layout, ribbonPoint, withHooks } from "./song-helpers.js";
 import {
+  audioOutputRenders,
   historyView,
   hookDoc,
   openAnalysedSong,
@@ -122,6 +123,13 @@ test.describe("the planner on a real song", () => {
     appPage.on("pageerror", (error) => errors.push(error.message));
     const mod = process.platform === "darwin" ? "Meta" : "Control";
 
+    const audio = await audioOutputRenders(appPage);
+    if (!audio) {
+      testInfo.annotations.push({
+        type: "audio",
+        description: "this machine's audio output does not render: playback was not checked",
+      });
+    }
     await openAnalysedSong(appPage);
     const doc = (await hookDoc(appPage)) as DocLike | null;
     if (doc === null) throw new Error("no document");
@@ -163,12 +171,24 @@ test.describe("the planner on a real song", () => {
     await expect(appPage.getByTestId("planner-interpretation")).toContainText(
       "make that instrument a little quieter",
     );
+    if (audio) {
+      await expect
+        .poll(() => withHooks(appPage, (hooks) => hooks.controller.store.getState().playing), {
+          timeout: 30_000,
+        })
+        .toBe(true);
+    }
 
     // Compare 2, 3 and 1 while the engine crossfades between their warm plans.
     await appPage.locator("body").click({ position: { x: 2, y: 2 } });
     for (const key of ["2", "3", "1"]) {
       await appPage.keyboard.press(key);
       await appPage.waitForTimeout(200);
+    }
+    if (audio) {
+      expect(await withHooks(appPage, (hooks) => hooks.controller.store.getState().playing)).toBe(
+        true,
+      );
     }
     await ideas.getByRole("button", { name: /Accept/ }).click();
     await expect(ideas).toBeHidden();
