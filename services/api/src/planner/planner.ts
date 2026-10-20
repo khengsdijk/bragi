@@ -47,7 +47,11 @@ type ParsedPlan = { ok: true; value: unknown } | { ok: false; error: string };
 
 /** The planner implementation. */
 export class Planner implements PlannerService {
-  constructor(private readonly deps: PlannerDeps) {}
+  private readonly deps: PlannerDeps;
+
+  constructor(deps: PlannerDeps) {
+    this.deps = deps;
+  }
 
   async plan(request: PlanRequest): Promise<EditPlan | Explanation> {
     const classification = classify(request);
@@ -168,12 +172,18 @@ export class Planner implements PlannerService {
 
 /** Parses the tool arguments or the plain-text JSON reply. */
 function parsePlan(reply: LlmReply): ParsedPlan {
-  try {
-    const raw = parseModelJson(reply.toolArguments ?? reply.text);
-    return { ok: true, value: raw };
-  } catch {
-    return { ok: false, error: "the reply was not JSON (return exactly one JSON object)" };
+  // Prefer the tool call, but try the content too: a provider can return truncated tool arguments
+  // and still include the object in `content`, and a prose reply is not worth a repair round when
+  // the JSON is right there.
+  for (const candidate of [reply.toolArguments, reply.text]) {
+    if (candidate === undefined || candidate.trim() === "") continue;
+    try {
+      return { ok: true, value: parseModelJson(candidate) };
+    } catch {
+      // try the next representation
+    }
   }
+  return { ok: false, error: "the reply was not JSON (return exactly one JSON object)" };
 }
 
 /** The assistant turn sent back in the repair round. */

@@ -96,6 +96,7 @@ describe("OpenRouterClient request shape", () => {
       model: string;
       max_tokens: number;
       provider: { data_collection: string };
+      usage: { include: boolean };
       tools: { function: { name: string; parameters: Record<string, unknown> } }[];
       tool_choice: { function: { name: string } };
       messages: unknown;
@@ -103,6 +104,7 @@ describe("OpenRouterClient request shape", () => {
     expect(body.model).toBe("vendor/model");
     expect(body.max_tokens).toBe(2048);
     expect(body.provider).toEqual({ data_collection: "deny" });
+    expect(body.usage).toEqual({ include: true });
     expect(body.tools).toHaveLength(1);
     expect(body.tools[0]?.function.name).toBe("propose_edit_plan");
     expect(body.tool_choice.function.name).toBe("propose_edit_plan");
@@ -128,6 +130,46 @@ describe("OpenRouterClient request shape", () => {
       provider: { data_collection: string };
     };
     expect(body.provider.data_collection).toBe("allow");
+  });
+
+  it("reports token usage and cost when OpenRouter returns them", async () => {
+    const body = JSON.stringify({
+      choices: [
+        {
+          message: {
+            content: null,
+            tool_calls: [
+              { type: "function", function: { name: "propose_edit_plan", arguments: "{}" } },
+            ],
+          },
+        },
+      ],
+      usage: { prompt_tokens: 1200, completion_tokens: 300, total_tokens: 1500, cost: 0.0004 },
+    });
+    const { client: openrouter } = client([{ status: 200, body }]);
+    const reply = await openrouter.complete({
+      model: "m",
+      messages: MESSAGES,
+      maxTokens: 1,
+      tool: true,
+    });
+    expect(reply.usage).toEqual({
+      promptTokens: 1200,
+      completionTokens: 300,
+      totalTokens: 1500,
+      costUsd: 0.0004,
+    });
+  });
+
+  it("leaves usage undefined when the provider omits it", async () => {
+    const { client: openrouter } = client([toolReply('{"ok":true}')]);
+    const reply = await openrouter.complete({
+      model: "m",
+      messages: MESSAGES,
+      maxTokens: 1,
+      tool: true,
+    });
+    expect(reply.usage).toBeUndefined();
   });
 
   it("sends the explanation as a JSON-schema response format", async () => {
