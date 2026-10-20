@@ -5,7 +5,7 @@
  */
 import { runMigrations } from "../migrations.js";
 import type { Migration, Platform } from "../types.js";
-import { createBrowserEngineHost } from "./browser-engine.js";
+import { createBrowserEngine } from "./browser-engine.js";
 import { createInputFileAccess } from "./file-access.js";
 import { connectStorage, type MessageEndpoint } from "./protocol.js";
 
@@ -18,9 +18,10 @@ export interface WebPlatformOptions {
   readonly engine?: BrowserEngineAssets;
 }
 
-/** URLs of the two engine files the host application serves (see `createBrowserEngineHost`). */
+/** URLs of the three engine files the host application serves (see `createBrowserEngine`). */
 export interface BrowserEngineAssets {
   readonly workletUrl: string;
+  readonly workerUrl: string;
   readonly wasmUrl: string;
 }
 
@@ -31,31 +32,41 @@ export async function createWebPlatform(options: WebPlatformOptions): Promise<Pl
   });
   const storage = await connectStorage(worker as MessageEndpoint);
   await runMigrations(storage.localDb, options.migrations);
+  const engine = options.engine
+    ? createBrowserEngine({
+        blobCache: storage.blobCache,
+        workletUrl: options.engine.workletUrl,
+        workerUrl: options.engine.workerUrl,
+        wasmUrl: options.engine.wasmUrl,
+      })
+    : null;
   return {
     kind: "web",
     localDb: storage.localDb,
     blobCache: storage.blobCache,
     fileAccess: createInputFileAccess(document),
     api: { baseUrl: "", credential: "cookie" },
-    ...(options.engine
+    ...(engine
       ? {
-          createEngine: () =>
-            createBrowserEngineHost({
-              blobCache: storage.blobCache,
-              workletUrl: options.engine?.workletUrl ?? "",
-              wasmUrl: options.engine?.wasmUrl ?? "",
-            }),
+          createEngine: () => engine.create(),
+          primeEngine: () => engine.prime(),
         }
       : {}),
   };
 }
 
-export { type BrowserEngineOptions, createBrowserEngineHost } from "./browser-engine.js";
+export {
+  type BrowserEngine,
+  type BrowserEngineOptions,
+  createBrowserEngine,
+  createBrowserEngineHost,
+} from "./browser-engine.js";
 export {
   type AssetResolver,
   createBlobCacheAssetResolver,
   createWasmEngineHost,
   type EngineAsset,
+  type EngineAssetBytes,
   type EngineOfflineBridge,
   type EnginePlaybackBridge,
   guessMime,

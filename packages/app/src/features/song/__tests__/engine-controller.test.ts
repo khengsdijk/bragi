@@ -77,6 +77,58 @@ describe("engine controller (transport bar wiring)", () => {
     expect(createEngine).toHaveBeenCalledTimes(1);
   });
 
+  it("primes the audio context synchronously before creating the engine", async () => {
+    const { store } = await loadDemo();
+    const { host } = fakeHost();
+    const order: string[] = [];
+    const primeEngine = vi.fn(() => order.push("prime"));
+    const createEngine = vi.fn(async () => {
+      order.push("create");
+      return host;
+    });
+    const controller = createEngineController({
+      createEngine,
+      primeEngine,
+      document: () => store.store.getState().doc,
+      durationSec: () => 32,
+    });
+
+    // The call itself, not just its settled promise, must run inside the click.
+    const playing = controller.play();
+    expect(primeEngine).toHaveBeenCalledTimes(1);
+    await playing;
+    expect(order).toEqual(["prime", "create"]);
+
+    // A second Play (a suspended context after a tab switch) resumes it again.
+    await controller.play();
+    expect(primeEngine).toHaveBeenCalledTimes(2);
+  });
+
+  it("plays as soon as a slow first load finishes instead of dropping Play", async () => {
+    const { store } = await loadDemo();
+    const { host, commands } = fakeHost();
+    const pending: (() => void)[] = [];
+    host.loadDocument.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          pending.push(resolve);
+        }),
+    );
+    const controller = createEngineController({
+      createEngine: async () => host,
+      document: () => store.store.getState().doc,
+      durationSec: () => 32,
+    });
+
+    const playing = controller.play();
+    await vi.waitFor(() => expect(host.loadDocument).toHaveBeenCalledTimes(1));
+    // Still decoding/loading: Play is remembered, not sent or dropped.
+    expect(commands).toEqual([]);
+    pending.shift()?.();
+    await playing;
+    expect(commands).toEqual([{ kind: "play" }]);
+  });
+
   it("ends on the newest document when a commit lands during a full reload", async () => {
     const { store } = await loadDemo();
     const { host } = fakeHost();

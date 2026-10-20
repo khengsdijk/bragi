@@ -34,6 +34,11 @@ export interface TransportViewState {
 export interface EngineControllerOptions {
   /** Absent when the host cannot play audio. */
   readonly createEngine?: (() => Promise<EngineHost>) | undefined;
+  /**
+   * Synchronously creates or resumes the audio context. {@link EngineController.play} calls it
+   * before its first `await`, because browsers only start audio inside the click's activation.
+   */
+  readonly primeEngine?: (() => void) | undefined;
   readonly document: () => Project | null;
   readonly durationSec: () => number;
 }
@@ -153,6 +158,9 @@ export function createEngineController(options: EngineControllerOptions): Engine
     store,
     ensure,
     async play() {
+      // Must stay before the first `await`: Chromium and Firefox only start/resume an
+      // AudioContext while the click's user activation is on the stack.
+      options.primeEngine?.();
       if (!(await ensure()) || !engine) return;
       engine.transport({ kind: "play" });
     },

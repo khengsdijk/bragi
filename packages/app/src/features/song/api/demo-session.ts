@@ -88,6 +88,7 @@ export async function createDemoSession(
 
   const controller = createEngineController({
     createEngine: audible ? platform.createEngine : undefined,
+    primeEngine: audible ? platform.primeEngine : undefined,
     document: () => songStore.store.getState().doc,
     durationSec: () => built.durationSec,
   });

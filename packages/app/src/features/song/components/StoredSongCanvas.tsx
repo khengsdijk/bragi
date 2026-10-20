@@ -135,6 +135,7 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
       const durationSec = (snapshot.sources[0]?.durationSamples ?? 0) / SAMPLE_RATE;
       const controller = createEngineController({
         ...(platform.createEngine === undefined ? {} : { createEngine: platform.createEngine }),
+        ...(platform.primeEngine === undefined ? {} : { primeEngine: platform.primeEngine }),
         document: () => store.store.getState().doc,
         durationSec: () => durationSec,
       });

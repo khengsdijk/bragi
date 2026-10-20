@@ -21,6 +21,7 @@ import { createTauriEngineHost } from "../tauri/engine.js";
 import {
   collectAssetHashes,
   createWasmEngineHost,
+  type EngineAssetBytes,
   type EngineOfflineBridge,
   type EnginePlaybackBridge,
   guessMime,
@@ -164,14 +165,14 @@ function exportFrame(files: { name: string; bytes: number[]; frames: number }[])
 
 function fakePlayback() {
   const sent: bigint[][] = [];
-  const loaded: unknown[] = [];
+  const loaded: { doc: unknown; assets: readonly unknown[] }[] = [];
   const bridge: EnginePlaybackBridge = {
     state: new Uint32Array(stateWordCount(1)),
     send(words) {
       sent.push([...words]);
     },
-    async load(doc) {
-      loaded.push(doc);
+    async load(doc, assets) {
+      loaded.push({ doc, assets });
     },
     applyDelta() {},
     async dispose() {},
@@ -181,6 +182,14 @@ function fakePlayback() {
 
 function fakeOffline(): EngineOfflineBridge {
   return {
+    async decode(assets) {
+      return assets.map((asset) => ({
+        hash: asset.hash,
+        samples: new Float32Array([0, 0]),
+        channels: 2,
+        sampleRate: 48000,
+      }));
+    },
     async render(job) {
       return {
         channels: 2,
@@ -238,6 +247,58 @@ describe("the wasm engine host", () => {
     expect(playback.sent).toHaveLength(3);
     expect(playback.sent[1]).toEqual([packCommand(3, 128)]);
     expect(playback.sent[2]).toEqual([packCommand(0)]);
+  });
+
+  it("decodes and sends each asset once across structural reloads", async () => {
+    const playback = fakePlayback();
+    const first = `sha256:${"a".repeat(64)}` as const;
+    const second = `sha256:${"b".repeat(64)}` as const;
+    const fetched: string[][] = [];
+    const decoded: string[][] = [];
+    const offline: EngineOfflineBridge = {
+      ...fakeOffline(),
+      async decode(assets) {
+        decoded.push(assets.map((asset) => asset.hash));
+        return assets.map((asset) => ({
+          hash: asset.hash,
+          samples: new Float32Array([0, 0]),
+          channels: 2,
+          sampleRate: 48000,
+        }));
+      },
+    };
+    const host = createWasmEngineHost({
+      playback: playback.bridge,
+      offline,
+      assets: {
+        async fetch(hashes) {
+          fetched.push([...hashes]);
+          return hashes.map(
+            (hash): EngineAssetBytes => ({ hash, bytes: new Uint8Array([1]), mime: "audio/wav" }),
+          );
+        },
+      },
+      schedule: () => 1,
+      cancelSchedule: () => {},
+    });
+    await host.loadDocument({ sources: [{ workingAsset: first }] });
+    await host.loadDocument({ sources: [{ workingAsset: first }] });
+    // A structural reload with no new assets does not even fetch, let alone decode or send.
+    expect(fetched).toEqual([[first]]);
+    expect(decoded).toEqual([[first]]);
+    expect(playback.loaded.map((entry) => entry.assets)).toHaveLength(2);
+    expect(playback.loaded[0]?.assets).toHaveLength(1);
+    expect(playback.loaded[1]?.assets).toHaveLength(0);
+
+    // A new stem arrives: only that hash goes across.
+    await host.loadDocument({
+      sources: [{ workingAsset: first }],
+      arrangement: { sections: [{ lanes: { t: { clips: [{ asset: second }] } } }] },
+    });
+    expect(fetched[1]).toEqual([second]);
+    expect(decoded[1]).toEqual([second]);
+    expect(playback.loaded[2]?.assets).toHaveLength(1);
+    await host.dispose();
   });
 
   it("emits plan and underrun events", async () => {

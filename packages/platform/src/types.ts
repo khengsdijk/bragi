@@ -117,6 +117,12 @@ export interface Platform {
    * gesture on the web, so the browser lets the audio context start.
    */
   readonly createEngine?: () => Promise<EngineHost>;
+  /**
+   * Synchronously creates or resumes the audio context. Browsers only start audio inside a user
+   * gesture, and the engine factory has to `await` its worklet module, so the Play handler calls
+   * this before any `await`. Absent on hosts without browser autoplay rules.
+   */
+  readonly primeEngine?: () => void;
   /** The API endpoint and credential mode (05 §2). Omitted by in-memory/test hosts. */
   readonly api?: PlatformApi;
 }
