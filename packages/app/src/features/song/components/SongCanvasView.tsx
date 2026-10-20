@@ -36,6 +36,14 @@ export interface SongCanvasViewProps {
   readonly onSelectionChange: (selection: Selection) => void;
   readonly onTrackToggle: (event: CanvasEvents["trackToggle"]) => void;
   readonly onSectionContextMenu: (event: CanvasEvents["sectionContextMenu"]) => void;
+  readonly onSectionDragStart: (event: CanvasEvents["sectionDragStart"]) => void;
+  readonly onSectionDragMove: (event: CanvasEvents["sectionDragMove"]) => void;
+  readonly onSectionDragEnd: (event: CanvasEvents["sectionDragEnd"]) => void;
+  readonly onSectionDragCancel: (event: CanvasEvents["sectionDragCancel"]) => void;
+  readonly onSectionResizeStart: (event: CanvasEvents["sectionResizeStart"]) => void;
+  readonly onSectionResizeMove: (event: CanvasEvents["sectionResizeMove"]) => void;
+  readonly onSectionResizeEnd: (event: CanvasEvents["sectionResizeEnd"]) => void;
+  readonly onSectionResizeCancel: (event: CanvasEvents["sectionResizeCancel"]) => void;
   readonly onHoverTrack: (trackId: string | null) => void;
   readonly onViewport: (level: ZoomLevel, viewport: Viewport) => void;
   /** Receives the live canvas once it exists (and `null` when it is destroyed). */
@@ -101,7 +109,18 @@ export function SongCanvasView(props: SongCanvasViewProps): ReactNode {
         const next = await SongCanvas.create({
           container,
           palette: buildPalette(),
-          strings: { mute: t("song.canvas.muteLetter"), solo: t("song.canvas.soloLetter") },
+          strings: {
+            mute: t("song.canvas.muteLetter"),
+            solo: t("song.canvas.soloLetter"),
+            barsLonger: (bars) =>
+              t(bars === 1 ? "song.canvas.barsLonger.one" : "song.canvas.barsLonger.other", {
+                count: bars,
+              }),
+            barsShorter: (bars) =>
+              t(bars === 1 ? "song.canvas.barsShorter.one" : "song.canvas.barsShorter.other", {
+                count: bars,
+              }),
+          },
           ...(latest.current.renderer === undefined ? {} : { renderer: latest.current.renderer }),
           width: Math.max(320, container.clientWidth),
           uiScale: readUiScale(),
@@ -121,6 +140,14 @@ export function SongCanvasView(props: SongCanvasViewProps): ReactNode {
             host.current?.focus();
             latest.current.onSectionContextMenu(event);
           }),
+          next.on("sectionDragStart", (event) => latest.current.onSectionDragStart(event)),
+          next.on("sectionDragMove", (event) => latest.current.onSectionDragMove(event)),
+          next.on("sectionDragEnd", (event) => latest.current.onSectionDragEnd(event)),
+          next.on("sectionDragCancel", (event) => latest.current.onSectionDragCancel(event)),
+          next.on("sectionResizeStart", (event) => latest.current.onSectionResizeStart(event)),
+          next.on("sectionResizeMove", (event) => latest.current.onSectionResizeMove(event)),
+          next.on("sectionResizeEnd", (event) => latest.current.onSectionResizeEnd(event)),
+          next.on("sectionResizeCancel", (event) => latest.current.onSectionResizeCancel(event)),
           next.on("hoverTrack", ({ trackId }) => latest.current.onHoverTrack(trackId)),
           next.on("viewportChange", ({ level, viewport }) =>
             latest.current.onViewport(level, viewport),
@@ -179,7 +206,13 @@ export function SongCanvasView(props: SongCanvasViewProps): ReactNode {
   }, [canvas, props.controller]);
 
   return (
-    <div className="song-canvas" ref={host} data-testid="song-canvas" tabIndex={-1}>
+    <div
+      className="song-canvas"
+      ref={host}
+      data-testid="song-canvas"
+      tabIndex={-1}
+      onPointerDown={() => host.current?.focus()}
+    >
       {failed ? (
         <p role="alert" data-testid="song-canvas-failed">
           {t("song.canvas.failed")} {t("song.canvas.fallback")}

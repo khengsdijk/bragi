@@ -184,8 +184,8 @@ Each pending item shows a subtle shimmer placeholder, not a spinner. Editing is 
 
 **As built in WP-1.9** (clarifications, not contract changes):
 - Ribbons and the skyline are meshes/polygons built **in world space** at a level of detail and moved/scaled by their container, so pan and zoom cost a transform; they are rebuilt when the zoom leaves a factor-of-two band or the viewport leaves the built window, at most three ribbons per frame. Timbre is a 3-row texture per ribbon (Q51).
-- The renderer is `render-canvas`'s `SongCanvas`: data in (`CanvasDocument`, `AnalysisView`), events out (`selectionChange`, `seek`, `trackToggle`, `viewportChange`, `hoverTrack`, `contentHeight`). Solo/mute leave as `trackToggle` and become one `track.update` batch in the Song Store.
-- Bar numbers on the ruler are always drawn where they fit (not only on hover). Dragging on the time area pans; section drag/resize (§4.1-4.2) is not built yet.
+- The renderer is `render-canvas`'s `SongCanvas`: data in (`CanvasDocument`, `AnalysisView`), events out (`selectionChange`, `seek`, `trackToggle`, `viewportChange`, `hoverTrack`, `contentHeight`, `sectionContextMenu`, and the `sectionDrag*` / `sectionResize*` gestures). Solo/mute leave as `trackToggle` and become one `track.update` batch in the Song Store.
+- Bar numbers on the ruler are always drawn where they fit (not only on hover). Dragging on the time area pans. Section drags (§4.1-4.2) start after a 4 px threshold; the body moves (Alt duplicates), the 12 px right-edge handle resizes with a bar-count ghost, and the app renders `preview ?? doc` in both the canvas and the accessible grid while a gesture runs (WP-2.2).
 - The `sel` URL parameter is `s:<ids>`, `t:<ids>`, `c:<ids>` or `r:<startTick>-<endTick>:<ids|*>` (`render-canvas/src/selection.ts`).
 
 ## 10. Acceptance checks (for work packages)

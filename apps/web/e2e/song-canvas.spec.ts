@@ -233,6 +233,120 @@ test("selecting a part on the canvas writes it to the URL and survives a reload"
   ).toHaveAttribute("data-section-id", "sec_002");
 });
 
+test("drags a part to a new slot with a live preview and one committed move", async ({
+  appPage,
+}) => {
+  await openDemo(appPage, { audio: false });
+  const before = await currentDoc(appPage);
+  const ids = before.arrangement.sections.map((section) => section.id);
+  const lanes = await layout(appPage);
+  const viewport = await withHooks(appPage, (h) => h.canvas?.getViewport() ?? null);
+  if (!viewport) throw new Error("no viewport");
+  const pxPerSec = (viewport.pxPerBeat * 120) / 60;
+  const at = (sec: number): number => lanes.gutter + (sec - viewport.originSec) * pxPerSec;
+  const y = lanes.sections.y + lanes.sections.h / 2;
+
+  // Intro (0–4 s) dropped after Verse 1 (whose centre is 8 s).
+  const start = await canvasPoint(appPage, at(2), y);
+  const drop = await canvasPoint(appPage, at(10), y);
+  await appPage.mouse.move(start.x, start.y);
+  await appPage.mouse.down();
+  await appPage.mouse.move(drop.x, drop.y, { steps: 12 });
+
+  const during = await withHooks(appPage, (h) => ({
+    doc: h.store.store.getState().doc?.arrangement.sections.map((section) => section.id) ?? [],
+    preview:
+      h.store.store.getState().preview?.arrangement.sections.map((section) => section.id) ?? null,
+  }));
+  expect(during.doc).toEqual(ids);
+  expect(during.preview).not.toBeNull();
+
+  await appPage.mouse.up();
+  await expect
+    .poll(async () => (await currentDoc(appPage)).arrangement.sections.map((s) => s.id))
+    .toEqual([ids[1], ids[0], ...ids.slice(2)]);
+  await expect
+    .poll(async () => withHooks(appPage, (h) => h.store.store.getState().preview))
+    .toBeNull();
+
+  const commit = await withHooks(appPage, (h) => h.store.store.getState().lastCommit);
+  expect(commit?.batch.label).toBe("Move Intro after Verse 1");
+  expect(commit?.batch.ops.filter((op) => op.op === "section.move")).toHaveLength(1);
+  expect(commit?.batch.ops.some((op) => op.op === "section.set_transition")).toBe(true);
+  await expect(appPage.getByTestId("live-region")).toHaveText("Move Intro after Verse 1");
+});
+
+test("Escape in the middle of a drag restores the arrangement", async ({ appPage }) => {
+  await openDemo(appPage, { audio: false });
+  const before = await currentDoc(appPage);
+  const ids = before.arrangement.sections.map((section) => section.id);
+  const lanes = await layout(appPage);
+  const viewport = await withHooks(appPage, (h) => h.canvas?.getViewport() ?? null);
+  if (!viewport) throw new Error("no viewport");
+  const pxPerSec = (viewport.pxPerBeat * 120) / 60;
+  const at = (sec: number): number => lanes.gutter + (sec - viewport.originSec) * pxPerSec;
+  const y = lanes.sections.y + lanes.sections.h / 2;
+
+  const start = await canvasPoint(appPage, at(2), y);
+  const drop = await canvasPoint(appPage, at(26), y);
+  await appPage.mouse.move(start.x, start.y);
+  await appPage.mouse.down();
+  await appPage.mouse.move(drop.x, drop.y, { steps: 12 });
+  await expect
+    .poll(async () =>
+      withHooks(appPage, (h) => h.store.store.getState().preview?.arrangement.sections.length ?? 0),
+    )
+    .toBe(ids.length);
+
+  await appPage.keyboard.press("Escape");
+  await appPage.mouse.up();
+  await expect
+    .poll(async () => withHooks(appPage, (h) => h.store.store.getState().preview))
+    .toBeNull();
+  expect((await currentDoc(appPage)).arrangement.sections.map((s) => s.id)).toEqual(ids);
+});
+
+test("a right-edge drag asks how to grow, and Loop lengthens the part", async ({ appPage }) => {
+  await openDemo(appPage, { audio: false });
+  const lanes = await layout(appPage);
+  const viewport = await withHooks(appPage, (h) => h.canvas?.getViewport() ?? null);
+  if (!viewport) throw new Error("no viewport");
+  const pxPerSec = (viewport.pxPerBeat * 120) / 60;
+  const barPx = 2 * pxPerSec;
+  const at = (sec: number): number => lanes.gutter + (sec - viewport.originSec) * pxPerSec;
+  const y = lanes.sections.y + lanes.sections.h / 2;
+
+  // Chorus 1 ends at 20 s; drag its right edge two bars further.
+  const edge = await canvasPoint(appPage, at(20), y);
+  const target = await canvasPoint(appPage, at(20) + 2 * barPx, y);
+  await appPage.mouse.move(edge.x, edge.y);
+  await appPage.mouse.down();
+  await appPage.mouse.move(target.x, target.y, { steps: 8 });
+  await appPage.mouse.up();
+
+  const dialog = appPage.getByRole("dialog", { name: "Make this part longer" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Loop" })).toBeVisible();
+  const results = await new AxeBuilder({ page: appPage }).analyze();
+  const bad = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+  expect(bad.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual(
+    [],
+  );
+
+  await dialog.getByRole("button", { name: "Loop" }).click();
+  await expect
+    .poll(async () => {
+      const doc = await currentDoc(appPage);
+      return doc.arrangement.sections.find((section) => section.id === "sec_002")?.lengthTicks;
+    })
+    .toBe(6 * 3840);
+  await expect(appPage.getByTestId("live-region")).toHaveText("Chorus 1 is now 6 bars");
+  const commit = await withHooks(appPage, (h) => h.store.store.getState().lastCommit);
+  expect(commit?.batch.ops).toEqual([
+    { op: "section.resize", sectionId: "sec_002", lengthTicks: 6 * 3840, mode: "loop" },
+  ]);
+});
+
 test("zooms through the four levels and the lanes grow at the Moment level", async ({
   appPage,
 }) => {
