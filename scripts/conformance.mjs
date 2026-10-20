@@ -17,7 +17,14 @@
  * copyrighted content is involved.
  */
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -80,6 +87,30 @@ const FIXTURES = [
     assets: [
       { hash: DRUMS, path: "fixtures/audio/drums_120.wav", mime: "audio/wav" },
       { hash: TONE, path: "fixtures/audio/tone_440.wav", mime: "audio/wav" },
+    ],
+    gate: true,
+  },
+  {
+    // WP-2.5: fixture a with three warm candidates (other gains, a muted track)
+    // and audition switches at fixed samples, one of them inside a running
+    // 30 ms crossfade, so both hosts run the same slot crossfades.
+    name: "engine-conformance-f-audition",
+    project: "fixtures/projects/engine-conformance-a.json",
+    frames: 96000,
+    assets: [
+      { hash: DRUMS, path: "fixtures/audio/drums_120.wav", mime: "audio/wav" },
+      { hash: TONE, path: "fixtures/audio/tone_440.wav", mime: "audio/wav" },
+    ],
+    warm: [
+      { slot: 1, gains: { trk_drums: -6, trk_tone: 0 } },
+      { slot: 2, mute: "trk_drums" },
+      { slot: 3, mute: "trk_tone" },
+    ],
+    switches: [
+      { at: 12000, slot: 1 },
+      { at: 30000, slot: 2 },
+      { at: 30480, slot: 3 },
+      { at: 60000, slot: 0 },
     ],
     gate: true,
   },
@@ -160,8 +191,28 @@ async function loadWasm() {
 }
 
 /**
+ * The candidate documents of a switch fixture: the base project with other
+ * track gains or one track muted.
+ * @param {typeof FIXTURES[number]} fixture
+ * @returns {{ slot: number, json: string }[]}
+ */
+function warmDocs(fixture) {
+  return (fixture.warm ?? []).map((candidate) => {
+    const doc = JSON.parse(readFileSync(join(ROOT, fixture.project), "utf8"));
+    /** @type {Record<string, number>} */
+    const gains = candidate.gains ?? {};
+    for (const track of doc.tracks) {
+      const gain = gains[track.id];
+      if (gain !== undefined) track.gainDb = gain;
+      if (candidate.mute === track.id) track.mute = true;
+    }
+    return { slot: candidate.slot, json: JSON.stringify(doc) };
+  });
+}
+
+/**
  * @param {any} module
- * @param {{ assets: { hash: string, path: string, mime: string }[], project: string, frames: number }} fixture
+ * @param {typeof FIXTURES[number]} fixture
  */
 async function renderWasm(module, fixture) {
   const engine = new module.EngineWasm(512);
@@ -171,12 +222,20 @@ async function renderWasm(module, fixture) {
   }
   const json = readFileSync(join(ROOT, fixture.project), "utf8");
   engine.load_project(json);
+  if (fixture.switches) {
+    for (const { slot, json: candidate } of warmDocs(fixture)) {
+      if (!engine.warm_project(slot, candidate)) throw new Error(`could not warm slot ${slot}`);
+    }
+    const at = Float64Array.from(fixture.switches.map((entry) => entry.at));
+    const slots = Uint32Array.from(fixture.switches.map((entry) => entry.slot));
+    return Float32Array.from(engine.render_switching(0n, BigInt(fixture.frames), 512, at, slots));
+  }
   const samples = engine.render(0n, BigInt(fixture.frames), 512);
   return Float32Array.from(samples);
 }
 
 /**
- * @param {{ assets: { hash: string, path: string }[], project: string, frames: number }} fixture
+ * @param {typeof FIXTURES[number]} fixture
  * @param {string} outWav
  * @param {string} outRaw
  */
@@ -200,6 +259,14 @@ function renderNative(fixture, outWav, outRaw) {
   ];
   for (const asset of fixture.assets) {
     args.push("--asset", `${asset.hash}=${join(ROOT, asset.path)}`);
+  }
+  for (const { slot, json } of warmDocs(fixture)) {
+    const path = join(work, `${fixture.name}.warm${slot}.json`);
+    writeFileSync(path, json);
+    args.push("--warm", `${slot}=${path}`);
+  }
+  for (const { at, slot } of fixture.switches ?? []) {
+    args.push("--switch", `${at}=${slot === 0 ? "main" : slot}`);
   }
   const output = String(run("cargo", args));
   const sha = /^sha256:([0-9a-f]{64})$/m.exec(output)?.[1];
@@ -391,7 +458,8 @@ for (const fixture of FIXTURES) {
 }
 
 const exportRows = [];
-for (const fixture of FIXTURES.filter((entry) => entry.gate)) {
+// Exports render the main plan only, so a switch fixture adds nothing there.
+for (const fixture of FIXTURES.filter((entry) => entry.gate && !entry.switches)) {
   exportRows.push(...(await compareExports(module, fixture)));
 }
 process.stdout.write("\nexport parity (native vs WASM)\n");

@@ -296,6 +296,83 @@ fn twelve_tracks_with_three_fx_each_stay_far_below_real_time() {
     assert!(renderer.underruns_for_test() == 0);
 }
 
+/// Four warm plans (six tracks and three gain fx each): only the audible one or
+/// the two sides of a crossfade render per block. Prints the real-time ratio as
+/// a sanity check that warming does not multiply playback cost.
+#[test]
+fn four_warm_plans_stay_below_real_time() {
+    let h = hash('8');
+    let document = |gain_db: f64| {
+        let mut tracks = Vec::new();
+        let mut lanes = serde_json::Map::new();
+        for index in 0..6 {
+            let id = format!("trk_{index:02}");
+            let mut track = track(&id);
+            let fx: Vec<_> = (0..3)
+                .map(|effect| {
+                    fx_instance(
+                        &format!("fx_{index}{effect}"),
+                        "gain",
+                        &[("db", gain_db - effect as f64 * 0.5)],
+                        false,
+                    )
+                })
+                .collect();
+            track["fx"] = json!(fx);
+            tracks.push(track);
+            lanes.insert(id, lane(vec![clip_none("clp_01", &h, 0, 480_000, 0)]));
+        }
+        project(tracks, vec![section("sec_a", BAR_TICKS * 5, json!(lanes))])
+    };
+    let index = assets(&h, 480_000);
+    let plans: Vec<_> = [0.0, -3.0, -6.0, -9.0]
+        .into_iter()
+        .enumerate()
+        .map(|(version, db)| compile(&document(db), &index, 48_000, version as u64 + 1).unwrap())
+        .collect();
+    let source = pcm(&h, tone(480_000, 220.0, 0.4));
+
+    let frames = 10 * SAMPLE_RATE as usize;
+    let mut engine = Engine::new(plans[0].clone(), QUANTUM_FRAMES);
+    for (slot, plan) in plans
+        .iter()
+        .enumerate()
+        .take(bragi_engine::MAX_WARM_PLANS)
+        .skip(1)
+    {
+        assert!(engine.warm(slot, plan.clone()));
+    }
+    engine.transport_mut().set_length(480_000);
+    engine.transport_mut().play();
+    let mut left = [0.0f32; QUANTUM_FRAMES];
+    let mut right = [0.0f32; QUANTUM_FRAMES];
+
+    let start = Instant::now();
+    let mut rendered = 0usize;
+    let mut blocks = 0usize;
+    while rendered < frames {
+        if blocks.is_multiple_of(750) {
+            let slot = (blocks / 750) % bragi_engine::MAX_WARM_PLANS;
+            engine.audition(if slot == 0 { None } else { Some(slot) });
+        }
+        engine.process(&source, &mut [&mut left, &mut right]);
+        rendered += QUANTUM_FRAMES;
+        blocks += 1;
+    }
+    let elapsed = start.elapsed().as_secs_f64();
+    let audio_seconds = frames as f64 / SAMPLE_RATE as f64;
+    let ratio = elapsed / audio_seconds * 100.0;
+    println!(
+        "four warm plans × 6 tracks × 3 gain fx: {frames} frames in {elapsed:.3} s \
+         ({ratio:.2} % of real time, one or two plans rendering)"
+    );
+    assert!(
+        ratio < 100.0,
+        "four warm plans took {ratio:.1} % of real time"
+    );
+    assert_eq!(engine.underruns(), 0);
+}
+
 /// A small helper so the drift test can see the renderer's read failures.
 trait UnderrunsForTest {
     fn underruns_for_test(&self) -> u64;
