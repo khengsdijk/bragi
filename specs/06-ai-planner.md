@@ -1,6 +1,6 @@
 # 06 — AI Intent Planner
 
-Status: Draft v0.3 · Code: `services/api/src/planner/` · Schemas: `packages/schemas/planner/`
+Status: Draft v0.4 · Code: `services/api/src/planner/` · Schemas: `packages/schemas/planner/`
 
 The planner turns **what the user wants** ("make this more aggressive", "add strings under the chorus", "make the outro longer and dreamier") into an **EditPlan**: concrete ops ([02 §4](02-song-model.md)) plus generation steps ([09](09-generation.md)), offered as 1–3 variants. It is the bridge between plain language and the deterministic model.
 
@@ -137,7 +137,15 @@ When the user drags the energy skyline, each affected section gets an `energyTar
 ## 7. Guardrails
 
 - **Schema-only output:** anything the LLM produces is data that passes schema + dry-run validation. There is no free-form code execution.
-- **Region discipline:** ops touching ticks or tracks outside the requested region are rejected unless the variant declares `scope: "song"` and the prompt contained a song-wide intent (checked by a simple classifier and shown to the user: "This will change the whole song").
+- **Region discipline:** a time-limited region is expressed with section-lane
+  automation — optionally shaping an fx that was added at a neutral setting so it only bites where
+  the curve moves — or with section/clip ops. A bare track-level fx or mixer change acts on the
+  whole song and is not a region edit. Ops touching ticks or tracks outside the requested region
+  are rejected unless the variant declares `scope: "song"` and the prompt contained a song-wide
+  intent (checked by a simple classifier and shown to the user: "This will change the whole song").
+  A structural change declares `scope: "song"` even when no region is selected, so the UI can
+  always warn. The classifier also counts section rearrangement ("remove the second verse",
+  "shorten the intro") as a song-wide request, because those ops are structural.
 - **Cost discipline:** a plan above 50 credits requires explicit confirmation.
 - **Content policy:** generation steps are checked against [10 §7](10-fusion.md) (no artist names in prompts, no voice cloning).
 - **Prompt injection:** analysis-derived text (lyrics, titles, filenames) is escaped and placed in data blocks. Instructions inside lyrics or filenames must be ignored, and this is covered by a test case.
@@ -152,7 +160,10 @@ Explanations must ground every claim in analysis features. For example: "At bar 
 
 ## 9. Evaluation
 
-`services/api/test/planner-bench/` contains about 100 cases: `{ fixtureProject, region?, prompt, expectations }`. Expectations are structural, for example "uses only fx/macro ops", "touches only trk_drums in bars 41–56", "≥ 2 distinct lever types across variants", or "asks clarification".
+`services/api/test/planner-bench/` contains 43 ops-only cases in WP-2.6 (the set grows with the
+generation capabilities in WP-2.7): `{ fixtureProject, region?, prompt, expectations }`. Expectations
+are structural, for example "uses only fx/macro ops", "touches only trk_drums in bars 41–56", "≥ 2
+distinct lever types across variants", or "asks clarification".
 
 | Metric | Target |
 |---|---|
