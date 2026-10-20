@@ -184,6 +184,8 @@ export interface HistoryPanelProps {
    * engine and announces `message`; a failed or missing outcome is announced as rejected there.
    */
   readonly onCommitOutcome?: (outcome: ApplyOutcome | null, message: string) => void;
+  /** Opens the two chosen versions in the Audition bar (07 §7 Compare). Absent: no Compare. */
+  readonly onCompare?: (a: string, b: string) => void;
 }
 
 interface Naming {
@@ -204,6 +206,7 @@ export function HistoryPanel({
   liveDoc,
   onClose,
   onCommitOutcome,
+  onCompare,
 }: HistoryPanelProps) {
   const state = useStore(history.store);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -680,7 +683,15 @@ export function HistoryPanel({
         )}
       </div>
       <footer style={FOOTER}>
-        <Button disabled aria-describedby="history-compare-hint">
+        <Button
+          disabled={onCompare === undefined || compare.length !== 2}
+          aria-describedby="history-compare-hint"
+          data-testid="history-compare"
+          onClick={() => {
+            const [a, b] = compare;
+            if (a !== undefined && b !== undefined) onCompare?.(a, b);
+          }}
+        >
           {t("history.panel.compare")}
         </Button>
         <span id="history-compare-hint" style={MUTED}>

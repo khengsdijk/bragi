@@ -19,6 +19,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { t } from "../../../i18n/index.js";
+import { AuditionBar } from "../../audition/components/AuditionBar.js";
+import {
+  type Audition,
+  createAudition,
+  EMPTY_AUDITION_STORE,
+} from "../../audition/state/audition.js";
+import type { CandidateSource } from "../../audition/state/candidate-status.js";
 import { CommandPaletteDialog } from "../../commands/components/CommandPaletteDialog.js";
 import { createCommandRegistry } from "../../commands/state/commands.js";
 import { SONG_COMMANDS } from "../../commands/state/song-commands.js";
@@ -58,6 +65,8 @@ export interface SongWorkspaceProps {
   readonly renderer?: "webgpu" | "webgl";
   /** Exposes the canvas on `window.__bragi` for the end-to-end tests. */
   readonly testHooks?: boolean;
+  /** Job events for AI candidates (WP-2.6/2.7); the Audition bar works without one. */
+  readonly candidateSource?: CandidateSource;
 }
 
 /** What the e2e tests reach through `window.__bragi`. */
@@ -66,6 +75,7 @@ export interface BragiTestHooks {
   store: SongStore;
   controller: EngineController;
   history: History | null;
+  audition: Audition | null;
 }
 
 declare global {
@@ -102,10 +112,42 @@ export function SongWorkspace(props: SongWorkspaceProps) {
   const doc = useStore(songStore.store, (state) => state.doc);
   /** A running drag's copy (01 §5): the canvas and the grid show it while the document waits. */
   const preview = useStore(songStore.store, (state) => state.preview);
-  const viewDoc = preview ?? doc;
+  const [announcement, setAnnouncement] = useState("");
+  const history = props.history;
+  const candidateSource = props.candidateSource;
+  /** The open candidate group or comparison (07 §6); needs a version tree. */
+  const audition = useMemo(
+    () =>
+      history === undefined
+        ? null
+        : createAudition({
+            controller,
+            history,
+            document: () => songStore.store.getState().doc,
+            ...(candidateSource === undefined ? {} : { source: candidateSource }),
+            onOutcome: (outcome, message) => {
+              if (outcome?.ok) {
+                controller.commit(outcome.commit, outcome.doc);
+                setAnnouncement(message);
+              } else {
+                setAnnouncement(t("song.live.rejected"));
+              }
+            },
+            onAnnounce: setAnnouncement,
+          }),
+    [controller, history, songStore, candidateSource],
+  );
+  useEffect(() => () => audition?.dispose(), [audition]);
+  /** The selected candidate's document: the canvas draws what is audible (07 §6). */
+  const auditionDoc = useStore(audition?.store ?? EMPTY_AUDITION_STORE, (state) =>
+    state.selected === 0
+      ? null
+      : (state.group?.candidates.find((candidate) => candidate.slot === state.selected)?.doc ??
+        null),
+  );
+  const viewDoc = auditionDoc ?? preview ?? doc;
   const [level, setLevel] = useState<ZoomLevel>("L2");
   const [focus, setFocus] = useState<GridFocus | null>(null);
-  const [announcement, setAnnouncement] = useState("");
   /** One side panel at a time: the Inspector or the version tree. */
   const [sidePanel, setSidePanel] = useState<"inspector" | "history" | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<SectionMenuAnchor | null>(null);
@@ -125,12 +167,21 @@ export function SongWorkspace(props: SongWorkspaceProps) {
 
   const canvasDoc = useMemo(() => {
     if (viewDoc === null) return null;
+    if (viewDoc === auditionDoc) {
+      // A candidate is not loaded in the store: read its spans from a short-lived handle.
+      const detached = songStore.detachedHandle(viewDoc);
+      try {
+        return buildCanvasDocument(songStore.model, detached, viewDoc);
+      } finally {
+        songStore.model.freeDoc(detached);
+      }
+    }
     // The spans come from the matching model handle: the preview's own copy during a drag.
     const handle = viewDoc === doc ? songStore.handle() : songStore.previewHandle();
     if (handle === null) return null;
     return buildCanvasDocument(songStore.model, handle, viewDoc);
     // `doc`/`preview` are replaced, never mutated, on every load and step: they are the cache key.
-  }, [doc, songStore, viewDoc]);
+  }, [auditionDoc, doc, songStore, viewDoc]);
 
   const analysis = useMemo<AnalysisView | null>(
     () => (viewDoc === null ? null : analysisView(viewDoc, props.analysis)),
@@ -262,11 +313,12 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       store: songStore,
       controller,
       history: props.history ?? null,
+      audition,
     } as BragiTestHooks;
     return () => {
       window.__bragi = undefined;
     };
-  }, [props.testHooks, songStore, controller, props.history]);
+  }, [props.testHooks, songStore, controller, props.history, audition]);
 
   // Global shortcuts (07 §3, 11 §6.2). The grid handles M and O itself when it has focus.
   useEffect(() => {
@@ -401,6 +453,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
         }}
       >
         <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
+          {audition === null ? null : <AuditionBar audition={audition} />}
           <SongCanvasView
             document={canvasDoc}
             analysis={analysis}
@@ -451,6 +504,9 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             liveDoc={doc}
             onClose={() => setSidePanel(null)}
             onCommitOutcome={followHistory}
+            {...(audition === null
+              ? {}
+              : { onCompare: (a: string, b: string) => void audition.openCompare(a, b) })}
           />
         ) : null}
         {sidePanel === "inspector" ? (
