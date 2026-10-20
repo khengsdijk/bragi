@@ -14,11 +14,14 @@ export interface Rect {
 
 export interface ProjectLike {
   tracks: { id: string; name: string; mute: boolean; solo: boolean }[];
-  arrangement: { sections: { id: string; label: string }[] };
+  arrangement: { sections: { id: string; label: string; lengthTicks: number }[] };
 }
 
 export interface CommitLike {
-  batch: { label: string; ops: { op: string }[] };
+  batch: {
+    label: string;
+    ops: { op: string; sectionId?: string; toIndex?: number; mode?: string }[];
+  };
   revision: number;
 }
 
@@ -57,7 +60,12 @@ export interface Hooks {
   readonly canvas: CanvasHook | null;
   readonly store: {
     store: {
-      getState(): { doc: ProjectLike | null; revision: number; lastCommit: CommitLike | null };
+      getState(): {
+        doc: ProjectLike | null;
+        preview: ProjectLike | null;
+        revision: number;
+        lastCommit: CommitLike | null;
+      };
     };
   };
   readonly controller: {
