@@ -115,6 +115,9 @@ async function harness(
   let onPost: (() => void) | undefined;
   const api: ApiClient = {
     baseUrl: "",
+    plan: async () => {
+      throw new Error("the planner is not used in this test");
+    },
     meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
     getAuthMode: async () => ({ mode: "multi-user", user: null }),
     signInWithEmail: async () => {},
@@ -531,6 +534,9 @@ describe("the upload -> live-analysis flow", () => {
       platform: h.platform,
       api: {
         baseUrl: "",
+        plan: async () => {
+          throw new Error("the planner is not used in this test");
+        },
         meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
         getAuthMode: async () => ({ mode: "multi-user", user: null }),
         signInWithEmail: async () => {},
@@ -625,6 +631,9 @@ describe("the upload -> live-analysis flow", () => {
       platform: h.platform,
       api: {
         baseUrl: "",
+        plan: async () => {
+          throw new Error("the planner is not used in this test");
+        },
         meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
         getAuthMode: async () => ({ mode: "multi-user", user: null }),
         signInWithEmail: async () => {},

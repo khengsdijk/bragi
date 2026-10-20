@@ -8,6 +8,8 @@ import {
   type AnalysisView,
   type CanvasDocument,
   type CanvasEvents,
+  type CanvasHighlight,
+  type LassoRegion,
   paletteFromReader,
   type Selection,
   SongCanvas,
@@ -48,6 +50,18 @@ export interface SongCanvasViewProps {
   readonly onPaintMove: (event: CanvasEvents["paintMove"]) => void;
   readonly onPaintEnd: (event: CanvasEvents["paintEnd"]) => void;
   readonly onPaintCancel: (event: CanvasEvents["paintCancel"]) => void;
+  readonly onLassoStart: (event: CanvasEvents["lassoStart"]) => void;
+  readonly onLassoMove: (event: CanvasEvents["lassoMove"]) => void;
+  readonly onLassoEnd: (event: CanvasEvents["lassoEnd"]) => void;
+  readonly onLassoCancel: (event: CanvasEvents["lassoCancel"]) => void;
+  readonly onExplainAt: (event: CanvasEvents["explainAt"]) => void;
+  /** Explain mode turns a click on the canvas into an explanation request (07 §4.9). */
+  readonly explainMode: boolean;
+  /** The region the prompt bar targets, drawn until the bar closes (07 §4.3). */
+  readonly lassoRegion: LassoRegion | null;
+  readonly lassoWaiting: boolean;
+  /** The open Explanation's highlights, drawn until its popover closes (06 §8). */
+  readonly highlights: readonly CanvasHighlight[];
   readonly onHoverTrack: (trackId: string | null) => void;
   readonly onViewport: (level: ZoomLevel, viewport: Viewport) => void;
   /** Receives the live canvas once it exists (and `null` when it is destroyed). */
@@ -156,6 +170,11 @@ export function SongCanvasView(props: SongCanvasViewProps): ReactNode {
           next.on("paintMove", (event) => latest.current.onPaintMove(event)),
           next.on("paintEnd", (event) => latest.current.onPaintEnd(event)),
           next.on("paintCancel", (event) => latest.current.onPaintCancel(event)),
+          next.on("lassoStart", (event) => latest.current.onLassoStart(event)),
+          next.on("lassoMove", (event) => latest.current.onLassoMove(event)),
+          next.on("lassoEnd", (event) => latest.current.onLassoEnd(event)),
+          next.on("lassoCancel", (event) => latest.current.onLassoCancel(event)),
+          next.on("explainAt", (event) => latest.current.onExplainAt(event)),
           next.on("hoverTrack", ({ trackId }) => latest.current.onHoverTrack(trackId)),
           next.on("viewportChange", ({ level, viewport }) =>
             latest.current.onViewport(level, viewport),
@@ -200,6 +219,15 @@ export function SongCanvasView(props: SongCanvasViewProps): ReactNode {
   useEffect(() => {
     canvas?.setFocus(props.focus);
   }, [canvas, props.focus]);
+  useEffect(() => {
+    canvas?.setExplainMode(props.explainMode);
+  }, [canvas, props.explainMode]);
+  useEffect(() => {
+    canvas?.setLassoRegion(props.lassoRegion, props.lassoWaiting);
+  }, [canvas, props.lassoRegion, props.lassoWaiting]);
+  useEffect(() => {
+    canvas?.setHighlights(props.highlights);
+  }, [canvas, props.highlights]);
 
   // The playhead and meters bypass React state: the store pushes straight into the canvas.
   useEffect(() => {

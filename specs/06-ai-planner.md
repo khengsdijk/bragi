@@ -38,7 +38,10 @@ The API loads the commit snapshot and calls `bragi-model::summarize_for_llm(doc,
 > carries the `Project` document in the request (`PlanRequest.doc`) and the API never stores it.
 > Analyses travel inside the document, which is everything `summarize_for_llm` needs. The
 > `projectId`/`commitId` pair above stays the shape for a future hosted sync; the current schema
-> takes the document instead ([`docs/wp/2.6.md`](../docs/wp/2.6.md), Deviation 1).
+> takes the document instead ([`docs/wp/2.6.md`](../docs/wp/2.6.md), Deviation 1). Because energy,
+> chords and per-section stem activity live in analysis blobs the model never reads, the client
+> also sends a bounded optional `sectionFeatures` array; the API appends it to the summary as an
+> escaped data block.
 
 ```
 SONG: "Midnight Drive" · 118 BPM · F# minor · 4/4 · 4:00 · genres: synthwave · moods: nostalgic, driving

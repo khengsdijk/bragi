@@ -35,6 +35,8 @@ function actions(): CommandActions {
     redo: vi.fn(),
     toggleHistory: vi.fn(),
     togglePlay: vi.fn(),
+    askAi: vi.fn(),
+    toggleExplain: vi.fn(),
   };
 }
 
@@ -50,6 +52,7 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     hasHistory: true,
     historyOpen: false,
     playing: false,
+    explainMode: false,
     actions: actions(),
     ...overrides,
   };
@@ -106,13 +109,15 @@ describe("song commands", () => {
       "section.makeShorter",
       "section.split",
       "section.applyBrush",
+      "planner.ask",
+      "planner.explain",
       "edit.undo",
       "edit.redo",
       "view.history",
       "playback.toggle",
     ]);
-    // AI commands arrive with their work packages (09).
-    for (const ai of ["regenerate", "explain", "continue", "condense", "smooth"]) {
+    // Generation commands arrive with their work packages (09); the planner v1 only has Ask AI.
+    for (const ai of ["regenerate", "continue", "condense", "smooth"]) {
       expect(SONG_COMMANDS.some((entry) => entry.id.includes(ai))).toBe(false);
     }
   });
@@ -170,6 +175,10 @@ describe("song commands", () => {
     expect(ctx.actions.toggleHistory).toHaveBeenCalled();
     command("playback.toggle").run(ctx);
     expect(ctx.actions.togglePlay).toHaveBeenCalled();
+    command("planner.ask").run(ctx);
+    expect(ctx.actions.askAi).toHaveBeenCalled();
+    command("planner.explain").run(ctx);
+    expect(ctx.actions.toggleExplain).toHaveBeenCalled();
   });
 
   it("needs a version tree for undo, redo and the history panel", () => {
@@ -197,6 +206,8 @@ describe("palette items", () => {
     const items = paletteItems(SONG_COMMANDS, context({ section: null, sectionIndex: -1 }));
     expect(items.map((item) => item.id)).toEqual([
       "section.split",
+      "planner.ask",
+      "planner.explain",
       "edit.undo",
       "view.history",
       "playback.toggle",

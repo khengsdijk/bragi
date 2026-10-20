@@ -27,6 +27,8 @@ export interface CommandContext {
   readonly hasHistory: boolean;
   readonly historyOpen: boolean;
   readonly playing: boolean;
+  /** Explain mode is on (07 §4.9). */
+  readonly explainMode: boolean;
   readonly actions: CommandActions;
 }
 
@@ -47,6 +49,10 @@ export interface CommandActions {
   redo(): void;
   toggleHistory(): void;
   togglePlay(): void;
+  /** Opens the prompt bar on the current selection, or the whole song (07 §4.3, §5). */
+  askAi(): void;
+  /** Turns Explain mode on or off (07 §4.9). */
+  toggleExplain(): void;
 }
 
 export interface Command {

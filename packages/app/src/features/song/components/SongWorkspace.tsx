@@ -11,6 +11,7 @@ import { Button } from "@bragi/design";
 import type {
   AnalysisView,
   CanvasEvents,
+  CanvasHighlight,
   Selection,
   Viewport,
   ZoomLevel,
@@ -19,6 +20,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { t } from "../../../i18n/index.js";
+import { usePlatform } from "../../../platform-context.js";
+import { apiFor } from "../../analysis/api/host.js";
 import { AuditionBar } from "../../audition/components/AuditionBar.js";
 import {
   type Audition,
@@ -36,8 +39,12 @@ import { SONG_COMMANDS } from "../../commands/state/song-commands.js";
 import { HistoryPanel } from "../../history/components/HistoryPanel.js";
 import type { History } from "../../history/state/history.js";
 import { Inspector } from "../../inspector/components/Inspector.js";
+import { ExplainPopover } from "../../planner/components/ExplainPopover.js";
+import { PromptBar } from "../../planner/components/PromptBar.js";
+import { createPlanner } from "../../planner/state/planner.js";
 import type { SettingsStore } from "../../settings/state/settings-store.js";
 import { buildGridModel } from "../api/grid-model.js";
+import { secondsAtTicks } from "../api/section-time.js";
 import { analysisView, buildCanvasDocument } from "../api/view-model.js";
 import { useSectionDrag } from "../hooks/use-section-drag.js";
 import { dialogSection, useSongActions } from "../hooks/use-song-actions.js";
@@ -142,6 +149,30 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     [controller, history, songStore, candidateSource],
   );
   useEffect(() => () => audition?.dispose(), [audition]);
+  const platform = usePlatform();
+  const api = useMemo(() => apiFor(platform), [platform]);
+  /** The latest analysis for the planner, without recreating it when a stage lands. */
+  const analysisRef = useRef(props.analysis);
+  analysisRef.current = props.analysis;
+  const planner = useMemo(
+    () =>
+      createPlanner({
+        client: api,
+        songStore,
+        model: songStore.model,
+        analysis: () => analysisRef.current,
+        ...(history === undefined ? {} : { history }),
+        ...(audition === null ? {} : { audition }),
+        onAnnounce: setAnnouncement,
+      }),
+    [api, audition, history, songStore],
+  );
+  useEffect(() => () => planner.dispose(), [planner]);
+  const plannerOpen = useStore(planner.store, (state) => state.open);
+  const plannerPhase = useStore(planner.store, (state) => state.phase);
+  const plannerTarget = useStore(planner.store, (state) => state.target);
+  const explanation = useStore(planner.store, (state) => state.explanation);
+  const [explainMode, setExplainMode] = useState(false);
   /** The selected candidate's document: the canvas draws what is audible (07 §6). */
   const auditionDoc = useStore(audition?.store ?? EMPTY_AUDITION_STORE, (state) =>
     state.selected === 0
@@ -200,6 +231,31 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     () => (canvasDoc === null ? null : buildGridModel(canvasDoc, analysis)),
     [canvasDoc, analysis],
   );
+  const canvasLasso = useMemo(
+    () =>
+      plannerTarget === null
+        ? null
+        : {
+            startSec: plannerTarget.startSec,
+            endSec: plannerTarget.endSec,
+            trackIds: plannerTarget.trackIds,
+          },
+    [plannerTarget],
+  );
+  const canvasHighlights = useMemo<CanvasHighlight[]>(() => {
+    if (explanation?.status !== "done") return [];
+    const songHandle = songStore.handle();
+    if (songHandle === null || doc === null) return [];
+    const allTracks = doc.tracks.filter((track) => !track.hidden).map((track) => track.id);
+    return explanation.highlights.map((highlight) => ({
+      region: {
+        startSec: secondsAtTicks(songStore.model, songHandle, highlight.region.startTick),
+        endSec: secondsAtTicks(songStore.model, songHandle, highlight.region.endTick),
+        trackIds: highlight.region.tracks === "all" ? allTracks : [...highlight.region.tracks],
+      },
+      label: highlight.label,
+    }));
+  }, [doc, explanation, songStore]);
 
   const follow = useCallback(
     (outcome: ApplyOutcome, label: string) => {
@@ -253,6 +309,55 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     setSidePanel((panel) => (panel === "history" ? null : "history"));
   }, []);
 
+  /** "Ask AI…" acts on the current selection, or the whole song with its label (07 §5). */
+  const askAi = useCallback(() => {
+    planner.openForSelection(selection);
+  }, [planner, selection]);
+
+  const toggleExplain = useCallback(() => {
+    const next = !explainMode;
+    setExplainMode(next);
+    if (next) {
+      brushes.setTool("select");
+      planner.close();
+      setAnnouncement(t("planner.explainOn"));
+    } else {
+      setAnnouncement(t("planner.explainOff"));
+    }
+  }, [brushes, explainMode, planner]);
+
+  const toggleLasso = useCallback(() => {
+    const next = brushes.store.getState().tool === "lasso" ? "select" : "lasso";
+    setExplainMode(false);
+    brushes.setTool(next);
+    setAnnouncement(t(next === "lasso" ? "planner.lassoOn" : "planner.lassoOff"));
+  }, [brushes]);
+
+  const onLassoStart = useCallback((): void => {
+    planner.close();
+    planner.closeExplanation();
+  }, [planner]);
+
+  const onLassoEnd = useCallback(
+    (event: CanvasEvents["lassoEnd"]): void => {
+      planner.openForLasso({
+        startSec: event.region.startSec,
+        endSec: event.region.endSec,
+        trackIds: event.region.trackIds,
+        altKey: event.altKey,
+      });
+    },
+    [planner],
+  );
+
+  const onExplainAt = useCallback(
+    (event: CanvasEvents["explainAt"]): void => {
+      if (!explainMode) return;
+      void planner.explainAt(event.sectionId, { x: event.clientX, y: event.clientY });
+    },
+    [explainMode, planner],
+  );
+
   const actions = useSongActions({
     songStore,
     controller,
@@ -262,7 +367,10 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     selection,
     focus,
     historyOpen: sidePanel === "history",
+    explainMode,
     onToggleHistory: toggleHistory,
+    onAskAi: askAi,
+    onToggleExplain: toggleExplain,
     onAnnounce: setAnnouncement,
   });
   const drag = useSectionDrag({
@@ -323,9 +431,9 @@ export function SongWorkspace(props: SongWorkspaceProps) {
 
   // The canvas owns pointer handling; React only tells it which tool and strength are active.
   useEffect(() => {
-    handle.current?.canvas.setTool(brushTool);
+    handle.current?.canvas.setTool(explainMode ? "select" : brushTool);
     handle.current?.canvas.setPaintStrength(brushStrength);
-  }, [brushTool, brushStrength]);
+  }, [brushTool, brushStrength, explainMode]);
 
   useEffect(() => {
     if (!props.testHooks) return;
@@ -372,6 +480,11 @@ export function SongWorkspace(props: SongWorkspaceProps) {
         else context.actions.redo();
         return;
       }
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "l") {
+        event.preventDefault();
+        askAi();
+        return;
+      }
       if (event.altKey) return;
       const onButton = event.target instanceof HTMLButtonElement;
       switch (event.key) {
@@ -414,6 +527,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
         case "B":
           if (event.metaKey || event.ctrlKey) return;
           event.preventDefault();
+          setExplainMode(false);
           brushes.togglePaint();
           setAnnouncement(
             t(
@@ -423,8 +537,24 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             ),
           );
           break;
+        case "l":
+        case "L":
+          if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+          event.preventDefault();
+          toggleLasso();
+          break;
+        case "?":
+          event.preventDefault();
+          toggleExplain();
+          break;
+        case "/":
+          event.preventDefault();
+          askAi();
+          break;
         case "Escape":
-          props.onSelectionChange({ kind: "none" });
+          if (plannerOpen) planner.close();
+          else if (explanation !== null) planner.closeExplanation();
+          else props.onSelectionChange({ kind: "none" });
           break;
         default:
           break;
@@ -432,7 +562,19 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [actions, brushes, controller, toggleTrack, props.onSelectionChange]);
+  }, [
+    actions,
+    askAi,
+    brushes,
+    controller,
+    explanation,
+    planner,
+    plannerOpen,
+    toggleExplain,
+    toggleLasso,
+    toggleTrack,
+    props.onSelectionChange,
+  ]);
 
   if (canvasDoc === null || grid === null || analysis === null) {
     return <p data-testid="song-loading">{t("song.canvas.loading")}</p>;
@@ -453,6 +595,8 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       : doc.tracks
           .filter((track) => brushSection.lanes[track.id] !== undefined)
           .map((track) => ({ id: track.id, name: track.name }));
+  const promptAnchor =
+    canvasLasso === null ? null : (handle.current?.canvas.regionRect(canvasLasso) ?? null);
 
   return (
     <div className="song-workspace" data-testid="song-workspace">
@@ -468,6 +612,17 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             marginInlineStart: "auto",
           }}
         >
+          <Button variant="secondary" size="sm" onClick={askAi}>
+            {t("commands.planner.ask")}
+          </Button>
+          <Button
+            variant={explainMode ? "secondary" : "ghost"}
+            size="sm"
+            aria-pressed={explainMode}
+            onClick={toggleExplain}
+          >
+            {t("commands.planner.explain")}
+          </Button>
           <Button
             variant={sidePanel === "inspector" ? "secondary" : "ghost"}
             size="sm"
@@ -499,38 +654,50 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       >
         <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
           {audition === null ? null : <AuditionBar audition={audition} />}
-          <SongCanvasView
-            document={canvasDoc}
-            analysis={analysis}
-            selection={selection}
-            focus={focus}
-            controller={controller}
-            {...(props.renderer === undefined ? {} : { renderer: props.renderer })}
-            onSelectionChange={props.onSelectionChange}
-            onTrackToggle={onCanvasToggle}
-            onSectionContextMenu={onSectionContextMenu}
-            onSectionDragStart={drag.onSectionDragStart}
-            onSectionDragMove={drag.onSectionDragMove}
-            onSectionDragEnd={drag.onSectionDragEnd}
-            onSectionDragCancel={drag.onSectionDragCancel}
-            onSectionResizeStart={drag.onSectionResizeStart}
-            onSectionResizeMove={drag.onSectionResizeMove}
-            onSectionResizeEnd={drag.onSectionResizeEnd}
-            onSectionResizeCancel={drag.onSectionResizeCancel}
-            onPaintStart={paint.onPaintStart}
-            onPaintMove={paint.onPaintMove}
-            onPaintEnd={paint.onPaintEnd}
-            onPaintCancel={paint.onPaintCancel}
-            onHoverTrack={(trackId) => {
-              hovered.current = trackId;
-            }}
-            onViewport={(next: ZoomLevel, _viewport: Viewport) => setLevel(next)}
-            onReady={(next) => {
-              handle.current = next;
-              next?.canvas.setTool(brushes.store.getState().tool);
-              next?.canvas.setPaintStrength(brushes.store.getState().sizeStrength);
-            }}
-          />
+          <div style={{ position: "relative", minWidth: 0 }}>
+            <SongCanvasView
+              document={canvasDoc}
+              analysis={analysis}
+              selection={selection}
+              focus={focus}
+              controller={controller}
+              {...(props.renderer === undefined ? {} : { renderer: props.renderer })}
+              onSelectionChange={props.onSelectionChange}
+              onTrackToggle={onCanvasToggle}
+              onSectionContextMenu={onSectionContextMenu}
+              onSectionDragStart={drag.onSectionDragStart}
+              onSectionDragMove={drag.onSectionDragMove}
+              onSectionDragEnd={drag.onSectionDragEnd}
+              onSectionDragCancel={drag.onSectionDragCancel}
+              onSectionResizeStart={drag.onSectionResizeStart}
+              onSectionResizeMove={drag.onSectionResizeMove}
+              onSectionResizeEnd={drag.onSectionResizeEnd}
+              onSectionResizeCancel={drag.onSectionResizeCancel}
+              onPaintStart={paint.onPaintStart}
+              onPaintMove={paint.onPaintMove}
+              onPaintEnd={paint.onPaintEnd}
+              onPaintCancel={paint.onPaintCancel}
+              onLassoStart={onLassoStart}
+              onLassoMove={onLassoStart}
+              onLassoEnd={onLassoEnd}
+              onLassoCancel={onLassoStart}
+              onExplainAt={onExplainAt}
+              explainMode={explainMode}
+              lassoRegion={plannerOpen ? canvasLasso : null}
+              lassoWaiting={plannerOpen && plannerPhase === "waiting"}
+              highlights={canvasHighlights}
+              onHoverTrack={(trackId) => {
+                hovered.current = trackId;
+              }}
+              onViewport={(next: ZoomLevel, _viewport: Viewport) => setLevel(next)}
+              onReady={(next) => {
+                handle.current = next;
+                next?.canvas.setTool(explainMode ? "select" : brushes.store.getState().tool);
+                next?.canvas.setPaintStrength(brushes.store.getState().sizeStrength);
+              }}
+            />
+            <PromptBar planner={planner} anchor={promptAnchor} />
+          </div>
           <AccessibleGrid
             model={grid}
             selection={selection}
@@ -572,6 +739,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
           />
         ) : null}
       </div>
+      <ExplainPopover explanation={explanation} onClose={() => planner.closeExplanation()} />
       <SectionMenu
         anchor={menuAnchor}
         onClose={() => setMenuAnchor(null)}

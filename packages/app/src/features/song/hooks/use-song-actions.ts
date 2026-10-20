@@ -67,7 +67,10 @@ export interface SongActionsOptions {
   readonly selection: Selection;
   readonly focus: { readonly kind: "section" | "track"; readonly id: string } | null;
   readonly historyOpen: boolean;
+  readonly explainMode: boolean;
   readonly onToggleHistory: () => void;
+  readonly onAskAi: () => void;
+  readonly onToggleExplain: () => void;
   readonly onAnnounce: (message: string) => void;
 }
 
@@ -454,6 +457,8 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       undo,
       redo,
       toggleHistory: options.onToggleHistory,
+      askAi: options.onAskAi,
+      toggleExplain: options.onToggleExplain,
       togglePlay: () => {
         void controller.toggle();
       },
@@ -467,6 +472,8 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       openKind,
       openRename,
       openResize,
+      options.onAskAi,
+      options.onToggleExplain,
       options.onToggleHistory,
       redo,
       removeSection,
@@ -488,6 +495,7 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       hasHistory: options.history !== undefined,
       historyOpen: options.historyOpen,
       playing,
+      explainMode: options.explainMode,
       actions,
     }),
     [
@@ -496,6 +504,7 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       canRedo,
       canUndo,
       doc,
+      options.explainMode,
       options.history,
       options.historyOpen,
       playing,

@@ -32,6 +32,9 @@ describe("apply brush action", () => {
         selection: { kind: "sections", ids: ["sec_001"] },
         focus: null,
         historyOpen: false,
+        explainMode: false,
+        onAskAi: () => {},
+        onToggleExplain: () => {},
         onToggleHistory: () => {},
         onAnnounce: announce,
       });
@@ -69,6 +72,9 @@ describe("apply brush action", () => {
         selection: { kind: "sections", ids: ["sec_001"] },
         focus: null,
         historyOpen: false,
+        explainMode: false,
+        onAskAi: () => {},
+        onToggleExplain: () => {},
         onToggleHistory: () => {},
         onAnnounce: announce,
       });

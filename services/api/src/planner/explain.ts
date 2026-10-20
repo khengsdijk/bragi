@@ -54,9 +54,7 @@ export async function explain(request: PlanRequest, deps: ExplainDeps): Promise<
   const user = buildUserMessage({
     summary,
     prompt: request.prompt,
-    ...(request.sectionFeatures === undefined
-      ? {}
-      : { sectionFeatures: request.sectionFeatures }),
+    ...(request.sectionFeatures === undefined ? {} : { sectionFeatures: request.sectionFeatures }),
   });
   const system = `${systemPrompt()}\n\n${explainPrompt()}`;
   const messages: ChatMessage[] = [
