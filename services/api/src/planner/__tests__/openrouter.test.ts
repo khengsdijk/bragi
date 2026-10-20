@@ -132,6 +132,27 @@ describe("OpenRouterClient request shape", () => {
     expect(body.provider.data_collection).toBe("allow");
   });
 
+  it.each([
+    ["off", { enabled: false }],
+    ["low", { effort: "low" }],
+    ["high", { effort: "high" }],
+    ["default", undefined],
+  ] as const)(
+    "maps reasoning level %s onto OpenRouter's reasoning parameter",
+    async (level, sent) => {
+      const { client: openrouter, requests } = client([contentReply("{}")]);
+      await openrouter.complete({
+        model: "m",
+        messages: MESSAGES,
+        maxTokens: 1,
+        tool: true,
+        reasoning: level,
+      });
+      const body = JSON.parse(requests[0]?.body ?? "{}") as { reasoning?: unknown };
+      expect(body.reasoning).toEqual(sent);
+    },
+  );
+
   it("reports token usage and cost when OpenRouter returns them", async () => {
     const body = JSON.stringify({
       choices: [

@@ -18,9 +18,19 @@ export type TomlScalar = string | number | boolean;
 /** A TOML document: top-level scalars and one nested record per `[section]`. */
 export type TomlDocument = Record<string, TomlScalar | Record<string, TomlScalar>>;
 
+/**
+ * How much a tier's model may reason before it answers (OpenRouter's unified `reasoning`
+ * parameter). `off` disables it, `default` leaves the model's own default, and the efforts map
+ * to `reasoning.effort`. Reasoning tokens dominate planner latency (WP-2.6 bench).
+ */
+export type ReasoningLevel = "default" | "off" | "low" | "medium" | "high";
+
+const REASONING_LEVELS: readonly ReasoningLevel[] = ["default", "off", "low", "medium", "high"];
+
 /** The planner's effective configuration. */
 export interface PlannerConfig {
   models: Record<PlannerTier, string>;
+  reasoning: Record<PlannerTier, ReasoningLevel>;
   maxTokens: number;
   timeoutMs: number;
   /** Default number of variants when the request does not choose one (1–3). */
@@ -38,6 +48,9 @@ const MODEL_ENV: Record<PlannerTier, string> = {
   smart: "BRAGI_PLANNER_MODEL_SMART",
   explain: "BRAGI_PLANNER_MODEL_EXPLAIN",
 };
+
+/** Overrides every tier's reasoning level (the bench uses it to compare settings). */
+const REASONING_ENV = "BRAGI_PLANNER_REASONING";
 
 /**
  * Parses the flat TOML subset planner config uses.
@@ -137,8 +150,22 @@ export function loadPlannerConfig(
     resolved[tier] = value.trim();
   }
 
+  const reasoningSection = document.reasoning;
+  const reasoning = {} as Record<PlannerTier, ReasoningLevel>;
+  for (const tier of ["fast", "smart", "explain"] as const) {
+    const value =
+      env[REASONING_ENV] ??
+      (typeof reasoningSection === "object" ? reasoningSection[tier] : undefined) ??
+      "default";
+    if (typeof value !== "string" || !REASONING_LEVELS.includes(value as ReasoningLevel)) {
+      throw new Error(`${path}: reasoning.${tier} must be one of ${REASONING_LEVELS.join(", ")}`);
+    }
+    reasoning[tier] = value as ReasoningLevel;
+  }
+
   return {
     models: resolved,
+    reasoning,
     maxTokens: positiveInteger(limits.maxTokens, `${path}: limits.maxTokens`),
     timeoutMs: positiveInteger(limits.timeoutMs, `${path}: limits.timeoutMs`),
     variantCount: boundedVariantCount(limits.variantCount, `${path}: limits.variantCount`),

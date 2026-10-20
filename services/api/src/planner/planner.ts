@@ -81,9 +81,11 @@ export class Planner implements PlannerService {
       },
     ];
     const model = this.deps.config.models[classification.tier];
+    const reasoning = this.deps.config.reasoning[classification.tier];
 
     const first = await this.deps.client.complete({
       model,
+      reasoning,
       messages,
       maxTokens: this.deps.config.maxTokens,
       tool: true,
@@ -114,6 +116,7 @@ export class Planner implements PlannerService {
       );
       const second = await this.deps.client.complete({
         model,
+        reasoning,
         messages,
         maxTokens: this.deps.config.maxTokens,
         tool: true,

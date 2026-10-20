@@ -10,6 +10,7 @@ const model = await loadModelWasm();
 
 const CONFIG = {
   models: { fast: "fast/model", smart: "smart/model", explain: "explain/model" },
+  reasoning: { fast: "default", smart: "default", explain: "default" },
   maxTokens: 1024,
   timeoutMs: 1000,
   variantCount: 3,

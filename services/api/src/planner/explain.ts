@@ -60,6 +60,7 @@ export async function explain(request: PlanRequest, deps: ExplainDeps): Promise<
 
   const first = await deps.client.complete({
     model: deps.config.models.explain,
+    reasoning: deps.config.reasoning.explain,
     messages,
     maxTokens: deps.config.maxTokens,
     responseFormat: { name: "Explanation", schema: EXPLAIN_RESPONSE_SCHEMA },
@@ -81,6 +82,7 @@ export async function explain(request: PlanRequest, deps: ExplainDeps): Promise<
   );
   const second = await deps.client.complete({
     model: deps.config.models.explain,
+    reasoning: deps.config.reasoning.explain,
     messages,
     maxTokens: deps.config.maxTokens,
     responseFormat: { name: "Explanation", schema: EXPLAIN_RESPONSE_SCHEMA },

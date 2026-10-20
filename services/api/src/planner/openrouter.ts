@@ -14,6 +14,8 @@
  */
 import { PLAN_TOOL_SCHEMA } from "@bragi/schemas";
 
+import type { ReasoningLevel } from "./config.js";
+
 /** The environment variable holding the OpenRouter key. */
 export const API_KEY_ENV = "OPENROUTER_API_KEY";
 /** Optional override of the API base URL (a proxy or a test server). */
@@ -78,6 +80,8 @@ export interface LlmRequest {
   tool?: boolean;
   /** Send a JSON-schema response format instead of a tool. */
   responseFormat?: ResponseFormat;
+  /** The tier's reasoning level; absent or `default` sends nothing. */
+  reasoning?: ReasoningLevel;
 }
 
 /** Token usage OpenRouter reports (`usage: { include: true }`); absent when a provider omits it. */
@@ -253,6 +257,10 @@ export class OpenRouterClient implements PlannerLlm {
       // Optional by contract: a provider that omits `usage` leaves the reply without it.
       usage: { include: true },
     };
+    if (request.reasoning === "off") body.reasoning = { enabled: false };
+    else if (request.reasoning !== undefined && request.reasoning !== "default") {
+      body.reasoning = { effort: request.reasoning };
+    }
     if (request.tool === true) {
       body.tools = [planToolDefinition()];
       body.tool_choice = { type: "function", function: { name: PLAN_TOOL_NAME } };

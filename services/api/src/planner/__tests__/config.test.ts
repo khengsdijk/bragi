@@ -72,10 +72,26 @@ describe("loadPlannerConfig", () => {
     );
     expect(config).toEqual({
       models: { fast: "a/fast", smart: "override/smart", explain: "a/explain" },
+      reasoning: { fast: "default", smart: "default", explain: "default" },
       maxTokens: 2048,
       timeoutMs: 30000,
       variantCount: 2,
     });
+  });
+
+  it("reads reasoning levels per tier, with the env override applying to every tier", () => {
+    const withReasoning = `${VALID}\n[reasoning]\nfast = "off"\nsmart = "low"\n`;
+    expect(loadPlannerConfig({}, tempConfig(withReasoning)).reasoning).toEqual({
+      fast: "off",
+      smart: "low",
+      explain: "default",
+    });
+    expect(
+      loadPlannerConfig({ BRAGI_PLANNER_REASONING: "high" }, tempConfig(withReasoning)).reasoning,
+    ).toEqual({ fast: "high", smart: "high", explain: "high" });
+    expect(() =>
+      loadPlannerConfig({}, tempConfig(`${VALID}\n[reasoning]\nfast = "max"\n`)),
+    ).toThrow(/reasoning\.fast/);
   });
 
   it("rejects a missing tier and an out-of-range variant count", () => {
