@@ -13,13 +13,14 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
+use bragi_model::SummaryFocus;
 use bragi_model::generated::{AssetHash, AssetMeta, CommitId, OpBatch, Project, Region};
 use bragi_model::{AssetIndex, diff as model_diff, section_spans as model_spans};
 use bragi_model::{
     apply as model_apply, apply_with as model_apply_with, canonical_json as model_canonical_json,
     commit_id as model_commit_id, resolve_region as model_resolve_region,
-    seconds_to_ticks as model_seconds_to_ticks, ticks_to_seconds as model_ticks_to_seconds,
-    validate as model_validate,
+    seconds_to_ticks as model_seconds_to_ticks, summarize_for_llm as model_summarize,
+    ticks_to_seconds as model_ticks_to_seconds, validate as model_validate,
 };
 use wasm_bindgen::prelude::*;
 
@@ -259,6 +260,29 @@ pub fn diff_docs(prev: u32, next: u32) -> Result<String, String> {
     })
 }
 
+/// The compact LLM context for the handle's document (`specs/06-ai-planner.md` §2).
+///
+/// `focus_json` is a `SummaryFocus` (`{}` or an empty string means the whole song); the result is
+/// the line-oriented data block the planner puts in its prompt. A stale focus ID is reported as the
+/// same JSON array of `{ opIndex, code, message }` the op API uses.
+#[wasm_bindgen(js_name = summarizeForLlm)]
+pub fn summarize_for_llm(handle: u32, focus_json: &str) -> Result<String, String> {
+    let focus: SummaryFocus = if focus_json.trim().is_empty() {
+        SummaryFocus::default()
+    } else {
+        serde_json::from_str(focus_json).map_err(|error| error.to_string())?
+    };
+    DOCS.with(|docs| {
+        let docs = docs.borrow();
+        let doc = docs
+            .get(&handle)
+            .ok_or_else(|| format!("unknown handle {handle}"))?;
+        model_summarize(&doc.project, &focus).map_err(|error| {
+            serde_json::to_string(&error.errors()).unwrap_or_else(|_| error.to_string())
+        })
+    })
+}
+
 /// The commit ID for `(parents, batch, snapshotHash)`, all as JSON/strings.
 #[wasm_bindgen(js_name = commitId)]
 pub fn commit_id(
@@ -306,6 +330,9 @@ mod tests {
         .to_string();
         let next = apply_batch(handle, &batch).unwrap();
         assert!(next.contains("Renamed"));
+        let summary = summarize_for_llm(handle, "{}").unwrap();
+        assert!(summary.starts_with("SONG: \"Renamed\""));
+        assert!(summary.contains("FOCUS: whole song"));
         assert_eq!(ticks_to_seconds(handle, 960).unwrap(), 0.5);
         assert_eq!(seconds_to_ticks(handle, 0.5).unwrap(), 960);
         assert!(free_doc(handle));

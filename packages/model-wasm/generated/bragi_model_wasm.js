@@ -288,6 +288,37 @@ export function sectionSpans(handle) {
 }
 
 /**
+ * The compact LLM context for the handle's document (`specs/06-ai-planner.md` §2).
+ *
+ * `focus_json` is a `SummaryFocus` (`{}` or an empty string means the whole song); the result is
+ * the line-oriented data block the planner puts in its prompt. A stale focus ID is reported as the
+ * same JSON array of `{ opIndex, code, message }` the op API uses.
+ * @param {number} handle
+ * @param {string} focus_json
+ * @returns {string}
+ */
+export function summarizeForLlm(handle, focus_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(focus_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.summarizeForLlm(handle, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * Seconds elapsed at `ticks`, using the handle's tempo map.
  * @param {number} handle
  * @param {bigint} ticks
