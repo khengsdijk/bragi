@@ -63,6 +63,9 @@ export const SECTION_FAMILIES = {
 
 export type SectionFamily = (typeof SECTION_FAMILIES)[SectionKind];
 
+/** Every section kind in a stable order, derived from the exhaustive family table. */
+export const SECTION_KIND_LIST = Object.keys(SECTION_FAMILIES) as readonly SectionKind[];
+
 /** Every family in a stable order, for stories and tests. */
 export const SECTION_FAMILY_LIST = [
   "neutral",

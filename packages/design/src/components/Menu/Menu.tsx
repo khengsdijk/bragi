@@ -21,6 +21,8 @@ export interface MenuProps {
    * for a menu that should leave the page reachable.
    */
   readonly modal?: boolean;
+  /** Called when the menu closes and Radix is about to return focus; prevent it to choose a target. */
+  readonly onCloseAutoFocus?: (event: Event) => void;
   readonly className?: string;
 }
 
@@ -40,6 +42,7 @@ export function Menu({
   align = "start",
   sideOffset = 4,
   modal = true,
+  onCloseAutoFocus,
   className,
 }: MenuProps) {
   return (
@@ -57,6 +60,7 @@ export function Menu({
           align={align}
           sideOffset={sideOffset}
           {...(label === undefined ? {} : { "aria-label": label })}
+          {...(onCloseAutoFocus === undefined ? {} : { onCloseAutoFocus })}
         >
           {children}
         </RadixMenu.Content>
@@ -106,6 +110,46 @@ export function MenuItem({
 
 export function MenuSeparator() {
   return <RadixMenu.Separator className={styles.separator} />;
+}
+
+export interface MenuCheckboxItemProps {
+  readonly children: ReactNode;
+  readonly checked: boolean;
+  readonly onCheckedChange?: (checked: boolean) => void;
+  readonly disabled?: boolean;
+  /** Display form of the keyboard shortcut, e.g. "⌘D". */
+  readonly shortcut?: string;
+}
+
+/**
+ * A menu item that toggles a setting, e.g. "Smooth new joins". Radix gives it
+ * `menuitemcheckbox` and `aria-checked`, and the check mark keeps it readable without colour.
+ */
+export function MenuCheckboxItem({
+  children,
+  checked,
+  onCheckedChange,
+  disabled = false,
+  shortcut,
+}: MenuCheckboxItemProps) {
+  return (
+    <RadixMenu.CheckboxItem
+      className={styles.item}
+      checked={checked}
+      disabled={disabled}
+      {...(onCheckedChange === undefined
+        ? {}
+        : {
+            onCheckedChange: (value: boolean | "indeterminate") => onCheckedChange(value === true),
+          })}
+    >
+      <span className={styles.itemIcon} aria-hidden="true">
+        {checked ? "✓" : ""}
+      </span>
+      <span className={styles.itemLabel}>{children}</span>
+      {shortcut === undefined ? null : <span className={styles.shortcut}>{shortcut}</span>}
+    </RadixMenu.CheckboxItem>
+  );
 }
 
 export function MenuLabel({ children }: { readonly children: ReactNode }) {
