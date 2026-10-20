@@ -61,12 +61,19 @@ import {
 } from "./geometry.js";
 import { LabelPool } from "./label-pool.js";
 import {
+  beginLasso,
+  extendLasso,
+  lassoHasRegion,
+  setLassoAlt,
+} from "./lasso.js";
+import {
   computeLayout,
   hitTest,
   type Layout,
   paintPointAt,
   type Rect,
   ribbonAt,
+  sectionAt,
   sectionAtPoint,
   sectionHitAt,
 } from "./layout.js";
@@ -93,9 +100,12 @@ import type {
   CanvasDocument,
   CanvasEventName,
   CanvasEvents,
+  CanvasHighlight,
   CanvasTool,
   CanvasTrack,
   Curve,
+  LassoEvent,
+  LassoRegion,
   PaintStrokeEvent,
   Selection,
   Viewport,
@@ -209,13 +219,16 @@ export class SongCanvas {
   private readonly ribbonsLayer = new Container();
   private readonly gutterG = new Graphics();
   private readonly overlayG = new Graphics();
+  private readonly highlightG = new Graphics();
   private readonly paintG = new Graphics();
+  private readonly lassoG = new Graphics();
   private readonly playheadG = new Graphics();
   private readonly labelsLayer = new Container();
   private readonly sectionLabels: LabelPool;
   private readonly harmonyLabels: LabelPool;
   private readonly gutterLabels: LabelPool;
   private readonly rulerLabels: LabelPool;
+  private readonly highlightLabels: LabelPool;
 
   private palette: Palette;
   private doc: CanvasDocument | null = null;
@@ -246,6 +259,17 @@ export class SongCanvas {
   private paintStroke: PaintStrokeEvent | null = null;
   private paintPointerId: number | null = null;
   private paintDirty = false;
+
+  /** The lasso tool (07 §4.3), the free shape being drawn and the region the prompt bar targets. */
+  private lassoStroke: LassoEvent | null = null;
+  private lassoPointerId: number | null = null;
+  private pendingLasso: LassoRegion | null = null;
+  private lassoWaiting = false;
+  private lassoDirty = false;
+  /** Explanation highlights drawn until the popover closes (06 §8). */
+  private highlights: readonly CanvasHighlight[] = [];
+  /** Explain mode turns a click into an `explainAt` event (07 §4.9). */
+  private explainMode = false;
 
   private readonly ribbons = new Map<string, RibbonView>();
   private clipsByTrack = new Map<string, { startSec: number; endSec: number }[]>();
@@ -292,6 +316,7 @@ export class SongCanvas {
     this.harmonyLabels = new LabelPool(this.labelsLayer, this.palette.fontSans, resolution);
     this.gutterLabels = new LabelPool(this.labelsLayer, this.palette.fontSans, resolution);
     this.rulerLabels = new LabelPool(this.labelsLayer, this.palette.fontSans, resolution);
+    this.highlightLabels = new LabelPool(this.labelsLayer, this.palette.fontSans, resolution);
     this.skylineWorld.addChild(this.skylineG);
     const stage = app.stage;
     stage.addChild(
@@ -302,8 +327,10 @@ export class SongCanvas {
       this.harmonyG,
       this.ribbonsLayer,
       this.gutterG,
+      this.highlightG,
       this.overlayG,
       this.paintG,
+      this.lassoG,
       this.labelsLayer,
       this.playheadG,
     );
@@ -463,13 +490,80 @@ export class SongCanvas {
     this.schedule();
   }
 
-  /** The active tool (07 §3). Painting starts only in `"paint"` mode. */
+  /** The active tool (07 §3). Painting and the lasso start only in their own mode. */
   setTool(tool: CanvasTool): void {
     if (this.tool === tool) return;
     this.tool = tool;
-    this.app.canvas.style.cursor = tool === "paint" ? "crosshair" : "default";
+    this.app.canvas.style.cursor = tool === "paint" || tool === "lasso" ? "crosshair" : "default";
     if (tool !== "paint" && this.paintStroke !== null) this.cancelPaint();
+    if (tool !== "lasso" && this.lassoStroke !== null) this.cancelLasso();
     this.schedule();
+  }
+
+  /**
+   * Explain mode (07 §4.9). A click on a part then emits `explainAt` instead of changing the
+   * selection; the canvas itself asks no model.
+   */
+  setExplainMode(enabled: boolean): void {
+    if (this.explainMode === enabled) return;
+    this.explainMode = enabled;
+    this.app.canvas.style.cursor = enabled ? "help" : "default";
+    this.schedule();
+  }
+
+  /**
+   * The region the prompt bar targets (07 §4.3), drawn over its ribbons until the bar closes.
+   * `waiting` pulses it while the planner thinks; reduced motion keeps it still (11 §6.4).
+   */
+  setLassoRegion(region: LassoRegion | null, waiting = false): void {
+    this.pendingLasso = region;
+    this.lassoWaiting = waiting && region !== null;
+    this.lassoDirty = true;
+    this.schedule();
+  }
+
+  /** The region drawn right now, for the end-to-end tests. */
+  getLassoRegion(): LassoRegion | null {
+    return this.pendingLasso;
+  }
+
+  /** Explanation highlights (06 §8), drawn with their labels until the popover closes. */
+  setHighlights(highlights: readonly CanvasHighlight[]): void {
+    this.highlights = highlights;
+    this.chromeDirty = true;
+    this.schedule();
+  }
+
+  /** The highlights drawn right now, for the end-to-end tests. */
+  getHighlights(): readonly CanvasHighlight[] {
+    return this.highlights;
+  }
+
+  /**
+   * The CSS-pixel box a region occupies on the canvas, so React can anchor the prompt bar or a
+   * popover to it (07 §9: DOM overlays positioned from the renderer's coordinates).
+   */
+  regionRect(region: LassoRegion): { x: number; y: number; w: number; h: number } | null {
+    const doc = this.doc;
+    if (doc === null) return null;
+    const pps = pxPerSecond(this.viewport.pxPerBeat, doc.bpm);
+    const left = this.layout.gutter;
+    const toX = (sec: number): number => left + (sec - this.viewport.originSec) * pps;
+    const x = Math.max(left, toX(region.startSec));
+    const right = Math.min(this.width, toX(region.endSec));
+    const lanes =
+      region.trackIds.length === 0
+        ? [this.layout.sections]
+        : this.layout.ribbons
+            .filter((lane) => region.trackIds.includes(lane.trackId))
+            .map((lane) => lane.rect);
+    if (lanes.length === 0 || right <= x) {
+      const lane = this.layout.sections;
+      return { x, y: lane.y, w: Math.max(2, right - x), h: lane.h };
+    }
+    const top = Math.min(...lanes.map((lane) => lane.y));
+    const bottom = Math.max(...lanes.map((lane) => lane.y + lane.h));
+    return { x, y: top, w: right - x, h: bottom - top };
   }
 
   /** The brush-size slider, used as the stroke opacity for a pointer without pressure. */
@@ -660,6 +754,7 @@ export class SongCanvas {
     this.harmonyLabels.destroy();
     this.gutterLabels.destroy();
     this.rulerLabels.destroy();
+    this.highlightLabels.destroy();
     this.app.destroy({ removeView: true }, { children: true, texture: true });
   }
 
@@ -677,6 +772,7 @@ export class SongCanvas {
     this.viewport = next;
     this.chromeDirty = true;
     this.paintDirty = true;
+    this.lassoDirty = true;
     this.emitViewport();
     this.schedule();
   }
@@ -736,8 +832,13 @@ export class SongCanvas {
       this.paintDirty = false;
       this.drawPaint();
     }
+    const lassoAnimating = this.lassoWaiting && !this.reducedMotion;
+    if (this.lassoDirty || lassoAnimating) {
+      this.lassoDirty = false;
+      this.drawLasso(now);
+    }
     this.drawPlayhead();
-    return animating || shimmering;
+    return animating || shimmering || lassoAnimating;
   }
 
   private anyPending(states: Record<LayerName, LayerState>): boolean {
@@ -766,6 +867,7 @@ export class SongCanvas {
     this.skylineBuilt = null;
     this.invalidateRibbons();
     this.paintDirty = true;
+    this.lassoDirty = true;
   }
 
   private syncRibbonViews(): void {
@@ -1304,6 +1406,9 @@ export class SongCanvas {
     const og = this.overlayG;
     og.clear();
     this.drawOverlays(og, toX);
+    this.highlightLabels.begin();
+    this.drawHighlights(toX, fontSize);
+    this.highlightLabels.end();
   }
 
   private drawToggle(
@@ -1622,6 +1727,120 @@ export class SongCanvas {
     }
   }
 
+  // ---- lasso tool --------------------------------------------------------------------------
+
+  /**
+   * Ends the free shape: `lassoEnd` when it covered time and a ribbon, `lassoCancel` otherwise.
+   * The app snaps the seconds region and opens the prompt bar; the document is never touched.
+   */
+  private finishLasso(commit: boolean): void {
+    const lasso = this.lassoStroke;
+    if (lasso === null) return;
+    this.lassoStroke = null;
+    this.lassoDirty = true;
+    const pointerId = this.lassoPointerId;
+    this.lassoPointerId = null;
+    if (pointerId !== null) this.releaseCapture(pointerId);
+    this.app.canvas.style.cursor = this.tool === "lasso" ? "crosshair" : "default";
+    if (commit && lassoHasRegion(lasso.region)) this.emit("lassoEnd", lasso);
+    else this.emit("lassoCancel", {});
+    this.schedule();
+  }
+
+  private cancelLasso(): void {
+    this.finishLasso(false);
+  }
+
+  /** Draws the free shape and the region the prompt bar targets; the region pulses while waiting. */
+  private drawLasso(now: number): void {
+    const g = this.lassoG;
+    g.clear();
+    const doc = this.doc;
+    if (doc === null) return;
+    const palette = this.palette;
+    const pps = pxPerSecond(this.viewport.pxPerBeat, doc.bpm);
+    const left = this.layout.gutter;
+    const toX = (sec: number): number =>
+      Math.max(left, Math.min(this.width, left + (sec - this.viewport.originSec) * pps));
+
+    const region = this.pendingLasso;
+    if (region !== null) {
+      const pulse = this.lassoWaiting
+        ? this.reducedMotion
+          ? 0.5
+          : 0.5 + 0.5 * Math.sin(now / 360)
+        : 0.35;
+      const alpha = 0.1 + 0.1 * pulse;
+      const x0 = toX(region.startSec);
+      const x1 = toX(region.endSec);
+      const lanes = this.layout.ribbons.filter((lane) =>
+        region.trackIds.includes(lane.trackId),
+      );
+      const targets = lanes.length === 0 ? [this.layout.sections] : lanes.map((lane) => lane.rect);
+      for (const rect of targets) {
+        if (x1 > x0) {
+          g.rect(x0, rect.y, x1 - x0, rect.h).fill({ color: palette.accent, alpha });
+        }
+        g.rect(x0, rect.y, Math.max(1, x1 - x0), rect.h).stroke({
+          width: 1.5,
+          color: palette.accent,
+          alpha: Math.min(1, alpha + 0.5),
+        });
+      }
+    }
+
+    const stroke = this.lassoStroke;
+    if (stroke !== null && stroke.points.length > 0) {
+      const first = stroke.points[0];
+      if (first !== undefined) g.moveTo(toX(first.sec), first.y);
+      for (const point of stroke.points.slice(1)) g.lineTo(toX(point.sec), point.y);
+      if (stroke.points.length === 1 && first !== undefined) {
+        g.lineTo(toX(first.sec), first.y);
+      }
+      g.stroke({ width: 1.5, color: palette.accent, alpha: 0.95 });
+    }
+  }
+
+  /** The Explanation's labelled regions (06 §8), drawn above the ribbons until it closes. */
+  private drawHighlights(toX: (sec: number) => number, fontSize: number): void {
+    const g = this.highlightG;
+    g.clear();
+    const palette = this.palette;
+    const xf = (sec: number): number =>
+      Math.max(this.layout.gutter, Math.min(this.width, toX(sec)));
+    for (const highlight of this.highlights) {
+      const lanes = this.layout.ribbons.filter((lane) =>
+        highlight.region.trackIds.includes(lane.trackId),
+      );
+      const targets = lanes.length === 0 ? [this.layout.sections] : lanes.map((lane) => lane.rect);
+      const x0 = xf(highlight.region.startSec);
+      const x1 = xf(highlight.region.endSec);
+      for (const rect of targets) {
+        if (x1 > x0) {
+          g.rect(x0, rect.y, x1 - x0, rect.h).fill({ color: palette.warning, alpha: 0.14 });
+        }
+        g.rect(x0, rect.y, Math.max(1, x1 - x0), rect.h).stroke({
+          width: 1.5,
+          color: palette.warning,
+          alpha: 1,
+        });
+      }
+      const first = targets[0];
+      if (first !== undefined && highlight.label !== "") {
+        this.highlightLabels.place(
+          highlight.label,
+          Math.min(this.width - 8, x0 + 6),
+          first.y + Math.max(10, fontSize - 1),
+          {
+            fill: palette.text,
+            fontSize: Math.max(10, fontSize - 1),
+            fontWeight: "500",
+          },
+        );
+      }
+    }
+  }
+
   // ---- input -------------------------------------------------------------------------------
 
   private attachInput(): void {
@@ -1663,6 +1882,21 @@ export class SongCanvas {
       this.capture(event.pointerId);
       element.style.cursor = "crosshair";
       this.emit("paintStart", this.paintStroke);
+      this.schedule();
+    };
+
+    const beginLassoAt = (event: PointerEvent, x: number, y: number, trackId: string): void => {
+      const doc = this.doc;
+      if (doc === null) return;
+      const sec = clampSec(xToTime(this.viewport, doc.bpm, x - this.layout.gutter), doc.durationSec);
+      this.lassoStroke = beginLasso({ sec, trackId, y }, event.altKey);
+      this.pendingLasso = null;
+      this.lassoWaiting = false;
+      this.lassoPointerId = event.pointerId;
+      this.lassoDirty = true;
+      this.capture(event.pointerId);
+      element.style.cursor = "crosshair";
+      this.emit("lassoStart", this.lassoStroke);
       this.schedule();
     };
 
@@ -1713,6 +1947,25 @@ export class SongCanvas {
       if (!this.doc || event.button !== 0) return;
       const { x, y } = point(event);
       const target = hit(x, y);
+
+      // Explain mode (07 §4.9): a click asks about the part under the pointer and changes nothing.
+      if (this.tool === "select" && this.explainMode) {
+        const sec = clampSec(
+          xToTime(this.viewport, this.doc.bpm, x - this.layout.gutter),
+          this.doc.durationSec,
+        );
+        const sectionId = this.sectionAt(x, y) ?? sectionAt(this.doc, sec);
+        if (sectionId !== null) {
+          this.emit("explainAt", {
+            sectionId,
+            sec,
+            clientX: event.clientX,
+            clientY: event.clientY,
+          });
+        }
+        return;
+      }
+
       if (target.kind === "toggle") {
         if (target.trackId.startsWith(GHOST_PREFIX)) return;
         const track = this.doc.tracks.find((candidate) => candidate.id === target.trackId);
@@ -1722,6 +1975,14 @@ export class SongCanvas {
           field: target.field,
           value: !track[target.field],
         });
+        return;
+      }
+
+      // The lasso owns the ribbons: it starts a free shape, not a selection or pan (07 §4.3).
+      if (this.tool === "lasso") {
+        if (target.kind === "ribbon" && !target.trackId.startsWith(GHOST_PREFIX)) {
+          beginLassoAt(event, x, y, target.trackId);
+        }
         return;
       }
 
@@ -1828,6 +2089,36 @@ export class SongCanvas {
       if (!this.doc) return;
       const { x, y } = point(event);
 
+      if (this.lassoStroke !== null) {
+        const lasso = this.lassoStroke;
+        const coalesced =
+          typeof event.getCoalescedEvents === "function" ? event.getCoalescedEvents() : [];
+        const samples = coalesced.length > 0 ? coalesced : [event];
+        let next = setLassoAlt(lasso, event.altKey);
+        for (const sample of samples) {
+          const at = point(sample);
+          if (at.x < this.layout.gutter) continue;
+          const sec = clampSec(
+            xToTime(this.viewport, this.doc.bpm, at.x - this.layout.gutter),
+            this.doc.durationSec,
+          );
+          const found = ribbonAt(this.layout, this.viewport, this.doc, at.x, at.y);
+          next = extendLasso(next, {
+            sec,
+            trackId: found?.trackId.startsWith(GHOST_PREFIX) === true ? null : (found?.trackId ?? null),
+            y: at.y,
+          });
+        }
+        if (next !== lasso) {
+          this.lassoStroke = next;
+          this.lassoDirty = true;
+          this.emit("lassoMove", next);
+          this.schedule();
+        }
+        element.style.cursor = "crosshair";
+        return;
+      }
+
       if (this.paintStroke !== null) {
         const stroke = this.paintStroke;
         // A pen reports several positions per frame; follow all of them so the stroke has no gaps.
@@ -1907,6 +2198,14 @@ export class SongCanvas {
         element.style.cursor = "crosshair";
         return;
       }
+      if (this.tool === "lasso") {
+        element.style.cursor = "crosshair";
+        return;
+      }
+      if (this.explainMode) {
+        element.style.cursor = "help";
+        return;
+      }
       const sectionHit = sectionHitAt(this.layout, this.viewport, this.doc, x, y);
       element.style.cursor =
         sectionHit === null
@@ -1919,6 +2218,11 @@ export class SongCanvas {
     };
 
     const onUp = (event: PointerEvent): void => {
+      if (this.lassoStroke !== null) {
+        this.lassoStroke = setLassoAlt(this.lassoStroke, event.altKey);
+        this.finishLasso(true);
+        return;
+      }
       if (this.paintStroke !== null) {
         this.finishPaint(true);
         return;
@@ -1959,6 +2263,10 @@ export class SongCanvas {
     };
 
     const onCancel = (event: PointerEvent): void => {
+      if (this.lassoStroke !== null) {
+        this.cancelLasso();
+        return;
+      }
       if (this.paintStroke !== null) {
         this.cancelPaint();
         return;
@@ -1979,6 +2287,12 @@ export class SongCanvas {
 
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== "Escape") return;
+      if (this.lassoStroke !== null) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        this.cancelLasso();
+        return;
+      }
       if (this.paintStroke !== null) {
         event.preventDefault();
         event.stopImmediatePropagation();
