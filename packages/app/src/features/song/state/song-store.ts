@@ -78,6 +78,11 @@ export interface SongStore {
    * (`preview ?? doc`) without parsing the document again. `null` when no gesture runs.
    */
   previewHandle(): number | null;
+  /**
+   * A model handle for a document that is not the song's (an audition candidate), with the
+   * song's asset index, so views can derive its spans. The caller frees it with `model.freeDoc`.
+   */
+  detachedHandle(doc: Project): number;
   /** Replaces the document (project open). */
   load(project: Project, assets?: readonly AssetMeta[]): void;
   /**
@@ -188,6 +193,11 @@ export function createSongStore(model: ModelApi): SongStore {
     model,
     handle: () => handle,
     previewHandle: () => previewCopy,
+    detachedHandle(doc) {
+      const detached = model.loadProject(JSON.stringify(doc));
+      if (assetMetas.length > 0) model.assetAdd(detached, JSON.stringify(assetMetas));
+      return detached;
+    },
     assets: () => assetMetas,
     load(project, assets = []) {
       endPreview?.();

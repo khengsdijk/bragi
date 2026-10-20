@@ -7,7 +7,14 @@
  * {@link EngineController.commit}: mix-only changes go through `applyDelta`, structural ones
  * through a full `loadDocument` (03 §3.3).
  */
-import type { EngineDelta, EngineHost, EngineState, ProjectJson } from "@bragi/platform";
+import type {
+  AuditionSlot,
+  CandidateSlot,
+  EngineDelta,
+  EngineHost,
+  EngineState,
+  ProjectJson,
+} from "@bragi/platform";
 import type { Project } from "@bragi/schemas";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
@@ -31,6 +38,8 @@ export interface TransportViewState {
   /** Per-track meter level (RMS, 0..1) by track id, for the ribbon glow. */
   readonly meters: Readonly<Record<string, number>>;
   readonly error: string | null;
+  /** The warm plan that is audible: 0 is HEAD, 1–3 are audition candidates (03 §5.4). */
+  readonly auditionSlot: AuditionSlot;
 }
 
 export interface EngineControllerOptions {
@@ -62,6 +71,15 @@ export interface EngineController {
   commit(commit: Commit, doc: Project): void;
   /** A new document replaced the old one (project open). */
   documentReplaced(): void;
+  /**
+   * Prepares `doc` in a warm candidate slot (03 §5.4). Starts the engine if needed, so call it
+   * from a user gesture the first time. Resolves `false` when there is no engine.
+   */
+  warm(slot: CandidateSlot, doc: Project): Promise<boolean>;
+  /** Drops a warm candidate. */
+  release(slot: CandidateSlot): void;
+  /** Crossfades to a warm slot at the same playhead; 0 returns to HEAD. */
+  audition(slot: AuditionSlot): void;
   dispose(): Promise<void>;
 }
 
@@ -76,6 +94,7 @@ export function createEngineController(options: EngineControllerOptions): Engine
     underruns: 0,
     meters: {},
     error: null,
+    auditionSlot: 0,
   }));
 
   let engine: EngineHost | null = null;
@@ -233,6 +252,18 @@ export function createEngineController(options: EngineControllerOptions): Engine
       store.setState({ durationSec: options.durationSec(), positionSec: 0 });
       latestDoc = options.document();
       reload();
+    },
+    async warm(slot, doc) {
+      if (!(await ensure()) || !engine) return false;
+      await engine.warm(slot, doc as unknown as ProjectJson);
+      return true;
+    },
+    release(slot) {
+      engine?.release(slot);
+    },
+    audition(slot) {
+      store.setState({ auditionSlot: slot });
+      engine?.audition(slot);
     },
     async dispose() {
       unsubscribe?.();
