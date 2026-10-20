@@ -92,6 +92,94 @@ test("is reachable and operable by keyboard alone", async ({ appPage }) => {
   await expect(appPage.getByRole("slider", { name: "Position" })).toBeVisible();
 });
 
+test("section actions work from the keyboard, the menu and the command palette", async ({
+  appPage,
+}) => {
+  await openDemo(appPage, { audio: false });
+  const before = await currentDoc(appPage);
+  const ids = before.arrangement.sections.map((section) => section.id);
+
+  // Once a part is selected, Alt+→ moves it one place and announces the result.
+  const first = appPage.locator('[data-testid="song-grid"] td[tabindex="0"]');
+  await first.focus();
+  await appPage.keyboard.press("Enter");
+  await expect(appPage.getByTestId("selection-summary")).toHaveText("1 parts selected");
+  await appPage.keyboard.press("Alt+ArrowRight");
+  await expect(appPage.getByTestId("live-region")).toHaveText("Intro moved after Verse 1");
+  expect((await currentDoc(appPage)).arrangement.sections.map((section) => section.id)).toEqual([
+    ids[1],
+    ids[0],
+    ...ids.slice(2),
+  ]);
+  // One commit; the demo has no version tree, so the other direction restores the arrangement.
+  expect(await withHooks(appPage, (h) => h.store.store.getState().lastCommit?.batch.label)).toBe(
+    "Move Intro after Verse 1",
+  );
+  await appPage.keyboard.press("Alt+ArrowLeft");
+  await expect
+    .poll(async () => (await currentDoc(appPage)).arrangement.sections.map((section) => section.id))
+    .toEqual(ids);
+
+  // Shift+F10 on the focused cell opens the same accessible menu; Escape returns focus.
+  await first.focus();
+  await appPage.keyboard.press("Shift+F10");
+  const menu = appPage.getByRole("menu", { name: "Part actions" });
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Duplicate part" })).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect
+    .poll(async () => appPage.evaluate(() => document.activeElement?.getAttribute("role")))
+    .toBe("gridcell");
+
+  // A menu item commits its batch and announces it.
+  await appPage.keyboard.press("Shift+F10");
+  await expect(menu).toBeVisible();
+  await menu.getByRole("menuitem", { name: "Duplicate part" }).click();
+  await expect(appPage.getByTestId("live-region")).toHaveText("Duplicated Intro");
+  expect((await currentDoc(appPage)).arrangement.sections).toHaveLength(ids.length + 1);
+
+  // Cmd/Ctrl+K opens the palette; Enter runs the filtered command.
+  await expect
+    .poll(async () => appPage.evaluate(() => document.activeElement?.getAttribute("role")))
+    .toBe("gridcell");
+  await appPage.keyboard.press("Control+k");
+  const palette = appPage.getByRole("dialog", { name: "Commands" });
+  await expect(palette).toBeVisible();
+  await appPage.getByRole("combobox").fill("duplicate");
+  await expect(appPage.getByRole("option", { name: /Duplicate part/ })).toBeVisible();
+  await appPage.keyboard.press("Enter");
+  await expect(palette).toBeHidden();
+  await expect(appPage.getByTestId("live-region")).toHaveText("Duplicated Intro");
+  expect((await currentDoc(appPage)).arrangement.sections).toHaveLength(ids.length + 2);
+});
+
+test("the section menu and command palette pass axe", async ({ appPage }) => {
+  await openDemo(appPage, { audio: false });
+  await appPage.locator('[data-testid="song-grid"] td[tabindex="0"]').focus();
+  await appPage.keyboard.press("Shift+F10");
+  await expect(appPage.getByRole("menu", { name: "Part actions" })).toBeVisible();
+  const menuResults = await new AxeBuilder({ page: appPage }).analyze();
+  const menuBad = menuResults.violations.filter(
+    (v) => v.impact === "serious" || v.impact === "critical",
+  );
+  expect(
+    menuBad.map((v) => `${v.id}: ${v.nodes.map((node) => node.target.join(" ")).join(", ")}`),
+  ).toEqual([]);
+  await appPage.keyboard.press("Escape");
+  await expect(appPage.getByRole("menu", { name: "Part actions" })).toBeHidden();
+
+  await appPage.keyboard.press("Control+k");
+  await expect(appPage.getByRole("dialog", { name: "Commands" })).toBeVisible();
+  const paletteResults = await new AxeBuilder({ page: appPage }).analyze();
+  const paletteBad = paletteResults.violations.filter(
+    (v) => v.impact === "serious" || v.impact === "critical",
+  );
+  expect(
+    paletteBad.map((v) => `${v.id}: ${v.nodes.map((node) => node.target.join(" ")).join(", ")}`),
+  ).toEqual([]);
+});
+
 test("solo and mute pressed on a ribbon commit one op batch and undo exactly", async ({
   appPage,
 }) => {
