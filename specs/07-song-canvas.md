@@ -63,7 +63,7 @@ Zooming is continuous (pinch, ctrl/cmd + scroll, or zoom slider), and the transi
 | **Erase** | `E` | Drag over a region → clears it, with an option to "fill with AI" |
 | **Explain** | `?` | Click anything → explanation popover |
 
-Global shortcuts: `Space` play/pause, `Enter` play from selection, `Cmd/Ctrl+Z` / `Shift+Cmd/Ctrl+Z` undo/redo (moves HEAD), `Cmd/Ctrl+K` command palette, `1–4` audition candidates, `0` original, `A` accept candidate, `M`/`O` mute/solo the hovered ribbon, `+`/`−` zoom, `F` fit song.
+Global shortcuts: `Space` play/pause, `Enter` play from selection, `Cmd/Ctrl+Z` / `Shift+Cmd/Ctrl+Z` undo/redo (moves HEAD), `Cmd/Ctrl+K` command palette, `Cmd/Ctrl+Shift+L` or `/` ask AI on the selection (or the whole song), `1–4` audition candidates, `0` original, `A` accept candidate, `M`/`O` mute/solo the hovered ribbon, `+`/`−` zoom, `F` fit song.
 
 ## 4. Interactions (normative)
 

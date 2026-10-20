@@ -7271,6 +7271,12 @@ pub struct PlanRequest {
     ///The lasso / selection the prompt targets. Absent for song chat.
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub region: ::std::option::Option<Region>,
+    ///Per-section analysis the client already has (energy, chords, active stems), because `bragi-model` never reads analysis blobs (docs/wp/2.6.md, deviation A). Optional: an older client still gets a usable summary.
+    #[serde(
+        rename = "sectionFeatures",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub section_features: ::std::option::Option<SectionFeatureList>,
     #[serde(rename = "uiContext")]
     pub ui_context: PlannerUiContext,
     #[serde(
@@ -8226,6 +8232,99 @@ pub struct SecRange {
     #[serde(rename = "startSec")]
     pub start_sec: f64,
 }
+///`SectionActiveStemList`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct SectionActiveStemList(pub ::std::vec::Vec<TrackId>);
+impl ::std::ops::Deref for SectionActiveStemList {
+    type Target = ::std::vec::Vec<TrackId>;
+    fn deref(&self) -> &::std::vec::Vec<TrackId> {
+        &self.0
+    }
+}
+impl ::std::convert::From<SectionActiveStemList> for ::std::vec::Vec<TrackId> {
+    fn from(value: SectionActiveStemList) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<TrackId>> for SectionActiveStemList {
+    fn from(value: ::std::vec::Vec<TrackId>) -> Self {
+        Self(value)
+    }
+}
+///`SectionChordList`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct SectionChordList(pub ::std::vec::Vec<SectionChordListItem>);
+impl ::std::ops::Deref for SectionChordList {
+    type Target = ::std::vec::Vec<SectionChordListItem>;
+    fn deref(&self) -> &::std::vec::Vec<SectionChordListItem> {
+        &self.0
+    }
+}
+impl ::std::convert::From<SectionChordList> for ::std::vec::Vec<SectionChordListItem> {
+    fn from(value: SectionChordList) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<SectionChordListItem>> for SectionChordList {
+    fn from(value: ::std::vec::Vec<SectionChordListItem>) -> Self {
+        Self(value)
+    }
+}
+///`SectionChordListItem`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct SectionChordListItem(::std::string::String);
+impl ::std::ops::Deref for SectionChordListItem {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<SectionChordListItem> for ::std::string::String {
+    fn from(value: SectionChordListItem) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for SectionChordListItem {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 32usize {
+            return Err("longer than 32 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for SectionChordListItem {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for SectionChordListItem {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for SectionChordListItem {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
 ///`section.duplicate` (02 §4.2). Deep-copy a section with new IDs and set derivedFrom (02 §5.1).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
@@ -8323,6 +8422,45 @@ impl ::std::convert::From<::std::vec::Vec<SectionEnergy>> for SectionEnergyList 
     fn from(value: ::std::vec::Vec<SectionEnergy>) -> Self {
         Self(value)
     }
+}
+///`SectionFeatureList`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct SectionFeatureList(pub ::std::vec::Vec<SectionFeatures>);
+impl ::std::ops::Deref for SectionFeatureList {
+    type Target = ::std::vec::Vec<SectionFeatures>;
+    fn deref(&self) -> &::std::vec::Vec<SectionFeatures> {
+        &self.0
+    }
+}
+impl ::std::convert::From<SectionFeatureList> for ::std::vec::Vec<SectionFeatures> {
+    fn from(value: SectionFeatureList) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<SectionFeatures>> for SectionFeatureList {
+    fn from(value: ::std::vec::Vec<SectionFeatures>) -> Self {
+        Self(value)
+    }
+}
+///One section's compact analysis features. Values come from the analysis view, never from the model.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct SectionFeatures {
+    ///Track ids that carry audio in the section.
+    #[serde(
+        rename = "activeStems",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub active_stems: ::std::option::Option<SectionActiveStemList>,
+    ///Chord symbols heard in the section, in time order.
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub chords: ::std::option::Option<SectionChordList>,
+    ///Mean short-term energy over the section, 0..1.
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub energy: ::std::option::Option<f64>,
+    #[serde(rename = "sectionId")]
+    pub section_id: SectionId,
 }
 ///Section ID: `sec_` + ULID (02 §2.1).
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

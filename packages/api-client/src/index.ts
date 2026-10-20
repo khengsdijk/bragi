@@ -10,6 +10,8 @@
  * bearer token on desktop (05 §8); both are expressed by the options.
  */
 
+import type { EditPlan, Explanation, PlanRequest } from "@bragi/schemas";
+
 /** The error envelope of 05 §2, as an exception. */
 export class ApiClientError extends Error {
   constructor(
@@ -21,6 +23,38 @@ export class ApiClientError extends Error {
     super(message);
     this.name = "ApiClientError";
   }
+}
+
+/** The planner error codes the API returns (05 §2, 06 §5). */
+export type PlannerErrorCode = "PLANNER_UNAVAILABLE" | "PLAN_INVALID" | "PROMPT_POLICY";
+
+/** Plain-language messages for the planner failures (11 §2), never the server's wording. */
+const PLANNER_MESSAGES: Readonly<Record<PlannerErrorCode, string>> = {
+  PLANNER_UNAVAILABLE: "The AI planner isn't set up on this computer yet.",
+  PLAN_INVALID:
+    "I couldn't turn that into a plan. Try describing the change a little more specifically.",
+  PROMPT_POLICY: "I can't use artist or song names here. Describe the sound instead.",
+};
+
+/** The API's message, kept for the "Details" drawer but never shown as the main text. */
+export class PlannerApiError extends ApiClientError {
+  readonly serverMessage: string | undefined;
+
+  constructor(
+    readonly plannerCode: PlannerErrorCode,
+    status: number,
+    details?: unknown,
+    serverMessage?: string,
+  ) {
+    super(plannerCode, PLANNER_MESSAGES[plannerCode], status, details);
+    this.name = "PlannerApiError";
+    this.serverMessage = serverMessage;
+  }
+}
+
+/** Whether an API error code is one the planner route defines. */
+export function isPlannerErrorCode(code: string): code is PlannerErrorCode {
+  return code === "PLANNER_UNAVAILABLE" || code === "PLAN_INVALID" || code === "PROMPT_POLICY";
 }
 
 export type AnalysisProfile = "quick" | "standard" | "deep";
@@ -132,6 +166,16 @@ export interface ApiClient {
     items: readonly string[];
     enqueuedStages: readonly string[];
   }>;
+  /**
+   * `POST /v1/plans` (06 §2): an `EditPlan`, or an `Explanation` when `explain` is set.
+   *
+   * Planner failures become {@link PlannerApiError} with a plain-language message. The optional
+   * signal is the prompt bar's Cancel button; an abort rejects with the platform's `AbortError`.
+   */
+  plan(
+    request: PlanRequest,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<EditPlan | Explanation>;
 }
 
 /** Creates the client. No request is made until a method is called. */
@@ -144,7 +188,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     method: string,
     path: string,
     body?: unknown,
-    init: { readonly redirect?: RequestRedirect } = {},
+    init: { readonly redirect?: RequestRedirect; readonly signal?: AbortSignal } = {},
   ): Promise<T> {
     const headers: Record<string, string> = { accept: "application/json" };
     if (body !== undefined) headers["content-type"] = "application/json";
@@ -156,6 +200,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       headers,
       credentials,
       redirect: init.redirect ?? "follow",
+      ...(init.signal === undefined ? {} : { signal: init.signal }),
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const text = await response.text();
@@ -200,6 +245,21 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         cursor === undefined ? "/v1/library" : `/v1/library?cursor=${encodeURIComponent(cursor)}`,
       ),
     importLibrary: (items) => request("POST", "/v1/library/import", { items }),
+    async plan(planRequest, planOptions = {}) {
+      try {
+        return await request<EditPlan | Explanation>(
+          "POST",
+          "/v1/plans",
+          planRequest,
+          planOptions.signal === undefined ? {} : { signal: planOptions.signal },
+        );
+      } catch (error) {
+        if (error instanceof ApiClientError && isPlannerErrorCode(error.code)) {
+          throw new PlannerApiError(error.code, error.status, error.details, error.message);
+        }
+        throw error;
+      }
+    },
   };
 }
 

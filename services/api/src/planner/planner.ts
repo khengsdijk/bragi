@@ -77,6 +77,9 @@ export class Planner implements PlannerService {
           summary,
           prompt: policy.prompt,
           catalogue: buildCatalogue(),
+          ...(request.sectionFeatures === undefined
+            ? {}
+            : { sectionFeatures: request.sectionFeatures }),
         }),
       },
     ];

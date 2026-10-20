@@ -17,5 +17,8 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@bragi/schemas": "workspace:*"
   }
 }

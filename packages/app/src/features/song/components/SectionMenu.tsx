@@ -119,6 +119,9 @@ export function SectionMenu({
       <MenuSeparator />
       {item("section.applyBrush")}
       <MenuSeparator />
+      {item("planner.ask")}
+      {item("planner.explain")}
+      <MenuSeparator />
       <MenuCheckboxItem checked={smartTransitions} onCheckedChange={onSmartTransitionsChange}>
         {t("song.sectionMenu.smooth")}
       </MenuCheckboxItem>
