@@ -50,6 +50,8 @@ export interface CanvasHook {
   };
   getViewport(): { pxPerBeat: number; originSec: number };
   sectionAt(x: number, y: number): string | null;
+  /** The centre of a ribbon at an arrangement time, in canvas CSS px. */
+  ribbonPoint(trackId: string, sec: number): { x: number; y: number } | null;
   getLevel(): string;
   setViewport(viewport: { pxPerBeat: number; originSec: number }): void;
   zoomBy(factor: number, anchorX?: number): void;
@@ -145,6 +147,25 @@ export function layout(page: Page) {
     if (!hooks.canvas) throw new Error("no canvas");
     return hooks.canvas.getLayout();
   });
+}
+
+/** Page coordinates of the centre of a ribbon at an arrangement time. */
+export async function ribbonPoint(
+  page: Page,
+  trackId: string,
+  sec: number,
+): Promise<{ x: number; y: number }> {
+  const point = await withHooks(
+    page,
+    (hooks, arg) => {
+      const canvas = hooks.canvas;
+      if (!canvas) throw new Error("no canvas");
+      return canvas.ribbonPoint(arg.trackId, arg.sec);
+    },
+    { trackId, sec },
+  );
+  if (point === null) throw new Error(`no ribbon ${trackId} at ${sec}s`);
+  return canvasPoint(page, point.x, point.y);
 }
 
 export function currentDoc(page: Page): Promise<ProjectLike> {
