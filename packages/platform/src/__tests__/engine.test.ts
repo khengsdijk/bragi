@@ -25,6 +25,8 @@ import {
   type EngineOfflineBridge,
   type EnginePlaybackBridge,
   guessMime,
+  OP_AUDITION_SLOT,
+  OP_RELEASE_SLOT,
   resizeStateBlock,
   stateWordCount,
 } from "../web/engine.js";
@@ -167,6 +169,7 @@ function exportFrame(files: { name: string; bytes: number[]; frames: number }[])
 function fakePlayback() {
   const sent: bigint[][] = [];
   const loaded: { doc: unknown; assets: readonly unknown[] }[] = [];
+  const warmed: { slot: number; doc: unknown; assets: readonly { hash: string }[] }[] = [];
   const bridge: EnginePlaybackBridge = {
     state: new Uint32Array(stateWordCount(1)),
     send(words) {
@@ -176,9 +179,12 @@ function fakePlayback() {
       loaded.push({ doc, assets });
     },
     applyDelta() {},
+    async warm(slot, doc, assets) {
+      warmed.push({ slot, doc, assets });
+    },
     async dispose() {},
   };
-  return { bridge, sent, loaded };
+  return { bridge, sent, loaded, warmed };
 }
 
 function fakeOffline(): EngineOfflineBridge {
@@ -302,6 +308,54 @@ describe("the wasm engine host", () => {
     await host.dispose();
   });
 
+  it("warms candidates with only the assets the worklet does not hold, and switches by slot", async () => {
+    const playback = fakePlayback();
+    const head = `sha256:${"a".repeat(64)}` as const;
+    const take = `sha256:${"c".repeat(64)}` as const;
+    const decoded: string[][] = [];
+    const host = createWasmEngineHost({
+      playback: playback.bridge,
+      offline: {
+        ...fakeOffline(),
+        async decode(assets) {
+          decoded.push(assets.map((asset) => asset.hash));
+          return fakeOffline().decode(assets);
+        },
+      },
+      assets: {
+        async fetch(hashes) {
+          return hashes.map(
+            (hash): EngineAssetBytes => ({ hash, bytes: new Uint8Array([1]), mime: "audio/wav" }),
+          );
+        },
+      },
+      schedule: () => 1,
+      cancelSchedule: () => {},
+    });
+    await host.loadDocument({ sources: [{ workingAsset: head }] });
+    const candidate = {
+      sources: [{ workingAsset: head }],
+      arrangement: { sections: [{ lanes: { t: { clips: [{ asset: take }] } } }] },
+    };
+    await host.warm(1, candidate);
+    // Two candidates that share the new take: it crosses once, with the first.
+    await host.warm(2, candidate);
+    expect(playback.warmed.map((entry) => entry.slot)).toEqual([1, 2]);
+    expect(playback.warmed[0]?.assets.map((asset) => asset.hash)).toEqual([take]);
+    expect(playback.warmed[1]?.assets).toHaveLength(0);
+    expect(decoded).toEqual([[head], [take]]);
+
+    host.audition(2);
+    host.audition(0);
+    host.release(1);
+    expect(playback.sent.slice(-3)).toEqual([
+      [packCommand(OP_AUDITION_SLOT, 2)],
+      [packCommand(OP_AUDITION_SLOT, 0)],
+      [packCommand(OP_RELEASE_SLOT, 1)],
+    ]);
+    await host.dispose();
+  });
+
   it("emits plan and underrun events", async () => {
     const playback = fakePlayback();
     const events: string[] = [];
@@ -363,7 +417,9 @@ describe("the tauri engine host", () => {
     host.applyDelta({ requiresFullResync: false });
     host.setPreview({ kind: "trackGain", trackId: "trk_01", db: -3 });
     host.transport({ kind: "play" });
-    host.audition({ commitId: "cmt_1", doc: { id: "prj_01" } });
+    await host.warm(1, { id: "prj_01" });
+    host.audition(1);
+    host.release(1);
     const rendered = await host.render({
       kind: "mixdown",
       format: { container: "flac", bits: 24 },
@@ -381,6 +437,9 @@ describe("the tauri engine host", () => {
       "engine_apply_delta",
       "engine_set_preview",
       "engine_transport",
+      "engine_warm",
+      "engine_audition",
+      "engine_release",
       "engine_render",
       "engine_peaks",
       "engine_dispose",

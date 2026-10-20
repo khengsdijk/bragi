@@ -23,6 +23,7 @@ use thiserror::Error;
 use bragi_engine::SAMPLE_RATE;
 use bragi_engine::engine::Engine;
 use bragi_engine::pcm::PcmSource;
+use bragi_engine::render::PreparedSlot;
 use bragi_engine::rt::{SpscU64, StateBlock};
 
 /// Command opcodes packed into the high byte of a ring word.
@@ -43,7 +44,24 @@ mod opcode {
     pub(super) const LOOP_END: u8 = 7;
     /// Enable or disable the audition overlay.
     pub(super) const AUDITION: u8 = 8;
+    /// The slot for the following [`WARM_PTR`](Self::WARM_PTR) word.
+    pub(super) const WARM_SLOT: u8 = 9;
+    /// A pointer to a `Box<Option<PreparedSlot>>` built off the audio thread.
+    pub(super) const WARM_PTR: u8 = 10;
+    /// The slot for the following [`RELEASE_PTR`](Self::RELEASE_PTR) word.
+    pub(super) const RELEASE_SLOT: u8 = 11;
+    /// An empty mailbox to receive a released slot (dropped off the thread).
+    pub(super) const RELEASE_PTR: u8 = 12;
+    /// Crossfade to a warm slot (`AUDITION_MAIN` means slot 0).
+    pub(super) const AUDITION_SLOT: u8 = 13;
 }
+
+/// A word that means "the main plan" in an [`opcode::AUDITION_SLOT`] command.
+const AUDITION_MAIN: u64 = u64::MAX;
+
+/// The low 56 bits of a ring word: enough for every user-space pointer the
+/// supported desktop targets produce.
+const POINTER_MASK: u64 = 0x00FF_FFFF_FFFF_FFFF;
 
 /// Packs a command for the ring.
 #[must_use]
@@ -78,6 +96,8 @@ pub enum OutputError {
 pub struct NativePlayer {
     _stream: Stream,
     commands: Arc<SpscU64>,
+    /// Plans the audio thread released; the control side drops them.
+    released: Arc<SpscU64>,
     xruns: Arc<AtomicU64>,
     state: Arc<StateBlock>,
 }
@@ -116,6 +136,7 @@ impl NativePlayer {
         config.buffer_size = cpal::BufferSize::Fixed(block as u32);
 
         let commands = Arc::new(SpscU64::new(64));
+        let released = Arc::new(SpscU64::new(64));
         let xruns = Arc::new(AtomicU64::new(0));
         let stream = match sample_format {
             SampleFormat::F32 => build_stream::<f32>(
@@ -124,6 +145,7 @@ impl NativePlayer {
                 engine,
                 pcm,
                 commands.clone(),
+                released.clone(),
                 xruns.clone(),
                 state.clone(),
                 block,
@@ -134,6 +156,7 @@ impl NativePlayer {
                 engine,
                 pcm,
                 commands.clone(),
+                released.clone(),
                 xruns.clone(),
                 state.clone(),
                 block,
@@ -146,6 +169,7 @@ impl NativePlayer {
         Ok(Self {
             _stream: stream,
             commands,
+            released,
             xruns,
             state,
         })
@@ -202,6 +226,61 @@ impl NativePlayer {
     pub fn set_auditioning(&self, on: bool) -> bool {
         self.send(command(opcode::AUDITION, u64::from(on)))
     }
+
+    /// Hands a prepared candidate slot to the audio thread.
+    ///
+    /// The slot is boxed here, off the audio thread; the callback only moves it
+    /// into the engine and sends the same box back through the release ring
+    /// with whatever it displaced, so no plan is ever dropped in the callback.
+    /// Returns `false` when the command ring is full or the pointer does not fit
+    /// its 56-bit payload.
+    pub fn warm(&self, slot: usize, prepared: PreparedSlot) -> bool {
+        self.send_mailbox(opcode::WARM_SLOT, slot, Some(prepared))
+    }
+
+    /// Releases a candidate slot on the audio thread, returning it to the
+    /// control side for an off-thread drop.
+    pub fn release_slot(&self, slot: usize) -> bool {
+        self.send_mailbox(opcode::RELEASE_SLOT, slot, None)
+    }
+
+    /// Crossfades to a warm slot (`None` = the main plan, slot 0).
+    pub fn audition_slot(&self, slot: Option<usize>) -> bool {
+        let value = slot.map_or(AUDITION_MAIN, |slot| slot as u64);
+        self.send(command(opcode::AUDITION_SLOT, value))
+    }
+
+    /// Drops every plan the audio thread has released, off the audio thread.
+    /// Returns how many mailboxes were drained.
+    pub fn drain_released(&self) -> usize {
+        let mut drained = 0;
+        while let Some(pointer) = self.released.pop() {
+            // SAFETY: the pointer was produced by `Box::into_raw` for a
+            // `Box<Option<PreparedSlot>>` in the callback and pushed exactly
+            // once onto this ring; the control thread is its only owner again.
+            drop(unsafe { Box::from_raw(pointer as *mut Option<PreparedSlot>) });
+            drained += 1;
+        }
+        drained
+    }
+
+    fn send_mailbox(&self, kind: u8, slot: usize, prepared: Option<PreparedSlot>) -> bool {
+        // Keep the release ring empty enough for every mailbox the command ring
+        // can hold, so the callback's push back never fails.
+        self.drain_released();
+        // A pointer word needs its slot word: send both or neither.
+        if self.commands.len() + 2 > self.commands.capacity() {
+            return false;
+        }
+        let mailbox = Box::new(prepared);
+        let pointer = Box::into_raw(mailbox) as u64;
+        if pointer & !POINTER_MASK != 0 {
+            // SAFETY: the box was created just above and has not been shared.
+            drop(unsafe { Box::from_raw(pointer as *mut Option<PreparedSlot>) });
+            return false;
+        }
+        self.send(command(kind, slot as u64)) && self.send(command(kind + 1, pointer))
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -211,6 +290,7 @@ fn build_stream<T>(
     mut engine: Engine,
     pcm: Box<dyn PcmSource + Send>,
     commands: Arc<SpscU64>,
+    released: Arc<SpscU64>,
     xruns: Arc<AtomicU64>,
     state: Arc<StateBlock>,
     block: usize,
@@ -223,6 +303,7 @@ where
     let mut right = vec![0.0f32; block];
     let mut meter_words = vec![0u32; state.word_count()];
     let mut pending_loop_start: Option<u64> = None;
+    let mut pending_slot: Option<usize> = None;
     device
         .build_output_stream(
             config,
@@ -242,6 +323,35 @@ where
                             }
                         }
                         opcode::AUDITION => engine.transport_mut().set_auditioning(value != 0),
+                        opcode::WARM_SLOT | opcode::RELEASE_SLOT => {
+                            pending_slot = Some(value as usize);
+                        }
+                        opcode::WARM_PTR | opcode::RELEASE_PTR => {
+                            let pointer = value as *mut Option<PreparedSlot>;
+                            if let Some(slot) = pending_slot.take() {
+                                // SAFETY: `send_mailbox` produced the pointer with
+                                // `Box::into_raw` and sent it once; the callback
+                                // borrows it only until it is pushed back below.
+                                let mailbox = unsafe { &mut *pointer };
+                                // Swap, never drop: whatever the engine displaces
+                                // (or refuses) goes back in the same box.
+                                *mailbox = if kind == opcode::WARM_PTR {
+                                    mailbox
+                                        .take()
+                                        .and_then(|prepared| engine.warm_prepared(slot, prepared))
+                                } else {
+                                    engine.release_slot(slot)
+                                };
+                            }
+                            // The control side drains this ring before every
+                            // mailbox it sends, and the command ring bounds how
+                            // many are in flight, so this push cannot fail.
+                            let _ = released.push(value);
+                        }
+                        opcode::AUDITION_SLOT => {
+                            let slot = (value != AUDITION_MAIN).then_some(value as usize);
+                            let _ = engine.audition(slot);
+                        }
                         _ => {}
                     }
                 }

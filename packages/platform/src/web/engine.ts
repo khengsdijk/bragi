@@ -24,6 +24,7 @@ import {
 } from "../engine/codec.js";
 import type {
   AssetHash,
+  CandidateSlot,
   EngineDelta,
   EngineEvent,
   EngineHost,
@@ -44,6 +45,10 @@ export const OP_LOAD = 16;
 export const OP_CHUNK = 17;
 /** Clears the plan (a project was closed). */
 export const OP_CLEAR = 18;
+/** Crossfades to a warm slot; the payload is the slot, 0 = the main plan (03 §5.4). */
+export const OP_AUDITION_SLOT = 19;
+/** Drops the warm candidate in the payload's slot. */
+export const OP_RELEASE_SLOT = 20;
 
 /**
  * The audio-thread half of the host: an engine in an AudioWorklet.
@@ -64,6 +69,11 @@ export interface EnginePlaybackBridge {
    * without a full plan reload. Structural changes arrive through `load`.
    */
   applyDelta(delta: EngineDelta): void;
+  /**
+   * Compiles a candidate document into a warm slot (03 §5.4), registering only the assets the
+   * worklet does not hold yet. Resolves when the slot is ready to audition.
+   */
+  warm(slot: CandidateSlot, doc: ProjectJson, assets: readonly EngineAsset[]): Promise<void>;
   /** Releases the worklet and its buffers. */
   dispose(): Promise<void>;
 }
@@ -164,6 +174,14 @@ export function createWasmEngineHost(options: WasmEngineHostOptions): EngineHost
     if (disposed) throw new Error("the engine host is disposed");
   };
 
+  /** Decoded PCM for the hashes `doc` references that the worklet does not hold yet. */
+  const missingAssets = async (doc: ProjectJson): Promise<readonly EngineAsset[]> => {
+    const missing = collectAssetHashes(doc).filter((hash) => !loaded.has(hash));
+    if (missing.length === 0 || !options.assets) return [];
+    const bytes = await options.assets.fetch(missing);
+    return bytes.length > 0 ? options.offline.decode(bytes) : [];
+  };
+
   return {
     async init() {
       assertLive();
@@ -173,12 +191,7 @@ export function createWasmEngineHost(options: WasmEngineHostOptions): EngineHost
     },
     async loadDocument(doc) {
       assertLive();
-      const missing = collectAssetHashes(doc).filter((hash) => !loaded.has(hash));
-      let assets: readonly EngineAsset[] = [];
-      if (missing.length > 0 && options.assets) {
-        const bytes = await options.assets.fetch(missing);
-        if (bytes.length > 0) assets = await options.offline.decode(bytes);
-      }
+      const assets = await missingAssets(doc);
       await options.playback.load(doc, assets);
       // Marked only after the worklet accepted the load, so a failed post can retry.
       for (const asset of assets) loaded.add(asset.hash);
@@ -206,13 +219,20 @@ export function createWasmEngineHost(options: WasmEngineHostOptions): EngineHost
       assertLive();
       options.playback.send(encodeTransport(cmd));
     },
-    audition(target) {
+    async warm(slot, doc) {
       assertLive();
-      if (target === null) {
-        options.playback.send(encodeTransport({ kind: "audition", on: false }));
-        return;
-      }
-      options.playback.send(encodeTransport({ kind: "audition", on: true }));
+      // A candidate shares most assets with HEAD: only new hashes are decoded and sent.
+      const assets = await missingAssets(doc);
+      await options.playback.warm(slot, doc, assets);
+      for (const asset of assets) loaded.add(asset.hash);
+    },
+    release(slot) {
+      assertLive();
+      options.playback.send([packCommand(OP_RELEASE_SLOT, slot)]);
+    },
+    audition(slot) {
+      assertLive();
+      options.playback.send([packCommand(OP_AUDITION_SLOT, slot)]);
     },
     render(job) {
       assertLive();

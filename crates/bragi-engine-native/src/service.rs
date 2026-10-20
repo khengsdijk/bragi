@@ -19,15 +19,15 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use bragi_engine::SAMPLE_RATE;
 use bragi_engine::engine::Engine;
 use bragi_engine::offline::{OfflineOptions, render};
 use bragi_engine::pcm::PcmSource;
 use bragi_engine::peaks::PeakPyramid;
 use bragi_engine::plan::{RenderPlan, compile, compile_delta, quality_for};
-use bragi_engine::render::PreparedPlan;
+use bragi_engine::render::{PreparedPlan, PreparedSlot};
 use bragi_engine::rt::StateBlock;
 use bragi_engine::transport::TransportState;
+use bragi_engine::{MAX_WARM_PLANS, SAMPLE_RATE};
 use bragi_model::AssetIndex;
 use bragi_model::EngineDelta;
 use bragi_model::generated::{AssetHash, Project};
@@ -112,10 +112,22 @@ pub struct RenderJson {
     pub samples: Vec<f32>,
 }
 
+/// What the service sends the playback thread.
+enum PlaybackMsg {
+    /// A transport command, as the UI's JSON.
+    Command(serde_json::Value),
+    /// A candidate plan prepared on the service thread, for slot 1–3.
+    Warm(usize, Box<PreparedSlot>),
+    /// Drop the candidate in a slot.
+    Release(usize),
+    /// Crossfade to a slot (`None` = the main plan).
+    Audition(Option<usize>),
+}
+
 /// A playback thread that owns the (not-`Send`) cpal stream and takes transport
 /// commands over a channel.
 struct Playback {
-    commands: Sender<serde_json::Value>,
+    commands: Sender<PlaybackMsg>,
     stop: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
 }
@@ -124,7 +136,9 @@ impl Playback {
     fn shutdown(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
         // Dropping the sender also ends an idle `recv_timeout`.
-        let _ = self.commands.send(serde_json::json!({ "kind": "noop" }));
+        let _ = self
+            .commands
+            .send(PlaybackMsg::Command(serde_json::json!({ "kind": "noop" })));
         if let Some(handle) = self.handle.take() {
             let _ = handle.join();
         }
@@ -143,6 +157,9 @@ pub struct EngineService {
     state: Arc<StateBlock>,
     block: usize,
     playback_available: bool,
+    /// Candidate plans for A/B audition (`specs/03-audio-engine.md` §5.4),
+    /// kept so a restarted playback thread warms them again. Index 0 is unused.
+    warm: Vec<Option<RenderPlan>>,
 }
 
 impl std::fmt::Debug for EngineService {
@@ -178,6 +195,7 @@ impl EngineService {
             state,
             block,
             playback_available: false,
+            warm: vec![None; MAX_WARM_PLANS],
         })
     }
 
@@ -197,11 +215,16 @@ impl EngineService {
             return Ok(true);
         }
         let plan = self.plan.clone().ok_or(ServiceError::NoDocument)?;
-        let engine = Engine::new(plan, self.block);
+        let mut engine = Engine::new(plan, self.block);
+        for (slot, candidate) in self.warm.iter().enumerate() {
+            if let Some(candidate) = candidate {
+                engine.warm(slot, candidate.clone());
+            }
+        }
         let pcm = self.pcm.clone();
         let state = Arc::clone(&self.state);
         let stop = Arc::new(AtomicBool::new(false));
-        let (commands, receiver) = mpsc::channel::<serde_json::Value>();
+        let (commands, receiver) = mpsc::channel::<PlaybackMsg>();
         let (ready_tx, ready_rx) = mpsc::channel::<bool>();
         let thread_stop = Arc::clone(&stop);
 
@@ -350,10 +373,76 @@ impl EngineService {
             return Err(ServiceError::Argument(format!("unknown transport {kind}")));
         }
         if let Some(playback) = &self.playback {
-            let _ = playback.commands.send(cmd.clone());
+            let _ = playback.commands.send(PlaybackMsg::Command(cmd.clone()));
             return Ok(());
         }
         apply_transport(self.engine.transport_mut(), cmd);
+        Ok(())
+    }
+
+    /// Compiles `doc` as the candidate in `slot` (1–3) and warms it for A/B
+    /// audition (`specs/03-audio-engine.md` §5.4). The plan is prepared here,
+    /// off the audio thread; the callback only moves it into place.
+    ///
+    /// # Errors
+    /// [`ServiceError::Argument`] for slot 0 or out of range;
+    /// [`ServiceError::Plan`] when the candidate does not compile.
+    pub fn warm(&mut self, slot: usize, doc: &Project) -> Result<(), ServiceError> {
+        Self::candidate_slot(slot)?;
+        let version = self.plan.as_ref().map_or(1, |plan| plan.plan_version);
+        let plan = compile(doc, &self.index, SAMPLE_RATE, version)?;
+        self.warm[slot] = Some(plan.clone());
+        if let Some(playback) = &self.playback {
+            let prepared =
+                PreparedPlan::new(Arc::new(plan), quality_for(false), self.block).into_slot();
+            let _ = playback
+                .commands
+                .send(PlaybackMsg::Warm(slot, Box::new(prepared)));
+        } else {
+            self.engine.warm(slot, plan);
+        }
+        Ok(())
+    }
+
+    /// Drops the candidate in `slot` (1–3).
+    ///
+    /// # Errors
+    /// [`ServiceError::Argument`] for slot 0 or out of range.
+    pub fn release_slot(&mut self, slot: usize) -> Result<(), ServiceError> {
+        Self::candidate_slot(slot)?;
+        self.warm[slot] = None;
+        if let Some(playback) = &self.playback {
+            let _ = playback.commands.send(PlaybackMsg::Release(slot));
+        } else {
+            drop(self.engine.release_slot(slot));
+        }
+        Ok(())
+    }
+
+    /// Crossfades to a warm slot over 30 ms (`0` = the main plan).
+    ///
+    /// # Errors
+    /// [`ServiceError::Argument`] when the slot is out of range or not warm.
+    pub fn audition(&mut self, slot: usize) -> Result<(), ServiceError> {
+        if slot >= MAX_WARM_PLANS || (slot != 0 && self.warm[slot].is_none()) {
+            return Err(ServiceError::Argument(format!("slot {slot} is not warm")));
+        }
+        let target = (slot != 0).then_some(slot);
+        if let Some(playback) = &self.playback {
+            let _ = playback.commands.send(PlaybackMsg::Audition(target));
+        } else {
+            self.engine.audition(target);
+        }
+        Ok(())
+    }
+
+    fn candidate_slot(slot: usize) -> Result<(), ServiceError> {
+        if slot == 0 || slot >= MAX_WARM_PLANS {
+            return Err(ServiceError::Argument(format!(
+                "candidate slots are 1 to {}, not {slot}",
+                MAX_WARM_PLANS - 1
+            )));
+        }
         Ok(())
     }
 
@@ -715,14 +804,27 @@ fn apply_transport(transport: &mut bragi_engine::transport::Transport, cmd: &ser
 
 /// The playback thread's loop: translate JSON commands into `NativePlayer`
 /// calls until the service shuts it down.
-fn run_playback(player: NativePlayer, receiver: &Receiver<serde_json::Value>, stop: &AtomicBool) {
+fn run_playback(player: NativePlayer, receiver: &Receiver<PlaybackMsg>, stop: &AtomicBool) {
     while !stop.load(Ordering::Relaxed) {
         match receiver.recv_timeout(Duration::from_millis(50)) {
-            Ok(cmd) => apply_player_command(&player, &cmd),
+            Ok(PlaybackMsg::Command(cmd)) => apply_player_command(&player, &cmd),
+            Ok(PlaybackMsg::Warm(slot, prepared)) => {
+                let prepared = *prepared;
+                player.warm(slot, prepared);
+            }
+            Ok(PlaybackMsg::Release(slot)) => {
+                player.release_slot(slot);
+            }
+            Ok(PlaybackMsg::Audition(slot)) => {
+                player.audition_slot(slot);
+            }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => break,
         }
+        // Plans the callback swapped out are dropped here, never on its thread.
+        player.drain_released();
     }
+    player.drain_released();
 }
 
 fn apply_player_command(player: &NativePlayer, cmd: &serde_json::Value) {
@@ -884,6 +986,33 @@ mod tests {
 
         let peaks = service.peaks(&hash).unwrap();
         assert!(peaks.starts_with(b"BRGP"));
+    }
+
+    #[test]
+    fn warms_auditions_and_releases_candidate_slots() {
+        let (mut service, hash, _dir) = service();
+        let samples = vec![1000i16; 48_000 * 2];
+        service
+            .register_asset(&hash, &wav(&samples, 2), "audio/wav")
+            .unwrap();
+        service.load_document(document(&hash)).unwrap();
+        let mut quieter = document(&hash);
+        quieter.tracks[0].gain_db = -12.0;
+
+        assert!(
+            service.warm(0, &quieter).is_err(),
+            "slot 0 is the main plan"
+        );
+        assert!(service.audition(2).is_err(), "slot 2 is not warm");
+        service.warm(2, &quieter).unwrap();
+        service.audition(2).unwrap();
+        assert!(service.state().auditioning);
+        service.audition(0).unwrap();
+        service.release_slot(2).unwrap();
+        assert!(
+            service.audition(2).is_err(),
+            "a released slot cannot be auditioned"
+        );
     }
 
     #[test]

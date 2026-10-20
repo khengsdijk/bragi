@@ -80,6 +80,33 @@ pub fn engine_transport(
     service.transport(&cmd).map_err(engine_error)
 }
 
+/// Warms a candidate document in slot 1–3 for A/B audition (03 §5.4).
+#[tauri::command]
+pub fn engine_warm(
+    state: State<'_, EngineState>,
+    slot: usize,
+    doc: serde_json::Value,
+) -> Result<(), CommandError> {
+    let document: bragi_model::generated::Project = serde_json::from_value(doc)
+        .map_err(|error| CommandError::invalid(format!("invalid document: {error}")))?;
+    let mut service = lock(&state)?;
+    service.warm(slot, &document).map_err(engine_error)
+}
+
+/// Drops the candidate in slot 1–3.
+#[tauri::command]
+pub fn engine_release(state: State<'_, EngineState>, slot: usize) -> Result<(), CommandError> {
+    let mut service = lock(&state)?;
+    service.release_slot(slot).map_err(engine_error)
+}
+
+/// Crossfades to a warm slot (0 = the main plan) over 30 ms.
+#[tauri::command]
+pub fn engine_audition(state: State<'_, EngineState>, slot: usize) -> Result<(), CommandError> {
+    let mut service = lock(&state)?;
+    service.audition(slot).map_err(engine_error)
+}
+
 /// Applies (or clears) a transient preview patch.
 #[tauri::command]
 pub fn engine_set_preview(

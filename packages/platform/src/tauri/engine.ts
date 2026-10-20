@@ -113,8 +113,14 @@ export async function createTauriEngineHost(options: TauriEngineOptions): Promis
     transport(cmd: TransportCmd) {
       void invoke("engine_transport", { cmd });
     },
-    audition(target) {
-      void invoke("engine_transport", { cmd: { kind: "audition", on: target !== null } });
+    async warm(slot, doc) {
+      await invoke("engine_warm", { slot, doc });
+    },
+    release(slot) {
+      void invoke("engine_release", { slot });
+    },
+    audition(slot) {
+      void invoke("engine_audition", { slot });
     },
     async render(job: RenderJob): Promise<RenderResult> {
       // The Rust service encodes the files and replies with one binary export

@@ -40,8 +40,10 @@ export interface BrowserEngineOptions {
 }
 
 interface WorkletMessage {
-  readonly type: "ready" | "loaded" | "error";
+  readonly type: "ready" | "loaded" | "warmed" | "error";
   readonly tracks?: number;
+  readonly slot?: number;
+  readonly ok?: boolean;
   readonly message?: string;
 }
 
@@ -100,6 +102,11 @@ export function createBrowserEngine(options: BrowserEngineOptions): BrowserEngin
       let state = createStateBlock(0);
       let currentDoc: ProjectJson | null = null;
       let pendingLoad: { resolve: () => void; reject: (error: Error) => void } | null = null;
+      /** One outstanding `warm` per slot; a newer warm of the same slot supersedes the older. */
+      const pendingWarm = new Map<
+        number,
+        { resolve: () => void; reject: (error: Error) => void }
+      >();
       let resolveReady: () => void = () => {};
       let rejectReady: (error: Error) => void = () => {};
       const ready = new Promise<void>((resolve, reject) => {
@@ -125,6 +132,12 @@ export function createBrowserEngine(options: BrowserEngineOptions): BrowserEngin
           node.port.postMessage({ type: "state", state });
           pendingLoad?.resolve();
           pendingLoad = null;
+        } else if (message.type === "warmed") {
+          const slot = message.slot ?? 0;
+          const pending = pendingWarm.get(slot);
+          pendingWarm.delete(slot);
+          if (message.ok) pending?.resolve();
+          else pending?.reject(new Error(message.message ?? `could not warm slot ${slot}`));
         } else if (message.type === "error") {
           const error = new Error(message.message ?? "engine worklet failed");
           rejectReady(error);
@@ -166,6 +179,16 @@ export function createBrowserEngine(options: BrowserEngineOptions): BrowserEngin
               asset.samples.buffer instanceof ArrayBuffer ? [asset.samples.buffer] : [],
             );
             node.port.postMessage({ type: "load", doc, assets }, transfer);
+          });
+        },
+        warm(slot, doc, assets) {
+          return new Promise<void>((resolve, reject) => {
+            pendingWarm.get(slot)?.reject(new Error(`slot ${slot} was warmed again`));
+            pendingWarm.set(slot, { resolve, reject });
+            const transfer = assets.flatMap((asset) =>
+              asset.samples.buffer instanceof ArrayBuffer ? [asset.samples.buffer] : [],
+            );
+            node.port.postMessage({ type: "warm", slot, doc, assets }, transfer);
           });
         },
         applyDelta(delta: EngineDelta) {

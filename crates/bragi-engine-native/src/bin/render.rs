@@ -10,11 +10,15 @@
 //!              --asset sha256:…=fixtures/audio/drums_120.wav \
 //!              --frames 96000 --out out.wav --raw out.f32 [--start 0] [--block 512]
 //!              [--export-job '{"kind":"mixdown",...}' --export-dir dir]
+//!              [--warm 1=candidate.json ... --switch 24000=1 --switch 48000=main]
 //! ```
 //!
 //! With `--export-job` (a host `RenderJob`) and `--export-dir` it also runs the
 //! WP-1.11 export and writes each encoded file into the directory, printing one
 //! `file:<name>:<bytes>` line per file.
+//!
+//! With `--warm` and `--switch` (WP-2.5) it warms candidate plans and renders
+//! through `offline::render_switching`, crossfading to each slot at its sample.
 //!
 //! It prints three lines to stdout: `sha256:<hex>` of the raw f32 output,
 //! `frames:<n>`, and `peak:<dbFS>`.
@@ -22,7 +26,8 @@
 
 use std::process::ExitCode;
 
-use bragi_engine::offline::{OfflineOptions, render};
+use bragi_engine::engine::Engine;
+use bragi_engine::offline::{OfflineOptions, PlanSwitch, render, render_switching};
 use bragi_engine::pcm::{MemoryPcm, PcmBuffer};
 use bragi_engine::plan::compile;
 use bragi_engine_native::{asset_meta, write_f32_wav};
@@ -65,6 +70,8 @@ fn run() -> Result<(), String> {
     let mut assets: Vec<(String, String)> = Vec::new();
     let mut export_job: Option<String> = None;
     let mut export_dir: Option<String> = None;
+    let mut warm: Vec<(usize, String)> = Vec::new();
+    let mut switches: Vec<PlanSwitch> = Vec::new();
 
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -78,6 +85,34 @@ fn run() -> Result<(), String> {
             "--block" => block = value()?.parse().map_err(|_| "bad --block")?,
             "--export-job" => export_job = Some(value()?),
             "--export-dir" => export_dir = Some(value()?),
+            "--warm" => {
+                let pair = value()?;
+                let (slot, path) = pair
+                    .split_once('=')
+                    .ok_or_else(|| format!("--warm wants <slot>=<project>, got {pair}"))?;
+                let slot = slot
+                    .parse()
+                    .map_err(|_| format!("bad --warm slot {slot}"))?;
+                warm.push((slot, path.to_string()));
+            }
+            "--switch" => {
+                let pair = value()?;
+                let (at, slot) = pair
+                    .split_once('=')
+                    .ok_or_else(|| format!("--switch wants <sample>=<slot|main>, got {pair}"))?;
+                let at = at
+                    .parse()
+                    .map_err(|_| format!("bad --switch sample {at}"))?;
+                let slot = if slot == "main" {
+                    None
+                } else {
+                    Some(
+                        slot.parse()
+                            .map_err(|_| format!("bad --switch slot {slot}"))?,
+                    )
+                };
+                switches.push(PlanSwitch { at, slot });
+            }
             "--asset" => {
                 let pair = value()?;
                 let (hash, path) = pair
@@ -133,7 +168,23 @@ fn run() -> Result<(), String> {
         block,
         sample_rate: 48_000,
     };
-    let output = render(&plan, &pcm, &options);
+    let output = if warm.is_empty() && switches.is_empty() {
+        render(&plan, &pcm, &options)
+    } else {
+        let mut engine = Engine::new(plan.clone(), block);
+        for (slot, path) in &warm {
+            let json = std::fs::read_to_string(path)
+                .map_err(|error| format!("reading {path}: {error}"))?;
+            let doc: bragi_model::generated::Project =
+                serde_json::from_str(&json).map_err(|error| format!("parsing {path}: {error}"))?;
+            let candidate = compile(&doc, &index, 48_000, 1).map_err(|error| error.to_string())?;
+            if !engine.warm(*slot, candidate) {
+                return Err(format!("could not warm slot {slot}"));
+            }
+        }
+        switches.sort_by_key(|switch| switch.at);
+        render_switching(&mut engine, &pcm, &options, &switches)
+    };
 
     if let Some(raw_path) = &raw {
         let mut bytes = Vec::with_capacity(output.samples.len() * 4);
