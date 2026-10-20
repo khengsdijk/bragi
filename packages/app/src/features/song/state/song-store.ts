@@ -58,6 +58,12 @@ export interface Preview {
    * outcome's delta takes the engine from the previous step to this one.
    */
   apply(batch: OpBatch): ApplyOutcome;
+  /**
+   * Replaces the earlier steps with `batch`: the copy is rebuilt from the live document and the
+   * outcome's delta takes the engine from the previous preview state to this one in one step. A
+   * rejected batch leaves the copy and the preview state exactly as they were.
+   */
+  reset(batch: OpBatch): ApplyOutcome;
   /** Whether the copy differs from the live document. */
   changed(): boolean;
   /**
@@ -293,6 +299,32 @@ export function createSongStore(model: ModelApi): SongStore {
             return { ok: true, doc, commit: { batch, delta, revision: store.getState().revision } };
           } finally {
             model.freeDoc(before);
+          }
+        },
+        reset(batch) {
+          if (copy === null || handle === null) {
+            return { ok: false, errors: [{ opIndex: 0, code: "no_preview", message: "ended" }] };
+          }
+          const previous = copy;
+          let next: number | null = copyOf(handle);
+          try {
+            let nextJson: string;
+            try {
+              nextJson = model.applyBatch(next, JSON.stringify(batch));
+            } catch (error) {
+              return { ok: false, errors: parseErrors(error) };
+            }
+            // One delta from the old preview to the new one, not a revert followed by an apply.
+            const delta = JSON.parse(model.diffDocs(previous, next)) as EngineDeltaJson;
+            const doc = JSON.parse(nextJson) as Project;
+            copy = next;
+            previewCopy = next;
+            next = null;
+            model.freeDoc(previous);
+            store.setState({ preview: doc });
+            return { ok: true, doc, commit: { batch, delta, revision: store.getState().revision } };
+          } finally {
+            if (next !== null) model.freeDoc(next);
           }
         },
         changed() {

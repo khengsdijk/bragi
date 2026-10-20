@@ -40,6 +40,8 @@ export interface CommandActions {
   setLocked(sectionId: string, locked: boolean): void;
   loopSection(sectionId: string): void;
   openResize(sectionId: string, direction: "longer" | "shorter"): void;
+  /** The keyboard painting path: pick a brush and apply it to a whole part (11 §6.2). */
+  openBrush(sectionId: string): void;
   splitAtPlayhead(): void;
   undo(): void;
   redo(): void;

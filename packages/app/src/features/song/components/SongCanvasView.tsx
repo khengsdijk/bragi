@@ -44,6 +44,10 @@ export interface SongCanvasViewProps {
   readonly onSectionResizeMove: (event: CanvasEvents["sectionResizeMove"]) => void;
   readonly onSectionResizeEnd: (event: CanvasEvents["sectionResizeEnd"]) => void;
   readonly onSectionResizeCancel: (event: CanvasEvents["sectionResizeCancel"]) => void;
+  readonly onPaintStart: (event: CanvasEvents["paintStart"]) => void;
+  readonly onPaintMove: (event: CanvasEvents["paintMove"]) => void;
+  readonly onPaintEnd: (event: CanvasEvents["paintEnd"]) => void;
+  readonly onPaintCancel: (event: CanvasEvents["paintCancel"]) => void;
   readonly onHoverTrack: (trackId: string | null) => void;
   readonly onViewport: (level: ZoomLevel, viewport: Viewport) => void;
   /** Receives the live canvas once it exists (and `null` when it is destroyed). */
@@ -148,6 +152,10 @@ export function SongCanvasView(props: SongCanvasViewProps): ReactNode {
           next.on("sectionResizeMove", (event) => latest.current.onSectionResizeMove(event)),
           next.on("sectionResizeEnd", (event) => latest.current.onSectionResizeEnd(event)),
           next.on("sectionResizeCancel", (event) => latest.current.onSectionResizeCancel(event)),
+          next.on("paintStart", (event) => latest.current.onPaintStart(event)),
+          next.on("paintMove", (event) => latest.current.onPaintMove(event)),
+          next.on("paintEnd", (event) => latest.current.onPaintEnd(event)),
+          next.on("paintCancel", (event) => latest.current.onPaintCancel(event)),
           next.on("hoverTrack", ({ trackId }) => latest.current.onHoverTrack(trackId)),
           next.on("viewportChange", ({ level, viewport }) =>
             latest.current.onViewport(level, viewport),

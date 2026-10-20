@@ -26,6 +26,10 @@ import {
   EMPTY_AUDITION_STORE,
 } from "../../audition/state/audition.js";
 import type { CandidateSource } from "../../audition/state/candidate-status.js";
+import { BrushApplyDialog } from "../../brushes/components/BrushApplyDialog.js";
+import { BrushPalette } from "../../brushes/components/BrushPalette.js";
+import { usePaintStroke } from "../../brushes/hooks/use-paint-stroke.js";
+import { createBrushStore } from "../../brushes/state/brush-store.js";
 import { CommandPaletteDialog } from "../../commands/components/CommandPaletteDialog.js";
 import { createCommandRegistry } from "../../commands/state/commands.js";
 import { SONG_COMMANDS } from "../../commands/state/song-commands.js";
@@ -36,7 +40,7 @@ import type { SettingsStore } from "../../settings/state/settings-store.js";
 import { buildGridModel } from "../api/grid-model.js";
 import { analysisView, buildCanvasDocument } from "../api/view-model.js";
 import { useSectionDrag } from "../hooks/use-section-drag.js";
-import { useSongActions } from "../hooks/use-song-actions.js";
+import { dialogSection, useSongActions } from "../hooks/use-song-actions.js";
 import type { EngineController } from "../state/engine-controller.js";
 import { trackToggleBatch } from "../state/ops.js";
 import { resolveSongShortcut } from "../state/shortcuts.js";
@@ -156,6 +160,11 @@ export function SongWorkspace(props: SongWorkspaceProps) {
   const hovered = useRef<string | null>(null);
   const selection = props.selection;
   const smartTransitions = useStore(props.settings.store, (state) => state.smartTransitions);
+  const brushes = useMemo(() => createBrushStore(), []);
+  const brushTool = useStore(brushes.store, (state) => state.tool);
+  const brush = useStore(brushes.store, (state) => state.brush);
+  const brushStrength = useStore(brushes.store, (state) => state.sizeStrength);
+  const brushDirection = useStore(brushes.store, (state) => state.direction);
   const selectedTrack =
     selection.kind === "tracks" && selection.ids.length === 1 ? (selection.ids[0] ?? null) : null;
 
@@ -264,6 +273,14 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     onAnnounce: setAnnouncement,
     onResize: actions.resize,
   });
+  const paint = usePaintStroke({
+    songStore,
+    controller,
+    model: songStore.model,
+    brushes,
+    ...(props.history === undefined ? {} : { history: props.history }),
+    onAnnounce: setAnnouncement,
+  });
   const commandRegistry = useMemo(() => createCommandRegistry(SONG_COMMANDS), []);
 
   /** Right-click or Shift+F10: select the part and open the shared menu at that point. */
@@ -303,6 +320,12 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     (event: CanvasEvents["trackToggle"]) => toggleTrack(event.trackId, event.field, event.value),
     [toggleTrack],
   );
+
+  // The canvas owns pointer handling; React only tells it which tool and strength are active.
+  useEffect(() => {
+    handle.current?.canvas.setTool(brushTool);
+    handle.current?.canvas.setPaintStrength(brushStrength);
+  }, [brushTool, brushStrength]);
 
   useEffect(() => {
     if (!props.testHooks) return;
@@ -387,6 +410,19 @@ export function SongWorkspace(props: SongWorkspaceProps) {
           );
           break;
         }
+        case "b":
+        case "B":
+          if (event.metaKey || event.ctrlKey) return;
+          event.preventDefault();
+          brushes.togglePaint();
+          setAnnouncement(
+            t(
+              brushes.store.getState().tool === "paint"
+                ? "brush.announce.on"
+                : "brush.announce.off",
+            ),
+          );
+          break;
         case "Escape":
           props.onSelectionChange({ kind: "none" });
           break;
@@ -396,7 +432,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [actions, controller, toggleTrack, props.onSelectionChange]);
+  }, [actions, brushes, controller, toggleTrack, props.onSelectionChange]);
 
   if (canvasDoc === null || grid === null || analysis === null) {
     return <p data-testid="song-loading">{t("song.canvas.loading")}</p>;
@@ -408,6 +444,15 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       : selection.kind === "tracks"
         ? t("song.selection.instruments", { count: selection.ids.length })
         : t("song.selection.whole");
+
+  const brushDialog = actions.dialog?.kind === "brush" ? actions.dialog : null;
+  const brushSection = dialogSection(doc, brushDialog);
+  const brushTracks =
+    brushSection === null || doc === null
+      ? []
+      : doc.tracks
+          .filter((track) => brushSection.lanes[track.id] !== undefined)
+          .map((track) => ({ id: track.id, name: track.name }));
 
   return (
     <div className="song-workspace" data-testid="song-workspace">
@@ -472,12 +517,18 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             onSectionResizeMove={drag.onSectionResizeMove}
             onSectionResizeEnd={drag.onSectionResizeEnd}
             onSectionResizeCancel={drag.onSectionResizeCancel}
+            onPaintStart={paint.onPaintStart}
+            onPaintMove={paint.onPaintMove}
+            onPaintEnd={paint.onPaintEnd}
+            onPaintCancel={paint.onPaintCancel}
             onHoverTrack={(trackId) => {
               hovered.current = trackId;
             }}
             onViewport={(next: ZoomLevel, _viewport: Viewport) => setLevel(next)}
             onReady={(next) => {
               handle.current = next;
+              next?.canvas.setTool(brushes.store.getState().tool);
+              next?.canvas.setPaintStrength(brushes.store.getState().sizeStrength);
             }}
           />
           <AccessibleGrid
@@ -495,6 +546,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             onZoomOut={() => handle.current?.zoomBy(1 / 1.5)}
             onFit={() => handle.current?.fit()}
           />
+          <BrushPalette store={brushes} />
         </div>
         {sidePanel === "history" && props.history !== undefined ? (
           <HistoryPanel
@@ -541,6 +593,27 @@ export function SongWorkspace(props: SongWorkspaceProps) {
         onChangeKind={actions.changeKind}
         onResize={actions.resize}
       />
+      {brushDialog !== null && brushSection !== null ? (
+        <BrushApplyDialog
+          key={`brush:${brushDialog.sectionId}`}
+          section={brushSection}
+          tracks={brushTracks}
+          brush={brush}
+          strength={brushStrength}
+          direction={brushDirection}
+          onClose={actions.closeDialog}
+          onApply={(result) => {
+            actions.applyBrush(
+              brushDialog.sectionId,
+              result.brush,
+              result.trackIds,
+              result.strength,
+              result.direction,
+            );
+            actions.closeDialog();
+          }}
+        />
+      ) : null}
       <SectionResizePopover
         prompt={drag.resizePrompt}
         onClose={drag.closeResizePrompt}

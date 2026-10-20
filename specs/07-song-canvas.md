@@ -1,6 +1,6 @@
 # 07 — Song Canvas (single-song editor)
 
-Status: Draft v0.2 · Code: `packages/app/src/features/song/`, `packages/render-canvas/`
+Status: Draft v0.3 · Code: `packages/app/src/features/song/`, `packages/render-canvas/`
 
 The Song Canvas is where a song becomes visible and editable. It covers zoom levels **L2 (Song)** and **L3 (Moment)** from [00 §4](00-vision.md).
 
@@ -95,7 +95,7 @@ Brushes are painted directly onto ribbons. The stroke defines a region (time × 
 | Space | More reverb/width | Automation on `space` macro fx (instant) |
 | Warmth | Saturation + low-mid lift | Macro automation (instant) |
 | Brighter / Darker | Tone | `brightness` macro automation (instant) |
-| Lo-fi | Tape/vinyl colour | Clip-level `lofi` fx in the region (instant) |
+| Lo-fi | Tape/vinyl colour | Track `lofi` fx + `mix` automation in the region (instant) |
 | Louder / Quieter | Level | Gain automation (instant) |
 | Filter sweep | Rising/falling filter across the stroke direction | Filter cutoff automation following the stroke (instant) |
 | Remove | Silence this part of the stem | `region.clear` with fades (instant) |
@@ -103,7 +103,7 @@ Brushes are painted directly onto ribbons. The stroke defines a region (time × 
 | ✨ More drums | Extra percussion layer | `generate.stem` drums, layered (job) |
 | ✨ Riser / Impact | Transition FX at stroke end | `generate.fx` placed on a new FX track (job) |
 
-Instant brushes commit on stroke end as one op batch. ✨ brushes go through candidates. Automation from brushes uses 50 ms ramps at the stroke edges.
+Instant brushes commit on stroke end as one op batch. ✨ brushes go through candidates. Automation from brushes uses 50 ms ramps at the stroke edges. In v1 the Lo-fi brush adds a track-level `lofi` fx and automates its `mix` inside the region, because clip-level fx are deferred and the engine ignores them.
 
 ### 4.5 Ribbon (track) actions
 Clicking a ribbon selects it and opens the **Inspector**:

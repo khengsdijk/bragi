@@ -11,6 +11,7 @@ export const PACKAGE_NAME = "@bragi/render-canvas";
 export * from "./drag.js";
 export * from "./geometry.js";
 export * from "./layout.js";
+export * from "./paint.js";
 export * from "./palette.js";
 export * from "./progressive.js";
 export * from "./selection.js";

@@ -64,10 +64,21 @@ import {
   computeLayout,
   hitTest,
   type Layout,
+  paintPointAt,
   type Rect,
+  ribbonAt,
   sectionAtPoint,
   sectionHitAt,
 } from "./layout.js";
+import {
+  beginPaintStroke,
+  extendPaintStroke,
+  MOUSE_PRESSURE,
+  nudgePaintStroke,
+  paintOpacity,
+  paintSpan,
+  wheelNotches,
+} from "./paint.js";
 import { chordFill, mixColors, numberToRgb, type Palette, readableOn } from "./palette.js";
 import {
   appeared,
@@ -82,8 +93,10 @@ import type {
   CanvasDocument,
   CanvasEventName,
   CanvasEvents,
+  CanvasTool,
   CanvasTrack,
   Curve,
+  PaintStrokeEvent,
   Selection,
   Viewport,
   ZoomLevel,
@@ -196,6 +209,7 @@ export class SongCanvas {
   private readonly ribbonsLayer = new Container();
   private readonly gutterG = new Graphics();
   private readonly overlayG = new Graphics();
+  private readonly paintG = new Graphics();
   private readonly playheadG = new Graphics();
   private readonly labelsLayer = new Container();
   private readonly sectionLabels: LabelPool;
@@ -225,6 +239,13 @@ export class SongCanvas {
   private dragVisual: DragVisual | null = null;
   /** The arrangement at drag start, so the drop slot does not move under the preview. */
   private dragDoc: CanvasDocument | null = null;
+
+  /** The paint tool (07 §4.4) and the stroke being painted, if any. */
+  private tool: CanvasTool = "select";
+  private paintStrength = 0.5;
+  private paintStroke: PaintStrokeEvent | null = null;
+  private paintPointerId: number | null = null;
+  private paintDirty = false;
 
   private readonly ribbons = new Map<string, RibbonView>();
   private clipsByTrack = new Map<string, { startSec: number; endSec: number }[]>();
@@ -282,6 +303,7 @@ export class SongCanvas {
       this.ribbonsLayer,
       this.gutterG,
       this.overlayG,
+      this.paintG,
       this.labelsLayer,
       this.playheadG,
     );
@@ -441,6 +463,24 @@ export class SongCanvas {
     this.schedule();
   }
 
+  /** The active tool (07 §3). Painting starts only in `"paint"` mode. */
+  setTool(tool: CanvasTool): void {
+    if (this.tool === tool) return;
+    this.tool = tool;
+    this.app.canvas.style.cursor = tool === "paint" ? "crosshair" : "default";
+    if (tool !== "paint" && this.paintStroke !== null) this.cancelPaint();
+    this.schedule();
+  }
+
+  /** The brush-size slider, used as the stroke opacity for a pointer without pressure. */
+  setPaintStrength(strength: number): void {
+    this.paintStrength = Math.min(1, Math.max(0, strength));
+    if (this.paintStroke !== null) {
+      this.paintDirty = true;
+      this.schedule();
+    }
+  }
+
   /** Resizes to a CSS width; the height follows from the number of ribbons. */
   resize(width: number): void {
     if (width <= 0 || width === this.width) return;
@@ -596,6 +636,20 @@ export class SongCanvas {
     return sectionAtPoint(this.layout, this.viewport, this.doc, x, y);
   }
 
+  /**
+   * The canvas point at the centre of a ribbon at `sec`, in CSS pixels. The end-to-end tests use
+   * it to paint without guessing pixel positions.
+   */
+  ribbonPoint(trackId: string, sec: number): { x: number; y: number } | null {
+    const lane = this.layout.ribbons.find((candidate) => candidate.trackId === trackId);
+    if (lane === undefined || this.doc === null) return null;
+    const pps = pxPerSecond(this.viewport.pxPerBeat, this.doc.bpm);
+    return {
+      x: this.layout.gutter + (sec - this.viewport.originSec) * pps,
+      y: lane.rect.y + lane.rect.h / 2,
+    };
+  }
+
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -622,6 +676,7 @@ export class SongCanvas {
     if (zoomLevel(next.pxPerBeat) !== zoomLevel(this.viewport.pxPerBeat)) this.layoutDirty = true;
     this.viewport = next;
     this.chromeDirty = true;
+    this.paintDirty = true;
     this.emitViewport();
     this.schedule();
   }
@@ -677,6 +732,10 @@ export class SongCanvas {
       this.drawChrome(now, states);
     }
     this.updateWorld(states);
+    if (this.paintDirty) {
+      this.paintDirty = false;
+      this.drawPaint();
+    }
     this.drawPlayhead();
     return animating || shimmering;
   }
@@ -706,6 +765,7 @@ export class SongCanvas {
     if (heightChanged) this.emit("contentHeight", { px: next.height });
     this.skylineBuilt = null;
     this.invalidateRibbons();
+    this.paintDirty = true;
   }
 
   private syncRibbonViews(): void {
@@ -1498,6 +1558,70 @@ export class SongCanvas {
     g.poly([x - 5, top, x + 5, top, x, top + 8]).fill(this.palette.text);
   }
 
+  // ---- paint tool --------------------------------------------------------------------------
+
+  /**
+   * Ends the running stroke: `paintEnd` on release, `paintCancel` on Escape or a cancelled
+   * pointer. The document is never touched here; the app commits the stroke.
+   */
+  private finishPaint(commit: boolean): void {
+    const stroke = this.paintStroke;
+    if (stroke === null) return;
+    this.paintStroke = null;
+    this.paintDirty = true;
+    const pointerId = this.paintPointerId;
+    this.paintPointerId = null;
+    if (pointerId !== null) this.releaseCapture(pointerId);
+    this.app.canvas.style.cursor = this.tool === "paint" ? "crosshair" : "default";
+    if (commit) this.emit("paintEnd", stroke);
+    else this.emit("paintCancel", {});
+    this.schedule();
+  }
+
+  private cancelPaint(): void {
+    this.finishPaint(false);
+  }
+
+  private releaseCapture(pointerId: number): void {
+    try {
+      if (this.app.canvas.hasPointerCapture(pointerId)) {
+        this.app.canvas.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // A synthetic pointer event (the e2e pen test) has no active capture to release.
+    }
+  }
+
+  private capture(pointerId: number): void {
+    try {
+      this.app.canvas.setPointerCapture(pointerId);
+    } catch {
+      // A synthetic pointer event cannot be captured; the stroke still follows its moves.
+    }
+  }
+
+  /** Draws the stroke over the ribbons it touched, at its current strength (07 §4.4). */
+  private drawPaint(): void {
+    const g = this.paintG;
+    g.clear();
+    const doc = this.doc;
+    const stroke = this.paintStroke;
+    if (doc === null || stroke === null) return;
+    const span = paintSpan(stroke);
+    if (!Number.isFinite(span.startSec) || !Number.isFinite(span.endSec)) return;
+    const pps = pxPerSecond(this.viewport.pxPerBeat, doc.bpm);
+    const toX = (sec: number): number => this.layout.gutter + (sec - this.viewport.originSec) * pps;
+    const from = Math.max(this.layout.gutter, Math.min(toX(span.startSec), toX(span.endSec)));
+    const to = Math.min(this.width, Math.max(toX(span.startSec), toX(span.endSec)));
+    if (to < this.layout.gutter || from > this.width) return;
+    const width = Math.max(2, to - from);
+    const alpha = paintOpacity(stroke, this.paintStrength);
+    for (const lane of this.layout.ribbons) {
+      if (!span.tracks.has(lane.trackId)) continue;
+      g.rect(from, lane.rect.y, width, lane.rect.h).fill({ color: this.palette.accent, alpha });
+    }
+  }
+
   // ---- input -------------------------------------------------------------------------------
 
   private attachInput(): void {
@@ -1510,6 +1634,37 @@ export class SongCanvas {
     };
     const hit = (x: number, y: number) =>
       this.doc ? hitTest(this.layout, this.viewport, this.doc, x, y) : ({ kind: "none" } as const);
+
+    /** The pointer type the app's stroke model understands. */
+    const pointerKind = (event: PointerEvent): PaintStrokeEvent["pointerType"] =>
+      event.pointerType === "pen" ? "pen" : event.pointerType === "touch" ? "touch" : "mouse";
+
+    /** Pen and touch carry pressure; a mouse reports the browser's 0.5 stand-in. */
+    const pressureOf = (event: PointerEvent): number => {
+      if (pointerKind(event) === "mouse") return MOUSE_PRESSURE;
+      return Math.min(1, Math.max(0, event.pressure));
+    };
+
+    const beginPaint = (event: PointerEvent, x: number, y: number): void => {
+      const doc = this.doc;
+      if (doc === null) return;
+      const start = ribbonAt(this.layout, this.viewport, doc, x, y);
+      if (start === null || start.trackId.startsWith(GHOST_PREFIX)) return;
+      this.paintStroke = beginPaintStroke(
+        {
+          sec: clampSec(start.sec, doc.durationSec),
+          trackId: start.trackId,
+          pressure: pressureOf(event),
+        },
+        pointerKind(event),
+      );
+      this.paintPointerId = event.pointerId;
+      this.paintDirty = true;
+      this.capture(event.pointerId);
+      element.style.cursor = "crosshair";
+      this.emit("paintStart", this.paintStroke);
+      this.schedule();
+    };
 
     /** Pointer x in content coordinates: px from the time area's left edge. */
     const contentX = (x: number): number => x - this.layout.gutter;
@@ -1532,6 +1687,17 @@ export class SongCanvas {
 
     const onWheel = (event: WheelEvent): void => {
       if (!this.doc) return;
+      // While painting the wheel changes the stroke's strength; the page must not scroll or zoom.
+      if (this.paintStroke !== null) {
+        event.preventDefault();
+        const notches = wheelNotches(event.deltaY, event.deltaMode);
+        if (notches === 0) return;
+        this.paintStroke = nudgePaintStroke(this.paintStroke, notches);
+        this.paintDirty = true;
+        this.emit("paintMove", this.paintStroke);
+        this.schedule();
+        return;
+      }
       const { x } = point(event);
       if (event.ctrlKey || event.metaKey) {
         event.preventDefault();
@@ -1556,6 +1722,20 @@ export class SongCanvas {
           field: target.field,
           value: !track[target.field],
         });
+        return;
+      }
+
+      // Painting owns the ribbons: section drags, resizes and panning do not start (07 §4.4).
+      if (this.tool === "paint") {
+        if (target.kind === "ribbon") {
+          beginPaint(event, x, y);
+          return;
+        }
+        if (target.kind === "ruler") {
+          element.setPointerCapture(event.pointerId);
+          drag = { startX: x, lastX: x, moved: true, scrub: true };
+          this.emit("seek", { sec: clampSec(target.sec, this.doc.durationSec) });
+        }
         return;
       }
 
@@ -1648,6 +1828,40 @@ export class SongCanvas {
       if (!this.doc) return;
       const { x, y } = point(event);
 
+      if (this.paintStroke !== null) {
+        const stroke = this.paintStroke;
+        // A pen reports several positions per frame; follow all of them so the stroke has no gaps.
+        const coalesced =
+          typeof event.getCoalescedEvents === "function" ? event.getCoalescedEvents() : [];
+        const samples = coalesced.length > 0 ? coalesced : [event];
+        let next = stroke;
+        for (const sample of samples) {
+          const at = point(sample);
+          const found = paintPointAt(
+            this.layout,
+            this.viewport,
+            this.doc,
+            paintSpan(next).tracks,
+            at.x,
+            at.y,
+          );
+          if (found === null) continue;
+          next = extendPaintStroke(next, {
+            sec: clampSec(found.sec, this.doc.durationSec),
+            trackId: found.trackId,
+            pressure: pressureOf(sample),
+          });
+        }
+        if (next !== stroke) {
+          this.paintStroke = next;
+          this.paintDirty = true;
+          this.emit("paintMove", next);
+          this.schedule();
+        }
+        element.style.cursor = "crosshair";
+        return;
+      }
+
       if (this.dragState.phase !== "idle") {
         const previous = this.dragState;
         const next = advanceSectionDrag(this.dragState, x, y, event.altKey);
@@ -1689,6 +1903,10 @@ export class SongCanvas {
         this.chromeDirty = true;
         this.schedule();
       }
+      if (this.tool === "paint") {
+        element.style.cursor = "crosshair";
+        return;
+      }
       const sectionHit = sectionHitAt(this.layout, this.viewport, this.doc, x, y);
       element.style.cursor =
         sectionHit === null
@@ -1701,6 +1919,10 @@ export class SongCanvas {
     };
 
     const onUp = (event: PointerEvent): void => {
+      if (this.paintStroke !== null) {
+        this.finishPaint(true);
+        return;
+      }
       if (this.dragState.phase !== "idle") {
         const state = this.dragState;
         if (state.phase === "dragging" && this.dragVisual !== null) {
@@ -1737,6 +1959,10 @@ export class SongCanvas {
     };
 
     const onCancel = (event: PointerEvent): void => {
+      if (this.paintStroke !== null) {
+        this.cancelPaint();
+        return;
+      }
       if (this.dragState.phase === "dragging") {
         const state = this.dragState;
         this.emit(state.mode === "move" ? "sectionDragCancel" : "sectionResizeCancel", {
@@ -1752,7 +1978,14 @@ export class SongCanvas {
     };
 
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== "Escape" || this.dragState.phase === "idle") return;
+      if (event.key !== "Escape") return;
+      if (this.paintStroke !== null) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        this.cancelPaint();
+        return;
+      }
+      if (this.dragState.phase === "idle") return;
       const state = this.dragState;
       event.preventDefault();
       event.stopImmediatePropagation();

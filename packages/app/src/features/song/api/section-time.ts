@@ -34,6 +34,21 @@ export function sectionSpansSec(model: ModelApi, handle: number): SectionSpanSec
   }));
 }
 
+/**
+ * Absolute ticks at an arrangement time, through the model's tempo map (02 §2.2).
+ *
+ * The canvas reports paint points in seconds; the brush model works in ticks. Going through the
+ * model keeps one implementation of the tempo-map maths for every caller (07 §4.4).
+ */
+export function ticksAtSeconds(model: ModelApi, handle: number, sec: number): number {
+  return Number(model.secondsToTicks(handle, sec));
+}
+
+/** Arrangement seconds at an absolute tick, through the model's tempo map. */
+export function secondsAtTicks(model: ModelApi, handle: number, tick: number): number {
+  return model.ticksToSeconds(handle, BigInt(Math.round(tick)));
+}
+
 /** One section's span in seconds, or `null` when it is gone. */
 export function sectionSpanSec(
   model: ModelApi,

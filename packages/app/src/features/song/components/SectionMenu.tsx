@@ -117,6 +117,8 @@ export function SectionMenu({
       {item("section.makeLonger")}
       {item("section.makeShorter")}
       <MenuSeparator />
+      {item("section.applyBrush")}
+      <MenuSeparator />
       <MenuCheckboxItem checked={smartTransitions} onCheckedChange={onSmartTransitionsChange}>
         {t("song.sectionMenu.smooth")}
       </MenuCheckboxItem>

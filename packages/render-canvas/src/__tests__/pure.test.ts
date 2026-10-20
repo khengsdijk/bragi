@@ -14,7 +14,14 @@ import {
   skylineOutline,
   windowCovers,
 } from "../geometry.js";
-import { computeLayout, hitTest, sectionAt, sectionAtPoint } from "../layout.js";
+import {
+  computeLayout,
+  hitTest,
+  paintPointAt,
+  ribbonAt,
+  sectionAt,
+  sectionAtPoint,
+} from "../layout.js";
 import { chordFill, energyColor, hexToNumber, paletteFromTokens, readableOn } from "../palette.js";
 import { appeared, isAnalysing, layerStates, shimmerPhase } from "../progressive.js";
 import {
@@ -379,6 +386,35 @@ describe("layout and hit testing", () => {
       "sec_a",
     );
     expect(sectionAtPoint(layout, viewport, song, layout.gutter + 100, lane.rect.y + 5)).toBeNull();
+  });
+
+  it("finds the ribbon under a paint point and refuses the gutter", () => {
+    const lane = layout.ribbons[0];
+    expect(lane).toBeDefined();
+    if (!lane) return;
+    const pxPerSec = pxPerSecond(8, 120);
+    expect(ribbonAt(layout, viewport, song, layout.gutter + 5 * pxPerSec, lane.rect.y + 3)).toEqual(
+      {
+        trackId: "trk_d",
+        sec: 5,
+      },
+    );
+    expect(ribbonAt(layout, viewport, song, 10, lane.rect.y + 3)).toBeNull();
+    expect(ribbonAt(layout, viewport, song, layout.gutter + 100, layout.sections.y + 3)).toBeNull();
+  });
+
+  it("clamps a paint point outside the lanes to the nearest ribbon the stroke touched", () => {
+    const [first, second] = layout.ribbons;
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    if (!first || !second) return;
+    const x = layout.gutter + 100;
+    const below = second.rect.y + second.rect.h + 20;
+    const point = paintPointAt(layout, viewport, song, new Set(["trk_b"]), x, below);
+    expect(point?.trackId).toBe("trk_b");
+    expect(point?.sec).toBeCloseTo(xToTime(viewport, 120, 100), 9);
+    // A track that is not on the canvas is never invented.
+    expect(paintPointAt(layout, viewport, song, new Set(["trk_gone"]), x, below)).toBeNull();
   });
 });
 

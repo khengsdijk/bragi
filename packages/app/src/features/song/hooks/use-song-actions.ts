@@ -20,6 +20,8 @@ import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
 import { type MessageKey, t } from "../../../i18n/index.js";
+import { brushBatch } from "../../brushes/batches.js";
+import type { BrushId, FilterDirection } from "../../brushes/types.js";
 import type { CommandContext } from "../../commands/state/commands.js";
 import type { History, HistoryState } from "../../history/state/history.js";
 import { EMPTY_HISTORY_STATE } from "../../history/state/history.js";
@@ -35,6 +37,7 @@ import {
   renameSectionBatch,
   resizeSectionBatch,
   sectionBars,
+  sectionStartTick,
   setSectionKindBatch,
   splitPoint,
   splitSectionBatch,
@@ -52,7 +55,8 @@ export type SectionDialog =
       readonly mode: SectionResizeMode;
       readonly bars: number;
       readonly currentBars: number;
-    };
+    }
+  | { readonly kind: "brush"; readonly sectionId: string };
 
 export interface SongActionsOptions {
   readonly songStore: SongStore;
@@ -77,6 +81,14 @@ export interface SongActions {
   readonly resize: (sectionId: string, bars: number, mode: SectionResizeMode) => void;
   /** One-bar keyboard resize: Loop when it grows, Trim when it shrinks (11 §6.2). */
   readonly resizeByBar: (sectionId: string, delta: -1 | 1) => void;
+  /** The dialog's Apply: one brush batch over the part's full span × the chosen tracks. */
+  readonly applyBrush: (
+    sectionId: string,
+    brush: BrushId,
+    trackIds: readonly string[],
+    strength: number,
+    direction: FilterDirection,
+  ) => void;
 }
 
 /** A history store with nothing in it, for the demo (no version tree). */
@@ -315,6 +327,48 @@ export function useSongActions(options: SongActionsOptions): SongActions {
     );
   }, [controller, current, model, onAnnounce, runBatch, songStore]);
 
+  const applyBrush = useCallback(
+    (
+      sectionId: string,
+      brush: BrushId,
+      trackIds: readonly string[],
+      strength: number,
+      direction: FilterDirection,
+    ): void => {
+      const live = current();
+      if (live === null) return;
+      const index = live.arrangement.sections.findIndex((candidate) => candidate.id === sectionId);
+      const section = live.arrangement.sections[index];
+      if (section === undefined) return;
+      const startTick = sectionStartTick(live, index);
+      const tracks = [...new Set(trackIds)];
+      const batch = brushBatch(
+        live,
+        brush,
+        {
+          region: { startTick, endTick: startTick + section.lengthTicks, tracks },
+          strength,
+          direction,
+        },
+        model,
+      );
+      if (batch === null) {
+        onAnnounce(t("brush.live.nothing"));
+        return;
+      }
+      runBatch(batch, batch.label);
+    },
+    [current, model, onAnnounce, runBatch],
+  );
+
+  const openBrush = useCallback(
+    (id: string): void => {
+      const target = current()?.arrangement.sections.find((candidate) => candidate.id === id);
+      if (target !== undefined) setDialog({ kind: "brush", sectionId: id });
+    },
+    [current],
+  );
+
   const openRename = useCallback(
     (id: string): void => {
       const target = current()?.arrangement.sections.find((candidate) => candidate.id === id);
@@ -395,6 +449,7 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       setLocked,
       loopSection,
       openResize,
+      openBrush,
       splitAtPlayhead,
       undo,
       redo,
@@ -408,6 +463,7 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       duplicateSection,
       loopSection,
       moveSection,
+      openBrush,
       openKind,
       openRename,
       openResize,
@@ -466,6 +522,7 @@ export function useSongActions(options: SongActionsOptions): SongActions {
     changeKind,
     resize,
     resizeByBar,
+    applyBrush,
   };
 }
 

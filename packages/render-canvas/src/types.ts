@@ -229,6 +229,26 @@ export interface SectionResizeEvent {
   readonly clientY: number;
 }
 
+/** What a primary-button drag on a ribbon does: select/pan, or paint a brush stroke (07 §4.4). */
+export type CanvasTool = "select" | "paint";
+
+/** One point a paint stroke passed over. */
+export interface PaintPoint {
+  /** Arrangement time in seconds. */
+  readonly sec: number;
+  readonly trackId: string;
+  /** Pointer pressure in `0..1`; a mouse reports `0.5`. */
+  readonly pressure: number;
+}
+
+/** A paint stroke so far (07 §4.4). The canvas never changes the document while painting. */
+export interface PaintStrokeEvent {
+  readonly points: readonly PaintPoint[];
+  /** Wheel notches while painting; positive is up (stronger). */
+  readonly wheelDelta: number;
+  readonly pointerType: "mouse" | "pen" | "touch";
+}
+
 /** Events out. */
 export interface CanvasEvents {
   /** The user changed the selection by pointer on the canvas. */
@@ -263,6 +283,14 @@ export interface CanvasEvents {
   readonly sectionResizeEnd: SectionResizeEvent;
   /** Escape or a cancelled pointer: no resize is offered. */
   readonly sectionResizeCancel: { readonly sectionId: string };
+  /** The paint tool's pointer went down on a ribbon. */
+  readonly paintStart: PaintStrokeEvent;
+  /** The stroke grew, the pressure changed or the wheel moved. */
+  readonly paintMove: PaintStrokeEvent;
+  /** The pointer was released: the app commits the stroke as one batch. */
+  readonly paintEnd: PaintStrokeEvent;
+  /** Escape or a cancelled pointer: the app drops the preview. */
+  readonly paintCancel: Record<string, never>;
   /** The canvas wants a different height (lanes grow with the number of ribbons). */
   readonly contentHeight: { readonly px: number };
 }
