@@ -26,7 +26,7 @@ cargo install wasm-bindgen-cli --version 0.2.129
 ## The handle API
 
 ```js
-import init, { loadProject, assetAdd, validateDoc, applyBatch, sectionSpans, freeDoc } from "@bragi/model-wasm";
+import init, { loadProject, assetAdd, validateDoc, applyBatch, sectionSpans, summarizeForLlm, freeDoc } from "@bragi/model-wasm";
 
 await init(); // `--target web`; pass { module_or_path } to control where the wasm comes from
 
@@ -36,11 +36,20 @@ if (validateDoc(handle) !== undefined) throw new Error(validateDoc(handle));
 
 applyBatch(handle, batchJson);             // mutates the stored document, returns its new JSON
 const spans = sectionSpans(handle);        // hot path: no re-serialisation of the document
+const context = summarizeForLlm(handle,   // the planner's compact data block (06 §2):
+  '{"region":{"startTick":153600,"endTick":215040,"tracks":["trk_d"]}}');
 freeDoc(handle);
 ```
 
 `applyBatch` throws with a JSON array of `{ opIndex, code, message }` when the batch is rejected
 (`specs/02-song-model.md` §4.3); the stored document is unchanged.
+
+`summarizeForLlm(handle, focusJson)` returns the deterministic, line-oriented context the planner
+puts in its prompt (`specs/06-ai-planner.md` §2). The focus is `region?`, `selectedTrackIds?` and
+`selectedSectionIds?`; `{}` or an empty string means the whole song. User-controlled text is escaped
+and quoted as data, and every value comes from the document's analysis effects — nothing is
+invented. A stale focus ID throws the same structured `unknown_track` / `missing_target` array as
+`applyBatch`.
 
 ## Budgets (from [12](../../specs/12-roadmap.md) WP-0.3)
 

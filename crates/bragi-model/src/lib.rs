@@ -34,6 +34,7 @@ mod ids;
 mod patch;
 pub mod region;
 pub mod spans;
+pub mod summary;
 pub mod time;
 pub mod validate;
 
@@ -46,6 +47,7 @@ pub use diff::{EngineDelta, diff};
 pub use error::{ApplyError, ValidationCode, ValidationError};
 pub use region::{RegionSlice, ResolvedRegion, resolve_region};
 pub use spans::{SectionSpan, section_spans};
+pub use summary::{SummaryFocus, escape_user_text, summarize_for_llm};
 pub use time::{
     MAX_BPM, MIN_BPM, TempoCtx, bar_beat_to_ticks, seconds_to_ticks, ticks_to_bar_beat,
     ticks_to_seconds,

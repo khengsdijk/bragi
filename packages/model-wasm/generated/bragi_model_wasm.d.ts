@@ -79,6 +79,15 @@ export function secondsToTicks(handle: number, seconds: number): bigint;
 export function sectionSpans(handle: number): string;
 
 /**
+ * The compact LLM context for the handle's document (`specs/06-ai-planner.md` §2).
+ *
+ * `focus_json` is a `SummaryFocus` (`{}` or an empty string means the whole song); the result is
+ * the line-oriented data block the planner puts in its prompt. A stale focus ID is reported as the
+ * same JSON array of `{ opIndex, code, message }` the op API uses.
+ */
+export function summarizeForLlm(handle: number, focus_json: string): string;
+
+/**
  * Seconds elapsed at `ticks`, using the handle's tempo map.
  */
 export function ticksToSeconds(handle: number, ticks: bigint): number;
@@ -105,6 +114,7 @@ export interface InitOutput {
     readonly resolveRegion: (a: number, b: number, c: number) => [number, number, number, number];
     readonly secondsToTicks: (a: number, b: number) => [bigint, number, number];
     readonly sectionSpans: (a: number) => [number, number, number, number];
+    readonly summarizeForLlm: (a: number, b: number, c: number) => [number, number, number, number];
     readonly ticksToSeconds: (a: number, b: bigint) => [number, number, number];
     readonly validateDoc: (a: number) => [number, number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;

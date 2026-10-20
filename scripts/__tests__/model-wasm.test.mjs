@@ -163,6 +163,37 @@ describe("model-wasm handle API", () => {
     expect(model.docCount()).toBe(0);
   });
 
+  it("summarizes a document for the planner from Node", () => {
+    const handle = model.loadProject(twentyMinuteProject(2, 3));
+    model.assetAdd(handle, assetMeta);
+
+    const whole = model.summarizeForLlm(handle, "");
+    expect(whole).toContain('SONG: "Bench"');
+    expect(whole).toContain('TRACKS: trk_0 "Track 0"(full_mix) | trk_1 "Track 1"(other)');
+    expect(whole).toContain(
+      "SECTIONS (idx, id, kind, bars, startBar, energy, chords, active stems, locked):",
+    );
+    expect(whole).toContain("FOCUS: whole song");
+    expect(whole).toContain("CURRENT FX/MACROS: none");
+
+    const focused = model.summarizeForLlm(
+      handle,
+      JSON.stringify({ selectedSectionIds: ["sec_1"], selectedTrackIds: ["trk_1"] }),
+    );
+    expect(focused).toContain('FOCUS: sections: sec_1 "S1" · tracks: trk_1 "Track 1"');
+
+    const region = model.summarizeForLlm(
+      handle,
+      JSON.stringify({ region: { startTick: 0, endTick: 4000, tracks: ["trk_1"] } }),
+    );
+    expect(region).toContain('FOCUS REGION: bars 1–2 (sec_0 "S0") · tracks: trk_1 "Track 1"');
+
+    expect(() => model.summarizeForLlm(handle, '{"selectedTrackIds":["trk_missing"]}')).toThrow(
+      /unknown_track/,
+    );
+    expect(model.freeDoc(handle)).toBe(true);
+  });
+
   it("returns structured errors for an invalid batch", () => {
     const handle = model.loadProject(twentyMinuteProject(1, 1));
     model.assetAdd(handle, assetMeta);

@@ -1,0 +1,23 @@
+---
+source: crates/bragi-model/tests/summary.rs
+expression: "summarize_for_llm(&analysed(), &focus).unwrap()"
+---
+SONG: "Midnight Drive (analysed)" · 118→124 BPM · "F# minor" · 4/4 · 1:04 · genres: "synthwave" · moods: "nostalgic", "driving"
+TRACKS: trk_0 "Original mix"(full_mix, hidden) | trk_1 "Drums"(drums) | trk_2 "Bass"(bass) | trk_3 "Synths"(synth) | trk_4 "Vocals"(vocals, muted) | trk_5 "Residual"(residual, hidden)
+SECTIONS (idx, id, kind, bars, startBar, energy, chords, active stems, locked):
+  0 sec_0 intro    4    1     - -          -              -
+  1 sec_1 verse    4    5     - -          -              -
+  2 sec_2 pre_chorus    4    9     - -          -              -
+  3 sec_3 chorus    4   13     - -          -              -
+  4 sec_4 verse    4   17     - -          -              -
+  5 sec_5 chorus    4   21     - -          -              -
+  6 sec_6 bridge    4   25     - -          -              yes
+  7 sec_7 outro    4   29     - -          -              -
+FOCUS: sections: sec_1 "Verse 1", sec_4 "Verse 2" · tracks: trk_1 "Drums", trk_3 "Synths"
+  trk_1 "Drums": fx saturation(drive=0.35), compressor(thresholdDb=-24) · macro: punch
+  trk_3 "Synths": fx reverb(mix=0.35), eq3(highDb=2) · macro: space
+CURRENT FX/MACROS:
+  trk_1 "Drums": fx saturation(drive=0.35), compressor(thresholdDb=-24) · macro: punch
+  trk_2 "Bass": fx gain(db=-3) [bypassed]
+  trk_3 "Synths": fx reverb(mix=0.35), eq3(highDb=2) · macro: space
+  trk_4 "Vocals": fx filter(cutoffHz=8500, mode=1)

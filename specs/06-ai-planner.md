@@ -1,6 +1,6 @@
 # 06 — AI Intent Planner
 
-Status: Draft v0.2 · Code: `services/api/src/planner/` · Schemas: `packages/schemas/planner/`
+Status: Draft v0.3 · Code: `services/api/src/planner/` · Schemas: `packages/schemas/planner/`
 
 The planner turns **what the user wants** ("make this more aggressive", "add strings under the chorus", "make the outro longer and dreamier") into an **EditPlan**: concrete ops ([02 §4](02-song-model.md)) plus generation steps ([09](09-generation.md)), offered as 1–3 variants. It is the bridge between plain language and the deterministic model.
 
@@ -32,7 +32,7 @@ interface PlanRequest {
 }
 ```
 
-The API loads the commit snapshot and analyses and calls `bragi-model::summarize_for_llm(doc, analyses, focus)` (using the same WASM build, `packages/model-wasm`, running in Node). It produces a **compact LLM context** of about 2–6k tokens:
+The API loads the commit snapshot and calls `bragi-model::summarize_for_llm(doc, &focus)` (using the same WASM build, `packages/model-wasm`, running in Node). The analyses travel inside the document as `analyses[].summary` and `analyses[].effects`, so no separate bundle is passed (`docs/wp/2.6.md`). It produces a **compact LLM context** of about 2–6k tokens:
 
 > **v1 note (WP-2.6):** the server holds no projects (history is local-first), so `POST /v1/plans`
 > carries the `Project` document in the request (`PlanRequest.doc`) and the API never stores it.
