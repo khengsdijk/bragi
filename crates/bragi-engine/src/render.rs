@@ -1318,21 +1318,33 @@ impl Renderer {
         previous
     }
 
-    /// Warms `slot` (1–3) with a prepared plan and returns the plan it replaces.
+    /// Warms `slot` (1–3) with a prepared plan.
     ///
-    /// The slot must be idle: a slot that is audible or fading is left alone
-    /// and `prepared` is returned unchanged. Nothing here allocates, so a host
-    /// may call it from its control path (a worklet message handler or a drained
-    /// command) without violating the audio-thread rule.
-    pub fn warm_slot(&mut self, slot: usize, prepared: PreparedSlot) -> Option<PreparedSlot> {
+    /// Returns `Ok` with the plan it replaced (if any), for an off-thread drop.
+    /// The slot must be idle: a slot that is audible or still fading out is left
+    /// alone and `prepared` comes back as `Err`. Nothing here allocates, so a
+    /// host may call it from its control path (a worklet message handler or a
+    /// drained command) without violating the audio-thread rule.
+    ///
+    /// # Errors
+    /// `Err(prepared)` for slot 0, an out-of-range slot, or a slot that is
+    /// audible or fading.
+    // The refused plan is handed back by value: boxing it would allocate on the
+    // audio thread of the native host, which calls this from its callback.
+    #[allow(clippy::result_large_err)]
+    pub fn warm_slot(
+        &mut self,
+        slot: usize,
+        prepared: PreparedSlot,
+    ) -> Result<Option<PreparedSlot>, PreparedSlot> {
         if slot == 0
             || slot >= MAX_WARM_PLANS
             || self.gains[slot] > 0.0
             || self.fade.is_some_and(|fade| fade.to[slot] > 0.0)
         {
-            return Some(prepared);
+            return Err(prepared);
         }
-        self.slots[slot].replace(prepared)
+        Ok(self.slots[slot].replace(prepared))
     }
 
     /// Sizes the shared mix scratch for a plan with `tracks` tracks.
@@ -1386,7 +1398,7 @@ impl Renderer {
     /// use bragi_engine::render::PreparedPlan;
     /// let mut renderer = Renderer::new(Arc::new(plan(1)), 128);
     /// let warm = PreparedPlan::new(Arc::new(plan(2)), quality_for(false), 128).into_slot();
-    /// assert!(renderer.warm_slot(1, warm).is_none());
+    /// assert!(matches!(renderer.warm_slot(1, warm), Ok(None)));
     /// assert!(renderer.audition(Some(1)));
     /// assert!(renderer.audition(None));
     /// assert!(!renderer.audition(Some(2)));

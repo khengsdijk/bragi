@@ -416,6 +416,34 @@ fn auditioning_the_main_plan_clears_the_overlay_flag() {
     assert!(!engine.audition(Some(2)), "slot 2 was never warmed");
 }
 
+#[test]
+fn an_idle_slot_can_be_warmed_again_but_not_while_it_fades_out() {
+    let plans = plans();
+    let mut engine = Engine::new(plans[0].clone(), BLOCK);
+    assert!(engine.warm(1, plans[1].clone()));
+    // Replacing an idle warm plan succeeds (a new candidate group reuses the slots).
+    assert!(engine.warm(1, plans[2].clone()));
+    engine.transport_mut().play();
+    assert!(engine.audition(Some(1)));
+    let source = pcm(&hash('a'), tone(FRAMES, 220.0, 0.5));
+    let mut left = vec![0.0f32; BLOCK];
+    let mut right = vec![0.0f32; BLOCK];
+    for _ in 0..((FADE_FRAMES / BLOCK) + 2) {
+        engine.process(&source, &mut [&mut left, &mut right]);
+    }
+    assert!(!engine.warm(1, plans[3].clone()), "slot 1 is audible");
+    assert!(engine.audition(None));
+    engine.process(&source, &mut [&mut left, &mut right]);
+    assert!(
+        !engine.warm(1, plans[3].clone()),
+        "slot 1 is still fading out"
+    );
+    for _ in 0..((FADE_FRAMES / BLOCK) + 2) {
+        engine.process(&source, &mut [&mut left, &mut right]);
+    }
+    assert!(engine.warm(1, plans[3].clone()), "the fade is over");
+}
+
 /// `SAMPLE_RATE` is the rate the crossfade length above assumes.
 #[test]
 fn the_crossfade_constant_matches_the_sample_rate() {

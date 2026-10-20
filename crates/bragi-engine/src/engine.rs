@@ -267,15 +267,27 @@ impl Engine {
         // Control side: grow the shared sidechain scratch for a candidate with
         // more tracks than the renderer was sized for, so warming stays a move.
         self.renderer.reserve_tracks(prepared.plan().tracks.len());
-        self.warm_prepared(slot, prepared).is_none()
+        self.warm_prepared(slot, prepared).is_ok()
     }
 
-    /// Warms a slot from an already prepared [`PreparedSlot`] and returns the
-    /// plan it replaced, for an off-thread drop.
+    /// Warms a slot from an already prepared [`PreparedSlot`]: `Ok` with the plan
+    /// it replaced, or `Err` with `prepared` when the slot is busy (see
+    /// [`Renderer::warm_slot`]). Either way the caller drops it off the audio
+    /// thread.
     ///
     /// Native hosts use this: they build the slot off the audio thread and hand
     /// it to the playback callback as a pointer, so the callback only moves it.
-    pub fn warm_prepared(&mut self, slot: usize, prepared: PreparedSlot) -> Option<PreparedSlot> {
+    ///
+    /// # Errors
+    /// `Err(prepared)` when the slot cannot be warmed now.
+    // The refused plan is handed back by value: boxing it would allocate on the
+    // audio thread of the native host, which calls this from its callback.
+    #[allow(clippy::result_large_err)]
+    pub fn warm_prepared(
+        &mut self,
+        slot: usize,
+        prepared: PreparedSlot,
+    ) -> Result<Option<PreparedSlot>, PreparedSlot> {
         self.renderer.warm_slot(slot, prepared)
     }
 

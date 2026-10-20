@@ -336,9 +336,12 @@ where
                                 // Swap, never drop: whatever the engine displaces
                                 // (or refuses) goes back in the same box.
                                 *mailbox = if kind == opcode::WARM_PTR {
-                                    mailbox
-                                        .take()
-                                        .and_then(|prepared| engine.warm_prepared(slot, prepared))
+                                    mailbox.take().and_then(|prepared| {
+                                        match engine.warm_prepared(slot, prepared) {
+                                            Ok(replaced) => replaced,
+                                            Err(refused) => Some(refused),
+                                        }
+                                    })
                                 } else {
                                     engine.release_slot(slot)
                                 };
