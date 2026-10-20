@@ -25,6 +25,7 @@ import {
   type EngineOfflineBridge,
   type EnginePlaybackBridge,
   guessMime,
+  resizeStateBlock,
   stateWordCount,
 } from "../web/engine.js";
 
@@ -437,5 +438,21 @@ describe("the peak pyramid reader", () => {
     view.setFloat32(48, 0.5, true);
     expect([...pyramidLevel(bytes, 256)]).toEqual([-1, 1, -0.5, 0.5]);
     expect(() => pyramidLevel(bytes, 1024)).toThrow();
+  });
+});
+
+describe("resizeStateBlock", () => {
+  it("keeps the transport and playhead across a reload that changes the track count", () => {
+    const before = new Uint32Array(stateWordCount(1));
+    before[0] = 1; // playing
+    before[2] = 480_000; // playhead, low word
+    const after = resizeStateBlock(before, 5);
+    expect(after.length).toBe(stateWordCount(5));
+    const state = decodeStateWords(after);
+    expect(state.transport).toBe(decodeStateWords(before).transport);
+    expect(state.playhead).toBe(480_000);
+    expect(state.tracks).toHaveLength(5);
+    expect(state.tracks.every((track) => track.rms === 0)).toBe(true);
+    expect(after.buffer).toBeInstanceOf(SharedArrayBuffer);
   });
 });

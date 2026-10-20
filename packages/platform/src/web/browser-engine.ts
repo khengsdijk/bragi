@@ -27,6 +27,7 @@ import {
   type EngineAsset,
   type EngineOfflineBridge,
   type EnginePlaybackBridge,
+  resizeStateBlock,
 } from "./engine.js";
 
 /** What the host application hands in. */
@@ -118,8 +119,9 @@ export function createBrowserEngine(options: BrowserEngineOptions): BrowserEngin
           node.port.postMessage({ type: "state", state });
           resolveReady();
         } else if (message.type === "loaded") {
-          // The plan decides how many meters the state block needs; swap in a block of that size.
-          state = createStateBlock(message.tracks ?? 0);
+          // The plan decides how many meters the state block needs; swap in a block of that size,
+          // keeping the transport readable until the worklet writes it.
+          state = resizeStateBlock(state, message.tracks ?? 0);
           node.port.postMessage({ type: "state", state });
           pendingLoad?.resolve();
           pendingLoad = null;

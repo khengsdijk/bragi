@@ -318,3 +318,15 @@ export function guessMime(bytes: Uint8Array): string {
 export function createStateBlock(tracks: number): Uint32Array {
   return new Uint32Array(new SharedArrayBuffer(stateWordCount(tracks) * 4));
 }
+
+/**
+ * A state block for a new plan's track count that keeps `previous`'s header (transport,
+ * playhead). The worklet starts writing the new block a few quanta after a reload; a zeroed
+ * header would read as "stopped at 0" until then, and the transport bar would flicker back to
+ * Play on every structural edit.
+ */
+export function resizeStateBlock(previous: Uint32Array, tracks: number): Uint32Array {
+  const next = createStateBlock(tracks);
+  next.set(previous.subarray(0, Math.min(STATE_HEADER_WORDS, previous.length, next.length)));
+  return next;
+}
