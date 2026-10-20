@@ -967,7 +967,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** The CLI entry point. */
 async function cli(): Promise<void> {
   try {
-    await main(process.argv.slice(2));
+    const summary = await main(process.argv.slice(2));
+    // Over-reach is the one metric that must be zero (06 §7, §9); fail the run if it ever is not.
+    if (summary.metrics.overReach > 0) process.exitCode = 1;
   } catch (failure) {
     if (failure instanceof HelpRequested) {
       console.log(usage());
