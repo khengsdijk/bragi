@@ -1,11 +1,14 @@
 /**
  * The canvas paint tool's controller (07 §4.4, 01 §5): four pointer events in, one commit out.
  *
- * While the pointer is down the stroke is previewed on the Song Store's copy through
- * `startGesture`; the engine follows, but the document does not change. A preview restarts from
- * the pre-stroke document and applies **one** `brushBatch`, so a long stroke never stacks brush
- * steps. The live preview is refreshed at most every {@link PREVIEW_INTERVAL_MS}; the final batch
- * is always rebuilt and committed on release, so exactly one history commit exists per stroke.
+ * While the pointer is down the stroke is previewed on the Song Store's copy through one gesture;
+ * the engine follows, but the document does not change. The first preview starts the gesture, and
+ * every later one **replaces** it with a fresh `brushBatch` in a single delta, so a long stroke
+ * never stacks brush steps and never sends the engine back to the document. The fx ids of each
+ * preview are aligned with the previous one ({@link alignFxIds}), so a Space or Warmth instance
+ * keeps playing its tail instead of being removed and re-added several times a second. The live
+ * preview is refreshed at most every {@link PREVIEW_INTERVAL_MS}; the final batch is previewed and
+ * committed on release on the same gesture, so exactly one history commit exists per stroke.
  * Escape or a cancelled pointer drops the preview and records nothing.
  */
 import type { CanvasEvents } from "@bragi/render-canvas";
@@ -19,6 +22,7 @@ import { ticksAtSeconds } from "../../song/api/section-time.js";
 import type { ModelApi } from "../../song/model/model-api.js";
 import type { EngineController } from "../../song/state/engine-controller.js";
 import type { SongStore } from "../../song/state/song-store.js";
+import { alignFxIds } from "../align.js";
 import { brushBatch } from "../batches.js";
 import type { BrushStore } from "../state/brush-store.js";
 import { strokeRegion, strokeStrength } from "../stroke.js";
@@ -55,6 +59,8 @@ interface Session {
   pointerType: PointerType;
   wheelDelta: number;
   gesture: Gesture | null;
+  /** The aligned batch the preview shows now; the next one reuses its fx ids. */
+  lastBatch: OpBatch | null;
   /** `region + rounded strength`; an unchanged key needs no new preview. */
   lastKey: string;
   lastPreviewAt: number;
@@ -62,6 +68,11 @@ interface Session {
 
 function roundStrength(strength: number): number {
   return Math.round(strength / STRENGTH_STEP) * STRENGTH_STEP;
+}
+
+/** Whether two previews carry the same ops, so the release needs no extra replace. */
+function sameOps(previous: OpBatch | null, next: OpBatch): boolean {
+  return previous !== null && JSON.stringify(previous.ops) === JSON.stringify(next.ops);
 }
 
 export function usePaintStroke(options: PaintStrokeOptions): PaintStrokeController {
@@ -118,7 +129,12 @@ export function usePaintStroke(options: PaintStrokeOptions): PaintStrokeControll
     [brushes],
   );
 
-  /** Replaces the running preview with one batch built from the pre-stroke document. */
+  /**
+   * Previews the stroke: the first batch starts the gesture, every later one replaces it.
+   *
+   * Replacing (rather than cancelling and starting again) keeps the engine on one plan, and
+   * {@link alignFxIds} keeps the fx instances the first preview created (03 §6).
+   */
   const preview = useCallback(
     (active: Session, force: boolean): void => {
       const stroke = strokeOf(active);
@@ -134,7 +150,7 @@ export function usePaintStroke(options: PaintStrokeOptions): PaintStrokeControll
       active.lastPreviewAt = timestamp;
 
       const state = brushes.store.getState();
-      const batch = brushBatch(
+      const built = brushBatch(
         active.preStrokeDoc,
         state.brush,
         {
@@ -144,16 +160,27 @@ export function usePaintStroke(options: PaintStrokeOptions): PaintStrokeControll
         },
         model,
       );
-      active.gesture?.cancel();
-      active.gesture = null;
-      if (batch === null) return;
-      const gesture = start();
-      if (gesture === null) return;
-      if (!gesture.step(batch).ok) {
-        gesture.cancel();
+      const batch = built === null ? null : alignFxIds(built, active.lastBatch);
+      if (batch === null) {
+        // Nothing to paint right now (for example zero strength): drop the preview, but keep
+        // `lastBatch` so the next move reuses its ids instead of re-creating the instances.
+        active.gesture?.cancel();
+        active.gesture = null;
+        active.lastKey = "";
         return;
       }
-      active.gesture = gesture;
+      if (active.gesture === null) {
+        const gesture = start();
+        if (gesture === null) return;
+        if (!gesture.step(batch).ok) {
+          gesture.cancel();
+          return;
+        }
+        active.gesture = gesture;
+      } else if (!active.gesture.replace(batch).ok) {
+        return;
+      }
+      active.lastBatch = batch;
     },
     [brushes, model, now, start, strokeOf],
   );
@@ -163,14 +190,13 @@ export function usePaintStroke(options: PaintStrokeOptions): PaintStrokeControll
     (active: Session): void => {
       const stroke = strokeOf(active);
       const region = strokeRegion(stroke);
-      active.gesture?.cancel();
-      active.gesture = null;
       if (region === null) {
+        active.gesture?.cancel();
         onAnnounce(t("brush.live.nothing"));
         return;
       }
       const state = brushes.store.getState();
-      const batch = brushBatch(
+      const built = brushBatch(
         active.preStrokeDoc,
         state.brush,
         {
@@ -180,27 +206,43 @@ export function usePaintStroke(options: PaintStrokeOptions): PaintStrokeControll
         },
         model,
       );
-      if (batch === null) {
+      if (built === null) {
+        active.gesture?.cancel();
         onAnnounce(t("brush.live.nothing"));
         return;
       }
-      const gesture = start();
-      if (gesture === null) return;
-      if (!gesture.step(batch).ok) {
+      const batch = alignFxIds(built, active.lastBatch);
+      const commit = (gesture: Gesture): void => {
+        void gesture
+          .commit(batch.label)
+          .then((outcome) => {
+            if (outcome === null) return;
+            onAnnounce(outcome.ok ? batch.label : t("song.live.rejected"));
+          })
+          .catch((cause: unknown) => {
+            console.warn("could not commit a paint stroke", cause);
+            onAnnounce(t("song.live.rejected"));
+          });
+      };
+
+      const gesture = active.gesture;
+      if (gesture === null) {
+        const fresh = start();
+        if (fresh === null) return;
+        if (!fresh.step(batch).ok) {
+          fresh.cancel();
+          onAnnounce(t("song.live.rejected"));
+          return;
+        }
+        commit(fresh);
+        return;
+      }
+      if (!sameOps(active.lastBatch, batch) && !gesture.replace(batch).ok) {
         gesture.cancel();
         onAnnounce(t("song.live.rejected"));
         return;
       }
-      void gesture
-        .commit(batch.label)
-        .then((outcome) => {
-          if (outcome === null) return;
-          onAnnounce(outcome.ok ? batch.label : t("song.live.rejected"));
-        })
-        .catch((cause: unknown) => {
-          console.warn("could not commit a paint stroke", cause);
-          onAnnounce(t("song.live.rejected"));
-        });
+      commit(gesture);
     },
     [brushes, model, onAnnounce, start, strokeOf],
   );
@@ -219,6 +261,7 @@ export function usePaintStroke(options: PaintStrokeOptions): PaintStrokeControll
         pointerType: event.pointerType,
         wheelDelta: 0,
         gesture: null,
+        lastBatch: null,
         lastKey: "",
         lastPreviewAt: 0,
       };

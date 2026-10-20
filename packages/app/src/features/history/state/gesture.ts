@@ -2,9 +2,12 @@
  * A drag or slider gesture: live preview while it runs, one commit when it ends (01 §5, 07 §4).
  *
  * Each step goes to the Song Store's preview copy, and its delta to the engine, so the canvas and
- * the audio follow the gesture while the document stays as it was. `commit` folds the steps into
- * one batch (`coalesceBatches`) and commits it through the history store; the batch reuses the
- * steps' ids, so an effect a slider created keeps its live instance and tail.
+ * the audio follow the gesture while the document stays as it was. A gesture that is really a
+ * series of whole-state previews (a paint stroke) calls {@link Gesture.replace} instead: the copy
+ * is rebuilt from the live document and the engine gets one delta from the previous preview to
+ * the new one. `commit` folds the steps into one batch (`coalesceBatches`) and commits it through
+ * the history store; the batch reuses the steps' ids, so an effect a preview created keeps its
+ * live instance and tail.
  */
 import type { OpBatch, Project } from "@bragi/schemas";
 
@@ -24,6 +27,12 @@ export interface GestureOptions {
 export interface Gesture {
   /** Previews `batch` on top of the earlier steps. A rejected step changes nothing. */
   step(batch: OpBatch): ApplyOutcome;
+  /**
+   * Replaces the earlier steps with just `batch`. The preview rebuilds the copy from the live
+   * document, and the engine gets one delta from the old preview state to the new one, so it
+   * never hears a revert first. A rejected batch leaves the preview and the engine untouched.
+   */
+  replace(batch: OpBatch): ApplyOutcome;
   /**
    * Commits the steps as one batch labelled `label`. Returns `null` when the gesture changed
    * nothing (a drag back to where it started), which records no commit.
@@ -55,6 +64,18 @@ export function startGesture(options: GestureOptions): Gesture | null {
       }
       const outcome = preview.apply(batch);
       if (outcome.ok) {
+        steps.push(batch);
+        engine(outcome.commit, outcome.doc);
+      }
+      return outcome;
+    },
+    replace(batch) {
+      if (!open) {
+        return { ok: false, errors: [{ opIndex: 0, code: "gesture_ended", message: "ended" }] };
+      }
+      const outcome = preview.reset(batch);
+      if (outcome.ok) {
+        steps.length = 0;
         steps.push(batch);
         engine(outcome.commit, outcome.doc);
       }
