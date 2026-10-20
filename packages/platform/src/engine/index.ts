@@ -8,6 +8,8 @@ export * from "./codec.js";
 export type {
   AssetHash,
   AudioFormat,
+  AuditionSlot,
+  CandidateSlot,
   CommitId,
   EngineDelta,
   EngineEvent,
