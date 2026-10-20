@@ -24,7 +24,8 @@
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
     },
-    "./engine-processor": "./src/web/engine-processor.js"
+    "./engine-processor": "./src/web/engine-processor.js",
+    "./engine-worker": "./src/web/engine.worker.ts"
   },
   "scripts": {
     "build": "tsc -b",

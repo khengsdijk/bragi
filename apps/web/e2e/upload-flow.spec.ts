@@ -221,20 +221,40 @@ test.describe("upload -> live analysis -> playable, soloable canvas", () => {
       const lanes = await layout(appPage);
       const lane = lanes.ribbons.find((l) => l.trackId === stem.id);
       if (!lane) throw new Error(`no ribbon for ${stem.name}`);
-      const before = await withHooks(appPage, (h) => h.store.store.getState().revision);
       const point = await canvasPoint(appPage, lane.solo.x + lane.solo.w / 2, lane.solo.y + 12);
       await appPage.mouse.click(point.x, point.y);
-      const after = await withHooks(appPage, (h) => {
-        const state = h.store.store.getState();
-        return {
-          revision: state.revision,
-          ops: state.lastCommit?.batch.ops.map((o) => o.op),
-          solo: state.doc?.tracks.filter((t) => t.solo).map((t) => t.id),
-        };
+      // Analysis stages may still commit around the click, so count what the user did, not the
+      // store revision: the solo is in the document, and the newest user commit is exactly one
+      // `track.update`.
+      await expect
+        .poll(() =>
+          withHooks(appPage, (h) =>
+            h.store.store
+              .getState()
+              .doc?.tracks.filter((t) => t.solo)
+              .map((t) => t.id),
+          ),
+        )
+        .toEqual([stem.id]);
+      const userOps = await withHooks(appPage, (h) => {
+        const history = (
+          h as unknown as {
+            history: {
+              store: {
+                getState(): {
+                  commits: Map<string, { authorKind: string; batch: { ops: { op: string }[] } }>;
+                };
+              };
+            } | null;
+          }
+        ).history;
+        const commits = [...(history?.store.getState().commits.values() ?? [])];
+        return commits
+          .filter((commit) => commit.authorKind === "user")
+          .at(-1)
+          ?.batch.ops.map((o) => o.op);
       });
-      expect(after.revision, `solo ${stem.name}`).toBe(before + 1);
-      expect(after.ops).toEqual(["track.update"]);
-      expect(after.solo).toEqual([stem.id]);
+      expect(userOps, `solo ${stem.name}`).toEqual(["track.update"]);
       // The accessible grid reflects it, and the engine silences everything else.
       await expect(appPage.getByTestId(`grid-solo-${stem.id}`)).toHaveAttribute(
         "aria-pressed",

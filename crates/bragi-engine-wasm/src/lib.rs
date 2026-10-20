@@ -12,7 +12,9 @@
 //! | Call | Who |
 //! |---|---|
 //! | `new(block)` | main thread / worker |
-//! | `add_asset(hash, bytes, mime)` | decoder worker (symphonia, off the audio thread) |
+//! | `decode_asset(bytes, mime)` | decoder worker (symphonia, off the audio thread) |
+//! | `add_asset(hash, bytes, mime)` | tests and the conformance harness (decode + register) |
+//! | `add_asset_pcm(hash, samples, channels, rate)` | AudioWorklet: registers PCM decoded in the worker |
 //! | `load_project(json)` / `apply_delta(json)` | main thread after a commit |
 //! | `process(left, right)` | AudioWorklet, one quantum |
 //! | `transport(cmd, value)` | main thread, drained in the worklet |
@@ -89,8 +91,55 @@ impl EngineWasm {
         }
     }
 
-    /// Decodes an asset (FLAC/WAV/MP3/AAC/OGG/M4A) and registers it. Runs in the
-    /// decoder worker, never on the audio thread.
+    /// Registers PCM that the decoder worker already decoded.
+    ///
+    /// The AudioWorklet receives PCM in a `load` message and copies it here; it
+    /// never decodes. A hash that is already loaded is ignored, so the host can
+    /// re-send a document without touching the audio thread's memory.
+    ///
+    /// # Errors
+    /// A JavaScript `Error` when the hash cannot be parsed.
+    pub fn add_asset_pcm(
+        &mut self,
+        hash: &str,
+        samples: Vec<f32>,
+        channels: u16,
+        sample_rate: u32,
+    ) -> Result<(), JsError> {
+        let hash: AssetHash = hash
+            .parse()
+            .map_err(|error| JsError::new(&format!("bad asset hash: {error}")))?;
+        if self.pcm.get(&hash).is_some() {
+            return Ok(());
+        }
+        let channels = channels.max(1);
+        let sample_rate = sample_rate.max(1);
+        let frames = (samples.len() / usize::from(channels)) as u64;
+        let meta = bragi_model::generated::AssetMeta {
+            // The compressed size is not known here; PCM is four bytes per sample.
+            bytes: (samples.len() as u64).saturating_mul(4),
+            channels: std::num::NonZeroU64::new(u64::from(channels))
+                .unwrap_or(std::num::NonZeroU64::MIN),
+            derived_from: None,
+            duration_samples: frames,
+            hash: hash.clone(),
+            mime: "audio/wav"
+                .parse()
+                .map_err(|error| JsError::new(&format!("bad mime: {error}")))?,
+            sample_rate: std::num::NonZeroU64::new(u64::from(sample_rate))
+                .unwrap_or(std::num::NonZeroU64::MIN),
+        };
+        self.index.insert(meta);
+        self.pcm
+            .insert(hash, PcmBuffer::new(samples, channels, sample_rate));
+        Ok(())
+    }
+
+    /// Decodes an asset (FLAC/WAV/MP3/AAC/OGG/M4A) and registers it.
+    ///
+    /// Kept for tests and the conformance harness. The browser host decodes in
+    /// its worker ([`decode_asset`]) and registers the PCM with
+    /// [`EngineWasm::add_asset_pcm`], so the audio thread never decodes.
     ///
     /// # Errors
     /// A JavaScript `Error` when decoding or hash parsing fails.
@@ -243,6 +292,54 @@ impl EngineWasm {
     }
 }
 
+/// Interleaved PCM at 48 kHz, on its way from the decoder worker to the host.
+#[wasm_bindgen]
+pub struct DecodedPcmWasm {
+    samples: Vec<f32>,
+    channels: u16,
+    sample_rate: u32,
+}
+
+#[wasm_bindgen]
+impl DecodedPcmWasm {
+    /// Channel count (mono or stereo after the working-copy resample).
+    #[must_use]
+    pub fn channels(&self) -> u16 {
+        self.channels
+    }
+
+    /// Sample rate in hertz (the working copies are 48 kHz).
+    #[must_use]
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    /// Takes the interleaved samples. Consuming the handle avoids a copy inside wasm.
+    #[must_use]
+    pub fn into_samples(self) -> Vec<f32> {
+        self.samples
+    }
+}
+
+/// Decodes one asset to interleaved f32 at 48 kHz.
+///
+/// This is the worker-side half of the browser host: the result is transferred
+/// to the AudioWorklet as PCM and registered with [`EngineWasm::add_asset_pcm`],
+/// so no decode ever runs on the audio thread (`specs/03-audio-engine.md` §3.1).
+///
+/// # Errors
+/// A JavaScript `Error` when the container is unsupported or decoding fails.
+#[wasm_bindgen]
+pub fn decode_asset(bytes: &[u8], mime: &str) -> Result<DecodedPcmWasm, JsError> {
+    let decoded = bragi_engine::decode::decode_working_copy(bytes, mime.rsplit('/').next())
+        .map_err(|error| JsError::new(&format!("decoding failed: {error}")))?;
+    Ok(DecodedPcmWasm {
+        samples: decoded.samples,
+        channels: decoded.channels.max(1),
+        sample_rate: decoded.sample_rate.max(1),
+    })
+}
+
 /// The engine crate version string, for cache invalidation and diagnostics.
 #[wasm_bindgen]
 #[must_use]
@@ -287,4 +384,39 @@ fn empty_project() -> bragi_model::generated::Project {
         }
     }))
     .expect("the empty project is valid")
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    fn hash(byte: char) -> AssetHash {
+        AssetHash::try_from(format!("sha256:{}", byte.to_string().repeat(64))).unwrap()
+    }
+
+    #[test]
+    fn add_asset_pcm_round_trips_and_ignores_a_duplicate() {
+        let mut engine = EngineWasm::new(128);
+        let asset = hash('a');
+        engine
+            .add_asset_pcm(&asset.to_string(), vec![0.5, -0.5, 0.25, -0.25], 2, 48_000)
+            .unwrap();
+
+        let stored = engine.pcm.get(&asset).unwrap();
+        assert_eq!(stored.channels, 2);
+        assert_eq!(stored.sample_rate, 48_000);
+        assert_eq!(stored.frames(), 2);
+        assert_eq!(stored.samples, vec![0.5, -0.5, 0.25, -0.25]);
+        assert_eq!(engine.index.duration_samples(&asset), Some(2));
+
+        // The host may re-send a document; an already-loaded hash is left alone.
+        engine
+            .add_asset_pcm(&asset.to_string(), vec![0.0; 8], 2, 48_000)
+            .unwrap();
+        assert_eq!(
+            engine.pcm.get(&asset).unwrap().samples,
+            vec![0.5, -0.5, 0.25, -0.25]
+        );
+    }
 }

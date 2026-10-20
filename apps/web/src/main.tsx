@@ -10,6 +10,7 @@
 import { mountApp, t } from "@bragi/app";
 import { createPlatform } from "@bragi/platform/auto";
 import workletUrl from "@bragi/platform/engine-processor?worker&url";
+import workerUrl from "@bragi/platform/engine-worker?worker&url";
 
 import "@bragi/design/tokens.css";
 import "@bragi/design/fonts.css";
@@ -34,9 +35,9 @@ function showFatalError(error: unknown): void {
   container?.append(paragraph);
 }
 
-// The engine worklet and its wasm are bundled by Vite, so only this file knows their URLs; the
-// web adapter creates the audio engine lazily, on the first Play (a user gesture).
-createPlatform({ migrations, webEngine: { workletUrl, wasmUrl } }).then(
+// The engine worklet, decoder worker and wasm are bundled by Vite, so only this file knows their
+// URLs; the web adapter creates the audio engine lazily, on the first Play (a user gesture).
+createPlatform({ migrations, webEngine: { workletUrl, workerUrl, wasmUrl } }).then(
   (platform) => mountApp({ platform, container }),
   (error: unknown) => showFatalError(error),
 );

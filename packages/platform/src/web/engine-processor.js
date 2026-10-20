@@ -15,11 +15,13 @@
  * - `{ type: "wasm", bytes }`   instantiate the engine; answered with `{ type: "ready" }`.
  * - `{ type: "state", state }`  a *shared* `Uint32Array` (`StateBlock`) the worklet writes.
  * - `{ type: "commands", words }` packed transport words (see `engine/codec.ts`), as strings.
- * - `{ type: "load", doc, assets }` register decoded assets, then compile the project; answered
- *   with `{ type: "loaded", tracks }` so the host can size the state block.
+ * - `{ type: "load", doc, assets }` register decoded PCM, then compile the project; answered
+ *   with `{ type: "loaded", tracks }` so the host can size the state block. Each asset is
+ *   `{ hash, samples, channels, sampleRate }`; the decoder worker produced it off this thread.
  *
- * `add_asset`/`load_project` run in message handlers, never inside `process`. Decoding on this
- * thread is a v1 shortcut recorded in docs/wp/1.9.md: it happens at project open, before play.
+ * `add_asset_pcm`/`load_project` run in message handlers, never inside `process`. Decoding used
+ * to happen here (a v1 shortcut, docs/wp/1.9.md); it now happens in `engine.worker.ts`, so the
+ * audio thread only copies PCM into wasm memory. The host sends each hash once.
  */
 import "./worklet-polyfill.js";
 import {
@@ -75,7 +77,7 @@ class BragiEngineProcessor extends AudioWorkletProcessor {
     if (!this.engine) return;
     try {
       for (const asset of message.assets ?? []) {
-        this.engine.add_asset(asset.hash, asset.bytes, asset.mime);
+        this.engine.add_asset_pcm(asset.hash, asset.samples, asset.channels, asset.sampleRate);
       }
       this.engine.load_project(JSON.stringify(message.doc));
       const words = this.engine.publish_state().length;

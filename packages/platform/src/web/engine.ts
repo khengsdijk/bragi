@@ -68,15 +68,26 @@ export interface EnginePlaybackBridge {
   dispose(): Promise<void>;
 }
 
-/** Decoded PCM handed to the playback bridge. */
-export interface EngineAsset {
+/** Compressed bytes of one asset, before the decoder worker sees them. */
+export interface EngineAssetBytes {
   readonly hash: AssetHash;
   readonly bytes: Uint8Array;
   readonly mime: string;
 }
 
+/** Decoded PCM handed to the playback bridge. */
+export interface EngineAsset {
+  readonly hash: AssetHash;
+  /** Interleaved at `channels`, already at the engine's output rate. */
+  readonly samples: Float32Array;
+  readonly channels: number;
+  readonly sampleRate: number;
+}
+
 /** The offline half of the host: the wasm engine in a worker. */
 export interface EngineOfflineBridge {
+  /** Decodes compressed assets off the audio thread. */
+  decode(assets: readonly EngineAssetBytes[]): Promise<readonly EngineAsset[]>;
   /** Renders a job offline (`Render` stretch quality). */
   render(job: RenderJob): Promise<RenderResult>;
   /** One pyramid level, as `[min, max]` pairs. */
@@ -87,10 +98,10 @@ export interface EngineOfflineBridge {
   dispose(): Promise<void>;
 }
 
-/** Where decoded PCM comes from: the content-addressed blob cache. */
+/** Where compressed audio comes from: the content-addressed blob cache. */
 export interface AssetResolver {
-  /** Registers a document's assets before `load` is called. */
-  prepare(doc: ProjectJson): Promise<readonly EngineAsset[]>;
+  /** Fetches the bytes of the hashes the host does not hold yet. */
+  fetch(hashes: readonly AssetHash[]): Promise<readonly EngineAssetBytes[]>;
 }
 
 export interface WasmEngineHostOptions {
@@ -128,6 +139,8 @@ export function createWasmEngineHost(options: WasmEngineHostOptions): EngineHost
   let handle: number | null = null;
   let lastVersion = -1;
   let disposed = false;
+  /** Hashes whose PCM the worklet holds; a structural reload adds to it, never re-sends. */
+  const loaded = new Set<AssetHash>();
 
   const tick = (): void => {
     if (!running) return;
@@ -160,8 +173,15 @@ export function createWasmEngineHost(options: WasmEngineHostOptions): EngineHost
     },
     async loadDocument(doc) {
       assertLive();
-      const assets = options.assets ? await options.assets.prepare(doc) : [];
+      const missing = collectAssetHashes(doc).filter((hash) => !loaded.has(hash));
+      let assets: readonly EngineAsset[] = [];
+      if (missing.length > 0 && options.assets) {
+        const bytes = await options.assets.fetch(missing);
+        if (bytes.length > 0) assets = await options.offline.decode(bytes);
+      }
       await options.playback.load(doc, assets);
+      // Marked only after the worklet accepted the load, so a failed post can retry.
+      for (const asset of assets) loaded.add(asset.hash);
       options.playback.send([packCommand(OP_LOAD, 0)]);
     },
     applyDelta(delta: EngineDelta) {
@@ -268,9 +288,9 @@ export function collectAssetHashes(doc: ProjectJson): AssetHash[] {
  */
 export function createBlobCacheAssetResolver(blobCache: BlobCache): AssetResolver {
   return {
-    async prepare(doc) {
-      const assets: EngineAsset[] = [];
-      for (const hash of collectAssetHashes(doc)) {
+    async fetch(hashes) {
+      const assets: EngineAssetBytes[] = [];
+      for (const hash of hashes) {
         const bytes = await blobCache.get(hash);
         if (!bytes) continue;
         assets.push({ hash, bytes, mime: guessMime(bytes) });
@@ -297,4 +317,16 @@ export function guessMime(bytes: Uint8Array): string {
 /** The browser's shared-array-buffer state block, if it can be created. */
 export function createStateBlock(tracks: number): Uint32Array {
   return new Uint32Array(new SharedArrayBuffer(stateWordCount(tracks) * 4));
+}
+
+/**
+ * A state block for a new plan's track count that keeps `previous`'s header (transport,
+ * playhead). The worklet starts writing the new block a few quanta after a reload; a zeroed
+ * header would read as "stopped at 0" until then, and the transport bar would flicker back to
+ * Play on every structural edit.
+ */
+export function resizeStateBlock(previous: Uint32Array, tracks: number): Uint32Array {
+  const next = createStateBlock(tracks);
+  next.set(previous.subarray(0, Math.min(STATE_HEADER_WORDS, previous.length, next.length)));
+  return next;
 }

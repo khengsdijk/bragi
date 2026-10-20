@@ -1,16 +1,21 @@
 /**
- * The real browser bridges: an `AudioWorkletNode` running `bragi-engine` in WASM, plus an optional
- * offline worker (specs/03-audio-engine.md §3.1).
+ * The real browser bridges: an `AudioWorkletNode` running `bragi-engine` in WASM, plus the
+ * decoder/offline worker (specs/03-audio-engine.md §3.1).
  *
- * This needs a browser: cross-origin isolation for `SharedArrayBuffer`, an `AudioContext`, and two
- * URLs the host application's bundler provides (the platform package is plain `tsc` output and
- * cannot resolve them itself):
+ * This needs a browser: cross-origin isolation for `SharedArrayBuffer`, an `AudioContext`, and
+ * three URLs the host application's bundler provides (the platform package is plain `tsc` output
+ * and cannot resolve them itself):
  *
  * - `workletUrl`: the bundled `engine-processor.js` (the worklet module, wasm glue inlined).
- * - `wasmUrl`: `bragi_engine_wasm_bg.wasm`, fetched here and handed to the worklet.
+ * - `workerUrl`: the bundled `engine.worker.js`, which decodes compressed assets off the audio
+ *   thread. It gets the same wasm bytes as the worklet.
+ * - `wasmUrl`: `bragi_engine_wasm_bg.wasm`, fetched here and handed to both.
  *
- * It is exercised by the web e2e suite (`apps/web/e2e/song-canvas.spec.ts`), not by Vitest; the
- * host logic above it (`createWasmEngineHost`) is unit-tested with fakes.
+ * {@link createBrowserEngine} splits the context from the rest: {@link BrowserEngine.prime} is
+ * synchronous so the controller can create or resume the `AudioContext` inside the Play click,
+ * and {@link BrowserEngine.create} awaits the worklet module and the wasm. It is exercised by the
+ * web e2e suite (`apps/web/e2e/reopen-play.spec.ts`), not by Vitest; the host logic above it
+ * (`createWasmEngineHost`) is unit-tested with fakes.
  */
 import { applyMixDelta } from "../engine/delta.js";
 import type { EngineDelta, EngineHost, ProjectJson, RenderResult } from "../engine/types.js";
@@ -22,18 +27,15 @@ import {
   type EngineAsset,
   type EngineOfflineBridge,
   type EnginePlaybackBridge,
+  resizeStateBlock,
 } from "./engine.js";
 
 /** What the host application hands in. */
 export interface BrowserEngineOptions {
   readonly blobCache: BlobCache;
   readonly workletUrl: string | URL;
+  readonly workerUrl: string | URL;
   readonly wasmUrl: string | URL;
-  /**
-   * The offline worker (`engine.worker.ts`). Without one, `render` and `peaks` reject: the Song
-   * Canvas draws from analysis data and needs neither.
-   */
-  readonly worker?: Worker;
   readonly sampleRate?: 48000;
 }
 
@@ -43,109 +45,180 @@ interface WorkletMessage {
   readonly message?: string;
 }
 
-/** Creates the browser `EngineHost`. Call from a user gesture so the context may start. */
-export async function createBrowserEngineHost(options: BrowserEngineOptions): Promise<EngineHost> {
-  if (typeof globalThis.AudioContext === "undefined") {
-    throw new Error("no AudioContext: the web engine host needs a browser");
-  }
-  const context = new AudioContext({ sampleRate: options.sampleRate ?? 48000 });
-  await context.audioWorklet.addModule(options.workletUrl.toString());
-  const node = new AudioWorkletNode(context, "bragi-engine", {
-    numberOfInputs: 0,
-    numberOfOutputs: 1,
-    outputChannelCount: [2],
-  });
-  node.connect(context.destination);
+interface WorkerMessage {
+  readonly type: "ready" | "error";
+  readonly message?: string;
+}
 
-  let state = createStateBlock(0);
-  let currentDoc: ProjectJson | null = null;
-  let pendingLoad: { resolve: () => void; reject: (error: Error) => void } | null = null;
-  let resolveReady: () => void = () => {};
-  let rejectReady: (error: Error) => void = () => {};
-  const ready = new Promise<void>((resolve, reject) => {
-    resolveReady = resolve;
-    rejectReady = reject;
-  });
+/** The two halves of a browser engine, so the first can run inside a click. */
+export interface BrowserEngine {
+  /**
+   * Creates the `AudioContext`, or resumes a suspended one. Synchronous on purpose: browsers only
+   * start audio while the user activation of the click is still on the stack.
+   */
+  prime(): void;
+  /** Builds the host, reusing a context that {@link prime} created. */
+  create(): Promise<EngineHost>;
+}
 
-  node.port.onmessage = (event: MessageEvent<WorkletMessage>): void => {
-    const message = event.data;
-    if (message.type === "ready") {
-      node.port.postMessage({ type: "state", state });
-      resolveReady();
-    } else if (message.type === "loaded") {
-      // The plan decides how many meters the state block needs; swap in a block of that size.
-      state = createStateBlock(message.tracks ?? 0);
-      node.port.postMessage({ type: "state", state });
-      pendingLoad?.resolve();
-      pendingLoad = null;
-    } else if (message.type === "error") {
-      const error = new Error(message.message ?? "engine worklet failed");
-      rejectReady(error);
-      pendingLoad?.reject(error);
-      pendingLoad = null;
+/** Creates the browser engine. Call {@link BrowserEngine.prime} from a user gesture. */
+export function createBrowserEngine(options: BrowserEngineOptions): BrowserEngine {
+  let context: AudioContext | null = null;
+
+  const ensureContext = (): AudioContext => {
+    if (typeof globalThis.AudioContext === "undefined") {
+      throw new Error("no AudioContext: the web engine host needs a browser");
     }
+    if (context !== null && context.state !== "closed") return context;
+    context = new AudioContext({ sampleRate: options.sampleRate ?? 48000 });
+    return context;
   };
 
-  const wasm = await fetch(options.wasmUrl.toString());
-  if (!wasm.ok) throw new Error(`could not fetch the engine wasm (${wasm.status})`);
-  node.port.postMessage({ type: "wasm", bytes: new Uint8Array(await wasm.arrayBuffer()) });
-  await ready;
+  return {
+    prime() {
+      try {
+        const started = ensureContext();
+        if (started.state === "suspended") void started.resume();
+      } catch {
+        // `create()` reports the reason; a click must not throw.
+      }
+    },
+    async create() {
+      const ctx = ensureContext();
+      const worker = new Worker(options.workerUrl.toString(), {
+        type: "module",
+        name: "bragi-engine-decoder",
+      });
+      await ctx.audioWorklet.addModule(options.workletUrl.toString());
+      const node = new AudioWorkletNode(ctx, "bragi-engine", {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+      });
+      node.connect(ctx.destination);
 
-  const playback: EnginePlaybackBridge = {
-    get state() {
-      return state;
-    },
-    send(words) {
-      // A transport command comes from a user gesture; this is the moment the context may start.
-      if (context.state === "suspended") void context.resume();
-      node.port.postMessage({ type: "commands", words: words.map((word) => word.toString()) });
-    },
-    load(doc: ProjectJson, assets: readonly EngineAsset[]) {
-      currentDoc = doc;
-      return new Promise<void>((resolve, reject) => {
-        pendingLoad = { resolve, reject };
-        node.port.postMessage({ type: "load", doc, assets });
+      let state = createStateBlock(0);
+      let currentDoc: ProjectJson | null = null;
+      let pendingLoad: { resolve: () => void; reject: (error: Error) => void } | null = null;
+      let resolveReady: () => void = () => {};
+      let rejectReady: (error: Error) => void = () => {};
+      const ready = new Promise<void>((resolve, reject) => {
+        resolveReady = resolve;
+        rejectReady = reject;
+      });
+      let resolveWorker: () => void = () => {};
+      let rejectWorker: (error: Error) => void = () => {};
+      const workerReady = new Promise<void>((resolve, reject) => {
+        resolveWorker = resolve;
+        rejectWorker = reject;
+      });
+
+      node.port.onmessage = (event: MessageEvent<WorkletMessage>): void => {
+        const message = event.data;
+        if (message.type === "ready") {
+          node.port.postMessage({ type: "state", state });
+          resolveReady();
+        } else if (message.type === "loaded") {
+          // The plan decides how many meters the state block needs; swap in a block of that size,
+          // keeping the transport readable until the worklet writes it.
+          state = resizeStateBlock(state, message.tracks ?? 0);
+          node.port.postMessage({ type: "state", state });
+          pendingLoad?.resolve();
+          pendingLoad = null;
+        } else if (message.type === "error") {
+          const error = new Error(message.message ?? "engine worklet failed");
+          rejectReady(error);
+          pendingLoad?.reject(error);
+          pendingLoad = null;
+        }
+      };
+      worker.addEventListener("message", (event: MessageEvent<WorkerMessage>): void => {
+        if (event.data.type === "ready") resolveWorker();
+        else if (event.data.type === "error")
+          rejectWorker(new Error(event.data.message ?? "the decoder worker failed"));
+      });
+      worker.addEventListener("error", (event: ErrorEvent): void => {
+        rejectWorker(new Error(event.message || "the decoder worker could not load"));
+      });
+
+      const fetched = await fetch(options.wasmUrl.toString());
+      if (!fetched.ok) throw new Error(`could not fetch the engine wasm (${fetched.status})`);
+      const wasmBytes = new Uint8Array(await fetched.arrayBuffer());
+      node.port.postMessage({ type: "wasm", bytes: wasmBytes });
+      worker.postMessage({ type: "wasm", bytes: wasmBytes });
+      await Promise.all([ready, workerReady]);
+
+      const playback: EnginePlaybackBridge = {
+        get state() {
+          return state;
+        },
+        send(words) {
+          // A transport command comes from a user gesture; this is the moment the context may start.
+          if (ctx.state === "suspended") void ctx.resume();
+          node.port.postMessage({ type: "commands", words: words.map((word) => word.toString()) });
+        },
+        load(doc: ProjectJson, assets: readonly EngineAsset[]) {
+          currentDoc = doc;
+          return new Promise<void>((resolve, reject) => {
+            pendingLoad = { resolve, reject };
+            // PCM is handed over, not copied: the worklet copies it into wasm memory once.
+            const transfer = assets.flatMap((asset) =>
+              asset.samples.buffer instanceof ArrayBuffer ? [asset.samples.buffer] : [],
+            );
+            node.port.postMessage({ type: "load", doc, assets }, transfer);
+          });
+        },
+        applyDelta(delta: EngineDelta) {
+          if (currentDoc === null) return;
+          const next = applyMixDelta(currentDoc, delta);
+          // `null` means structural: the caller follows with `loadDocument` carrying the new document.
+          if (next === null) return;
+          currentDoc = next;
+          // No PCM: the worklet keeps what it has and only recompiles the plan.
+          node.port.postMessage({ type: "load", doc: next, assets: [] });
+        },
+        async dispose() {
+          node.port.close();
+          node.disconnect();
+          worker.terminate();
+          await ctx.close();
+          context = null;
+        },
+      };
+
+      const offline: EngineOfflineBridge = {
+        decode(assets) {
+          return request<readonly EngineAsset[]>(worker, { type: "decode", assets });
+        },
+        render(job) {
+          // WP-1.11: the worker does the encode and returns files, so the whole job goes across.
+          return request<RenderResult>(worker, { type: "render", job });
+        },
+        peaks(asset, level) {
+          return request<Float32Array>(worker, { type: "peaks", asset, level });
+        },
+        spectrogram() {
+          return Promise.reject(
+            new Error("spectrogram is not in v1 (specs/15-open-questions.md Q26)"),
+          );
+        },
+        async dispose() {
+          worker.terminate();
+        },
+      };
+
+      return createWasmEngineHost({
+        playback,
+        offline,
+        assets: createBlobCacheAssetResolver(options.blobCache),
       });
     },
-    applyDelta(delta: EngineDelta) {
-      if (currentDoc === null) return;
-      const next = applyMixDelta(currentDoc, delta);
-      // `null` means structural: the caller follows with `loadDocument` carrying the new document.
-      if (next === null) return;
-      currentDoc = next;
-      node.port.postMessage({ type: "load", doc: next, assets: [] });
-    },
-    async dispose() {
-      node.port.close();
-      node.disconnect();
-      await context.close();
-    },
   };
+}
 
-  const worker = options.worker;
-  const offline: EngineOfflineBridge = {
-    render(job) {
-      if (!worker) return Promise.reject(new Error("no offline worker was provided"));
-      // WP-1.11: the worker does the encode and returns files, so the whole job goes across.
-      return request<RenderResult>(worker, { type: "render", job });
-    },
-    peaks(asset, level) {
-      if (!worker) return Promise.reject(new Error("no offline worker was provided"));
-      return request<Float32Array>(worker, { type: "peaks", asset, level });
-    },
-    spectrogram() {
-      return Promise.reject(new Error("spectrogram is not in v1 (specs/15-open-questions.md Q26)"));
-    },
-    async dispose() {
-      worker?.terminate();
-    },
-  };
-
-  return createWasmEngineHost({
-    playback,
-    offline,
-    assets: createBlobCacheAssetResolver(options.blobCache),
-  });
+/** Creates the browser `EngineHost`. Prefer {@link createBrowserEngine} so Play can prime first. */
+export function createBrowserEngineHost(options: BrowserEngineOptions): Promise<EngineHost> {
+  return createBrowserEngine(options).create();
 }
 
 let requestCounter = 0;
