@@ -37,7 +37,7 @@ use crate::meters::Meters;
 use crate::pcm::PcmSource;
 use crate::plan::{RenderPlan, compile, compile_delta};
 use crate::preview::{PreviewPatch, apply as apply_preview};
-use crate::render::{PreparedPlan, RenderStats, Renderer};
+use crate::render::{PreparedPlan, PreparedSlot, RenderStats, Renderer};
 use crate::rt::StateBlock;
 use crate::transport::Transport;
 
@@ -225,6 +225,74 @@ impl Engine {
         self.events.push(EngineEvent::PreviewChanged {
             active: self.preview.is_some(),
         });
+    }
+
+    /// Warms a candidate plan in `slot` (1–3) for instant A/B switching
+    /// (`specs/03-audio-engine.md` §5.4).
+    ///
+    /// Preparing the plan allocates, so this is a control-side call. Slot 0 is
+    /// the main (HEAD) plan and is installed by [`Engine::install`]; warming it
+    /// is rejected. Returns `false` for an invalid or audible slot, or when a
+    /// crossfade is still fading that slot out.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use bragi_engine::engine::Engine;
+    /// # use bragi_engine::plan::compile;
+    /// # use bragi_model::AssetIndex;
+    /// # fn plan(version: u64) -> bragi_engine::plan::RenderPlan {
+    /// #   let doc: bragi_model::generated::Project = serde_json::from_value(serde_json::json!({
+    /// #     "schemaVersion": 1, "id": "prj_01",
+    /// #     "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+    /// #     "sources": [], "analyses": {}, "tracks": [],
+    /// #     "arrangement": { "timebase": { "ppq": 960,
+    /// #         "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }], "timeSignatures": [] },
+    /// #         "sections": [], "master": { "fx": [], "automation": [], "gainDb": 0 } } })).unwrap();
+    /// #   compile(&doc, &AssetIndex::new(), 48_000, version).unwrap()
+    /// # }
+    /// let mut engine = Engine::new(plan(1), 128);
+    /// assert!(engine.warm(1, plan(2)));
+    /// assert!(engine.audition(Some(1)));
+    /// assert!(engine.audition(None));
+    /// assert!(!engine.warm(0, plan(3)));
+    /// ```
+    pub fn warm(&mut self, slot: usize, plan: RenderPlan) -> bool {
+        let prepared = PreparedPlan::new(
+            Arc::new(plan),
+            crate::plan::quality_for(false),
+            self.block_size,
+        )
+        .into_slot();
+        // Control side: grow the shared sidechain scratch for a candidate with
+        // more tracks than the renderer was sized for, so warming stays a move.
+        self.renderer.reserve_tracks(prepared.plan().tracks.len());
+        self.warm_prepared(slot, prepared).is_none()
+    }
+
+    /// Warms a slot from an already prepared [`PreparedSlot`] and returns the
+    /// plan it replaced, for an off-thread drop.
+    ///
+    /// Native hosts use this: they build the slot off the audio thread and hand
+    /// it to the playback callback as a pointer, so the callback only moves it.
+    pub fn warm_prepared(&mut self, slot: usize, prepared: PreparedSlot) -> Option<PreparedSlot> {
+        self.renderer.warm_slot(slot, prepared)
+    }
+
+    /// Releases the warm plan in `slot` (1–3) and returns it so the caller can
+    /// drop it off the audio thread.
+    ///
+    /// An audible slot is not released; audition back to slot 0 first.
+    pub fn release_slot(&mut self, slot: usize) -> Option<PreparedSlot> {
+        self.renderer.release_slot(slot)
+    }
+
+    /// Crossfades to a warm `slot` (`None` = the main plan, slot 0) at the same
+    /// playhead over `AUDITION_FADE_MS` (`specs/03-audio-engine.md` §5.4).
+    ///
+    /// Returns `false` when the target slot is not warm.
+    pub fn audition(&mut self, slot: Option<usize>) -> bool {
+        self.renderer.audition(slot)
     }
 
     /// The active preview, if any.

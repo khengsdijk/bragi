@@ -90,7 +90,7 @@ pub mod transport;
 pub use engine::{Engine, EngineEvent};
 pub use error::{EngineError, PlanError};
 pub use plan::{RenderPlan, Segment, TrackPlan, compile};
-pub use render::{RenderStats, Renderer};
+pub use render::{PreparedSlot, RenderStats, Renderer};
 pub use transport::{Transport, TransportState};
 
 /// The engine crate's version, for diagnostics and cache invalidation.
@@ -107,6 +107,14 @@ pub const NATIVE_BUFFER_FRAMES: usize = 256;
 
 /// Length of the crossfade at a loop point, in milliseconds (`specs/03-audio-engine.md` §5.2).
 pub const LOOP_FADE_MS: f32 = 5.0;
+
+/// The number of plans an engine keeps warm (`specs/03-audio-engine.md` §5.4):
+/// slot 0 is the main (HEAD) plan, slots 1–3 are candidates.
+pub const MAX_WARM_PLANS: usize = 4;
+
+/// Length of the equal-power crossfade between warm plans, in milliseconds
+/// (`specs/03-audio-engine.md` §5.4).
+pub const AUDITION_FADE_MS: f32 = 30.0;
 
 /// Length of a `cut` section-boundary crossfade, in milliseconds
 /// (`specs/03-audio-engine.md` §5.5). Discontinuous boundaries are never hard
