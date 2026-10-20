@@ -97,6 +97,72 @@ export function contains(rect: Rect, x: number, y: number): boolean {
   return x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h;
 }
 
+/** A ribbon point: the track under the pointer and its arrangement time. */
+export interface RibbonPoint {
+  readonly trackId: string;
+  /** Arrangement time in seconds. */
+  readonly sec: number;
+}
+
+/**
+ * The ribbon under a point in the time area, or `null` (07 §4.4). The gutter is not a ribbon:
+ * painting never starts on the solo/mute buttons or the track names.
+ */
+export function ribbonAt(
+  layout: Layout,
+  viewport: Viewport,
+  doc: CanvasDocument,
+  x: number,
+  y: number,
+): RibbonPoint | null {
+  if (x < layout.gutter) return null;
+  for (const lane of layout.ribbons) {
+    if (contains(lane.rect, x, y)) {
+      return {
+        trackId: lane.trackId,
+        sec: xToTime(viewport, doc.bpm, x - layout.gutter),
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Where a paint sample lands: the ribbon under the pointer, or the nearest ribbon row the stroke
+ * already touched when the pointer strays above or below the lanes. It never invents a track id,
+ * and `null` before the first ribbon is touched.
+ */
+export function paintPointAt(
+  layout: Layout,
+  viewport: Viewport,
+  doc: CanvasDocument,
+  touchedTracks: ReadonlySet<string>,
+  x: number,
+  y: number,
+): RibbonPoint | null {
+  const direct = ribbonAt(layout, viewport, doc, x, y);
+  if (direct !== null) return direct;
+  if (touchedTracks.size === 0) return null;
+
+  let nearest: RibbonLane | null = null;
+  let distance = Number.POSITIVE_INFINITY;
+  for (const lane of layout.ribbons) {
+    if (!touchedTracks.has(lane.trackId)) continue;
+    const centre = lane.rect.y + lane.rect.h / 2;
+    const next = Math.abs(y - centre);
+    if (next < distance) {
+      distance = next;
+      nearest = lane;
+    }
+  }
+  if (nearest === null) return null;
+  const sec = xToTime(viewport, doc.bpm, Math.max(0, x - layout.gutter));
+  return {
+    trackId: nearest.trackId,
+    sec: Math.min(doc.durationSec, Math.max(0, sec)),
+  };
+}
+
 /** What is under a point. */
 export type Hit =
   | { readonly kind: "ruler"; readonly sec: number }

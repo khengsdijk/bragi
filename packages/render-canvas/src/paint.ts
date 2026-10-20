@@ -11,6 +11,12 @@ const MIN_POINT_GAP_SEC = 0.01;
 /** The pressure a mouse stroke reports: browsers give 0.5 while a button is down. */
 export const MOUSE_PRESSURE = 0.5;
 
+/** The faintest stroke the canvas draws, so even a light touch stays visible (07 §4.4). */
+export const MIN_PAINT_OPACITY = 0.15;
+
+/** One wheel notch as a fraction of the strength range. */
+const WHEEL_STEP = 0.1;
+
 /** A new stroke at its first point. */
 export function beginPaintStroke(
   point: PaintPoint,
@@ -59,4 +65,33 @@ export function paintSpan(stroke: PaintStrokeEvent): {
     tracks.add(point.trackId);
   }
   return { startSec, endSec, tracks };
+}
+
+/** The mean pressure of a stroke's points, or `null` when it has none. */
+function meanPressure(stroke: PaintStrokeEvent): number | null {
+  const pressures = stroke.points.map((point) => point.pressure).filter(Number.isFinite);
+  if (pressures.length === 0) return null;
+  return pressures.reduce((sum, pressure) => sum + pressure, 0) / pressures.length;
+}
+
+/**
+ * How opaque the canvas draws a stroke in `0..1` (07 §4.4): the mean pen pressure, or the brush
+ * size slider for a mouse, plus `0.1` per wheel notch. The result is floored at
+ * {@link MIN_PAINT_OPACITY} so a light touch still shows where the stroke is.
+ */
+export function paintOpacity(stroke: PaintStrokeEvent, sizeStrength: number): number {
+  const pressure = meanPressure(stroke);
+  const base = stroke.pointerType === "mouse" ? sizeStrength : (pressure ?? sizeStrength);
+  const value = base + stroke.wheelDelta * WHEEL_STEP;
+  return Math.min(1, Math.max(MIN_PAINT_OPACITY, value));
+}
+
+/**
+ * Wheel notches from a wheel event: browsers report pixels (100 per notch), lines (3 per notch)
+ * or pages. Scrolling up is positive, so it deepens the stroke.
+ */
+export function wheelNotches(deltaY: number, deltaMode: number): number {
+  if (!Number.isFinite(deltaY) || deltaY === 0) return 0;
+  const perNotch = deltaMode === 1 ? 3 : 100;
+  return Math.max(-3, Math.min(3, -deltaY / perNotch));
 }
