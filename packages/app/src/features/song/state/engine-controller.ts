@@ -25,6 +25,8 @@ export interface TransportViewState {
   readonly positionSec: number;
   readonly durationSec: number;
   readonly loop: boolean;
+  /** The part loop when one is active, or `null` for the whole song (07 §4.1). */
+  readonly loopRange: { readonly startSec: number; readonly endSec: number } | null;
   readonly underruns: number;
   /** Per-track meter level (RMS, 0..1) by track id, for the ribbon glow. */
   readonly meters: Readonly<Record<string, number>>;
@@ -49,6 +51,8 @@ export interface EngineController {
   toStart(): void;
   seek(sec: number): void;
   setLoop(loop: boolean): void;
+  /** Loops one range (a part), or `null` to stop looping. The loop button still means the song. */
+  setLoopRange(range: { readonly startSec: number; readonly endSec: number } | null): void;
   /** Tells the engine about a Song Store commit. */
   commit(commit: Commit, doc: Project): void;
   /** A new document replaced the old one (project open). */
@@ -63,6 +67,7 @@ export function createEngineController(options: EngineControllerOptions): Engine
     positionSec: 0,
     durationSec: options.durationSec(),
     loop: false,
+    loopRange: null,
     underruns: 0,
     meters: {},
     error: null,
@@ -128,6 +133,17 @@ export function createEngineController(options: EngineControllerOptions): Engine
       unsubscribe = host.onState(onState);
       engine = host;
       store.setState({ status: "ready", durationSec: options.durationSec() });
+      // A loop chosen before audio started (a part loop from the menu) is applied now.
+      const loop = store.getState();
+      if (loop.loop) {
+        const start = loop.loopRange?.startSec ?? 0;
+        const end = loop.loopRange?.endSec ?? options.durationSec();
+        host.transport({
+          kind: "loop",
+          start: Math.round(start * ENGINE_SAMPLE_RATE),
+          end: Math.round(end * ENGINE_SAMPLE_RATE),
+        });
+      }
       if (pendingSeekSec > 0) {
         host.transport({ kind: "seek", sample: Math.round(pendingSeekSec * ENGINE_SAMPLE_RATE) });
       }
@@ -175,10 +191,25 @@ export function createEngineController(options: EngineControllerOptions): Engine
       engine?.transport({ kind: "seek", sample: Math.round(clamped * ENGINE_SAMPLE_RATE) });
     },
     setLoop(loop) {
-      store.setState({ loop });
+      store.setState({ loop, loopRange: null });
       if (!engine) return;
       const lengthSamples = Math.round(options.durationSec() * ENGINE_SAMPLE_RATE);
       engine.transport({ kind: "loop", start: 0, end: loop ? lengthSamples : null });
+    },
+    setLoopRange(range) {
+      if (range === null) {
+        controller.setLoop(false);
+        return;
+      }
+      const duration = options.durationSec();
+      const startSec = Math.max(0, Math.min(range.startSec, duration));
+      const endSec = Math.max(startSec, Math.min(range.endSec, duration));
+      store.setState({ loop: true, loopRange: { startSec, endSec } });
+      engine?.transport({
+        kind: "loop",
+        start: Math.round(startSec * ENGINE_SAMPLE_RATE),
+        end: Math.round(endSec * ENGINE_SAMPLE_RATE),
+      });
     },
     commit(commit, doc) {
       if (!engine) return;

@@ -121,6 +121,9 @@ const EMPTY_STATE: HistoryState = {
   redo: [],
 };
 
+/** The state before a project is loaded; also the fallback for components without a history. */
+export const EMPTY_HISTORY_STATE: HistoryState = EMPTY_STATE;
+
 /** Commit ids grouped by parent, oldest first within a parent. */
 function indexChildren(commits: ReadonlyMap<string, StoredCommit>): Map<string, string[]> {
   const children = new Map<string, string[]>();

@@ -22,6 +22,7 @@ export interface ModelApi {
   readonly docCount: typeof ModelWasm.docCount;
   readonly sectionSpans: typeof ModelWasm.sectionSpans;
   readonly ticksToSeconds: typeof ModelWasm.ticksToSeconds;
+  readonly secondsToTicks: typeof ModelWasm.secondsToTicks;
 }
 
 let loading: Promise<ModelApi> | null = null;

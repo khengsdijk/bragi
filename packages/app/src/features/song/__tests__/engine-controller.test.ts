@@ -179,6 +179,50 @@ describe("engine controller (transport bar wiring)", () => {
     expect(controller.store.getState().positionSec).toBe(0);
   });
 
+  it("loops one part while the transport button still means the whole song", async () => {
+    const { store } = await loadDemo();
+    const { host, commands } = fakeHost();
+    const controller = createEngineController({
+      createEngine: async () => host,
+      document: () => store.store.getState().doc,
+      durationSec: () => 32,
+    });
+    // A part loop chosen before audio starts is remembered and applied on start.
+    controller.setLoopRange({ startSec: 4, endSec: 12 });
+    expect(controller.store.getState()).toMatchObject({
+      loop: true,
+      loopRange: { startSec: 4, endSec: 12 },
+    });
+    await controller.ensure();
+    expect(commands).toContainEqual({
+      kind: "loop",
+      start: 4 * ENGINE_SAMPLE_RATE,
+      end: 12 * ENGINE_SAMPLE_RATE,
+    });
+
+    // The loop button is still the whole-song loop and clears the range.
+    controller.setLoop(true);
+    expect(controller.store.getState()).toMatchObject({ loop: true, loopRange: null });
+    expect(commands.at(-1)).toEqual({
+      kind: "loop",
+      start: 0,
+      end: 32 * ENGINE_SAMPLE_RATE,
+    });
+
+    // Ranges are clamped to the song.
+    controller.setLoopRange({ startSec: -3, endSec: 99 });
+    expect(controller.store.getState().loopRange).toEqual({ startSec: 0, endSec: 32 });
+    expect(commands.at(-1)).toEqual({
+      kind: "loop",
+      start: 0,
+      end: 32 * ENGINE_SAMPLE_RATE,
+    });
+
+    controller.setLoopRange(null);
+    expect(controller.store.getState()).toMatchObject({ loop: false, loopRange: null });
+    expect(commands.at(-1)).toEqual({ kind: "loop", start: 0, end: null });
+  });
+
   it("forwards a Song Store commit to the engine as a delta (mute/solo from the ribbons)", async () => {
     const { store } = await loadDemo();
     const { host } = fakeHost();
