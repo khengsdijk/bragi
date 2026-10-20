@@ -49,6 +49,7 @@ export interface CanvasHook {
     ribbons: { trackId: string; rect: Rect; mute: Rect; solo: Rect }[];
   };
   getViewport(): { pxPerBeat: number; originSec: number };
+  sectionAt(x: number, y: number): string | null;
   getLevel(): string;
   setViewport(viewport: { pxPerBeat: number; originSec: number }): void;
   zoomBy(factor: number, anchorX?: number): void;
