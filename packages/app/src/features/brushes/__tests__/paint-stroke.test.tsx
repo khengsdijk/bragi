@@ -4,11 +4,14 @@
  * Escape drops the preview, and previewing never stacks brush batches. The real model and history
  * store run underneath, so the committed document is the shipped op application.
  */
+
+import type { OpBatch } from "@bragi/schemas";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ticksAtSeconds } from "../../song/api/section-time.js";
 import { createEngineController } from "../../song/state/engine-controller.js";
+import type { Commit } from "../../song/state/song-store.js";
 import { brushBatch } from "../batches.js";
 import { usePaintStroke } from "../hooks/use-paint-stroke.js";
 import { createBrushStore } from "../state/brush-store.js";
@@ -46,6 +49,11 @@ function event(points: ReturnType<typeof point>[], wheelDelta = 0) {
 
 function lastBatch(fixture: BrushFixture) {
   return [...fixture.history.store.getState().commits.values()].at(-1)?.batch;
+}
+
+/** Every fx instance the batch inserts, in order. */
+function addedFxIds(batch: OpBatch | null | undefined): string[] {
+  return (batch?.ops ?? []).flatMap((op) => (op.op === "fx.add" ? [op.fx.id] : []));
 }
 
 describe("paint stroke controller", () => {
@@ -181,5 +189,43 @@ describe("paint stroke controller", () => {
     // 0.5 from the size slider + 3 notches × 0.1 = 0.8, and Louder adds up to 12 dB × strength.
     const inside = lane?.points.find((entry) => entry.value > 0);
     expect(inside?.value).toBeCloseTo(9.6, 6);
+  });
+
+  it("keeps one fx instance for the stroke and commits the previewed ids", async () => {
+    let clock = 0;
+    const fixture = await openBrushFixture();
+    await fixture.history.load();
+    const { result, controller, brushes } = harness(fixture, () => clock);
+    const commit = vi.spyOn(controller, "commit");
+    brushes.setBrush("space");
+
+    act(() => {
+      result.current.onPaintStart(event([point(5)]));
+      clock = 200;
+      result.current.onPaintMove(event([point(5), point(6)]));
+      clock = 400;
+      result.current.onPaintMove(event([point(5), point(6), point(7)]));
+    });
+
+    const painting = commit.mock.calls.map(([sent]) => sent as Commit);
+    // No preview ever reverts to the document: one replace delta per move, all with a batch.
+    expect(painting.length).toBeGreaterThanOrEqual(3);
+    expect(painting.every((sent) => sent.batch !== null)).toBe(true);
+    const firstPreview = addedFxIds(painting[0]?.batch);
+    expect(firstPreview.length).toBeGreaterThan(0);
+    for (const sent of painting) expect(addedFxIds(sent.batch)).toEqual(firstPreview);
+
+    act(() => {
+      clock = 600;
+      result.current.onPaintEnd(event([point(5), point(6), point(7)]));
+    });
+    await waitFor(() => expect(fixture.history.store.getState().commits.size).toBe(2));
+
+    // One commit, and it keeps the instances the first preview created (03 §6: a surviving id
+    // keeps the reverb's tail).
+    expect(lastBatch(fixture)?.label).toBe("Space on Drums, bars 3–4");
+    expect(addedFxIds(lastBatch(fixture))).toEqual(firstPreview);
+    const all = commit.mock.calls.map(([sent]) => sent as Commit);
+    expect(all.filter((sent) => sent.batch === null)).toHaveLength(0);
   });
 });

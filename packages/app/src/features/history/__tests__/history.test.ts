@@ -79,6 +79,17 @@ function document(fixture: Fixture): Project {
   return doc;
 }
 
+/** The parts of `EngineDelta` the gesture tests read. */
+interface Delta {
+  readonly requiresFullResync?: boolean;
+  readonly tracksAdded?: readonly { readonly id: string }[];
+  readonly tracksRemoved?: readonly string[];
+  readonly tracksUpdated?: readonly {
+    readonly id: string;
+    readonly fx: readonly { readonly id: string }[];
+  }[];
+}
+
 describe("history store", () => {
   beforeEach(() => {
     batchCounter = 0;
@@ -250,6 +261,134 @@ describe("history store", () => {
     expect(await roundTrip?.commit("Move")).toBeNull();
     expect(fixture.history.store.getState().commits.size).toBe(commits);
     expect(document(fixture).arrangement.sections.map((section) => section.id)).toEqual(ids);
+  });
+
+  it("replaces a gesture's steps and commits only the last one", async () => {
+    const fixture = await openFixture();
+    await fixture.history.load();
+    const commits = fixture.history.store.getState().commits.size;
+    const sent: Commit[] = [];
+    const gesture = startGesture({
+      songStore: fixture.store,
+      history: fixture.history,
+      engine: (commit) => sent.push(commit),
+    });
+    if (gesture === null) throw new Error("expected a gesture");
+    const gain = (value: number): Op[] => [
+      { op: "track.update", trackId: "trk_drums", patch: { gainDb: value } },
+    ];
+
+    expect(gesture.step(batch(gain(-1), "One")).ok).toBe(true);
+    const second = batch(gain(-2), "Two");
+    expect(gesture.replace(second).ok).toBe(true);
+    // One delta per replace, and never a revert to the document.
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.batch).toEqual(second);
+    const last = batch(gain(-3), "Three");
+    expect(gesture.replace(last).ok).toBe(true);
+    expect(sent).toHaveLength(3);
+    expect(sent.every((commit) => commit.batch !== null)).toBe(true);
+    expect(document(fixture).tracks.find((track) => track.id === "trk_drums")?.gainDb).toBe(0);
+    expect(
+      fixture.store.store.getState().preview?.tracks.find((track) => track.id === "trk_drums")
+        ?.gainDb,
+    ).toBe(-3);
+
+    const outcome = await gesture.commit("Move the fader");
+    expect(outcome?.ok).toBe(true);
+    expect(sent).toHaveLength(4);
+    expect(fixture.history.store.getState().commits.size).toBe(commits + 1);
+    expect(document(fixture).tracks.find((track) => track.id === "trk_drums")?.gainDb).toBe(-3);
+    const state = fixture.history.store.getState();
+    expect(state.commits.get(state.head ?? "")?.batch.ops).toEqual(last.ops);
+  });
+
+  it("leaves the preview and the engine untouched when a replace is rejected", async () => {
+    const fixture = await openFixture();
+    await fixture.history.load();
+    const sent: Commit[] = [];
+    const gesture = startGesture({
+      songStore: fixture.store,
+      history: fixture.history,
+      engine: (commit) => sent.push(commit),
+    });
+    if (gesture === null) throw new Error("expected a gesture");
+    const gain = (value: number): Op[] => [
+      { op: "track.update", trackId: "trk_drums", patch: { gainDb: value } },
+    ];
+
+    expect(gesture.step(batch(gain(-2), "Two")).ok).toBe(true);
+    const preview = structuredClone(fixture.store.store.getState().preview);
+    const before = sent.length;
+    const rejected = batch(
+      [{ op: "track.update", trackId: "trk_missing", patch: { gainDb: 1 } }],
+      "Nope",
+    );
+    expect(gesture.replace(rejected).ok).toBe(false);
+    expect(sent).toHaveLength(before);
+    expect(fixture.store.store.getState().preview).toEqual(preview);
+
+    // The earlier preview still commits exactly as it was.
+    expect((await gesture.commit("Move the fader"))?.ok).toBe(true);
+    expect(document(fixture).tracks.find((track) => track.id === "trk_drums")?.gainDb).toBe(-2);
+  });
+
+  it("keeps an fx instance across a replace: the delta has no removal or re-add", async () => {
+    const fixture = await openFixture();
+    await fixture.history.load();
+    const sectionId = document(fixture).arrangement.sections[0]?.id;
+    if (sectionId === undefined) throw new Error("no section");
+    const fxId = "fx_REPLACE000000000000000001";
+    const sent: Commit[] = [];
+    const gesture = startGesture({
+      songStore: fixture.store,
+      history: fixture.history,
+      engine: (commit) => sent.push(commit),
+    });
+    if (gesture === null) throw new Error("expected a gesture");
+
+    const reverb = (mix: number): Op => ({
+      op: "fx.add",
+      scope: { kind: "track", trackId: "trk_drums" },
+      fx: { id: fxId, type: "reverb", params: { mix }, bypass: false, macroOwned: "space" },
+    });
+    const mixLane = (value: number): Op => ({
+      op: "automation.set",
+      scope: { kind: "lane", sectionId, trackId: "trk_drums" },
+      target: `fx:${fxId}/mix`,
+      points: [{ tick: 0, value, curve: "linear" }],
+    });
+
+    // Each preview is a whole brush batch built from the live document, as the paint hook does.
+    expect(gesture.step(batch([reverb(0.2), mixLane(0.2)], "Space on Drums")).ok).toBe(true);
+    const previewed = fixture.store.store.getState().preview;
+    expect(
+      previewed?.tracks.find((track) => track.id === "trk_drums")?.fx.map((fx) => fx.id),
+    ).toEqual([fxId]);
+
+    const replaced = batch([reverb(0.6), mixLane(0.6)], "Space on Drums");
+    expect(gesture.replace(replaced).ok).toBe(true);
+
+    const delta = sent.at(-1)?.delta as Delta;
+    expect(delta.requiresFullResync).toBe(false);
+    expect(delta.tracksAdded ?? []).toHaveLength(0);
+    expect(delta.tracksRemoved ?? []).toHaveLength(0);
+    // The instance existed before and after the replace under the same id: nothing was removed.
+    expect(
+      delta.tracksUpdated?.find((track) => track.id === "trk_drums")?.fx.map((fx) => fx.id),
+    ).toEqual([fxId]);
+
+    expect((await gesture.commit("Space on Drums"))?.ok).toBe(true);
+    const state = fixture.history.store.getState();
+    const committed = state.commits.get(state.head ?? "");
+    expect(committed?.batch.ops.some((op) => op.op === "fx.remove")).toBe(false);
+    const adds = committed?.batch.ops.filter((op) => op.op === "fx.add") ?? [];
+    expect(adds.map((op) => (op.op === "fx.add" ? op.fx.id : ""))).toEqual([fxId]);
+    expect(
+      document(fixture)
+        .tracks.find((track) => track.id === "trk_drums")
+        ?.fx.map((fx) => fx.id),
+    ).toEqual([fxId]);
   });
 
   it("branches naturally from a non-tip commit", async () => {
