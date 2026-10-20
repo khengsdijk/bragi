@@ -1,0 +1,470 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`capability catalogue > matches the generated schema and DSP catalogues 1`] = `
+{
+  "fx": {
+    "chorus": {
+      "depth": {
+        "default": 0.3,
+        "max": 1,
+        "min": 0,
+      },
+      "mix": {
+        "default": 0.3,
+        "max": 1,
+        "min": 0,
+      },
+      "rateHz": {
+        "default": 0.6,
+        "max": 5,
+        "min": 0.05,
+      },
+    },
+    "compressor": {
+      "attackMs": {
+        "default": 10,
+        "max": 100,
+        "min": 0.1,
+      },
+      "makeupDb": {
+        "default": 0,
+        "max": 24,
+        "min": 0,
+      },
+      "mix": {
+        "default": 1,
+        "max": 1,
+        "min": 0,
+      },
+      "ratio": {
+        "default": 3,
+        "max": 20,
+        "min": 1,
+      },
+      "releaseMs": {
+        "default": 120,
+        "max": 1000,
+        "min": 10,
+      },
+      "thresholdDb": {
+        "default": -18,
+        "max": 0,
+        "min": -60,
+      },
+    },
+    "delay": {
+      "feedback": {
+        "default": 0.35,
+        "max": 0.95,
+        "min": 0,
+      },
+      "mix": {
+        "default": 0.2,
+        "max": 1,
+        "min": 0,
+      },
+      "pingPong": {
+        "default": 0,
+        "max": 1,
+        "min": 0,
+      },
+      "timeBeats": {
+        "default": 0.25,
+        "max": 2,
+        "min": 0.0625,
+      },
+      "tone": {
+        "default": 0.5,
+        "max": 1,
+        "min": 0,
+      },
+    },
+    "eq3": {
+      "highDb": {
+        "default": 0,
+        "max": 18,
+        "min": -18,
+      },
+      "highHz": {
+        "default": 6000,
+        "max": 12000,
+        "min": 2000,
+      },
+      "lowDb": {
+        "default": 0,
+        "max": 18,
+        "min": -18,
+      },
+      "lowHz": {
+        "default": 120,
+        "max": 400,
+        "min": 40,
+      },
+      "midDb": {
+        "default": 0,
+        "max": 18,
+        "min": -18,
+      },
+      "midHz": {
+        "default": 1000,
+        "max": 5000,
+        "min": 300,
+      },
+      "midQ": {
+        "default": 0.7,
+        "max": 4,
+        "min": 0.3,
+      },
+    },
+    "filter": {
+      "cutoffHz": {
+        "default": 20000,
+        "max": 20000,
+        "min": 20,
+      },
+      "mode": {
+        "default": 0,
+        "max": 2,
+        "min": 0,
+      },
+      "resonance": {
+        "default": 0.2,
+        "max": 1,
+        "min": 0,
+      },
+    },
+    "gain": {
+      "db": {
+        "default": 0,
+        "max": 12,
+        "min": -60,
+      },
+    },
+    "limiter": {
+      "ceilingDb": {
+        "default": -1,
+        "max": 0,
+        "min": -6,
+      },
+      "releaseMs": {
+        "default": 50,
+        "max": 500,
+        "min": 1,
+      },
+    },
+    "lofi": {
+      "bits": {
+        "default": 16,
+        "max": 16,
+        "min": 4,
+      },
+      "mix": {
+        "default": 1,
+        "max": 1,
+        "min": 0,
+      },
+      "noise": {
+        "default": 0,
+        "max": 1,
+        "min": 0,
+      },
+      "rateHz": {
+        "default": 48000,
+        "max": 48000,
+        "min": 2000,
+      },
+      "wow": {
+        "default": 0,
+        "max": 1,
+        "min": 0,
+      },
+    },
+    "match_eq": {
+      "amount": {
+        "default": 1,
+        "max": 1,
+        "min": 0,
+      },
+      "bands": {
+        "type": "number[]",
+      },
+    },
+    "reverb": {
+      "damping": {
+        "default": 0.5,
+        "max": 1,
+        "min": 0,
+      },
+      "decaySec": {
+        "default": 2,
+        "max": 12,
+        "min": 0.2,
+      },
+      "mix": {
+        "default": 0.2,
+        "max": 1,
+        "min": 0,
+      },
+      "predelayMs": {
+        "default": 20,
+        "max": 200,
+        "min": 0,
+      },
+      "size": {
+        "default": 0.5,
+        "max": 1,
+        "min": 0,
+      },
+    },
+    "saturation": {
+      "drive": {
+        "default": 0.2,
+        "max": 1,
+        "min": 0,
+      },
+      "mix": {
+        "default": 1,
+        "max": 1,
+        "min": 0,
+      },
+      "tone": {
+        "default": 0,
+        "max": 1,
+        "min": -1,
+      },
+    },
+    "sidechain_duck": {
+      "amountDb": {
+        "default": 6,
+        "max": 24,
+        "min": 0,
+      },
+      "releaseMs": {
+        "default": 150,
+        "max": 800,
+        "min": 20,
+      },
+      "sourceTrack": {
+        "type": "trackId",
+      },
+    },
+    "transient": {
+      "attack": {
+        "default": 0,
+        "max": 1,
+        "min": -1,
+      },
+      "sustain": {
+        "default": 0,
+        "max": 1,
+        "min": -1,
+      },
+    },
+    "width": {
+      "width": {
+        "default": 1,
+        "max": 2,
+        "min": 0,
+      },
+    },
+  },
+  "generation": [],
+  "macros": {
+    "brightness": {
+      "max": 1,
+      "min": -1,
+    },
+    "distance": {
+      "max": 1,
+      "min": -1,
+    },
+    "intensity": {
+      "max": 1,
+      "min": -1,
+    },
+    "punch": {
+      "max": 1,
+      "min": -1,
+    },
+    "space": {
+      "max": 1,
+      "min": -1,
+    },
+    "vintage": {
+      "max": 1,
+      "min": -1,
+    },
+    "warmth": {
+      "max": 1,
+      "min": -1,
+    },
+  },
+  "ops": [
+    {
+      "ids": [],
+      "op": "project.set_meta",
+    },
+    {
+      "ids": [
+        "sourceId",
+      ],
+      "op": "analysis.apply",
+    },
+    {
+      "ids": [],
+      "op": "track.add",
+    },
+    {
+      "ids": [
+        "trackId",
+      ],
+      "op": "track.remove",
+    },
+    {
+      "ids": [
+        "trackId",
+      ],
+      "op": "track.update",
+    },
+    {
+      "ids": [
+        "clipId",
+        "trackId",
+      ],
+      "op": "fx.add",
+    },
+    {
+      "ids": [
+        "fxId",
+      ],
+      "op": "fx.remove",
+    },
+    {
+      "ids": [
+        "fxId",
+      ],
+      "op": "fx.reorder",
+    },
+    {
+      "ids": [
+        "fxId",
+      ],
+      "op": "fx.update",
+    },
+    {
+      "ids": [
+        "newId",
+        "sectionId",
+      ],
+      "op": "section.duplicate",
+    },
+    {
+      "ids": [],
+      "op": "section.insert",
+    },
+    {
+      "ids": [],
+      "op": "section.merge",
+    },
+    {
+      "ids": [
+        "sectionId",
+      ],
+      "op": "section.move",
+    },
+    {
+      "ids": [
+        "sectionId",
+      ],
+      "op": "section.remove",
+    },
+    {
+      "ids": [
+        "sectionId",
+      ],
+      "op": "section.resize",
+    },
+    {
+      "ids": [
+        "sectionId",
+      ],
+      "op": "section.set_transition",
+    },
+    {
+      "ids": [
+        "newId",
+        "sectionId",
+      ],
+      "op": "section.split",
+    },
+    {
+      "ids": [
+        "sectionId",
+      ],
+      "op": "section.update",
+    },
+    {
+      "ids": [
+        "sectionId",
+        "trackId",
+      ],
+      "op": "clip.add",
+    },
+    {
+      "ids": [
+        "clipId",
+      ],
+      "op": "clip.remove",
+    },
+    {
+      "ids": [
+        "clipId",
+      ],
+      "op": "clip.replace",
+    },
+    {
+      "ids": [
+        "clipId",
+        "newId",
+      ],
+      "op": "clip.split",
+    },
+    {
+      "ids": [
+        "clipId",
+      ],
+      "op": "clip.update",
+    },
+    {
+      "ids": [
+        "sectionId",
+        "trackId",
+      ],
+      "op": "automation.clear",
+    },
+    {
+      "ids": [
+        "sectionId",
+        "trackId",
+      ],
+      "op": "automation.set",
+    },
+    {
+      "ids": [],
+      "op": "tempo.set",
+    },
+    {
+      "ids": [],
+      "op": "key.transpose",
+    },
+    {
+      "ids": [],
+      "op": "region.adopt",
+    },
+    {
+      "ids": [],
+      "op": "region.clear",
+    },
+  ],
+}
+`;
