@@ -20,6 +20,19 @@ export type BrushId =
   | "filterSweep"
   | "remove";
 
+/** Every instant brush, in the palette's order (07 §4.4). */
+export const BRUSH_IDS = [
+  "space",
+  "warmth",
+  "brighter",
+  "darker",
+  "lofi",
+  "louder",
+  "quieter",
+  "filterSweep",
+  "remove",
+] as const satisfies readonly BrushId[];
+
 /** The filter sweep's travel across the stroke, high to low or low to high. */
 export type FilterDirection = "up" | "down";
 

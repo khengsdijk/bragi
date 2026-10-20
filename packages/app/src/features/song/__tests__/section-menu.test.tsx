@@ -59,6 +59,7 @@ function actions(): CommandActions {
     setLocked: vi.fn(),
     loopSection: vi.fn(),
     openResize: vi.fn(),
+    openBrush: vi.fn(),
     splitAtPlayhead: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
@@ -145,6 +146,7 @@ describe("SectionMenu", () => {
       "Loop this part",
       "Make part longer…",
       "Make part shorter…",
+      "Apply brush…",
     ]);
     const smooth = screen.getByRole("menuitemcheckbox", { name: "Smooth new joins" });
     expect(smooth.getAttribute("aria-checked")).toBe("true");

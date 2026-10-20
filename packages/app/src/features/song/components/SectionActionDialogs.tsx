@@ -65,6 +65,8 @@ export function SectionActionDialogs({
       />
     );
   }
+  // The brush dialog lives in `features/brushes` and has its own track list (task B).
+  if (dialog.kind === "brush") return null;
   return (
     <ResizeDialog
       key={`resize:${dialog.sectionId}`}

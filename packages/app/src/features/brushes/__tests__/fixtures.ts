@@ -5,6 +5,7 @@
  * app applies it and undo restores a real snapshot.
  */
 import { readdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { type Platform, parseMigrations } from "@bragi/platform";
 import { createMemoryPlatform } from "@bragi/platform/testing";
@@ -21,7 +22,8 @@ export const PROJECT_ID = "prj_BRUSHTEST00000000000001";
 /** One bar of the short demo: 4/4 at PPQ 960. */
 export const BAR = 3840;
 
-const MIGRATIONS_DIR = new URL("../../../../../schemas/sqlite/migrations/", import.meta.url);
+// `import.meta.url` is not a file URL under jsdom, so resolve from this file's directory.
+const MIGRATIONS_DIR = resolve(import.meta.dirname, "../../../../../schemas/sqlite/migrations");
 
 export interface BrushFixture {
   readonly platform: Platform;
@@ -36,7 +38,7 @@ export async function openBrushFixture(): Promise<BrushFixture> {
     Object.fromEntries(
       readdirSync(MIGRATIONS_DIR)
         .filter((name) => name.endsWith(".sql"))
-        .map((name) => [name, readFileSync(new URL(name, MIGRATIONS_DIR), "utf8")]),
+        .map((name) => [name, readFileSync(resolve(MIGRATIONS_DIR, name), "utf8")]),
     ),
   );
   const platform = await createMemoryPlatform(migrations);

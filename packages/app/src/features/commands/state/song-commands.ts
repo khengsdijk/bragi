@@ -120,6 +120,15 @@ export const SONG_COMMANDS: readonly Command[] = [
     run: (context) => context.actions.splitAtPlayhead(),
   },
   {
+    id: "section.applyBrush",
+    label: "commands.section.applyBrush",
+    group: "section",
+    enabled: hasSection,
+    run: (context) => {
+      if (context.section !== null) context.actions.openBrush(context.section.id);
+    },
+  },
+  {
     id: "edit.undo",
     label: "commands.edit.undo",
     shortcut: t("shortcut.undo"),

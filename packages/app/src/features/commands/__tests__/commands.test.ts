@@ -29,6 +29,7 @@ function actions(): CommandActions {
     setLocked: vi.fn(),
     loopSection: vi.fn(),
     openResize: vi.fn(),
+    openBrush: vi.fn(),
     splitAtPlayhead: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
@@ -104,6 +105,7 @@ describe("song commands", () => {
       "section.makeLonger",
       "section.makeShorter",
       "section.split",
+      "section.applyBrush",
       "edit.undo",
       "edit.redo",
       "view.history",
@@ -158,6 +160,8 @@ describe("song commands", () => {
     expect(ctx.actions.openResize).toHaveBeenCalledWith("sec_001", "shorter");
     command("section.split").run(ctx);
     expect(ctx.actions.splitAtPlayhead).toHaveBeenCalled();
+    command("section.applyBrush").run(ctx);
+    expect(ctx.actions.openBrush).toHaveBeenCalledWith("sec_001");
     command("edit.undo").run(ctx);
     expect(ctx.actions.undo).toHaveBeenCalled();
     command("edit.redo").run(ctx);
