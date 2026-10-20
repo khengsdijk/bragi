@@ -140,6 +140,21 @@ export function createAudition(options: AuditionOptions): Audition {
     null;
   /** Bumped on every open/close, so a slow warm from an older group is ignored. */
   let generation = 0;
+  /** Slots a closed group still has to release; a new group warming one takes it over. */
+  const pendingRelease = new Set<CandidateSlot>();
+  const wait = (ms: number): Promise<void> =>
+    new Promise((resolve) => {
+      later(resolve, ms);
+    });
+
+  /** One warm attempt; `false` when the engine refused (the slot is still fading out). */
+  const tryWarm = async (slot: CandidateSlot, doc: Project): Promise<boolean> => {
+    try {
+      return await options.controller.warm(slot, doc);
+    } catch {
+      return false;
+    }
+  };
 
   const setCandidate = (id: string, patch: Partial<AuditionCandidate>): void => {
     const group = store.getState().group;
@@ -163,7 +178,14 @@ export function createAudition(options: AuditionOptions): Audition {
       store.getState().warm.includes(candidate.slot)
     )
       return;
-    const ok = await options.controller.warm(candidate.slot, candidate.doc);
+    pendingRelease.delete(candidate.slot);
+    // A group opened right after another closed may find the slot still fading out: retry once
+    // when that crossfade is over.
+    let ok = await tryWarm(candidate.slot, candidate.doc);
+    if (!ok && ticket === generation) {
+      await wait(RELEASE_DELAY_MS);
+      if (ticket === generation) ok = await tryWarm(candidate.slot, candidate.doc);
+    }
     if (!ok || ticket !== generation) return;
     const current = store.getState().warm;
     if (!current.includes(candidate.slot)) store.setState({ warm: [...current, candidate.slot] });
@@ -211,8 +233,12 @@ export function createAudition(options: AuditionOptions): Audition {
     }
     store.setState(INITIAL);
     // A slot that was just audible is still fading out; the engine refuses to release it before.
+    for (const slot of warmSlots) pendingRelease.add(slot);
     later(() => {
-      for (const slot of warmSlots) options.controller.release(slot);
+      for (const slot of warmSlots) {
+        if (!pendingRelease.delete(slot)) continue;
+        options.controller.release(slot);
+      }
     }, RELEASE_DELAY_MS);
   };
 

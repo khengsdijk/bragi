@@ -245,6 +245,28 @@ describe("the audition store", () => {
     expect(moreLike).toHaveBeenCalledWith(first);
   });
 
+  it("a group opened right after another keeps its slots and retries a refused warm", async () => {
+    const { audition, history, host, timers } = await open();
+    const state = history.store.getState();
+    const root = [...state.commits.values()].find((commit) => commit.parent === null);
+    if (root === undefined || state.head === null) throw new Error("no versions");
+    await audition.openCompare(root.id, state.head);
+    audition.select(2);
+    await audition.discard();
+    // Slot 2 is still fading out: the engine refuses the first warm of it.
+    host.warm.mockImplementationOnce(async () => {});
+    host.warm.mockImplementationOnce(async () => {
+      throw new Error("could not warm slot 2");
+    });
+    const opening = audition.openCandidates({ group: "grp_ideas", prompt: "p" });
+    await vi.waitFor(() => expect(timers.length).toBeGreaterThanOrEqual(2));
+    // The closed comparison's release timer and the retry's wait fire.
+    for (const timer of timers.splice(0)) timer();
+    expect(await opening).toBe(true);
+    expect(audition.store.getState().warm.slice().sort()).toEqual([1, 2, 3]);
+    expect(host.release).not.toHaveBeenCalled();
+  });
+
   it("compares two versions without committing anything", async () => {
     const { audition, history, host } = await open();
     const before = history.store.getState();
