@@ -1,0 +1,75 @@
+.root {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.options {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.option {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+/* 24 px minimum target (11 §6.4, WCAG 2.5.8). */
+.text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--size-control-sm);
+  padding-inline: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  user-select: none;
+}
+
+.option + .option .text {
+  border-inline-start: 1px solid var(--color-line-strong);
+}
+
+.option[data-checked="true"] .text {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.option[data-disabled="true"] {
+  opacity: 0.55;
+}
+
+.option[data-disabled="true"] .text {
+  cursor: not-allowed;
+}
+
+.input:focus-visible + .text {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}

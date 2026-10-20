@@ -3,6 +3,7 @@
 //! the tests' assertions come from one implementation of each measure.
 #![allow(dead_code, unreachable_pub)]
 
+pub mod fx;
 pub mod metrics;
 pub mod signals;
 pub mod wav;

@@ -82,8 +82,14 @@ export const historyView = (page: Page): Promise<HistoryView> =>
 /**
  * Uploads the fixture, switches to the song page with the test hooks, and waits until the stems
  * are in the document and no analysis commit has landed for 5 s. Returns the project id.
+ *
+ * `onWorkspace` runs as soon as the song page shows, before the stems land: the place to press
+ * Play while the engine only has the small full-mix asset to load.
  */
-export async function openAnalysedSong(page: Page): Promise<string> {
+export async function openAnalysedSong(
+  page: Page,
+  onWorkspace?: () => Promise<void>,
+): Promise<string> {
   await page.goto("/#/");
   await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
   await page.getByTestId("library-file").setInputFiles(ensureFixture());
@@ -93,6 +99,7 @@ export async function openAnalysedSong(page: Page): Promise<string> {
     window.location.hash = `#/song/${id}?e2e=1`;
   }, projectId);
   await expect(page.getByTestId("song-workspace")).toBeVisible({ timeout: 60_000 });
+  await onWorkspace?.();
   await expect
     .poll(async () => ((await hookDoc(page))?.tracks.length ?? 0) > 2, { timeout: 240_000 })
     .toBe(true);
@@ -115,4 +122,28 @@ export function seriousOrCritical(results: Awaited<ReturnType<AxeBuilder["analyz
   return results.violations
     .filter((v) => v.impact === "serious" || v.impact === "critical")
     .map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`);
+}
+
+/**
+ * Whether this machine's audio output renders at all: a bare `AudioContext` with an oscillator
+ * must advance its clock. When the OS output device is stuck (seen on macOS: the clock advanced
+ * 5 ms in 2 s with no Bragi code on the page), no engine can play, and a spec reports that
+ * instead of failing on the app.
+ */
+export async function audioOutputRenders(page: Page): Promise<boolean> {
+  return page.evaluate(async () => {
+    const context = new AudioContext();
+    const oscillator = new OscillatorNode(context);
+    oscillator.connect(context.destination);
+    oscillator.start();
+    await Promise.race([
+      context.resume().catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ]);
+    const start = context.currentTime;
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const advanced = context.currentTime - start;
+    void context.close();
+    return advanced > 0.3;
+  });
 }

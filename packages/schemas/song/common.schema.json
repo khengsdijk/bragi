@@ -54,9 +54,9 @@
       "pattern": "^pln_[0-9A-Za-z]{1,64}$"
     },
     "MacroId": {
-      "description": "Macro ID: `mac_` + ULID (02 §2.1).",
+      "description": "A macro ID: one of the built-in v1 macros (03 §6.1) or `mac_` + ULID for a custom macro (02 §2.1).",
       "type": "string",
-      "pattern": "^mac_[0-9A-Za-z]{1,64}$"
+      "pattern": "^(mac_[0-9A-Za-z]{1,64}|(brightness|space|punch|warmth|vintage|intensity|distance))$"
     },
     "UserId": {
       "description": "User ID. Opaque: the auth library (Better Auth, 05 §8) owns its format.",

@@ -14,11 +14,13 @@ mod common;
 use std::alloc::System;
 use std::sync::Arc;
 
+use bragi_dsp::fx::{FxKind, create};
 use bragi_engine::engine::Engine;
-use bragi_engine::plan::compile;
+use bragi_engine::plan::{compile, compile_delta, quality_for};
 use bragi_engine::preview::PreviewPatch;
-use bragi_engine::render::Renderer;
+use bragi_engine::render::{PreparedPlan, Renderer};
 use bragi_engine::rt::alloc_guard::{self, TrackingAllocator};
+use bragi_model::diff;
 use bragi_model::generated::{AssetHash, Project};
 use common::*;
 use serde_json::json;
@@ -28,11 +30,30 @@ static ALLOCATOR: TrackingAllocator<System> = TrackingAllocator::new(System);
 
 const BLOCK: usize = 128;
 
+/// Every catalogue kind the DSP crate can build right now. The other batches
+/// add arms to `create` and this list follows without a test edit.
+fn supported_kinds() -> Vec<FxKind> {
+    FxKind::ALL
+        .into_iter()
+        .filter(|kind| create(*kind, 48_000, BLOCK).is_ok())
+        .collect()
+}
+
+fn gain_params(kind: FxKind, db: f64) -> Vec<(&'static str, f64)> {
+    if kind == FxKind::Gain {
+        vec![("db", db)]
+    } else {
+        Vec::new()
+    }
+}
+
 /// 12 tracks, each with a direct clip, a stretched clip and a clip whose PCM is
-/// missing (the underrun path).
-fn twelve_track_document(hash: &AssetHash, missing: &AssetHash) -> Project {
+/// missing (the underrun path), plus an fx chain built from every supported
+/// kind on the tracks and on the master.
+fn twelve_track_document(hash: &AssetHash, missing: &AssetHash, db: f64) -> Project {
     let mut tracks = Vec::new();
     let mut lanes = serde_json::Map::new();
+    let kinds = supported_kinds();
     for index in 0..12 {
         let id = format!("trk_{index:02}");
         tracks.push(track(&id));
@@ -53,17 +74,40 @@ fn twelve_track_document(hash: &AssetHash, missing: &AssetHash) -> Project {
         ];
         lanes.insert(id, lane(clips));
     }
-    project(tracks, vec![section("sec_a", BAR_TICKS * 5, json!(lanes))])
+    let mut doc = project(tracks, vec![section("sec_a", BAR_TICKS * 5, json!(lanes))]);
+    if !kinds.is_empty() {
+        for (index, track) in doc.tracks.iter_mut().enumerate() {
+            let kind = kinds[index % kinds.len()];
+            let id = format!("fx_t{index}");
+            track
+                .fx
+                .0
+                .push(fx_instance(&id, kind.name(), &gain_params(kind, db), false));
+        }
+        for (index, kind) in kinds.iter().enumerate() {
+            let id = format!("fx_m{index}");
+            doc.arrangement.master.fx.0.push(fx_instance(
+                &id,
+                kind.name(),
+                &gain_params(*kind, db),
+                false,
+            ));
+        }
+    }
+    doc
 }
 
 #[test]
 fn process_never_allocates() {
     let asset = hash('0');
     let missing = hash('f');
-    let doc = twelve_track_document(&asset, &missing);
+    let doc = twelve_track_document(&asset, &missing, -3.0);
+    let updated_doc = twelve_track_document(&asset, &missing, -6.0);
     let mut asset_index = assets(&asset, 480_000);
     asset_index.insert(meta(&missing, 480_000));
     let plan = compile(&doc, &asset_index, 48_000, 1).unwrap();
+    let delta = diff(&doc, &updated_doc);
+    let updated_plan = compile_delta(&plan, &updated_doc, &asset_index, &delta).unwrap();
     let source = pcm(&asset, tone(480_000, 220.0, 0.4));
 
     let mut renderer = Renderer::new(Arc::new(plan), BLOCK);
@@ -94,6 +138,19 @@ fn process_never_allocates() {
                     mute: true,
                 }));
             }
+            if block == 300 {
+                // A param-only fx update: recompile the plan off the audio
+                // thread and carry the live effects across. `set_prepared` is
+                // a control-side call, so its allocations are outside the
+                // guard that `process` raises.
+                let prepared =
+                    PreparedPlan::new(Arc::new(updated_plan.clone()), quality_for(false), BLOCK);
+                let previous = renderer.set_prepared(prepared);
+                drop(previous);
+                engine
+                    .apply_delta(&updated_doc, &asset_index, &delta)
+                    .unwrap();
+            }
             renderer.process(&source, &mut [&mut left, &mut right]);
             engine.process(&source, &mut [&mut left, &mut right]);
         }
@@ -105,6 +162,75 @@ fn process_never_allocates() {
     run(&mut renderer, &mut engine);
     let violations = alloc_guard::Guard::violations();
     println!("guarded allocations over 800 process calls: {violations}");
+    alloc_guard::assert_clean();
+}
+
+#[test]
+fn plugin_delay_compensation_never_allocates_on_the_audio_thread() {
+    let h = hash('a');
+    let doc = |with_saturation: bool| {
+        let mut doc = project(
+            vec![track("trk_01"), track("trk_02")],
+            vec![section(
+                "sec_a",
+                BAR_TICKS * 5,
+                json!({
+                    "trk_01": lane(vec![clip_none("clp_01", &h, 0, 480_000, 0)]),
+                    "trk_02": lane(vec![clip_none("clp_02", &h, 0, 480_000, 0)]),
+                }),
+            )],
+        );
+        if with_saturation {
+            doc.tracks[0]
+                .fx
+                .0
+                .push(fx_instance("fx_sat", "saturation", &[], false));
+        }
+        doc.arrangement
+            .master
+            .fx
+            .0
+            .push(fx_instance("fx_lim", "limiter", &[], false));
+        doc
+    };
+    let with_sat = doc(true);
+    let without_sat = doc(false);
+    let asset_index = assets(&h, 480_000);
+    let first = compile(&with_sat, &asset_index, 48_000, 1).unwrap();
+    let second = compile(&without_sat, &asset_index, 48_000, 1).unwrap();
+    let source = pcm(&h, tone(480_000, 220.0, 0.4));
+
+    let mut renderer = Renderer::new(Arc::new(first), BLOCK);
+    renderer.transport_mut().play();
+    let mut left = [0.0f32; BLOCK];
+    let mut right = [0.0f32; BLOCK];
+    // Fill the compensation delay lines and the master limiter.
+    for _ in 0..8 {
+        renderer.process(&source, &mut [&mut left, &mut right]);
+    }
+    alloc_guard::reset_violations();
+
+    // 30 frames of compensation disappear; the delay line is carried over.
+    let prepared = PreparedPlan::new(Arc::new(second), quality_for(false), BLOCK);
+    let previous = renderer.set_prepared(prepared);
+    drop(previous);
+    for _ in 0..64 {
+        renderer.process(&source, &mut [&mut left, &mut right]);
+    }
+    // ...and comes back, with the compensation depth changing again.
+    let prepared = PreparedPlan::new(
+        Arc::new(compile(&with_sat, &asset_index, 48_000, 2).unwrap()),
+        quality_for(false),
+        BLOCK,
+    );
+    let previous = renderer.set_prepared(prepared);
+    drop(previous);
+    for _ in 0..64 {
+        renderer.process(&source, &mut [&mut left, &mut right]);
+    }
+
+    let violations = alloc_guard::Guard::violations();
+    println!("guarded allocations with PDC and a plan swap: {violations}");
     alloc_guard::assert_clean();
 }
 

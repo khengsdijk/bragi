@@ -11,7 +11,8 @@
 //! # Status
 //!
 //! Scaffold (WP-0.1) plus the `Stretcher` trait and the phase-vocoder implementation chosen in
-//! **WP-0.4** ([`stretch`], [ADR-0002](../../specs/decisions/ADR-0002-time-stretch.md)). The FX
-//! catalogue follows in **WP-2.3** (`specs/03-audio-engine.md` §6).
+//! **WP-0.4** ([`stretch`], [ADR-0002](../../specs/decisions/ADR-0002-time-stretch.md)), and the
+//! FX catalogue ([`fx`], **WP-2.3**, `specs/03-audio-engine.md` §6).
 
+pub mod fx;
 pub mod stretch;

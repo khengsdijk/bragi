@@ -174,7 +174,7 @@ The catalogue is described in `crates/bragi-dsp/fx_catalog.json`, which is the s
 | `transient` | `attack` (−1..1, 0), `sustain` (−1..1, 0) | Envelope-difference shaper |
 | `lofi` | `bits` (4..16, 16), `rateHz` (2k..48k, 48k), `wow` (0..1, 0), `noise` (0..1, 0), `mix` (0..1, 1) | Tape/vinyl flavour |
 | `chorus` | `rateHz` (0.05..5, 0.6), `depth` (0..1, 0.3), `mix` (0..1, 0.3) | |
-| `sidechain_duck` | `sourceTrack` (TrackId), `amountDb` (0..24, 6), `releaseMs` (20..800, 150) | Envelope follower on the source track |
+| `sidechain_duck` | `sourceTrack` (TrackId), `amountDb` (0..24, 6), `releaseMs` (20..800, 150) | Envelope follower on the source track. `sourceTrack` is stored as `FxInstance.sidechainSource` (02 §3.7), not in `params` |
 | `match_eq` | `bands` (31 × dB, hidden), `amount` (0..1, 1) | Auto-generated for seam smoothing (§8.2), not user-facing |
 | `limiter` | `ceilingDb` (−6..0, −1), `releaseMs` (1..500, 50) | Master only, look-ahead 5 ms, true-peak |
 
@@ -188,6 +188,33 @@ Macros are named, plain-language controls that drive several fx params at once. 
               { "fx": "filter", "param": "cutoffHz", "curve": [[-1,3500],[0,20000],[1,20000]], "mode": 0 } ] }
 ```
 v1 macros: `brightness`, `space` (reverb + width), `punch` (transient + compressor), `warmth` (saturation + eq), `vintage` (lofi + eq + saturation), `intensity` (drive, compression, transient, small level change), and `distance` (filter, reverb, level). Applying a macro creates or updates fx instances tagged `macroOwned`, so the UI can show "controlled by Space".
+
+`crates/bragi-dsp/macros.json` is the source of truth for the definitions; its schema is
+`packages/schemas/dsp/macros.schema.json`, and `crates/bragi-dsp/fx_catalog.json`'s is
+`packages/schemas/dsp/fx-catalog.schema.json`. `pnpm schemas:gen` validates both and copies them into
+`@bragi/schemas` as the typed modules `MACROS` and `FX_CATALOG`, which TypeScript consumers (the app,
+the planner) import instead of reading the JSON themselves.
+
+### 6.2 Plugin delay compensation
+Effects may have algorithmic latency (`saturation` 30 frames from ×2 oversampling, `limiter`
+240 frames of look-ahead at 48 kHz). The engine compensates inside the mix so correlated tracks do
+not comb-filter:
+
+- A track's chain latency is the sum of `latency()` over its **non-bypassed** live effects.
+  `PreparedPlan` delays every track by `max_track_latency − own_latency`, using a pre-allocated
+  stereo delay line per track (fixed cap 8192 frames). A larger compensation is clamped and appears
+  as a plan warning.
+- The delay is applied to the **post-fx, pre-fader** signal, so the track's fader, pan and the
+  sidechain key copied for `sidechain_duck` all see the aligned signal.
+- Sidechain keys are the source track's **compensated post-fader** signal: the same block that is
+  summed into the master. The duck's own compensation delay follows it.
+- Delay-line contents carry over across `set_prepared` when the track survives (matched by
+  `TrackId`); if the compensation amount changes, the jump is accepted rather than clicking.
+  Seek, `reset_stream` and a fresh plan clear them, like effect state.
+- Total output latency is `max_track_latency + master_chain_latency`. Realtime playback does not
+  compensate (≤ a few milliseconds); the transport may use the renderer's
+  `output_latency_frames()` later. Offline renders and exports discard that many leading frames and
+  render that many extra frames at the end, so the file is sample-aligned with the timeline (03 §9).
 
 ## 7. Time-stretch and pitch-shift
 
@@ -260,6 +287,7 @@ type RenderJob =
 type AudioFormat = { container: "wav"; bits: 16 | 24 | 32 } | { container: "flac"; bits: 16 | 24 } | { container: "mp3"; kbps: 128 | 192 | 320 };
 ```
 - Offline render uses the `Render` stretch quality and is **deterministic**, with no dither randomness unless a seed is supplied. WP-1.1 fixes the block size at 512 frames (`OFFLINE_BLOCK`), so a mixdown is host-independent.
+- Plugin delay compensation (§6.2) is removed from the file: the renderer renders `frames + output_latency_frames()` and drops the leading latency, so exported audio is sample-aligned with the timeline.
 - **Implemented in v1 (WP-1.11):** `mixdown` and `stems` to WAV (16/24-bit integer, 32-bit float) and FLAC (16/24-bit). `RenderResult` carries `files: { name, bytes, frames }[]` (one file for a mixdown, one per track in document order for stems). `context`, `cache`, MP3 and `normalize` are rejected with a typed error until their work packages land.
 - Encoding lives in `bragi_engine::export` (platform-free), so WASM and native emit the same files. Dither is TPDF (xorshift64\*), applied to 16/24-bit output only when `ditherSeed` is given. A `range` in ticks must be converted by the caller to `startSample`/`frames` (the tempo map is `bragi-model`'s); the host rejects an unconverted range instead of exporting the whole song.
 - **Naming and metadata:** the mixdown is `<title>.<ext>`; a stem is `<NN>-<track name>.<ext>` with `NN` the track's 1-based document position. Names keep letters, digits, space, `_` and `-`. Metadata (title, BPM and key in the comment, the stem's track name, the caller's creation date, encoder `Bragi <version>`) goes into WAV `LIST/INFO` and FLAC Vorbis comments. The engine never reads the clock.

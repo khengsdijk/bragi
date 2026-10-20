@@ -21,6 +21,7 @@ import { useStore } from "zustand";
 import { t } from "../../../i18n/index.js";
 import { HistoryPanel } from "../../history/components/HistoryPanel.js";
 import type { History } from "../../history/state/history.js";
+import { Inspector } from "../../inspector/components/Inspector.js";
 import { buildGridModel } from "../api/grid-model.js";
 import { analysisView, buildCanvasDocument } from "../api/view-model.js";
 import type { EngineController } from "../state/engine-controller.js";
@@ -77,10 +78,19 @@ export function SongWorkspace(props: SongWorkspaceProps) {
   const [level, setLevel] = useState<ZoomLevel>("L2");
   const [focus, setFocus] = useState<GridFocus | null>(null);
   const [announcement, setAnnouncement] = useState("");
-  const [historyOpen, setHistoryOpen] = useState(false);
+  /** One side panel at a time: the Inspector or the version tree. */
+  const [sidePanel, setSidePanel] = useState<"inspector" | "history" | null>(null);
   const handle = useRef<SongCanvasHandle | null>(null);
   const hovered = useRef<string | null>(null);
   const selection = props.selection;
+  const selectedTrack =
+    selection.kind === "tracks" && selection.ids.length === 1 ? (selection.ids[0] ?? null) : null;
+
+  // Selecting one ribbon opens the Inspector (07 §4.5). Closing it does not reopen it until
+  // another instrument is selected; with nothing selected it stays open as the master inspector.
+  useEffect(() => {
+    if (selectedTrack !== null) setSidePanel("inspector");
+  }, [selectedTrack]);
 
   const canvasDoc = useMemo(() => {
     const live = songStore.handle();
@@ -268,25 +278,38 @@ export function SongWorkspace(props: SongWorkspaceProps) {
         <p className="song-workspace__selection" data-testid="selection-summary">
           {selectionText}
         </p>
-        {props.history === undefined ? null : (
+        <div
+          style={{
+            display: "flex",
+            gap: "var(--space-1)",
+            marginInlineStart: "auto",
+          }}
+        >
           <Button
-            variant={historyOpen ? "secondary" : "ghost"}
+            variant={sidePanel === "inspector" ? "secondary" : "ghost"}
             size="sm"
-            aria-pressed={historyOpen}
-            onClick={() => setHistoryOpen((open) => !open)}
-            style={{ marginInlineStart: "auto" }}
+            aria-pressed={sidePanel === "inspector"}
+            onClick={() => setSidePanel((panel) => (panel === "inspector" ? null : "inspector"))}
           >
-            {t("history.panel.open")}
+            {t("inspector.open")}
           </Button>
-        )}
+          {props.history === undefined ? null : (
+            <Button
+              variant={sidePanel === "history" ? "secondary" : "ghost"}
+              size="sm"
+              aria-pressed={sidePanel === "history"}
+              onClick={() => setSidePanel((panel) => (panel === "history" ? null : "history"))}
+            >
+              {t("history.panel.open")}
+            </Button>
+          )}
+        </div>
       </header>
       <div
         style={{
           display: "grid",
           gridTemplateColumns:
-            historyOpen && props.history !== undefined
-              ? "minmax(0, 1fr) minmax(18rem, 22rem)"
-              : "minmax(0, 1fr)",
+            sidePanel === null ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(18rem, 22rem)",
           gap: 12,
           alignItems: "start",
         }}
@@ -324,14 +347,24 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             onFit={() => handle.current?.fit()}
           />
         </div>
-        {historyOpen && props.history !== undefined ? (
+        {sidePanel === "history" && props.history !== undefined ? (
           <HistoryPanel
             history={props.history}
             selection={selection}
             model={songStore.model}
             liveDoc={doc}
-            onClose={() => setHistoryOpen(false)}
+            onClose={() => setSidePanel(null)}
             onCommitOutcome={followHistory}
+          />
+        ) : null}
+        {sidePanel === "inspector" ? (
+          <Inspector
+            songStore={songStore}
+            {...(props.history === undefined ? {} : { history: props.history })}
+            onCommit={controller.commit}
+            selection={selection}
+            onClose={() => setSidePanel(null)}
+            onAnnounce={setAnnouncement}
           />
         ) : null}
       </div>

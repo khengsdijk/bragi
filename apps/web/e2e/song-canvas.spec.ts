@@ -43,6 +43,22 @@ test("passes axe with no serious or critical issues", async ({ appPage }) => {
   );
 });
 
+test("the Inspector passes axe with a track selected", async ({ appPage }) => {
+  await openDemo(appPage, { audio: false });
+  const firstCell = appPage.locator('[data-testid="song-grid"] td[tabindex="0"]');
+  await firstCell.focus();
+  await appPage.keyboard.press("ArrowDown"); // chords row
+  await appPage.keyboard.press("ArrowDown"); // drums
+  await appPage.keyboard.press("Enter");
+  await expect(appPage.getByTestId("inspector-panel")).toBeVisible();
+  await appPage.getByRole("button", { name: "Expert" }).click();
+  const results = await new AxeBuilder({ page: appPage }).analyze();
+  const bad = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+  expect(bad.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual(
+    [],
+  );
+});
+
 test("is reachable and operable by keyboard alone", async ({ appPage }) => {
   await openDemo(appPage, { audio: false });
   const before = await currentDoc(appPage);

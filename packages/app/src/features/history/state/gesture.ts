@@ -14,7 +14,8 @@ import type { History } from "./history.js";
 
 export interface GestureOptions {
   readonly songStore: SongStore;
-  readonly history: History;
+  /** The commit sink (the history store in the app, or a direct apply in the demo). */
+  readonly history: Pick<History, "commit">;
   /** Where engine deltas go: the workspace's `EngineController.commit`. */
   readonly engine: (commit: Commit, doc: Project) => void;
   readonly now?: () => Date;

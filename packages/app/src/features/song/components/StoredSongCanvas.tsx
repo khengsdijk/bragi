@@ -9,9 +9,10 @@
  */
 
 import type { BlobHash, Platform } from "@bragi/platform";
+import { decodeSelection, encodeSelection, type Selection } from "@bragi/render-canvas";
 import type { AssetMeta, Project } from "@bragi/schemas";
-import { useSearch } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { t } from "../../../i18n/index.js";
 import { usePlatform } from "../../../platform-context.js";
@@ -98,6 +99,21 @@ async function analysisFromSnapshot(
 export function StoredSongCanvas({ projectId }: { readonly projectId: string }) {
   const platform = usePlatform();
   const search = useSearch({ strict: false }) as Record<string, unknown>;
+  const navigate = useNavigate();
+  // The selection lives in the URL, as on the demo page (01 §1).
+  const sel = typeof search.sel === "string" ? search.sel : undefined;
+  const selection = useMemo(() => decodeSelection(sel), [sel]);
+  const onSelectionChange = (next: Selection): void => {
+    const encoded = encodeSelection(next);
+    void navigate({
+      to: ".",
+      search: (previous: Record<string, unknown>) => {
+        const { sel: _drop, ...rest } = previous;
+        return encoded === "" ? rest : { ...rest, sel: encoded };
+      },
+      replace: true,
+    });
+  };
   const [session, setSession] = useState<Session | null>(null);
   const [failed, setFailed] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -211,9 +227,9 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
         controller={session.controller}
         history={session.history}
         analysis={session.analysis}
-        selection={{ kind: "none" }}
+        selection={selection}
         testHooks={wantsTestHooks(search)}
-        onSelectionChange={() => {}}
+        onSelectionChange={onSelectionChange}
       />
     </>
   );

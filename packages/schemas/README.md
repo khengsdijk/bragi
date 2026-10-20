@@ -33,10 +33,12 @@ languages.
 | `jobs/*.schema.json` | `JobRequest` and `JobEvent` ([05 §4.2](../../specs/05-backend-and-jobs.md)) | API, workers |
 | `api/errors.json` | The stable REST API error-code registry ([05 §2](../../specs/05-backend-and-jobs.md)) | API, `packages/api-client` |
 | `api/error.schema.json` | The error envelope; its `ErrorCode` enum must equal `errors.json` | API, clients |
+| `dsp/fx-catalog.schema.json` | `FxCatalog`, the shape of `crates/bragi-dsp/fx_catalog.json` ([03 §6](../../specs/03-audio-engine.md)) | TS, Rust, Python |
+| `dsp/macros.schema.json` | `MacroCatalog`, the shape of `crates/bragi-dsp/macros.json` ([03 §6.1](../../specs/03-audio-engine.md)) | TS, Rust, Python |
 | `examples/<RootType>.json` | One valid instance per root type, used by the contract tests in all three languages | TS, Rust, Python |
 | `codegen/` | `bundle.mjs` (bundler + convention checks), `gen.mjs` (the pipeline) | `pnpm schemas:gen` |
 | `generated/` | `bundle.schema.json`: every schema merged into one document with every `$ref` rewritten | the three generators |
-| `src/generated/` | `types.ts`, `ajv-validators.js`, `validators.ts` | `@bragi/schemas` consumers |
+| `src/generated/` | `types.ts`, `ajv-validators.js`, `validators.ts`, `fx-catalog.ts`, `macros.ts` | `@bragi/schemas` consumers |
 | `sqlite/migrations/` | Local database migrations shared by web and desktop | WP-0.5 |
 
 The generated Rust lives in `crates/bragi-model/src/generated/mod.rs`, driven by

@@ -256,6 +256,7 @@ name = "bragi-dsp"
 version = "0.0.0"
 dependencies = [
  "realfft",
+ "serde_json",
  "thiserror 2.0.21",
 ]
 

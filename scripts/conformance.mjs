@@ -61,6 +61,15 @@ const FIXTURES = [
     assets: [{ hash: TONE, path: "fixtures/audio/tone_440.wav", mime: "audio/wav" }],
     gate: false,
   },
+  {
+    // WP-2.3: a `gain` on a track and on the master, so the WASM/native null
+    // test covers the fx chain path (plan → live effects → master fx → limiter).
+    name: "engine-conformance-d-fx",
+    project: "fixtures/projects/engine-conformance-fx.json",
+    frames: 48000,
+    assets: [{ hash: TONE, path: "fixtures/audio/tone_440.wav", mime: "audio/wav" }],
+    gate: true,
+  },
 ];
 
 const GOLDEN_DIR = join(ROOT, "fixtures", "audio", "golden");

@@ -16,6 +16,7 @@ export * from "./components/Icon/Icon.js";
 export * from "./components/IconButton/IconButton.js";
 export * from "./components/Menu/Menu.js";
 export * from "./components/Popover/Popover.js";
+export * from "./components/SegmentedControl/SegmentedControl.js";
 export * from "./components/Slider/Slider.js";
 export * from "./components/Slider/VibeSlider.js";
 export * from "./components/Tabs/Tabs.js";

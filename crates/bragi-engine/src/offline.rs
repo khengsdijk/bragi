@@ -111,10 +111,6 @@ pub fn render(plan: &RenderPlan, pcm: &dyn PcmSource, options: &OfflineOptions) 
         "offline render runs at the engine rate"
     );
     let block = options.block.max(1);
-    let total = match options.frames {
-        Some(frames) => frames,
-        None => plan.length_samples.saturating_sub(options.start),
-    };
     let mut renderer = Renderer::with_quality(
         Arc::new(plan.clone()),
         block,
@@ -123,15 +119,37 @@ pub fn render(plan: &RenderPlan, pcm: &dyn PcmSource, options: &OfflineOptions) 
     renderer.transport_mut().seek(options.start);
     renderer.transport_mut().play();
 
-    let total = total.min(plan.length_samples.saturating_sub(options.start));
-    let mut samples = Vec::with_capacity(total as usize * 2);
+    // Past the last arrangement sample, keep processing so reverb/delay tails
+    // ring out (03 §9), capped at 30 s. An explicit range adds no tail, and a
+    // plan without fx has a zero tail — the unedited null tests are unchanged.
+    let tail = if options.frames.is_none() {
+        renderer
+            .prepared()
+            .max_tail_frames()
+            .min(30 * SAMPLE_RATE as usize) as u64
+    } else {
+        0
+    };
+    let total = match options.frames {
+        Some(frames) => frames.min(plan.length_samples.saturating_sub(options.start)),
+        None => plan
+            .length_samples
+            .saturating_sub(options.start)
+            .saturating_add(tail),
+    };
+    // Plugin delay compensation: the engine emits audio `latency` frames late.
+    // Render the timeline plus that many extra frames, then drop the leading
+    // latency so the file is sample-aligned with the timeline (03 §9).
+    let latency = renderer.output_latency_frames() as u64;
+    let engine_total = total.saturating_add(latency);
+    let mut samples = Vec::with_capacity(engine_total as usize * 2);
     let mut left = vec![0.0f32; block];
     let mut right = vec![0.0f32; block];
     let mut underruns = 0u64;
     let mut rendered = 0u64;
     let mut finite = true;
-    while rendered < total {
-        let frames = ((total - rendered) as usize).min(block);
+    while rendered < engine_total {
+        let frames = ((engine_total - rendered) as usize).min(block);
         let stats: RenderStats =
             renderer.process(pcm, &mut [&mut left[..frames], &mut right[..frames]]);
         underruns += stats.underruns;
@@ -142,6 +160,11 @@ pub fn render(plan: &RenderPlan, pcm: &dyn PcmSource, options: &OfflineOptions) 
         }
         rendered += frames as u64;
     }
+
+    // Drop the compensated lead-in; `total` frames remain.
+    let drop = (latency as usize).min(samples.len() / 2);
+    let keep = (total as usize).min(samples.len() / 2 - drop);
+    let samples = samples[drop * 2..(drop + keep) * 2].to_vec();
 
     let mut peak = 0.0f32;
     let mut sum_sq = 0.0f64;
