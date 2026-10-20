@@ -1,5 +1,6 @@
 import type { PlanRequest } from "@bragi/schemas";
 import { describe, expect, it } from "vitest";
+import type { PlannerConfig } from "../config.js";
 import { buildUserMessage } from "../context.js";
 import type { LlmReply, LlmRequest, PlannerLlm } from "../openrouter.js";
 import { Planner } from "../planner.js";
@@ -8,7 +9,7 @@ import { draftPlan, opsVariant, testProject, testRequest, trackFx } from "./fixt
 
 const model = await loadModelWasm();
 
-const CONFIG = {
+const CONFIG: PlannerConfig = {
   models: { fast: "fast/model", smart: "smart/model", explain: "explain/model" },
   reasoning: { fast: "default", smart: "default", explain: "default" },
   maxTokens: 1024,
