@@ -1,0 +1,22 @@
+{
+  "text": "The intro stays sparse for eight bars, then the first drum hit at bar 9 gives the song a clear lift into the verse.",
+  "highlights": [
+    {
+      "region": {
+        "startTick": 0,
+        "endTick": 30720,
+        "tracks": ["trk_mix"]
+      },
+      "label": "Sparse intro"
+    },
+    {
+      "region": {
+        "startTick": 30720,
+        "endTick": 61440,
+        "tracks": ["trk_mix"]
+      },
+      "label": "Drums enter"
+    }
+  ],
+  "learnMore": "The energy rises from 0.21 in the intro to 0.48 in the verse."
+}

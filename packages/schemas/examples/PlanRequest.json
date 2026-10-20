@@ -1,0 +1,145 @@
+{
+  "doc": {
+    "schemaVersion": 1,
+    "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+    "meta": {
+      "title": "Midnight Drive",
+      "createdAt": "2026-10-18T12:00:00Z",
+      "tags": ["synthwave", "nocturnal"]
+    },
+    "sources": [
+      {
+        "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+        "kind": "upload",
+        "originalAsset": "sha256:f515ec054ae36e0c457ea84bb68b94c306e3e112f231ac61406b7d570f9d341e",
+        "workingAsset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+        "durationSamples": 11520000,
+        "channels": 2,
+        "label": "midnight_drive.mp3"
+      }
+    ],
+    "analyses": {
+      "src_01JAB4W2C3D4E5F6G7H8J9KMNP": {
+        "profile": "standard",
+        "status": {
+          "rhythm": "done",
+          "separation": "running"
+        },
+        "blobs": {
+          "rhythm": "sha256:0782f3efa26c8cdb0a09a96c40aff8c1bb6b83de76a0ae80f438121b1c08b6b7"
+        },
+        "summary": {
+          "bpm": 118,
+          "key": "F# minor",
+          "durationSec": 240,
+          "genres": ["synthwave"],
+          "moods": ["nostalgic", "driving"]
+        }
+      }
+    },
+    "tracks": [
+      {
+        "id": "trk_mix",
+        "name": "Original mix",
+        "role": "full_mix",
+        "color": "#8A8F98",
+        "gainDb": 0,
+        "pan": 0,
+        "mute": false,
+        "solo": false,
+        "hidden": false,
+        "fx": []
+      }
+    ],
+    "arrangement": {
+      "timebase": {
+        "ppq": 960,
+        "tempoMap": [
+          {
+            "tick": 0,
+            "bpm": 118,
+            "curve": "step"
+          }
+        ],
+        "timeSignatures": [
+          {
+            "bar": 0,
+            "numerator": 4,
+            "denominator": 4
+          }
+        ]
+      },
+      "sections": [
+        {
+          "id": "sec_01",
+          "kind": "intro",
+          "label": "Intro",
+          "lengthTicks": 30720,
+          "transitionIn": {
+            "kind": "cut",
+            "lengthTicks": 0
+          },
+          "lanes": {
+            "trk_mix": {
+              "clips": [
+                {
+                  "id": "clp_01",
+                  "asset": "sha256:4ba509921a4cccb80028e0f42c5c3d2a1e2adfcd080bc018a3d515ef930bbb8a",
+                  "srcStart": 0,
+                  "srcEnd": 780000,
+                  "start": 0,
+                  "warp": {
+                    "mode": "beatgrid",
+                    "anchors": [
+                      {
+                        "srcSample": 0,
+                        "tick": 0
+                      },
+                      {
+                        "srcSample": 97627,
+                        "tick": 3840
+                      }
+                    ]
+                  },
+                  "gainDb": 0,
+                  "pitchSemitones": 0,
+                  "fadeInTicks": 0,
+                  "fadeOutTicks": 0,
+                  "fadeCurve": "equal_power",
+                  "provenance": {
+                    "kind": "user",
+                    "createdAt": "2026-10-18T12:00:00Z"
+                  }
+                }
+              ],
+              "automation": []
+            }
+          }
+        }
+      ],
+      "master": {
+        "fx": [],
+        "automation": [],
+        "gainDb": 0
+      }
+    }
+  },
+  "prompt": "make the intro warmer and a little quieter",
+  "region": {
+    "startTick": 0,
+    "endTick": 30720,
+    "tracks": ["trk_mix"]
+  },
+  "uiContext": {
+    "view": "moment",
+    "selectedTrackIds": ["trk_mix"],
+    "selectedSectionIds": ["sec_01"]
+  },
+  "variantCount": 2,
+  "preferences": {
+    "keepVocals": true,
+    "maxCredits": 50
+  },
+  "explain": false,
+  "libraryNames": ["Daft Punk", "Midnight Drive"]
+}

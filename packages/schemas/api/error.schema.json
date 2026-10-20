@@ -44,6 +44,9 @@
         "UPSTREAM_UNAVAILABLE",
         "BUDGET_EXCEEDED",
         "COMMIT_PARENT_MISSING",
+        "PLANNER_UNAVAILABLE",
+        "PLAN_INVALID",
+        "PROMPT_POLICY",
         "INTERNAL"
       ]
     }

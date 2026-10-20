@@ -1,0 +1,35 @@
+{
+  "planId": "pln_01JAB5H7K8M9N0P1Q2R3S4T5V6",
+  "interpretation": "I'll make the intro warmer and a little quieter.",
+  "variants": [
+    {
+      "label": "Warm and quiet",
+      "description": "A gentle low-end lift and a small gain trim.",
+      "steps": [
+        {
+          "kind": "ops",
+          "ops": [
+            {
+              "op": "fx.add",
+              "scope": { "kind": "track", "trackId": "trk_mix" },
+              "fx": {
+                "id": "fx_01",
+                "type": "eq3",
+                "params": { "lowDb": 2.5 },
+                "bypass": false
+              }
+            },
+            {
+              "op": "track.update",
+              "trackId": "trk_mix",
+              "patch": { "gainDb": -1.5 }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "estimatedCredits": 0,
+  "estimatedSeconds": 0,
+  "notices": []
+}

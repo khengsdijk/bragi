@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlanRequest",
+  "description": "One planner request (06 §2). v1 carries the song document because the server holds no projects (docs/wp/2.6.md); the API never stores it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["doc", "prompt", "uiContext"],
+  "properties": {
+    "doc": {
+      "description": "The `Project` at the commit the user is looking at. Analyses travel inside it.",
+      "$ref": "../song/project.schema.json"
+    },
+    "prompt": {
+      "description": "The user's words. Untrusted: escaped and placed in a data block before it reaches the model.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "region": {
+      "description": "The lasso / selection the prompt targets. Absent for song chat.",
+      "$ref": "../song/region.schema.json"
+    },
+    "uiContext": {
+      "$ref": "#/$defs/PlannerUiContext"
+    },
+    "variantCount": {
+      "$ref": "#/$defs/PlanVariantCount"
+    },
+    "preferences": {
+      "$ref": "#/$defs/PlanPreferences"
+    },
+    "explain": {
+      "description": "Ask for an `Explanation` instead of an `EditPlan` (06 §8).",
+      "type": "boolean"
+    },
+    "libraryNames": {
+      "description": "Artist and title strings from the user's library, for the content-policy pre-pass (10 §7).",
+      "$ref": "#/$defs/LibraryNameList"
+    }
+  },
+  "$defs": {
+    "PlannerUiContext": {
+      "description": "What the user is looking at (06 §2).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["view", "selectedTrackIds", "selectedSectionIds"],
+      "properties": {
+        "view": {
+          "$ref": "#/$defs/PlannerView"
+        },
+        "selectedTrackIds": {
+          "$ref": "../song/common.schema.json#/$defs/TrackIdList"
+        },
+        "selectedSectionIds": {
+          "$ref": "#/$defs/SectionIdList"
+        }
+      }
+    },
+    "SectionIdList": {
+      "type": "array",
+      "items": { "$ref": "../song/common.schema.json#/$defs/SectionId" }
+    },
+    "PlannerView": {
+      "description": "Which view the prompt bar is open in (06 §2).",
+      "type": "string",
+      "enum": ["song", "moment"]
+    },
+    "PlanVariantCount": {
+      "type": "integer",
+      "enum": [1, 2, 3]
+    },
+    "PlanPreferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "keepVocals": { "type": "boolean" },
+        "maxCredits": { "type": "number", "minimum": 0 }
+      }
+    },
+    "LibraryName": {
+      "description": "One artist or title string to block (10 §7).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "LibraryNameList": {
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/LibraryName" }
+    }
+  }
+}

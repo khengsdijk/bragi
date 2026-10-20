@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EditPlan",
+  "description": "A plan the planner offers as 1–3 variants (06 §3). v1 only executes `ops` steps; the other kinds are part of the contract for WP-2.7.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["planId", "interpretation", "variants", "estimatedCredits", "estimatedSeconds"],
+  "properties": {
+    "planId": { "$ref": "../song/common.schema.json#/$defs/PlanId" },
+    "interpretation": {
+      "description": "Plain language: what the planner understood and will do.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "clarification": {
+      "description": "Only when the request is truly ambiguous; then `variants` may be empty.",
+      "$ref": "#/$defs/Clarification"
+    },
+    "variants": { "$ref": "#/$defs/PlanVariantList" },
+    "estimatedCredits": { "type": "number", "minimum": 0 },
+    "estimatedSeconds": { "type": "number", "minimum": 0 },
+    "notices": {
+      "description": "Plain-language notes about transformations the planner made, e.g. an artist name rewritten as descriptors (10 §7).",
+      "$ref": "#/$defs/NoticeList"
+    }
+  },
+  "$defs": {
+    "Clarification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question", "options"],
+      "properties": {
+        "question": { "type": "string", "minLength": 1 },
+        "options": { "$ref": "#/$defs/ClarificationOptions" }
+      }
+    },
+    "ClarificationOptions": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 5,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "PlanVariantList": {
+      "type": "array",
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/PlanVariant" }
+    },
+    "PlanVariant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "description", "steps"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "steps": { "$ref": "#/$defs/PlanStepList" },
+        "scope": {
+          "description": "Set to `song` when the variant intentionally changes the whole song; only valid with a song-wide prompt (06 §7).",
+          "$ref": "#/$defs/PlanVariantScope"
+        }
+      }
+    },
+    "PlanVariantScope": {
+      "type": "string",
+      "enum": ["song"]
+    },
+    "PlanStepList": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/PlanStep" }
+    },
+    "PlanStep": {
+      "oneOf": [
+        { "$ref": "#/$defs/OpsStep" },
+        { "$ref": "#/$defs/GenerateStep" },
+        { "$ref": "#/$defs/ApplyGeneratedStep" },
+        { "$ref": "#/$defs/SmoothStep" }
+      ]
+    },
+    "OpsStep": {
+      "description": "Ops applied directly and instantly (06 §3).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ops"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["ops"]
+        },
+        "ops": { "$ref": "#/$defs/OpList" }
+      }
+    },
+    "OpList": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "../song/op.schema.json" }
+    },
+    "GenerateStep": {
+      "description": "A generation job (09). Not offered in v1.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "capability", "params", "context"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["generate"]
+        },
+        "id": { "type": "string", "minLength": 1 },
+        "capability": { "type": "string", "minLength": 1 },
+        "params": { "$ref": "../song/asset-meta.schema.json#/$defs/FreeformParams" },
+        "context": { "$ref": "#/$defs/ContextSpec" }
+      }
+    },
+    "ApplyGeneratedStep": {
+      "description": "Turns a generation job's output into clip ops (06 §3). Not offered in v1.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "from", "placement"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["apply_generated"]
+        },
+        "from": { "type": "string", "minLength": 1 },
+        "placement": { "$ref": "#/$defs/Placement" }
+      }
+    },
+    "SmoothStep": {
+      "description": "Seam smoothing tools compiled client-side (03 §8.2). Not offered in v1.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "region", "tools"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["smooth"]
+        },
+        "region": { "$ref": "../song/region.schema.json" },
+        "tools": { "$ref": "#/$defs/SmoothToolList" }
+      }
+    },
+    "SmoothToolList": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/SmoothTool" }
+    },
+    "SmoothTool": {
+      "type": "string",
+      "enum": ["crossfade", "loudness_match", "spectral_match", "beat_align"]
+    },
+    "Placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["region", "mode"],
+      "properties": {
+        "region": { "$ref": "../song/region.schema.json" },
+        "trackId": { "$ref": "../song/common.schema.json#/$defs/TrackId" },
+        "newTrack": { "$ref": "#/$defs/NewTrack" },
+        "mode": { "$ref": "#/$defs/PlacementMode" }
+      }
+    },
+    "NewTrack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "role"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "role": { "$ref": "../song/common.schema.json#/$defs/StemRole" }
+      }
+    },
+    "PlacementMode": {
+      "type": "string",
+      "enum": ["replace", "layer", "insert"]
+    },
+    "ContextSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tracks"],
+      "properties": {
+        "before": { "$ref": "../song/common.schema.json#/$defs/TickRange" },
+        "after": { "$ref": "../song/common.schema.json#/$defs/TickRange" },
+        "tracks": { "$ref": "#/$defs/ContextTracks" },
+        "conditioningStems": { "$ref": "../song/common.schema.json#/$defs/TrackIdList" }
+      }
+    },
+    "ContextTracks": {
+      "oneOf": [
+        { "$ref": "../song/common.schema.json#/$defs/TrackIdList" },
+        { "$ref": "../song/common.schema.json#/$defs/All" }
+      ]
+    },
+    "NoticeList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}
