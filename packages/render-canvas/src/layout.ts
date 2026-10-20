@@ -3,8 +3,9 @@
  * sharing one horizontal time axis, with a label gutter on the left that holds each ribbon's
  * name and its solo/mute buttons. Pure functions, so hit testing is unit-tested without a GPU.
  */
+import { SECTION_EDGE_HANDLE_PX } from "./drag.js";
 import type { CanvasDocument, Viewport, ZoomLevel } from "./types.js";
-import { xToTime } from "./viewport.js";
+import { pxPerSecond, xToTime } from "./viewport.js";
 
 export interface Rect {
   readonly x: number;
@@ -148,6 +149,36 @@ export function hitTest(
     }
   }
   return { kind: "none" };
+}
+
+/** A pointer target in the section lane: the block body or its enlarged right-edge handle. */
+export interface SectionHit {
+  readonly kind: "body" | "rightEdge";
+  readonly sectionId: string;
+}
+
+/**
+ * What a pointer on the section lane grabs (07 §4.1–4.2): the body (move) or the right edge
+ * (resize). The edge wins over the body and is a 12 px handle centred on the boundary, so its
+ * right half reaches into the next block (11 §6.4).
+ */
+export function sectionHitAt(
+  layout: Layout,
+  viewport: Viewport,
+  doc: CanvasDocument,
+  x: number,
+  y: number,
+): SectionHit | null {
+  if (!contains(layout.sections, x, y) || x < layout.gutter) return null;
+  const pps = pxPerSecond(viewport.pxPerBeat, doc.bpm);
+  const toX = (sec: number): number => layout.gutter + (sec - viewport.originSec) * pps;
+  for (const section of doc.sections) {
+    if (Math.abs(x - toX(section.endSec)) <= SECTION_EDGE_HANDLE_PX / 2) {
+      return { kind: "rightEdge", sectionId: section.id };
+    }
+  }
+  const id = sectionAt(doc, xToTime(viewport, doc.bpm, x - layout.gutter));
+  return id === null ? null : { kind: "body", sectionId: id };
 }
 
 /** The section under a canvas point, or `null` (the context-menu hit test). */

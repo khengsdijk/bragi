@@ -201,6 +201,34 @@ export interface TrackToggleEvent {
   readonly value: boolean;
 }
 
+/**
+ * One step of a section drag (07 §4.1). The canvas never changes the document: the app turns
+ * these into `section.move` / `section.duplicate` steps on its preview copy.
+ */
+export interface SectionDragEvent {
+  readonly sectionId: string;
+  /** Pointer x in content coordinates: px from the time area's left edge. */
+  readonly pointerX: number;
+  /**
+   * The insertion slot nearest the pointer in the document at drag start, 0..sections.length.
+   * `section.duplicate` uses it directly; `section.move` maps it past the dragged block.
+   */
+  readonly dropIndex: number;
+  readonly altKey: boolean;
+}
+
+/** One step of a right-edge resize (07 §4.2); the document changes only on release. */
+export interface SectionResizeEvent {
+  readonly sectionId: string;
+  /** Pointer x in content coordinates: px from the time area's left edge. */
+  readonly pointerX: number;
+  /** The target length in whole bars, snapped and clamped to 1..64. */
+  readonly bars: number;
+  /** Client coordinates of the release, to anchor the Loop/Stretch/Trim popover. */
+  readonly clientX: number;
+  readonly clientY: number;
+}
+
 /** Events out. */
 export interface CanvasEvents {
   /** The user changed the selection by pointer on the canvas. */
@@ -219,6 +247,22 @@ export interface CanvasEvents {
     readonly clientX: number;
     readonly clientY: number;
   };
+  /** A drag on a block body became a reorder or an Alt-duplicate (past the 4 px threshold). */
+  readonly sectionDragStart: SectionDragEvent;
+  /** The drop slot changed or the pointer moved during a section drag. */
+  readonly sectionDragMove: SectionDragEvent;
+  /** The pointer was released: the app applies the final slot and commits one batch. */
+  readonly sectionDragEnd: SectionDragEvent;
+  /** Escape or a cancelled pointer: the app drops the preview and returns the engine. */
+  readonly sectionDragCancel: { readonly sectionId: string };
+  /** A drag on the 12 px right edge became a resize (ghost only, no document change). */
+  readonly sectionResizeStart: SectionResizeEvent;
+  /** The snapped bar count under the pointer. */
+  readonly sectionResizeMove: SectionResizeEvent;
+  /** The pointer was released; the app asks Loop/Stretch/Trim in a popover. */
+  readonly sectionResizeEnd: SectionResizeEvent;
+  /** Escape or a cancelled pointer: no resize is offered. */
+  readonly sectionResizeCancel: { readonly sectionId: string };
   /** The canvas wants a different height (lanes grow with the number of ribbons). */
   readonly contentHeight: { readonly px: number };
 }
