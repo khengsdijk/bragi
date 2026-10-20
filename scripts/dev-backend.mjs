@@ -17,7 +17,10 @@
  *
  * Options: `--no-infra` skips step 1 (the integration test checks it itself).
  * Env: `BRAGI_MODELS_DIR` (default `.bragi/models` when it exists),
- * `API_PORT`, and any OTEL_* variable, passed through unchanged.
+ * `API_PORT`, and any OTEL_* variable, passed through unchanged. Secrets such as
+ * `OPENROUTER_API_KEY` can live in the git-ignored `.env` (see `.env.example`) or
+ * `infra/.env`: both are read at start, `.env` first, and never override a value
+ * already exported in the shell; empty values are skipped.
  *
  * The API runs single-user by default: `BRAGI_AUTH_MODE` defaults to
  * `single-user` and `API_HOST` to `127.0.0.1` (loopback, which single-user mode
@@ -26,15 +29,30 @@
  * to the orchestrator too, harmlessly.
  */
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { connect } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const API_DIR = join(ROOT, "services", "api");
 const WORKERS_DIR = join(ROOT, "services", "workers");
 const COMPOSE_FILE = join(ROOT, "infra", "docker-compose.yml");
+
+/**
+ * Fills `process.env` from the local env files: the root `.env`, then `infra/.env`. A variable
+ * already set (by the shell or an earlier file) wins, and an empty value is skipped so a blank
+ * template line never shadows a default.
+ */
+function loadLocalEnv() {
+  for (const file of [join(ROOT, ".env"), join(ROOT, "infra", ".env")]) {
+    if (!existsSync(file)) continue;
+    for (const [name, value] of Object.entries(parseEnv(readFileSync(file, "utf8")))) {
+      if (value !== "" && process.env[name] === undefined) process.env[name] = value;
+    }
+  }
+}
 
 /** @type {Record<string, number>} */
 const COLOURS = { api: 36, orchestrator: 35, worker: 33 };
@@ -203,4 +221,5 @@ async function main() {
   console.log("[dev:backend] running; Ctrl-C to stop");
 }
 
+loadLocalEnv();
 await main();
