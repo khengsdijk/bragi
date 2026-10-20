@@ -40,7 +40,11 @@ export function PromptBar({ planner, anchor }: PromptBarProps): ReactNode {
   const hintId = useId();
 
   useEffect(() => {
-    if (open) input.current?.focus();
+    if (!open) return;
+    input.current?.focus();
+    // A menu or the palette restores its own focus after the action; take it back afterwards.
+    const timer = globalThis.setTimeout(() => input.current?.focus(), 0);
+    return () => globalThis.clearTimeout(timer);
   }, [open]);
 
   if (!open || target === null) return null;
