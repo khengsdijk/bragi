@@ -586,6 +586,10 @@ class GenerateExtendResultSchemaVersion(IntEnum):
     integer_1 = 1
 
 
+class GenerateFillResultSchemaVersion(IntEnum):
+    integer_1 = 1
+
+
 class GenerateStepKind(StrEnum):
     generate = 'generate'
 
@@ -1974,6 +1978,54 @@ class GenerateExtendResult(BaseModel):
     steps: ExtendStepList
 
 
+class GenerateFillResult(BaseModel):
+    """
+    One candidate's result blob for the two-sided capabilities, `generate.inpaint` and `generate.transition` (specs/09-generation.md §4.3–4.4, §6). Like `GenerateExtendResult`, but the audio is spliced at both ends: `startOffsetSamples` is where the processed audio starts relative to the gap start (the `before` context's end), `endOffsetSamples` where it ends relative to the gap end (the `after` context's start). Uploaded as `blobs.candidate_<index>` next to `assets.candidate_<index>`.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: GenerateFillResultSchemaVersion
+    index: Annotated[int, Field(ge=0)]
+    asset: AssetHash
+    seed: Annotated[int, Field(ge=0)]
+    model: Annotated[str, Field(min_length=1)]
+    modelVersion: Annotated[str, Field(min_length=1)]
+    passed: Annotated[
+        bool, Field(description='Every non-skipped gate passed at both seams.')
+    ]
+    qualityWarning: bool
+    seamScore: Annotated[
+        float | None,
+        Field(
+            description='Seam score at the start splice (into the gap); null when it could not be scored.'
+        ),
+    ]
+    endSeamScore: Annotated[
+        float | None,
+        Field(
+            description='Seam score at the end splice (out of the gap); null when it could not be scored.'
+        ),
+    ]
+    tempoError: Annotated[float, Field(ge=0.0)]
+    keyMatch: ExtendKeyMatch | None = None
+    matchEq: ExtendMatchEq | None = None
+    startOffsetSamples: Annotated[
+        int,
+        Field(
+            description='Start of the processed audio relative to the gap start; negative = inside the `before` overlap.'
+        ),
+    ]
+    endOffsetSamples: Annotated[
+        int,
+        Field(
+            description='End of the processed audio relative to the gap end; positive = inside the `after` overlap.'
+        ),
+    ]
+    steps: ExtendStepList
+
+
 class IngestResult(BaseModel):
     """
     The `ingest` stage result (specs/04-analysis-pipeline.md §3.1).
@@ -3051,6 +3103,50 @@ class GenerateExtendParams(BaseModel):
     n: Annotated[int, Field(description='Candidates to generate (09 §5).', ge=1, le=4)]
 
 
+class GenerateInpaintParams(BaseModel):
+    """
+    Params of `generate.inpaint` (specs/09-generation.md §4.3): fill a gap between two parts of the song. The rendered context on each side is a job input asset, `inputs.assets.before` (ending where the gap starts) and `inputs.assets.after` (starting where it ends), each up to 15 s and cut on bar lines. The backend generates `overlapBars + gapBars + overlapBars` so the gate pass can splice inside both overlaps.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    context: MusicalContext
+    gapBars: Annotated[
+        int,
+        Field(
+            description='Bars of new audio between the two contexts, not counting the overlaps.',
+            ge=1,
+            le=32,
+        ),
+    ]
+    overlapBars: Annotated[
+        int | None,
+        Field(
+            description='Bars of context on each side the model may re-create for the splice searches.',
+            ge=1,
+            le=4,
+        ),
+    ] = 1
+    prompt: Annotated[
+        str | None,
+        Field(
+            description='Optional user prompt; artist names are rewritten into descriptors before this point (specs/10-fusion.md §7).',
+            max_length=1000,
+        ),
+    ] = None
+    seed: Annotated[
+        int | None,
+        Field(
+            description="Optional base seed that overrides `context.seed` (an HQ re-render sends the accepted candidate's seed).",
+            ge=0,
+            le=4294967295,
+        ),
+    ] = None
+    tier: ExtendTier
+    n: Annotated[int, Field(description='Candidates to generate (09 §5).', ge=1, le=4)]
+
+
 class GenerateStep(BaseModel):
     """
     A generation job (09). Not offered in v1.
@@ -3064,6 +3160,42 @@ class GenerateStep(BaseModel):
     capability: Annotated[str, Field(min_length=1)]
     params: FreeformParams
     context: ContextSpec
+
+
+class GenerateTransitionParams(BaseModel):
+    """
+    Params of `generate.transition` (specs/09-generation.md §4.4): a short bridge across a section boundary for "Smooth with AI". `inputs.assets.before` is the end of the outgoing section (up to 8 bars) and `inputs.assets.after` the start of the incoming one (up to 8 bars). The result becomes `Transition { kind: "generated", asset, lengthTicks }` on the incoming section, played as an overlay centred on the boundary.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    context: MusicalContext
+    lengthBars: Annotated[
+        int,
+        Field(
+            description='Bridge length in bars, centred on the boundary (09 §2: 1–4).',
+            ge=1,
+            le=4,
+        ),
+    ]
+    prompt: Annotated[
+        str | None,
+        Field(
+            description='Optional user prompt; artist names are rewritten into descriptors before this point.',
+            max_length=1000,
+        ),
+    ] = None
+    seed: Annotated[
+        int | None,
+        Field(
+            description='Optional base seed that overrides `context.seed`.',
+            ge=0,
+            le=4294967295,
+        ),
+    ] = None
+    tier: ExtendTier
+    n: Annotated[int, Field(description='Candidates to generate (09 §5).', ge=1, le=4)]
 
 
 class HarmonyResult(BaseModel):
@@ -4027,6 +4159,9 @@ ROOT_TYPES: tuple[str, ...] = (
     "FxUpdateOp",
     "GenerateExtendParams",
     "GenerateExtendResult",
+    "GenerateFillResult",
+    "GenerateInpaintParams",
+    "GenerateTransitionParams",
     "GenerateWarmupParams",
     "HarmonyResult",
     "IngestResult",

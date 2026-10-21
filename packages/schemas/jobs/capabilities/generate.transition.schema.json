@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GenerateTransitionParams",
+  "description": "Params of `generate.transition` (specs/09-generation.md §4.4): a short bridge across a section boundary for \"Smooth with AI\". `inputs.assets.before` is the end of the outgoing section (up to 8 bars) and `inputs.assets.after` the start of the incoming one (up to 8 bars). The result becomes `Transition { kind: \"generated\", asset, lengthTicks }` on the incoming section, played as an overlay centred on the boundary.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["context", "lengthBars", "tier", "n"],
+  "properties": {
+    "context": { "$ref": "common.schema.json#/$defs/MusicalContext" },
+    "lengthBars": {
+      "description": "Bridge length in bars, centred on the boundary (09 §2: 1–4).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4
+    },
+    "prompt": {
+      "description": "Optional user prompt; artist names are rewritten into descriptors before this point.",
+      "type": "string",
+      "maxLength": 1000
+    },
+    "seed": {
+      "description": "Optional base seed that overrides `context.seed`.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "tier": { "$ref": "generate.extend.schema.json#/$defs/ExtendTier" },
+    "n": {
+      "description": "Candidates to generate (09 §5).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4
+    }
+  }
+}

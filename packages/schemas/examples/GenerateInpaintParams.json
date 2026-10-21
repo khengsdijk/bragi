@@ -1,0 +1,16 @@
+{
+  "context": {
+    "bpm": 120,
+    "timeSignature": [4, 4],
+    "key": {
+      "tonic": "A",
+      "mode": "minor"
+    },
+    "descriptors": ["warm analog synths"],
+    "seed": 1234
+  },
+  "gapBars": 4,
+  "overlapBars": 1,
+  "tier": "preview",
+  "n": 3
+}

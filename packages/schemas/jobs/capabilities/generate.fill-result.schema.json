@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GenerateFillResult",
+  "description": "One candidate's result blob for the two-sided capabilities, `generate.inpaint` and `generate.transition` (specs/09-generation.md §4.3–4.4, §6). Like `GenerateExtendResult`, but the audio is spliced at both ends: `startOffsetSamples` is where the processed audio starts relative to the gap start (the `before` context's end), `endOffsetSamples` where it ends relative to the gap end (the `after` context's start). Uploaded as `blobs.candidate_<index>` next to `assets.candidate_<index>`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "index",
+    "asset",
+    "seed",
+    "model",
+    "modelVersion",
+    "passed",
+    "qualityWarning",
+    "seamScore",
+    "endSeamScore",
+    "tempoError",
+    "startOffsetSamples",
+    "endOffsetSamples",
+    "steps"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "index": { "type": "integer", "minimum": 0 },
+    "asset": { "$ref": "../../song/common.schema.json#/$defs/AssetHash" },
+    "seed": { "type": "integer", "minimum": 0 },
+    "model": { "type": "string", "minLength": 1 },
+    "modelVersion": { "type": "string", "minLength": 1 },
+    "passed": {
+      "description": "Every non-skipped gate passed at both seams.",
+      "type": "boolean"
+    },
+    "qualityWarning": { "type": "boolean" },
+    "seamScore": {
+      "description": "Seam score at the start splice (into the gap); null when it could not be scored.",
+      "type": ["number", "null"]
+    },
+    "endSeamScore": {
+      "description": "Seam score at the end splice (out of the gap); null when it could not be scored.",
+      "type": ["number", "null"]
+    },
+    "tempoError": { "type": "number", "minimum": 0 },
+    "keyMatch": { "$ref": "generate.extend-result.schema.json#/$defs/ExtendKeyMatch" },
+    "matchEq": { "$ref": "generate.extend-result.schema.json#/$defs/ExtendMatchEq" },
+    "startOffsetSamples": {
+      "description": "Start of the processed audio relative to the gap start; negative = inside the `before` overlap.",
+      "type": "integer"
+    },
+    "endOffsetSamples": {
+      "description": "End of the processed audio relative to the gap end; positive = inside the `after` overlap.",
+      "type": "integer"
+    },
+    "steps": { "$ref": "generate.extend-result.schema.json#/$defs/ExtendStepList" }
+  }
+}

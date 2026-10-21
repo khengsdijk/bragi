@@ -462,6 +462,7 @@ export type ExtendMatchEqBands = number[];
  * @minItems 1
  */
 export type ExtendStepList = [ExtendStep, ...ExtendStep[]];
+export type GenerateFillResultSchemaVersion = 1;
 /**
  * Blob schema version (01 §7).
  */
@@ -1834,6 +1835,92 @@ export interface ExtendStep {
   metrics: {
     [k: string]: unknown;
   };
+}
+/**
+ * One candidate's result blob for the two-sided capabilities, `generate.inpaint` and `generate.transition` (specs/09-generation.md §4.3–4.4, §6). Like `GenerateExtendResult`, but the audio is spliced at both ends: `startOffsetSamples` is where the processed audio starts relative to the gap start (the `before` context's end), `endOffsetSamples` where it ends relative to the gap end (the `after` context's start). Uploaded as `blobs.candidate_<index>` next to `assets.candidate_<index>`.
+ */
+export interface GenerateFillResult {
+  schemaVersion: GenerateFillResultSchemaVersion;
+  index: number;
+  asset: AssetHash;
+  seed: number;
+  model: string;
+  modelVersion: string;
+  /**
+   * Every non-skipped gate passed at both seams.
+   */
+  passed: boolean;
+  qualityWarning: boolean;
+  /**
+   * Seam score at the start splice (into the gap); null when it could not be scored.
+   */
+  seamScore: number | null;
+  /**
+   * Seam score at the end splice (out of the gap); null when it could not be scored.
+   */
+  endSeamScore: number | null;
+  tempoError: number;
+  keyMatch?: ExtendKeyMatch;
+  matchEq?: ExtendMatchEq;
+  /**
+   * Start of the processed audio relative to the gap start; negative = inside the `before` overlap.
+   */
+  startOffsetSamples: number;
+  /**
+   * End of the processed audio relative to the gap end; positive = inside the `after` overlap.
+   */
+  endOffsetSamples: number;
+  steps: ExtendStepList;
+}
+/**
+ * Params of `generate.inpaint` (specs/09-generation.md §4.3): fill a gap between two parts of the song. The rendered context on each side is a job input asset, `inputs.assets.before` (ending where the gap starts) and `inputs.assets.after` (starting where it ends), each up to 15 s and cut on bar lines. The backend generates `overlapBars + gapBars + overlapBars` so the gate pass can splice inside both overlaps.
+ */
+export interface GenerateInpaintParams {
+  context: MusicalContext;
+  /**
+   * Bars of new audio between the two contexts, not counting the overlaps.
+   */
+  gapBars: number;
+  /**
+   * Bars of context on each side the model may re-create for the splice searches.
+   */
+  overlapBars?: number;
+  /**
+   * Optional user prompt; artist names are rewritten into descriptors before this point (specs/10-fusion.md §7).
+   */
+  prompt?: string;
+  /**
+   * Optional base seed that overrides `context.seed` (an HQ re-render sends the accepted candidate's seed).
+   */
+  seed?: number;
+  tier: ExtendTier;
+  /**
+   * Candidates to generate (09 §5).
+   */
+  n: number;
+}
+/**
+ * Params of `generate.transition` (specs/09-generation.md §4.4): a short bridge across a section boundary for "Smooth with AI". `inputs.assets.before` is the end of the outgoing section (up to 8 bars) and `inputs.assets.after` the start of the incoming one (up to 8 bars). The result becomes `Transition { kind: "generated", asset, lengthTicks }` on the incoming section, played as an overlay centred on the boundary.
+ */
+export interface GenerateTransitionParams {
+  context: MusicalContext;
+  /**
+   * Bridge length in bars, centred on the boundary (09 §2: 1–4).
+   */
+  lengthBars: number;
+  /**
+   * Optional user prompt; artist names are rewritten into descriptors before this point.
+   */
+  prompt?: string;
+  /**
+   * Optional base seed that overrides `context.seed`.
+   */
+  seed?: number;
+  tier: ExtendTier;
+  /**
+   * Candidates to generate (09 §5).
+   */
+  n: number;
 }
 /**
  * Params of `generate.warmup` (specs/09-generation.md §5): a cheap ping that asks the generation worker to load the model the first interactive extend will use. It has no parameters; the route and the tier come from the generation routing table.

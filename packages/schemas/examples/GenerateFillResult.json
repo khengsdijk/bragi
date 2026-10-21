@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "index": 0,
+  "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "seed": 1234,
+  "model": "ace-step",
+  "modelVersion": "1.5.0",
+  "passed": true,
+  "qualityWarning": false,
+  "seamScore": 0.2134,
+  "tempoError": 0.0027,
+  "keyMatch": {
+    "detected": {
+      "tonic": "A",
+      "mode": "minor"
+    },
+    "confidence": 0.82,
+    "relation": "same",
+    "shiftSemitones": 0
+  },
+  "matchEq": {
+    "bands": [-1.2, 0.4, 0.9, -0.3],
+    "amount": 1.0
+  },
+  "steps": [
+    {
+      "step": "sanity",
+      "passed": true,
+      "skipped": false,
+      "metrics": {
+        "nonfinite_samples": 0,
+        "silent_fraction": 0.0,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "step": "tempo",
+      "passed": true,
+      "skipped": false,
+      "metrics": {
+        "tempo_bpm": 119.68,
+        "requested_bpm": 120.0,
+        "tempo_error": 0.0027
+      }
+    },
+    {
+      "step": "key",
+      "passed": true,
+      "skipped": false,
+      "metrics": {
+        "relation": "same",
+        "shift_semitones": 0
+      }
+    },
+    {
+      "step": "beat_align",
+      "passed": true,
+      "skipped": false,
+      "metrics": {
+        "confidence": 0.71,
+        "shift_ms": 1.5
+      }
+    },
+    {
+      "step": "splice",
+      "passed": true,
+      "skipped": false,
+      "metrics": {
+        "seam_score": 0.2134,
+        "position": 12288,
+        "candidates": 4
+      }
+    },
+    {
+      "step": "match",
+      "passed": true,
+      "skipped": false,
+      "metrics": {
+        "target_lufs": -14.0,
+        "eq_max_abs_db": 1.2
+      }
+    },
+    {
+      "step": "final_seam",
+      "passed": true,
+      "skipped": false,
+      "metrics": {
+        "seam_score": 0.2134
+      }
+    }
+  ],
+  "endSeamScore": 0.41,
+  "startOffsetSamples": -24000,
+  "endOffsetSamples": 12000
+}

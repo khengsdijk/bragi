@@ -5311,6 +5311,262 @@ impl<'de> ::serde::Deserialize<'de> for GenerateExtendResultSchemaVersion {
             .map_err(|e| <D::Error as ::serde::de::Error>::custom(e.to_string()))
     }
 }
+///One candidate's result blob for the two-sided capabilities, `generate.inpaint` and `generate.transition` (specs/09-generation.md §4.3–4.4, §6). Like `GenerateExtendResult`, but the audio is spliced at both ends: `startOffsetSamples` is where the processed audio starts relative to the gap start (the `before` context's end), `endOffsetSamples` where it ends relative to the gap end (the `after` context's start). Uploaded as `blobs.candidate_<index>` next to `assets.candidate_<index>`.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateFillResult {
+    pub asset: AssetHash,
+    ///End of the processed audio relative to the gap end; positive = inside the `after` overlap.
+    #[serde(rename = "endOffsetSamples")]
+    pub end_offset_samples: i64,
+    ///Seam score at the end splice (out of the gap); null when it could not be scored.
+    #[serde(
+        rename = "endSeamScore",
+        deserialize_with = "::std::option::Option::deserialize"
+    )]
+    pub end_seam_score: ::std::option::Option<f64>,
+    pub index: u64,
+    #[serde(
+        rename = "keyMatch",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub key_match: ::std::option::Option<ExtendKeyMatch>,
+    #[serde(
+        rename = "matchEq",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub match_eq: ::std::option::Option<ExtendMatchEq>,
+    pub model: GenerateFillResultModel,
+    #[serde(rename = "modelVersion")]
+    pub model_version: GenerateFillResultModelVersion,
+    ///Every non-skipped gate passed at both seams.
+    pub passed: bool,
+    #[serde(rename = "qualityWarning")]
+    pub quality_warning: bool,
+    #[serde(rename = "schemaVersion")]
+    pub schema_version: GenerateFillResultSchemaVersion,
+    ///Seam score at the start splice (into the gap); null when it could not be scored.
+    #[serde(
+        rename = "seamScore",
+        deserialize_with = "::std::option::Option::deserialize"
+    )]
+    pub seam_score: ::std::option::Option<f64>,
+    pub seed: u64,
+    ///Start of the processed audio relative to the gap start; negative = inside the `before` overlap.
+    #[serde(rename = "startOffsetSamples")]
+    pub start_offset_samples: i64,
+    pub steps: ExtendStepList,
+    #[serde(rename = "tempoError")]
+    pub tempo_error: f64,
+}
+///`GenerateFillResultModel`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct GenerateFillResultModel(::std::string::String);
+impl ::std::ops::Deref for GenerateFillResultModel {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<GenerateFillResultModel> for ::std::string::String {
+    fn from(value: GenerateFillResultModel) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for GenerateFillResultModel {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for GenerateFillResultModel {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for GenerateFillResultModel {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for GenerateFillResultModel {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`GenerateFillResultModelVersion`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct GenerateFillResultModelVersion(::std::string::String);
+impl ::std::ops::Deref for GenerateFillResultModelVersion {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<GenerateFillResultModelVersion> for ::std::string::String {
+    fn from(value: GenerateFillResultModelVersion) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for GenerateFillResultModelVersion {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for GenerateFillResultModelVersion {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for GenerateFillResultModelVersion {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for GenerateFillResultModelVersion {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`GenerateFillResultSchemaVersion`
+#[derive(::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct GenerateFillResultSchemaVersion(i64);
+impl ::std::ops::Deref for GenerateFillResultSchemaVersion {
+    type Target = i64;
+    fn deref(&self) -> &i64 {
+        &self.0
+    }
+}
+impl ::std::convert::From<GenerateFillResultSchemaVersion> for i64 {
+    fn from(value: GenerateFillResultSchemaVersion) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::TryFrom<i64> for GenerateFillResultSchemaVersion {
+    type Error = self::error::ConversionError;
+    fn try_from(value: i64) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if ![1_i64].contains(&value) {
+            Err("invalid value".into())
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for GenerateFillResultSchemaVersion {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        Self::try_from(<i64>::deserialize(deserializer)?)
+            .map_err(|e| <D::Error as ::serde::de::Error>::custom(e.to_string()))
+    }
+}
+///Params of `generate.inpaint` (specs/09-generation.md §4.3): fill a gap between two parts of the song. The rendered context on each side is a job input asset, `inputs.assets.before` (ending where the gap starts) and `inputs.assets.after` (starting where it ends), each up to 15 s and cut on bar lines. The backend generates `overlapBars + gapBars + overlapBars` so the gate pass can splice inside both overlaps.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateInpaintParams {
+    pub context: MusicalContext,
+    ///Bars of new audio between the two contexts, not counting the overlaps.
+    #[serde(rename = "gapBars")]
+    pub gap_bars: ::std::num::NonZeroU64,
+    ///Candidates to generate (09 §5).
+    pub n: ::std::num::NonZeroU64,
+    ///Bars of context on each side the model may re-create for the splice searches.
+    #[serde(
+        rename = "overlapBars",
+        default = "defaults::default_nzu64::<::std::num::NonZeroU64, 1>"
+    )]
+    pub overlap_bars: ::std::num::NonZeroU64,
+    ///Optional user prompt; artist names are rewritten into descriptors before this point (specs/10-fusion.md §7).
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub prompt: ::std::option::Option<GenerateInpaintParamsPrompt>,
+    ///Optional base seed that overrides `context.seed` (an HQ re-render sends the accepted candidate's seed).
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub seed: ::std::option::Option<u32>,
+    pub tier: ExtendTier,
+}
+///Optional user prompt; artist names are rewritten into descriptors before this point (specs/10-fusion.md §7).
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct GenerateInpaintParamsPrompt(::std::string::String);
+impl ::std::ops::Deref for GenerateInpaintParamsPrompt {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<GenerateInpaintParamsPrompt> for ::std::string::String {
+    fn from(value: GenerateInpaintParamsPrompt) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for GenerateInpaintParamsPrompt {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 1000usize {
+            return Err("longer than 1000 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for GenerateInpaintParamsPrompt {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for GenerateInpaintParamsPrompt {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for GenerateInpaintParamsPrompt {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
 ///A generation job (09). Not offered in v1.
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
@@ -5466,6 +5722,74 @@ impl ::std::convert::TryFrom<::std::string::String> for GenerateStepKind {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
+    }
+}
+///Params of `generate.transition` (specs/09-generation.md §4.4): a short bridge across a section boundary for "Smooth with AI". `inputs.assets.before` is the end of the outgoing section (up to 8 bars) and `inputs.assets.after` the start of the incoming one (up to 8 bars). The result becomes `Transition { kind: "generated", asset, lengthTicks }` on the incoming section, played as an overlay centred on the boundary.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateTransitionParams {
+    pub context: MusicalContext,
+    ///Bridge length in bars, centred on the boundary (09 §2: 1–4).
+    #[serde(rename = "lengthBars")]
+    pub length_bars: ::std::num::NonZeroU64,
+    ///Candidates to generate (09 §5).
+    pub n: ::std::num::NonZeroU64,
+    ///Optional user prompt; artist names are rewritten into descriptors before this point.
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub prompt: ::std::option::Option<GenerateTransitionParamsPrompt>,
+    ///Optional base seed that overrides `context.seed`.
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub seed: ::std::option::Option<u32>,
+    pub tier: ExtendTier,
+}
+///Optional user prompt; artist names are rewritten into descriptors before this point.
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct GenerateTransitionParamsPrompt(::std::string::String);
+impl ::std::ops::Deref for GenerateTransitionParamsPrompt {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<GenerateTransitionParamsPrompt> for ::std::string::String {
+    fn from(value: GenerateTransitionParamsPrompt) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for GenerateTransitionParamsPrompt {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 1000usize {
+            return Err("longer than 1000 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for GenerateTransitionParamsPrompt {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for GenerateTransitionParamsPrompt {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for GenerateTransitionParamsPrompt {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
     }
 }
 ///Params of `generate.warmup` (specs/09-generation.md §5): a cheap ping that asks the generation worker to load the model the first interactive extend will use. It has no parameters; the route and the tier come from the generation routing table.
@@ -12816,6 +13140,9 @@ pub const ROOT_TYPES: &[&str] = &[
     "FxUpdateOp",
     "GenerateExtendParams",
     "GenerateExtendResult",
+    "GenerateFillResult",
+    "GenerateInpaintParams",
+    "GenerateTransitionParams",
     "GenerateWarmupParams",
     "HarmonyResult",
     "IngestResult",

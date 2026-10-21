@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GenerateInpaintParams",
+  "description": "Params of `generate.inpaint` (specs/09-generation.md §4.3): fill a gap between two parts of the song. The rendered context on each side is a job input asset, `inputs.assets.before` (ending where the gap starts) and `inputs.assets.after` (starting where it ends), each up to 15 s and cut on bar lines. The backend generates `overlapBars + gapBars + overlapBars` so the gate pass can splice inside both overlaps.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["context", "gapBars", "tier", "n"],
+  "properties": {
+    "context": { "$ref": "common.schema.json#/$defs/MusicalContext" },
+    "gapBars": {
+      "description": "Bars of new audio between the two contexts, not counting the overlaps.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 32
+    },
+    "overlapBars": {
+      "description": "Bars of context on each side the model may re-create for the splice searches.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4,
+      "default": 1
+    },
+    "prompt": {
+      "description": "Optional user prompt; artist names are rewritten into descriptors before this point (specs/10-fusion.md §7).",
+      "type": "string",
+      "maxLength": 1000
+    },
+    "seed": {
+      "description": "Optional base seed that overrides `context.seed` (an HQ re-render sends the accepted candidate's seed).",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "tier": { "$ref": "generate.extend.schema.json#/$defs/ExtendTier" },
+    "n": {
+      "description": "Candidates to generate (09 §5).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4
+    }
+  }
+}

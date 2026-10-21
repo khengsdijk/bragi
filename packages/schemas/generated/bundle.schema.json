@@ -2200,6 +2200,151 @@
         1
       ]
     },
+    "GenerateFillResult": {
+      "title": "GenerateFillResult",
+      "description": "One candidate's result blob for the two-sided capabilities, `generate.inpaint` and `generate.transition` (specs/09-generation.md §4.3–4.4, §6). Like `GenerateExtendResult`, but the audio is spliced at both ends: `startOffsetSamples` is where the processed audio starts relative to the gap start (the `before` context's end), `endOffsetSamples` where it ends relative to the gap end (the `after` context's start). Uploaded as `blobs.candidate_<index>` next to `assets.candidate_<index>`.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "index",
+        "asset",
+        "seed",
+        "model",
+        "modelVersion",
+        "passed",
+        "qualityWarning",
+        "seamScore",
+        "endSeamScore",
+        "tempoError",
+        "startOffsetSamples",
+        "endOffsetSamples",
+        "steps"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/GenerateFillResultSchemaVersion"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "asset": {
+          "$ref": "#/$defs/AssetHash"
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "modelVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "passed": {
+          "description": "Every non-skipped gate passed at both seams.",
+          "type": "boolean"
+        },
+        "qualityWarning": {
+          "type": "boolean"
+        },
+        "seamScore": {
+          "description": "Seam score at the start splice (into the gap); null when it could not be scored.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "endSeamScore": {
+          "description": "Seam score at the end splice (out of the gap); null when it could not be scored.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "tempoError": {
+          "type": "number",
+          "minimum": 0
+        },
+        "keyMatch": {
+          "$ref": "#/$defs/ExtendKeyMatch"
+        },
+        "matchEq": {
+          "$ref": "#/$defs/ExtendMatchEq"
+        },
+        "startOffsetSamples": {
+          "description": "Start of the processed audio relative to the gap start; negative = inside the `before` overlap.",
+          "type": "integer"
+        },
+        "endOffsetSamples": {
+          "description": "End of the processed audio relative to the gap end; positive = inside the `after` overlap.",
+          "type": "integer"
+        },
+        "steps": {
+          "$ref": "#/$defs/ExtendStepList"
+        }
+      }
+    },
+    "GenerateFillResultSchemaVersion": {
+      "title": "GenerateFillResultSchemaVersion",
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "GenerateInpaintParams": {
+      "title": "GenerateInpaintParams",
+      "description": "Params of `generate.inpaint` (specs/09-generation.md §4.3): fill a gap between two parts of the song. The rendered context on each side is a job input asset, `inputs.assets.before` (ending where the gap starts) and `inputs.assets.after` (starting where it ends), each up to 15 s and cut on bar lines. The backend generates `overlapBars + gapBars + overlapBars` so the gate pass can splice inside both overlaps.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context",
+        "gapBars",
+        "tier",
+        "n"
+      ],
+      "properties": {
+        "context": {
+          "$ref": "#/$defs/MusicalContext"
+        },
+        "gapBars": {
+          "description": "Bars of new audio between the two contexts, not counting the overlaps.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "overlapBars": {
+          "description": "Bars of context on each side the model may re-create for the splice searches.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "default": 1
+        },
+        "prompt": {
+          "description": "Optional user prompt; artist names are rewritten into descriptors before this point (specs/10-fusion.md §7).",
+          "type": "string",
+          "maxLength": 1000
+        },
+        "seed": {
+          "description": "Optional base seed that overrides `context.seed` (an HQ re-render sends the accepted candidate's seed).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "tier": {
+          "$ref": "#/$defs/ExtendTier"
+        },
+        "n": {
+          "description": "Candidates to generate (09 §5).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        }
+      }
+    },
     "GenerateStep": {
       "title": "GenerateStep",
       "description": "A generation job (09). Not offered in v1.",
@@ -2238,6 +2383,49 @@
       "enum": [
         "generate"
       ]
+    },
+    "GenerateTransitionParams": {
+      "title": "GenerateTransitionParams",
+      "description": "Params of `generate.transition` (specs/09-generation.md §4.4): a short bridge across a section boundary for \"Smooth with AI\". `inputs.assets.before` is the end of the outgoing section (up to 8 bars) and `inputs.assets.after` the start of the incoming one (up to 8 bars). The result becomes `Transition { kind: \"generated\", asset, lengthTicks }` on the incoming section, played as an overlay centred on the boundary.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context",
+        "lengthBars",
+        "tier",
+        "n"
+      ],
+      "properties": {
+        "context": {
+          "$ref": "#/$defs/MusicalContext"
+        },
+        "lengthBars": {
+          "description": "Bridge length in bars, centred on the boundary (09 §2: 1–4).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "prompt": {
+          "description": "Optional user prompt; artist names are rewritten into descriptors before this point.",
+          "type": "string",
+          "maxLength": 1000
+        },
+        "seed": {
+          "description": "Optional base seed that overrides `context.seed`.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "tier": {
+          "$ref": "#/$defs/ExtendTier"
+        },
+        "n": {
+          "description": "Candidates to generate (09 §5).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        }
+      }
     },
     "GenerateWarmupParams": {
       "title": "GenerateWarmupParams",
