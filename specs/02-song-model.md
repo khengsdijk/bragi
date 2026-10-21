@@ -1,6 +1,6 @@
 # 02 — Song Model & Versioning
 
-Status: Draft v0.5 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
+Status: Draft v0.6 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
 
 This is the **architectural heart** of Bragi. Every feature (canvas, AI edits, generation, fusion, export) reads and writes this model, and nothing else. If a feature can't be expressed as operations on this model, the model is extended here first (with an ADR).
 
@@ -81,6 +81,7 @@ interface Source {
   channels: 1 | 2;
   label: string;              // e.g. original filename or "Generated: dreamy outro"
   provenance?: Provenance;
+  placement?: { sectionId: SectionId };  // set when the source is placed, not analysis-laid-out (§6.4)
 }
 
 interface AssetMeta {          // stored in DB/cache, not in the document
@@ -260,6 +261,7 @@ A batch is atomic: it applies fully or not at all.
 |---|---|---|
 | `project.set_meta` | title?, tags?, description?, color?, suggestedSections? | An empty `suggestedSections` clears the analysis suggestions (02 §6.3) |
 | `analysis.apply` | sourceId, stage, blob, effects[] | System op. Records an analysis stage and reconciles the document with it: creates the full-mix track and section, sets the tempo map, splits the arrangement into analysed sections, creates stem tracks and fills lanes. Deterministic and order-independent. See §6. |
+| `source.add` | source, index? | Adds a source (upload, generation, recording, imported stem). A generated source placed by a feature (an accepted extend) carries `placement { sectionId }`, which makes it placement-owned: `analysis.apply` maps its stems into that section instead of laying out a baseline block (§6.4). |
 | `track.add` | track, index? | |
 | `track.remove` | trackId | Also removes its lanes and clears every `sidechainSource` that pointed at it |
 | `track.update` | trackId, patch (name, color, gainDb, pan, mute, solo, hidden) | |
@@ -389,6 +391,14 @@ The op records `status[stage] = "done"`, `blobs[stage] = blob` and the merged `e
   - the UI accepts a suggestion by turning it into `section.split`/`section.insert` ops, and dismisses it with `project.set_meta`'s `suggestedSections` (an empty list clears them).
 
 `analysis.apply` is applied as a new commit on top of HEAD, like any other op. It is a **system** op, so invariant 6 (AI may not modify locked sections) does not reject it; a locked section is a user edit, though, so it routes the block down the edited path above.
+
+### 6.4 Placed sources (generated extends)
+
+A source whose `placement` names a section is **placement-owned**: `build` ignores it, so analysing it never appends a second end-to-end block, never re-times the song and never creates its own full-mix/full-song sections. A generated extend is placed by the `extend_placement` helper (09 §4.2) as one batch — `source.add`, the section, the clip and, only when missing, a `generated` track — and that batch is the candidate commit.
+
+`analysis.apply` records a placed source's stages like any other source, then reconciles the **one** placement section from the recorded effect set. A `separation` effect maps every stem role and the residual onto the first track with that role, or onto a new deterministic `trk_…stem:<role>` track, with one deterministic `clp_ derive:<sectionId>:<trackId>` clip per (section, track). Once the stems are mapped, the source's `generated`-role clip and lane (and a generated track this source owns and left empty) are removed; with no `separation` effect — separation failed — the generated lane stays and the song is still playable. The mapping depends only on the recorded effects and the placement, so stage arrival order cannot change it and re-delivery is idempotent.
+
+A placement never dangles: `section.remove` clears a placement that names the removed section and `section.merge` re-points a placement on B to A; validation rejects a placement whose section does not exist.
 
 ```ts
 type AnalysisEffect =
