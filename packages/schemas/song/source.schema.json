@@ -63,8 +63,15 @@
           "description": "The source sample that plays at `range.startTick`: a fill skips the left overlap before the gap. Required with `range` (02 §6.4).",
           "type": "integer",
           "minimum": 0
-        }
+        },
+        "tracks": { "$ref": "#/$defs/PlacementTracks" }
       }
+    },
+    "PlacementTracks": {
+      "description": "The tracks a fill was asked for (the erased region's tracks). Its separation maps only the stem roles of these tracks into the span; the other tracks keep their own audio there. Absent = every role (an extend).",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "common.schema.json#/$defs/TrackId" }
     }
   }
 }

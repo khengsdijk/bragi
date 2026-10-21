@@ -1395,6 +1395,15 @@ export const PLAN_TOOL_SCHEMA: Record<string, unknown> = {
         "insert"
       ]
     },
+    "PlacementTracks": {
+      "title": "PlacementTracks",
+      "description": "The tracks a fill was asked for (the erased region's tracks). Its separation maps only the stem roles of these tracks into the span; the other tracks keep their own audio there. Absent = every role (an extend).",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/TrackId"
+      }
+    },
     "PlanId": {
       "title": "PlanId",
       "description": "AI edit plan ID: `pln_` + ULID (02 §2.1, 06).",
@@ -2319,6 +2328,9 @@ export const PLAN_TOOL_SCHEMA: Record<string, unknown> = {
           "description": "The source sample that plays at `range.startTick`: a fill skips the left overlap before the gap. Required with `range` (02 §6.4).",
           "type": "integer",
           "minimum": 0
+        },
+        "tracks": {
+          "$ref": "#/$defs/PlacementTracks"
         }
       }
     },

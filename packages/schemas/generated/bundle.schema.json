@@ -3725,6 +3725,15 @@
         "insert"
       ]
     },
+    "PlacementTracks": {
+      "title": "PlacementTracks",
+      "description": "The tracks a fill was asked for (the erased region's tracks). Its separation maps only the stem roles of these tracks into the span; the other tracks keep their own audio there. Absent = every role (an extend).",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/TrackId"
+      }
+    },
     "PlanExecuteRequest": {
       "title": "PlanExecuteRequest",
       "description": "The body of `POST /v1/plans/{planId}/execute` (06 §5): which variants to run, and the context audio the client rendered and uploaded for every generate step. The plan itself is stored server-side from `POST /v1/plans`, so the client never posts it back. `contexts` is keyed by the generate step's `id`; a `generate.extend` step needs `context`, `generate.inpaint` and `generate.transition` need `before` and `after` (09 §2.1).",
@@ -5320,6 +5329,9 @@
           "description": "The source sample that plays at `range.startTick`: a fill skips the left overlap before the gap. Required with `range` (02 §6.4).",
           "type": "integer",
           "minimum": 0
+        },
+        "tracks": {
+          "$ref": "#/$defs/PlacementTracks"
         }
       }
     },

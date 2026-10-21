@@ -307,6 +307,12 @@ export type SourceKind = "upload" | "generated" | "recorded" | "imported_stem";
  * Channel count of an asset or source: mono or stereo. Ingest duplicates mono and downmixes more than two channels (04 §3.1).
  */
 export type ChannelCount = 1 | 2;
+/**
+ * The tracks a fill was asked for (the erased region's tracks). Its separation maps only the stem roles of these tracks into the span; the other tracks keep their own audio there. Absent = every role (an extend).
+ *
+ * @minItems 1
+ */
+export type PlacementTracks = [TrackId, ...TrackId[]];
 export type TrackAddOpOp = "track.add";
 export type TrackRemoveOpOp = "track.remove";
 export type TrackUpdateOpOp = "track.update";
@@ -1253,6 +1259,7 @@ export interface SourcePlacement {
    * The source sample that plays at `range.startTick`: a fill skips the left overlap before the gap. Required with `range` (02 §6.4).
    */
   srcStartSamples?: number;
+  tracks?: PlacementTracks;
 }
 /**
  * `track.add` (02 §4.2). Add a track, at index or appended.

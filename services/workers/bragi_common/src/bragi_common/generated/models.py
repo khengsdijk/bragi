@@ -2385,6 +2385,19 @@ class NewTrack(BaseModel):
     role: StemRole
 
 
+type PlacementTracks = Annotated[
+    list[TrackId],
+    Field(
+        description="The tracks a fill was asked for (the erased region's tracks). Its separation maps only the stem roles of these tracks into the span; the other tracks keep their own audio there. Absent = every role (an extend).",
+        min_length=1,
+        title='PlacementTracks',
+    ),
+]
+"""
+The tracks a fill was asked for (the erased region's tracks). Its separation maps only the stem roles of these tracks into the span; the other tracks keep their own audio there. Absent = every role (an extend).
+"""
+
+
 class PlanExecuteResponse(BaseModel):
     """
     The answer of `POST /v1/plans/{planId}/execute` (06 §5): one interactive generation job per generate step of the chosen variants. `variant` is the index into the stored plan, so the client can attach each job's partials to the right candidate commit.
@@ -2700,6 +2713,7 @@ class SourcePlacement(BaseModel):
             ge=0,
         ),
     ] = None
+    tracks: PlacementTracks | None = None
 
 
 class StemActivity(BaseModel):

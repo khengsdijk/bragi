@@ -23,11 +23,11 @@ use crate::analysis::{kind_label, role_color, role_name};
 use crate::canonical::derived_id;
 use crate::generated::{
     AssetHash, BatchAuthor, BatchId, ChannelCount, Clip, ClipAddOp, ClipId, FadeCurve, FxChain,
-    IsoDate, LaneMap, Op, OpBatch, Project, Provenance, SectionId, SectionInsertOp,
-    SectionInstance, SectionKind, SectionSetTransitionOp, Source, SourceAddOp, SourceId,
-    SourceKind, SourcePlacement, StemRole, SystemAuthor, SystemAuthorKind, TickRange, Track,
-    TrackAddOp, TrackId, TrackOrigin, Transition, TransitionKind, Warp, WarpAnchor, WarpBeatgrid,
-    WarpBeatgridMode,
+    IsoDate, LaneMap, Op, OpBatch, PlacementTracks, Project, Provenance, SectionId,
+    SectionInsertOp, SectionInstance, SectionKind, SectionSetTransitionOp, Source, SourceAddOp,
+    SourceId, SourceKind, SourcePlacement, StemRole, SystemAuthor, SystemAuthorKind, TickRange,
+    Track, TrackAddOp, TrackId, TrackOrigin, Transition, TransitionKind, Warp, WarpAnchor,
+    WarpBeatgrid, WarpBeatgridMode,
 };
 use crate::time::{TempoCtx, bar_beat_to_ticks, bar_ticks, ticks_to_bar_beat};
 
@@ -117,6 +117,10 @@ pub struct FillPlacementRequest {
     /// The crossfade the gate applied at each splice, in ticks; the clips fade over it.
     #[serde(default)]
     pub crossfade_ticks: u64,
+    /// The erased region's tracks. The fill's later separation maps only these tracks' stem roles
+    /// into the gap; `None` maps every role (02 §6.4).
+    #[serde(default)]
+    pub tracks: Option<Vec<TrackId>>,
     /// The candidate batch's ID.
     pub batch_id: BatchId,
     /// The candidate batch's history label.
@@ -168,6 +172,9 @@ pub enum PlacementError {
     /// A generated transition needs a positive length.
     #[error("a generated transition needs a positive length")]
     NoLength,
+    /// A fill names a track that is not in the document, or an empty track list.
+    #[error("the fill's track list is empty or names an unknown track")]
+    UnknownTrack,
     /// A section has no boundary before it.
     #[error("section {0} is the first section and has no boundary before it")]
     NoBoundary(SectionId),
@@ -344,6 +351,7 @@ pub fn extend_placement(
             range: None,
             section_id: section_id.clone(),
             src_start_samples: None,
+            tracks: None,
         }),
         provenance: Some(request.candidate.provenance.clone()),
         working_asset: request.candidate.working_asset.clone(),
@@ -465,7 +473,7 @@ pub fn extend_placement(
 /// # let request = FillPlacementRequest {
 /// #     gap_range: TickRange { start_tick: 1920, end_tick: 5760 },
 /// #     candidate, start_offset_samples: -48_000, end_offset_samples: 48_000,
-/// #     crossfade_ticks: 480, batch_id: "bat_fill".parse().unwrap(),
+/// #     crossfade_ticks: 480, tracks: None, batch_id: "bat_fill".parse().unwrap(),
 /// #     label: "Fill gap".to_owned(),
 /// #     created_at: "2026-10-18T12:00:00Z".parse().unwrap(),
 /// # };
@@ -486,6 +494,12 @@ pub fn fill_placement(
     }
     if request.start_offset_samples > 0 || request.end_offset_samples < 0 {
         return Err(PlacementError::GapNotCovered);
+    }
+    if let Some(tracks) = &request.tracks {
+        let known = |id: &TrackId| doc.tracks.iter().any(|track| &track.id == id);
+        if tracks.is_empty() || !tracks.iter().all(known) {
+            return Err(PlacementError::UnknownTrack);
+        }
     }
     let gap_samples = samples_between(doc, gap_start, gap_end);
     if gap_samples == 0 {
@@ -588,6 +602,7 @@ pub fn fill_placement(
             }),
             section_id: spans[anchor].id.clone(),
             src_start_samples: Some(src_start),
+            tracks: request.tracks.clone().map(PlacementTracks),
         },
     );
     let mut ops = vec![Op::SourceAddOp(SourceAddOp {
@@ -683,6 +698,7 @@ pub fn transition_placement(
             range: None,
             section_id: request.section_id.clone(),
             src_start_samples: None,
+            tracks: None,
         },
     );
     let ops = vec![

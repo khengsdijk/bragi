@@ -8685,6 +8685,26 @@ impl ::std::convert::TryFrom<::std::string::String> for PlacementMode {
         value.parse()
     }
 }
+///The tracks a fill was asked for (the erased region's tracks). Its separation maps only the stem roles of these tracks into the span; the other tracks keep their own audio there. Absent = every role (an extend).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct PlacementTracks(pub ::std::vec::Vec<TrackId>);
+impl ::std::ops::Deref for PlacementTracks {
+    type Target = ::std::vec::Vec<TrackId>;
+    fn deref(&self) -> &::std::vec::Vec<TrackId> {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlacementTracks> for ::std::vec::Vec<TrackId> {
+    fn from(value: PlacementTracks) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<TrackId>> for PlacementTracks {
+    fn from(value: ::std::vec::Vec<TrackId>) -> Self {
+        Self(value)
+    }
+}
 ///The body of `POST /v1/plans/{planId}/execute` (06 §5): which variants to run, and the context audio the client rendered and uploaded for every generate step. The plan itself is stored server-side from `POST /v1/plans`, so the client never posts it back. `contexts` is keyed by the generate step's `id`; a `generate.extend` step needs `context`, `generate.inpaint` and `generate.transition` need `before` and `after` (09 §2.1).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
@@ -11640,6 +11660,8 @@ pub struct SourcePlacement {
         skip_serializing_if = "::std::option::Option::is_none"
     )]
     pub src_start_samples: ::std::option::Option<u64>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub tracks: ::std::option::Option<PlacementTracks>,
 }
 ///`StemActivity`
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]

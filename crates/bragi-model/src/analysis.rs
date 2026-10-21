@@ -925,6 +925,23 @@ fn reconcile_placed_source(
         .collect();
     // The residual is what makes the extended part reconstruct its own mix; map it too.
     assets_by_role.push((StemRole::Residual, separation.residual.clone()));
+    // A fill asked for some tracks only (the erased ones): map just their roles, so the tracks
+    // that still have their own audio in the gap are left alone (02 §6.4). The residual is part of
+    // the mix only when the whole mix was asked for.
+    if let Some(tracks) = &placement.tracks {
+        let wanted: Vec<StemRole> = doc
+            .tracks
+            .iter()
+            .filter(|track| tracks.contains(&track.id))
+            .map(|track| track.role)
+            .collect();
+        assets_by_role.retain(|(role, _)| wanted.contains(role));
+        if assets_by_role.is_empty() {
+            // Nothing of the fill maps onto the asked-for tracks: keep its mix-only lane rather
+            // than leave the gap silent.
+            return Ok(());
+        }
+    }
     // The effect list is a set, so the role order must not depend on the worker's order.
     assets_by_role.sort_by_key(|(role, _)| role.to_string());
 

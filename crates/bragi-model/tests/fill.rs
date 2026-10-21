@@ -111,6 +111,7 @@ fn crossing_request(source: &str) -> FillPlacementRequest {
         start_offset_samples: -(BAR_SAMPLES as i64 / 2),
         end_offset_samples: BAR_SAMPLES as i64 / 2,
         crossfade_ticks: 480,
+        tracks: None,
         batch_id: "bat_fill".parse::<BatchId>().unwrap(),
         label: "Fill gap".to_owned(),
         created_at: "2026-10-18T12:00:00Z".parse::<IsoDate>().unwrap(),
@@ -533,5 +534,73 @@ proptest::proptest! {
             .flat_map(|lane| lane.clips.iter())
             .count();
         prop_assert_eq!(clips, if crossing { 2 } else { 1 });
+    }
+}
+
+fn stem_track(id: &str, role: &str) -> Value {
+    json!({ "id": id, "name": role, "role": role, "color": "#8A8F98", "gainDb": 0, "pan": 0,
+            "mute": false, "solo": false, "hidden": false, "fx": [] })
+}
+
+#[test]
+fn a_fill_for_some_tracks_maps_only_their_roles() {
+    // The user erased Drums only: the fill's separation lands on Drums, while Vocals keep their
+    // own audio in the gap and no residual lane is laid over it (02 §6.4).
+    let mut value = serde_json::to_value(song()).unwrap();
+    let tracks = value["tracks"].as_array_mut().unwrap();
+    tracks.push(stem_track("trk_drums", "drums"));
+    tracks.push(stem_track("trk_vocals", "vocals"));
+    let doc: Project = serde_json::from_value(value).unwrap();
+    let mut request = crossing_request("src_fill");
+    request.tracks = Some(vec!["trk_drums".parse().unwrap()]);
+    let placed = apply_batch(&doc, &fill_placement(&doc, &request).unwrap());
+    let next = apply_op(&placed, separation_op("src_fill"));
+
+    let clips_on = |track: &str| -> usize {
+        next.arrangement
+            .sections
+            .iter()
+            .filter_map(|section| {
+                section
+                    .lanes
+                    .0
+                    .iter()
+                    .find(|(id, _)| id.to_string() == track)
+                    .map(|(_, lane)| lane.clips.len())
+            })
+            .sum()
+    };
+    assert_eq!(
+        clips_on("trk_drums"),
+        2,
+        "drums fills the gap in both sections"
+    );
+    assert_eq!(clips_on("trk_vocals"), 0, "vocals were not asked for");
+    assert!(
+        !next
+            .tracks
+            .iter()
+            .any(|track| track.role == StemRole::Residual),
+        "no residual track for a partial fill"
+    );
+    assert!(
+        !next
+            .tracks
+            .iter()
+            .any(|track| track.role == StemRole::Generated),
+        "the mix-only generated lane is gone"
+    );
+}
+
+#[test]
+fn a_fill_rejects_an_unknown_or_empty_track_list() {
+    let doc = song();
+    for tracks in [vec![], vec!["trk_nope".parse().unwrap()]] {
+        let mut request = crossing_request("src_fill");
+        request.tracks = Some(tracks);
+        assert!(matches!(
+            fill_placement(&doc, &request),
+            Err(PlacementError::UnknownTrack)
+        ));
     }
 }
