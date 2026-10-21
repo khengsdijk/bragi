@@ -22,6 +22,7 @@ import {
   packCommand,
   STATE_HEADER_WORDS,
 } from "../engine/codec.js";
+import { applyMixDelta } from "../engine/delta.js";
 import type {
   AssetHash,
   CandidateSlot,
@@ -98,6 +99,11 @@ export interface EngineAsset {
 export interface EngineOfflineBridge {
   /** Decodes compressed assets off the audio thread. */
   decode(assets: readonly EngineAssetBytes[]): Promise<readonly EngineAsset[]>;
+  /**
+   * Installs a document in the offline engine, adding the compressed assets it does not hold yet.
+   * The host calls it lazily before a render, so opening a song does not decode everything twice.
+   */
+  load(doc: ProjectJson, assets: readonly EngineAssetBytes[]): Promise<void>;
   /** Renders a job offline (`Render` stretch quality). */
   render(job: RenderJob): Promise<RenderResult>;
   /** One pyramid level, as `[min, max]` pairs. */
@@ -151,6 +157,24 @@ export function createWasmEngineHost(options: WasmEngineHostOptions): EngineHost
   let disposed = false;
   /** Hashes whose PCM the worklet holds; a structural reload adds to it, never re-sends. */
   const loaded = new Set<AssetHash>();
+  /** The newest committed document: the last `loadDocument` with mix deltas folded in. */
+  let latestDoc: ProjectJson | null = null;
+  /** The document the offline engine holds, and the hashes it has decoded. */
+  let offlineDoc: ProjectJson | null = null;
+  const offlineAssets = new Set<AssetHash>();
+  /** Offline loads and renders run one at a time, so a render never sees a half-loaded document. */
+  let offlineQueue: Promise<unknown> = Promise.resolve();
+
+  /** Brings the offline engine up to `latestDoc` (03 §9: renders use the committed document). */
+  const syncOffline = async (): Promise<void> => {
+    const doc = latestDoc;
+    if (doc === null || doc === offlineDoc) return;
+    const missing = collectAssetHashes(doc).filter((hash) => !offlineAssets.has(hash));
+    const bytes = missing.length > 0 && options.assets ? await options.assets.fetch(missing) : [];
+    await options.offline.load(doc, bytes);
+    for (const asset of bytes) offlineAssets.add(asset.hash);
+    offlineDoc = doc;
+  };
 
   const tick = (): void => {
     if (!running) return;
@@ -191,6 +215,7 @@ export function createWasmEngineHost(options: WasmEngineHostOptions): EngineHost
     },
     async loadDocument(doc) {
       assertLive();
+      latestDoc = doc;
       const assets = await missingAssets(doc);
       await options.playback.load(doc, assets);
       // Marked only after the worklet accepted the load, so a failed post can retry.
@@ -203,6 +228,7 @@ export function createWasmEngineHost(options: WasmEngineHostOptions): EngineHost
       // structural ones (`requiresFullResync`) are recompiled by the next
       // `loadDocument`, which the Song Store issues for that commit.
       options.playback.applyDelta(delta);
+      if (latestDoc !== null) latestDoc = applyMixDelta(latestDoc, delta) ?? latestDoc;
     },
     setPreview(preview: PreviewPatch | null) {
       assertLive();
@@ -236,7 +262,12 @@ export function createWasmEngineHost(options: WasmEngineHostOptions): EngineHost
     },
     render(job) {
       assertLive();
-      return options.offline.render(job);
+      const result = offlineQueue.then(async () => {
+        await syncOffline();
+        return options.offline.render(job);
+      });
+      offlineQueue = result.catch(() => undefined);
+      return result;
     },
     peaks(asset, level) {
       assertLive();

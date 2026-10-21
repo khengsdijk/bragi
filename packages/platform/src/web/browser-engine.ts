@@ -213,6 +213,9 @@ export function createBrowserEngine(options: BrowserEngineOptions): BrowserEngin
         decode(assets) {
           return request<readonly EngineAsset[]>(worker, { type: "decode", assets });
         },
+        async load(doc, assets) {
+          await request<number>(worker, { type: "load", doc, assets });
+        },
         render(job) {
           // WP-1.11: the worker does the encode and returns files, so the whole job goes across.
           return request<RenderResult>(worker, { type: "render", job });

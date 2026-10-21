@@ -198,6 +198,7 @@ function fakeOffline(): EngineOfflineBridge {
         sampleRate: 48000,
       }));
     },
+    async load() {},
     async render(job) {
       return {
         channels: 2,
@@ -290,6 +291,53 @@ describe("the wasm engine host", () => {
     expect(jobs).toEqual([
       { kind: "context", range: { startTick: 0, endTick: 960 }, tracks: ["trk_01"] },
     ]);
+    await host.dispose();
+  });
+
+  it("loads the committed document into the offline engine before a render, once", async () => {
+    const playback = fakePlayback();
+    const first = `sha256:${"a".repeat(64)}` as const;
+    const second = `sha256:${"b".repeat(64)}` as const;
+    const steps: string[] = [];
+    const offline: EngineOfflineBridge = {
+      ...fakeOffline(),
+      async load(doc, assets) {
+        steps.push(`load ${JSON.stringify(doc)} [${assets.map((asset) => asset.hash[7]).join("")}]`);
+      },
+      async render(job) {
+        steps.push(`render ${job.kind}`);
+        return fakeOffline().render(job);
+      },
+    };
+    const host = createWasmEngineHost({
+      playback: playback.bridge,
+      offline,
+      assets: {
+        async fetch(hashes) {
+          return hashes.map(
+            (hash): EngineAssetBytes => ({ hash, bytes: new Uint8Array([1]), mime: "audio/wav" }),
+          );
+        },
+      },
+      schedule: () => 1,
+      cancelSchedule: () => {},
+    });
+    const job: RenderJob = { kind: "context", range: { startTick: 0, endTick: 960 }, tracks: "all" };
+
+    const doc = { sources: [{ workingAsset: first }], tracks: [] };
+    await host.loadDocument(doc);
+    // Opening a song does not touch the offline engine.
+    expect(steps).toEqual([]);
+    await host.render(job);
+    await host.render(job);
+    expect(steps).toEqual([`load ${JSON.stringify(doc)} [a]`, "render context", "render context"]);
+
+    // A new document reloads it, sending only the asset the offline engine lacks.
+    steps.length = 0;
+    const next = { sources: [{ workingAsset: first }, { workingAsset: second }], tracks: [] };
+    await host.loadDocument(next);
+    await Promise.all([host.render(job), host.render(job)]);
+    expect(steps).toEqual([`load ${JSON.stringify(next)} [b]`, "render context", "render context"]);
     await host.dispose();
   });
 
