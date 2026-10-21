@@ -57,7 +57,11 @@ import {
   extendCandidateBatch,
 } from "../generation/state/extend-candidates.js";
 import { applyGeneratedAnalysis } from "../generation/state/generated-analysis.js";
-import { candidateEntry, type GenerationAudition } from "../generation/state/generation-session.js";
+import {
+  candidateEntries,
+  candidateEntry,
+  type GenerationAudition,
+} from "../generation/state/generation-session.js";
 import { ticksPerBarAt, totalTicks } from "../generation/state/musical-context.js";
 import { geometryFor } from "../generation/state/session-geometry.js";
 import type { History } from "../history/state/history.js";
@@ -201,6 +205,8 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
   const jobs = new Map<string, StepJob>();
   /** HQ re-render jobs, whose partials only need an announcement. */
   const hqJobs = new Set<string>();
+  /** HQ assets already announced: a cached render arrives as `completed` after its partial. */
+  const hqHandled = new Set<string>();
   let group: string | null = null;
   let planId: string | null = null;
   let disposeSubscription: (() => void) | null = null;
@@ -516,7 +522,10 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
     };
     deps.songStore.addAssets(placement.assets);
     const [commit] = await deps.history.addCandidates([batch], group);
-    if (commit === undefined) return;
+    if (commit === undefined) {
+      console.warn(`the history store made no commit for the "${job.variant.label}" candidate`);
+      return;
+    }
     accepted.set(commit.id, {
       assetHash,
       step: job.step,
@@ -531,14 +540,31 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
     deps.onAnnounce?.(t("generation.extend.live.ideaReady", { index: 0 }));
   }
 
+  /** One candidate of a generate job: a passing result is published, a rejected one is kept. */
+  async function handleCandidate(job: StepJob, assetHash: string, blobHash: string): Promise<void> {
+    if (job.published) return;
+    const json = await downloadJson(blobHash);
+    if (passedResult(json)) {
+      await publish(job, assetHash, json, false);
+      return;
+    }
+    // A rejected preview is only published when the job ends without a passing one.
+    job.lastRejected = { assetHash, json };
+  }
+
   function onMessage(message: RealtimeMessage): void {
     if (disposed) return;
     if ("jobId" in message && hqJobs.has(message.jobId)) {
-      if (message.t === "job.partial") {
-        void handleHqPartial(message).catch((error: unknown) => {
-          console.warn("could not fetch the planner's HQ render", error);
-          deps.onAnnounce?.(t("generation.extend.live.hqFailed"));
-        });
+      if (message.t === "job.partial" || message.t === "job.completed") {
+        // A cached HQ render sends no partials either; then its outputs are the one candidate.
+        for (const entry of candidateEntries(message.outputs)) {
+          if (hqHandled.has(entry.assetHash)) continue;
+          hqHandled.add(entry.assetHash);
+          void handleHqCandidate(entry.assetHash).catch((error: unknown) => {
+            console.warn("could not fetch the planner's HQ render", error);
+            deps.onAnnounce?.(t("generation.extend.live.hqFailed"));
+          });
+        }
       }
       return;
     }
@@ -559,15 +585,7 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
       const blob = candidateEntry(message.outputs?.blobs);
       if (asset === undefined || blob === undefined) return;
       partials = partials
-        .then(async () => {
-          const json = await downloadJson(blob.hash);
-          if (passedResult(json)) {
-            await publish(job, asset.hash, json, false);
-            return;
-          }
-          // A rejected preview is only published when the job ends without a passing one.
-          job.lastRejected = { assetHash: asset.hash, json };
-        })
+        .then(() => handleCandidate(job, asset.hash, blob.hash))
         .catch((error: unknown) => {
           console.warn("could not add a planner generation candidate", error);
           deps.onAnnounce?.(t("generation.extend.error.generic"));
@@ -578,9 +596,16 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
       const job = jobs.get(message.jobId);
       if (job === undefined) return;
       setQueue(null);
-      // The partial chain may still be reading this job's last result; decide after it.
+      // A result-cache hit publishes only `completed`, whose outputs hold every candidate at once
+      // and no partials at all (05 §4.3). The partial chain may still be reading this job's last
+      // result, so the decisions are made after it.
+      const entries = candidateEntries(message.outputs);
       partials = partials
         .then(async () => {
+          for (const entry of entries) {
+            if (job.published) break;
+            await handleCandidate(job, entry.assetHash, entry.blobHash);
+          }
           if (job.published || job.lastRejected === null) return;
           const rejected = job.lastRejected;
           await publish(job, rejected.assetHash, rejected.json, true);
@@ -607,12 +632,8 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
     }
   }
 
-  async function handleHqPartial(
-    message: Extract<RealtimeMessage, { t: "job.partial" }>,
-  ): Promise<void> {
-    const asset = candidateEntry(message.outputs?.assets);
-    if (asset === undefined) return;
-    await ensureAsset(asset.hash);
+  async function handleHqCandidate(assetHash: string): Promise<void> {
+    await ensureAsset(assetHash);
     deps.onAnnounce?.(t("generation.extend.live.hqReady"));
   }
 

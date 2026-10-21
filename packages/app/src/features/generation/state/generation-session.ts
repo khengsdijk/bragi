@@ -27,7 +27,14 @@ import {
   type RealtimeMessage,
 } from "@bragi/api-client";
 import type { BlobHash, ContextRange, Platform } from "@bragi/platform";
-import type { AssetMeta, JobEvent, OpBatch, Project, SectionKind } from "@bragi/schemas";
+import type {
+  AssetMeta,
+  JobEvent,
+  JobOutputs,
+  OpBatch,
+  Project,
+  SectionKind,
+} from "@bragi/schemas";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import { t } from "../../../i18n/index.js";
@@ -113,6 +120,13 @@ export interface GenerationDependencies {
 export interface CandidateEntry {
   readonly index: number;
   readonly hash: string;
+}
+
+/** One candidate the job published: its audio and its result blob. */
+export interface CandidateOutput {
+  readonly index: number;
+  readonly assetHash: string;
+  readonly blobHash: string;
 }
 
 /** The song geometry one plan needs: model handle, bars and samples between ticks. */
@@ -253,6 +267,25 @@ export function candidateEntry(
   return undefined;
 }
 
+/**
+ * Every candidate in a job's outputs, sorted by index.
+ *
+ * A `job.partial` carries one candidate; the `job.completed` of a result-cache hit carries all of
+ * them at once and no partials at all (05 §4.3, 09 §5), so both paths read the same map.
+ */
+export function candidateEntries(outputs: JobOutputs | undefined): CandidateOutput[] {
+  if (outputs === undefined) return [];
+  const entries: CandidateOutput[] = [];
+  for (const [key, assetHash] of Object.entries(outputs.assets ?? {})) {
+    const match = /^candidate_(\d+)$/.exec(key);
+    if (match?.[1] === undefined) continue;
+    const blobHash = outputs.blobs?.[key];
+    if (blobHash === undefined) continue;
+    entries.push({ index: Number(match[1]), assetHash, blobHash });
+  }
+  return entries.sort((a, b) => a.index - b.index);
+}
+
 /** A plain-language message for a generation failure (09 §5, 05 §2). */
 export function generationErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {
@@ -305,6 +338,8 @@ export function createGenerationFlow<Request, Params extends GenerationParams>(
   const listeners = new Map<string, Set<(candidateId: string, event: JobEvent) => void>>();
   const warnings = new Map<string, string>();
   const appliedStages = new Set<string>();
+  /** HQ result blobs already fetched: a cached render arrives as `completed` after its partial. */
+  const hqHandled = new Set<string>();
   let session: Session<Params> | null = null;
   let disposeJobSubscription: (() => void) | null = null;
   /** Partials are placed one at a time, so their commits keep the order they were published in. */
@@ -374,23 +409,22 @@ export function createGenerationFlow<Request, Params extends GenerationParams>(
   /** One finished candidate: fetch its result blob, place it and publish it to the bar. */
   async function handlePartial(
     current: Session<Params>,
-    event: Extract<RealtimeMessage, { t: "job.partial" }>,
+    entry: CandidateOutput,
     geometry: SessionGeometry,
   ): Promise<void> {
     // An accepted job is over for the bar; a late partial must not add a candidate on new HEAD.
     if (current.accepted !== null || current.closed || cancelled) return;
-    const asset = candidateEntry(event.outputs?.assets);
-    const blob = candidateEntry(event.outputs?.blobs);
-    if (asset === undefined || blob === undefined) return;
-    const json = await downloadJson(blob.hash);
+    // The completed event re-lists every candidate a streaming job already published.
+    if (current.published.has(entry.index)) return;
+    const json = await downloadJson(entry.blobHash);
     const candidate = adapter.parse({
       json,
-      assetHash: asset.hash,
+      assetHash: entry.assetHash,
       plan: current.plan,
       geometry,
     });
     if (candidate === null) {
-      throw new Error(`candidate ${blob.hash} is not a ${current.plan.capability} result`);
+      throw new Error(`candidate ${entry.blobHash} is not a ${current.plan.capability} result`);
     }
     if (current.published.has(candidate.index)) return;
     current.published.add(candidate.index);
@@ -444,10 +478,17 @@ export function createGenerationFlow<Request, Params extends GenerationParams>(
       return;
     }
     if (message.t === "job.partial" && message.jobId === current.jobId) {
+      const asset = candidateEntry(message.outputs?.assets);
+      const blob = candidateEntry(message.outputs?.blobs);
       const geometry = geometryFor();
-      if (geometry === null) return;
+      if (asset === undefined || blob === undefined || geometry === null) return;
+      const entry: CandidateOutput = {
+        index: asset.index,
+        assetHash: asset.hash,
+        blobHash: blob.hash,
+      };
       partials = partials
-        .then(() => handlePartial(current, message, geometry))
+        .then(() => handlePartial(current, entry, geometry))
         .catch((error: unknown) => {
           console.warn(`could not add a ${adapter.capability} candidate`, error);
           fail(generationErrorMessage(error));
@@ -455,15 +496,30 @@ export function createGenerationFlow<Request, Params extends GenerationParams>(
       return;
     }
     if (message.t === "job.completed" && message.jobId === current.jobId) {
+      // A result-cache hit publishes no partials, only `completed`, whose outputs hold every
+      // candidate at once (05 §4.3); after the queued partials they are the same candidate list.
+      const entries = candidateEntries(message.outputs);
+      const geometry = geometryFor();
       // After the queued partials: a partial still downloading its blob would otherwise set the
       // phase back to "generating" once the job is already over.
-      partials = partials.then(() => {
-        if (session !== current) return;
-        deps.audition.setQueue(null);
-        if (current.accepted === null && store.getState().phase !== "failed") {
-          set({ phase: "preview" });
-        }
-      });
+      partials = partials
+        .then(async () => {
+          if (geometry !== null) {
+            for (const entry of entries) {
+              if (current.published.has(entry.index)) continue;
+              await handlePartial(current, entry, geometry);
+            }
+          }
+          if (session !== current) return;
+          deps.audition.setQueue(null);
+          if (current.accepted === null && store.getState().phase !== "failed") {
+            set({ phase: "preview" });
+          }
+        })
+        .catch((error: unknown) => {
+          console.warn(`could not add a ${adapter.capability} candidate`, error);
+          fail(generationErrorMessage(error));
+        });
       return;
     }
     if (message.t === "job.failed" && message.jobId === current.jobId) {
@@ -471,10 +527,23 @@ export function createGenerationFlow<Request, Params extends GenerationParams>(
       return;
     }
     if (message.t === "job.partial" && message.jobId === current.hqJobId) {
-      void handleHq(message).catch((error: unknown) => {
-        console.warn("could not fetch the HQ render", error);
-        announce(t("generation.extend.live.hqFailed"));
-      });
+      const entry = candidateEntries(message.outputs)[0];
+      if (entry !== undefined) {
+        void handleHq(entry).catch((error: unknown) => {
+          console.warn("could not fetch the HQ render", error);
+          announce(t("generation.extend.live.hqFailed"));
+        });
+      }
+      return;
+    }
+    if (message.t === "job.completed" && message.jobId === current.hqJobId) {
+      // A cached HQ render sends no partials either; its outputs are the one candidate.
+      for (const entry of candidateEntries(message.outputs)) {
+        void handleHq(entry).catch((error: unknown) => {
+          console.warn("could not fetch the HQ render", error);
+          announce(t("generation.extend.live.hqFailed"));
+        });
+      }
       return;
     }
     if (message.t === "job.failed" && message.jobId === current.hqJobId) {
@@ -489,15 +558,15 @@ export function createGenerationFlow<Request, Params extends GenerationParams>(
   }
 
   /** The HQ re-render of an accepted candidate: same seed, one candidate, background (09 §5). */
-  async function handleHq(event: Extract<RealtimeMessage, { t: "job.partial" }>): Promise<void> {
-    const blob = candidateEntry(event.outputs?.blobs);
-    if (blob === undefined) return;
-    const json = await downloadJson(blob.hash);
+  async function handleHq(entry: CandidateOutput): Promise<void> {
+    if (hqHandled.has(entry.blobHash)) return;
+    hqHandled.add(entry.blobHash);
+    const json = await downloadJson(entry.blobHash);
     const geometry = geometryFor();
     if (geometry === null || session === null) return;
     const candidate = adapter.parse({
       json,
-      assetHash: candidateEntry(event.outputs?.assets)?.hash ?? "",
+      assetHash: entry.assetHash,
       plan: session.plan,
       geometry,
     });
