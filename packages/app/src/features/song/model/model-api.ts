@@ -19,6 +19,10 @@ export interface ModelApi {
   readonly diffDocs: typeof ModelWasm.diffDocs;
   /** Builds the candidate batch that places an accepted extend (09 §4.2). */
   readonly extendPlacement: typeof ModelWasm.extendPlacement;
+  /** Builds the candidate batch that fills an erased gap (09 §4.3). */
+  readonly fillPlacement: typeof ModelWasm.fillPlacement;
+  /** Builds the batch that sets a generated transition on a section (09 §4.4). */
+  readonly transitionPlacement: typeof ModelWasm.transitionPlacement;
   /** The bar-aligned context span at one song edge (03 §9). */
   readonly barAlignedContextRange: typeof ModelWasm.barAlignedContextRange;
   readonly freeDoc: typeof ModelWasm.freeDoc;

@@ -258,6 +258,36 @@ export function extendPlacement(handle, request_json) {
 }
 
 /**
+ * Builds the op batch that fills an erased gap with a generated candidate (09 §4.3).
+ *
+ * The request is JSON (`FillPlacementRequest`); the batch is JSON (`OpBatch`). The handle's
+ * document is not changed: the caller commits the batch, so placement is undoable (02 §7).
+ * @param {number} handle
+ * @param {string} request_json
+ * @returns {string}
+ */
+export function fillPlacement(handle, request_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.fillPlacement(handle, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * Drops a handle. Returns whether it existed.
  * @param {number} handle
  * @returns {boolean}
@@ -393,6 +423,36 @@ export function ticksToSeconds(handle, ticks) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return ret[0];
+}
+
+/**
+ * Builds the op batch that gives a section a generated transition (09 §4.4).
+ *
+ * The request is JSON (`TransitionPlacementRequest`); the batch is JSON (`OpBatch`). The handle's
+ * document is not changed: the caller commits the batch, so the transition is undoable (02 §7).
+ * @param {number} handle
+ * @param {string} request_json
+ * @returns {string}
+ */
+export function transitionPlacement(handle, request_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.transitionPlacement(handle, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
 }
 
 /**

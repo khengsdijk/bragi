@@ -13,7 +13,7 @@ use bragi_model::generated::{
     SourceId, StemRole, TickRange,
 };
 use bragi_model::placement::{
-    ExtendCandidate, ExtendDirection, ExtendPlacementRequest, extend_placement,
+    ExtendDirection, ExtendPlacementRequest, GeneratedCandidate, extend_placement,
 };
 use bragi_model::{AssetIndex, apply, derived_id, validate};
 use serde_json::{Value, json};
@@ -181,7 +181,7 @@ fn placement_request(doc: &Project) -> ExtendPlacementRequest {
             start_tick: 0,
             end_tick: bragi_model::spans::total_ticks(doc),
         },
-        candidate: ExtendCandidate {
+        candidate: GeneratedCandidate {
             source_id: GEN.parse::<SourceId>().unwrap(),
             original_asset: candidate().parse().unwrap(),
             working_asset: candidate().parse().unwrap(),

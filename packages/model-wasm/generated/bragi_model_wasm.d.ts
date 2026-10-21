@@ -69,6 +69,14 @@ export function documentJson(handle: number): string;
 export function extendPlacement(handle: number, request_json: string): string;
 
 /**
+ * Builds the op batch that fills an erased gap with a generated candidate (09 §4.3).
+ *
+ * The request is JSON (`FillPlacementRequest`); the batch is JSON (`OpBatch`). The handle's
+ * document is not changed: the caller commits the batch, so placement is undoable (02 §7).
+ */
+export function fillPlacement(handle: number, request_json: string): string;
+
+/**
  * Drops a handle. Returns whether it existed.
  */
 export function freeDoc(handle: number): boolean;
@@ -111,6 +119,14 @@ export function summarizeForLlm(handle: number, focus_json: string): string;
 export function ticksToSeconds(handle: number, ticks: bigint): number;
 
 /**
+ * Builds the op batch that gives a section a generated transition (09 §4.4).
+ *
+ * The request is JSON (`TransitionPlacementRequest`); the batch is JSON (`OpBatch`). The handle's
+ * document is not changed: the caller commits the batch, so the transition is undoable (02 §7).
+ */
+export function transitionPlacement(handle: number, request_json: string): string;
+
+/**
  * Validates the handle's document; returns `null` when valid, else a JSON error array.
  */
 export function validateDoc(handle: number): string | undefined;
@@ -129,6 +145,7 @@ export interface InitOutput {
     readonly docCount: () => number;
     readonly documentJson: (a: number) => [number, number, number, number];
     readonly extendPlacement: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly fillPlacement: (a: number, b: number, c: number) => [number, number, number, number];
     readonly freeDoc: (a: number) => number;
     readonly loadProject: (a: number, b: number) => [number, number, number];
     readonly resolveRegion: (a: number, b: number, c: number) => [number, number, number, number];
@@ -136,6 +153,7 @@ export interface InitOutput {
     readonly sectionSpans: (a: number) => [number, number, number, number];
     readonly summarizeForLlm: (a: number, b: number, c: number) => [number, number, number, number];
     readonly ticksToSeconds: (a: number, b: bigint) => [number, number, number];
+    readonly transitionPlacement: (a: number, b: number, c: number) => [number, number, number, number];
     readonly validateDoc: (a: number) => [number, number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;

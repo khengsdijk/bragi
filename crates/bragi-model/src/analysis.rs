@@ -101,8 +101,9 @@ pub(crate) fn apply_analysis_apply(
         apply_meta_effects(doc, &op.effects.0);
     }
 
-    // A placed source (a generated extend) is not part of the analysis-owned baseline: its audio
-    // lives in one section, and its stems are mapped into that section's lanes (02 §6).
+    // A placed source (a generated extend, fill or transition) is not part of the
+    // analysis-owned baseline: its audio lives where its placement says, and its stems are mapped
+    // into that span (02 §6.4).
     if source.placement.is_some() {
         reconcile_placed_source(doc, &source, &next_effects, assets, op_index)?;
     }
@@ -573,6 +574,7 @@ fn build_baseline(
         let plan = ClipPlan {
             assets,
             bar_starts: &bar_starts,
+            base_samples: 0,
             base_seconds,
             grid: tempo_effect(effects).is_some(),
             source_duration: source.duration_samples,
@@ -824,13 +826,16 @@ pub(crate) fn kind_label(kind: SectionKind) -> &'static str {
     }
 }
 
-/// Reconciles the one section of a placed source with its recorded separation effect (02 §6).
+/// Reconciles the span of a placed source with its recorded separation effect (02 §6).
 ///
-/// A placed source is not laid out by the baseline: its audio lives in the section the placement
-/// names. When a `separation` effect has been recorded, every stem role and the residual are
-/// mapped onto the first track with that role (or a new deterministic track), as one deterministic
-/// clip per track. The generated mix-only lane is removed in the same step; when separation has not
-/// reported (it failed), nothing is removed and the generated clip keeps the song playable.
+/// A placed source is not laid out by the baseline: its audio lives where the placement says.
+/// When a `separation` effect has been recorded, every stem role and the residual are mapped onto
+/// the first track with that role (or a new deterministic track), as one deterministic clip per
+/// (section, track) inside the placement span. That span is the anchored section's whole length
+/// for an extend, or the gap range for a fill — which may cross into the following sections, so
+/// each slice gets its own clip. The generated mix-only lane is removed in the same step; when
+/// separation has not reported (it failed), nothing is removed and the generated clip keeps the
+/// song playable. A placement with no lane audio (a generated transition) maps nothing.
 fn reconcile_placed_source(
     doc: &mut Project,
     source: &Source,
@@ -844,8 +849,21 @@ fn reconcile_placed_source(
     let Some(separation) = separation_effect(effects) else {
         return Ok(());
     };
-    let Some((section_index, section_start, section_length)) =
-        placed_section(doc, &placement.section_id)
+    // A placement can own no lane audio at all (a generated transition, which the engine plays
+    // over the boundary instead). Its stems map nowhere; without this guard the mapping would
+    // still create role tracks for audio that has no span.
+    let has_lane_audio = doc.arrangement.sections.iter().any(|section| {
+        section
+            .lanes
+            .0
+            .values()
+            .flat_map(|lane| lane.clips.iter())
+            .any(|clip| clip.asset == source.working_asset || clip.asset == source.original_asset)
+    });
+    if !has_lane_audio {
+        return Ok(());
+    }
+    let Some((_, section_start, section_length)) = placed_section(doc, &placement.section_id)
     else {
         return Err(invalid(
             op_index,
@@ -857,16 +875,38 @@ fn reconcile_placed_source(
         ));
     };
 
+    let spans = crate::spans::section_spans(doc);
+    let total = crate::spans::total_ticks(doc);
+    let (span_start, span_end, base_samples) = match &placement.range {
+        Some(range) => {
+            let start = section_start.saturating_add(range.start_tick);
+            let end = section_start.saturating_add(range.end_tick).min(total);
+            if range.end_tick <= range.start_tick || start < section_start || end <= start {
+                return Err(invalid(
+                    op_index,
+                    ValidationCode::NumericRange,
+                    format!(
+                        "source {} has an empty or out-of-range placement range [{}, {})",
+                        source.id, range.start_tick, range.end_tick
+                    ),
+                ));
+            }
+            (start, end, placement.src_start_samples.unwrap_or(0))
+        }
+        None => (section_start, section_start + section_length, 0),
+    };
+
     let timebase = doc.arrangement.timebase.clone();
     let ppq = *timebase.ppq;
     let mut grid = BarGrid::new(&timebase.time_signatures, ppq);
-    grid.extend_past(section_start + section_length);
+    grid.extend_past(span_end);
     let bar_starts = grid.starts.clone();
     let tempo = TempoCtx::new(&timebase.tempo_map.0, ppq);
     let plan = ClipPlan {
         assets,
         bar_starts: &bar_starts,
-        base_seconds: tempo.ticks_to_seconds(section_start),
+        base_samples,
+        base_seconds: tempo.ticks_to_seconds(span_start),
         grid: true,
         source_duration: source.duration_samples,
         tempo: &tempo,
@@ -892,27 +932,43 @@ fn reconcile_placed_source(
         let track_id = match doc.tracks.iter().find(|track| track.role == *role) {
             Some(track) => track.id.clone(),
             None => {
-                let Some(id) = track_id(derived_id(
-                    "trk_",
-                    source.id.as_str(),
-                    &format!("stem:{role}"),
-                )) else {
+                // Derived from the role alone: the track is shared by every placed source that
+                // maps onto it, so its ID (and therefore the document) must not depend on which
+                // source's analysis arrived first (02 §6.4).
+                let Some(id) = track_id(derived_id("trk_", "placed", &format!("stem:{role}")))
+                else {
                     return Err(effect_error(op_index, "cannot derive a stem track id"));
                 };
-                doc.tracks.push(track_for_role(source, *role, id.clone()));
+                doc.tracks.push(track_for_role(*role, id.clone()));
                 id
             }
         };
-        if let Some(clip) = plan.clip(
-            &placement.section_id,
-            &track_id,
-            asset,
-            0,
-            section_length,
-            section_start,
-            &stem_provenance,
-        ) {
-            upsert_clip(doc, section_index, &track_id, clip);
+        for span in spans
+            .iter()
+            .filter(|span| span.end_tick > span_start && span.start_tick < span_end)
+        {
+            let local_start = span_start.max(span.start_tick) - span.start_tick;
+            let local_end = span_end.min(span.end_tick) - span.start_tick;
+            let Some(mut clip) = plan.clip(
+                &span.id,
+                &track_id,
+                asset,
+                local_start,
+                local_end,
+                span.start_tick,
+                &stem_provenance,
+            ) else {
+                continue;
+            };
+            // A fill's mapped clips are per source, so two fills inside one section keep both.
+            if placement.range.is_some() {
+                let child = format!("fill:{}:{}", span.id, track_id);
+                let Some(id) = clip_id(derived_id("clp_", source.id.as_str(), &child)) else {
+                    return Err(effect_error(op_index, "cannot derive a stem clip id"));
+                };
+                clip.id = id;
+            }
+            upsert_clip(doc, span.index, &track_id, clip);
         }
     }
 
@@ -947,7 +1003,7 @@ fn upsert_clip(doc: &mut Project, section_index: usize, track_id: &TrackId, clip
         .sort_by(|left, right| (left.start, &left.id).cmp(&(right.start, &right.id)));
 }
 
-fn track_for_role(source: &Source, role: StemRole, id: TrackId) -> Track {
+fn track_for_role(role: StemRole, id: TrackId) -> Track {
     Track {
         color: role_color(role),
         fx: FxChain(Vec::new()),
@@ -956,10 +1012,9 @@ fn track_for_role(source: &Source, role: StemRole, id: TrackId) -> Track {
         id,
         mute: false,
         name: role_name(&role).to_owned(),
-        origin: Some(TrackOrigin {
-            source_id: source.id.clone(),
-            stem: Some(role),
-        }),
+        // No `origin`: several placed sources may map their stems onto this one track, so naming
+        // any of them would make the document depend on the analysis arrival order (02 §6.4).
+        origin: None,
         pan: 0.0,
         role,
         solo: false,
@@ -992,10 +1047,14 @@ fn remove_generated_lane(doc: &mut Project, source: &Source) {
             .iter()
             .filter(|track| {
                 track.role == StemRole::Generated
-                    && track
-                        .origin
-                        .as_ref()
-                        .is_some_and(|origin| origin.source_id == source.id)
+                    && track.origin.as_ref().is_some_and(|origin| {
+                        // A track a placement created, not the user's: whichever placed source
+                        // maps last removes it once nothing is left anywhere, so a shared
+                        // `generated` track does not depend on the analysis arrival order.
+                        doc.sources.iter().any(|source| {
+                            source.id == origin.source_id && source.placement.is_some()
+                        })
+                    })
                     && doc.arrangement.sections.iter().all(|section| {
                         section.lanes.0.get(&track.id).is_none_or(|lane| {
                             lane.clips.is_empty() && lane.automation.0.is_empty()
@@ -1061,6 +1120,9 @@ fn block_suggestions(
 struct ClipPlan<'a> {
     assets: &'a AssetIndex,
     bar_starts: &'a [i64],
+    /// The source sample that plays at [`ClipPlan::base_seconds`]: 0 for a block laid from the
+    /// section start, the left-overlap skip for a ranged placement (02 §6.4).
+    base_samples: u64,
     base_seconds: f64,
     grid: bool,
     source_duration: u64,
@@ -1072,13 +1134,16 @@ impl ClipPlan<'_> {
     fn sample_at(&self, tick: i64, asset: &AssetHash) -> u64 {
         let seconds = self.tempo.ticks_to_seconds(tick) - self.base_seconds;
         let raw = (seconds * f64::from(INTERNAL_SAMPLE_RATE_HZ)).round();
-        let value = if raw.is_finite() && raw > 0.0 {
+        let relative = if raw.is_finite() && raw > 0.0 {
             raw as u64
         } else {
             0
         };
         let asset_duration = self.assets.duration_samples(asset).unwrap_or(u64::MAX);
-        value.min(self.source_duration).min(asset_duration)
+        self.base_samples
+            .saturating_add(relative)
+            .min(self.source_duration)
+            .min(asset_duration)
     }
 
     /// One clip covering the section-relative span `[local_start, local_end)`, where
@@ -1284,6 +1349,7 @@ fn fill_empty_lanes(
     let plan = ClipPlan {
         assets,
         bar_starts: &bar_starts,
+        base_samples: 0,
         base_seconds: tempo.ticks_to_seconds(block.offset),
         grid: block.grid,
         source_duration: source.duration_samples,

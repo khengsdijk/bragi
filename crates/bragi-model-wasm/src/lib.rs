@@ -15,14 +15,17 @@ use std::collections::HashMap;
 
 use bragi_model::SummaryFocus;
 use bragi_model::generated::{AssetHash, AssetMeta, CommitId, OpBatch, Project, Region};
-use bragi_model::placement::ExtendPlacementRequest;
+use bragi_model::placement::{
+    ExtendPlacementRequest, FillPlacementRequest, TransitionPlacementRequest,
+};
 use bragi_model::{AssetIndex, diff as model_diff, section_spans as model_spans};
 use bragi_model::{
     ContextEdge, apply as model_apply, apply_with as model_apply_with,
     bar_aligned_context_range as model_context_range, canonical_json as model_canonical_json,
     commit_id as model_commit_id, extend_placement as model_extend_placement,
-    resolve_region as model_resolve_region, seconds_to_ticks as model_seconds_to_ticks,
-    summarize_for_llm as model_summarize, ticks_to_seconds as model_ticks_to_seconds,
+    fill_placement as model_fill_placement, resolve_region as model_resolve_region,
+    seconds_to_ticks as model_seconds_to_ticks, summarize_for_llm as model_summarize,
+    ticks_to_seconds as model_ticks_to_seconds, transition_placement as model_transition_placement,
     validate as model_validate,
 };
 use wasm_bindgen::prelude::*;
@@ -212,6 +215,44 @@ pub fn extend_placement(handle: u32, request_json: &str) -> Result<String, Strin
             .ok_or_else(|| format!("unknown handle {handle}"))?;
         let batch =
             model_extend_placement(&doc.project, &request).map_err(|error| error.to_string())?;
+        serde_json::to_string(&batch).map_err(|error| error.to_string())
+    })
+}
+
+/// Builds the op batch that fills an erased gap with a generated candidate (09 §4.3).
+///
+/// The request is JSON (`FillPlacementRequest`); the batch is JSON (`OpBatch`). The handle's
+/// document is not changed: the caller commits the batch, so placement is undoable (02 §7).
+#[wasm_bindgen(js_name = fillPlacement)]
+pub fn fill_placement(handle: u32, request_json: &str) -> Result<String, String> {
+    let request: FillPlacementRequest =
+        serde_json::from_str(request_json).map_err(|error| error.to_string())?;
+    DOCS.with(|docs| {
+        let docs = docs.borrow();
+        let doc = docs
+            .get(&handle)
+            .ok_or_else(|| format!("unknown handle {handle}"))?;
+        let batch =
+            model_fill_placement(&doc.project, &request).map_err(|error| error.to_string())?;
+        serde_json::to_string(&batch).map_err(|error| error.to_string())
+    })
+}
+
+/// Builds the op batch that gives a section a generated transition (09 §4.4).
+///
+/// The request is JSON (`TransitionPlacementRequest`); the batch is JSON (`OpBatch`). The handle's
+/// document is not changed: the caller commits the batch, so the transition is undoable (02 §7).
+#[wasm_bindgen(js_name = transitionPlacement)]
+pub fn transition_placement(handle: u32, request_json: &str) -> Result<String, String> {
+    let request: TransitionPlacementRequest =
+        serde_json::from_str(request_json).map_err(|error| error.to_string())?;
+    DOCS.with(|docs| {
+        let docs = docs.borrow();
+        let doc = docs
+            .get(&handle)
+            .ok_or_else(|| format!("unknown handle {handle}"))?;
+        let batch = model_transition_placement(&doc.project, &request)
+            .map_err(|error| error.to_string())?;
         serde_json::to_string(&batch).map_err(|error| error.to_string())
     })
 }
@@ -447,5 +488,71 @@ mod tests {
 
         assert!(free_doc(source));
         assert!(free_doc(target));
+    }
+
+    #[test]
+    fn fill_and_transition_placement_are_pure_wasm_batches() {
+        let doc = serde_json::json!({
+            "schemaVersion": 1, "id": "prj_01",
+            "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+            "sources": [], "analyses": {},
+            "tracks": [{ "id": "trk_01", "name": "Mix", "role": "full_mix", "color": "#8A8F98",
+                         "gainDb": 0, "pan": 0, "mute": false, "solo": false, "hidden": false, "fx": [] }],
+            "arrangement": { "timebase": { "ppq": 960,
+                "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }],
+                "timeSignatures": [{ "bar": 0, "numerator": 4, "denominator": 4 }] },
+                "sections": [
+                    { "id": "sec_a", "kind": "verse", "label": "A", "lengthTicks": 3840,
+                      "lanes": {}, "transitionIn": { "kind": "cut", "lengthTicks": 0 } },
+                    { "id": "sec_b", "kind": "chorus", "label": "B", "lengthTicks": 3840,
+                      "lanes": {}, "transitionIn": { "kind": "cut", "lengthTicks": 0 } }],
+                "master": { "fx": [], "automation": [], "gainDb": 0 } }
+        })
+        .to_string();
+        let handle = load_project(&doc).unwrap();
+        let before = canonical_json(handle).unwrap();
+        let candidate = serde_json::json!({
+            "sourceId": "src_gen", "originalAsset": HASH, "workingAsset": HASH,
+            "durationSamples": 192000, "channels": 2, "label": "Generated",
+            "provenance": { "kind": "generation", "createdAt": "2026-10-18T12:00:00Z" }
+        });
+        let fill = serde_json::json!({
+            "gapRange": { "startTick": 960, "endTick": 2880 },
+            "candidate": candidate, "startOffsetSamples": -24000, "endOffsetSamples": 24000,
+            "crossfadeTicks": 480, "batchId": "bat_fill", "label": "Fill",
+            "createdAt": "2026-10-18T12:00:00Z"
+        })
+        .to_string();
+        let batch = fill_placement(handle, &fill).unwrap();
+        assert!(batch.contains("source.add") && batch.contains("clip.add"));
+        assert_eq!(
+            canonical_json(handle).unwrap(),
+            before,
+            "placement does not commit"
+        );
+
+        let transition = serde_json::json!({
+            "sectionId": "sec_b", "candidate": candidate, "lengthTicks": 1920,
+            "batchId": "bat_join", "label": "Smooth",
+            "createdAt": "2026-10-18T12:00:00Z"
+        })
+        .to_string();
+        let batch = transition_placement(handle, &transition).unwrap();
+        assert!(batch.contains("section.set_transition") && batch.contains("generated"));
+        assert_eq!(
+            canonical_json(handle).unwrap(),
+            before,
+            "the transition does not commit"
+        );
+
+        let first = serde_json::json!({
+            "sectionId": "sec_a", "candidate": candidate, "lengthTicks": 1920,
+            "batchId": "bat_join", "label": "Smooth",
+            "createdAt": "2026-10-18T12:00:00Z"
+        })
+        .to_string();
+        let err = transition_placement(handle, &first).unwrap_err();
+        assert!(err.contains("first section"), "unexpected error: {err}");
+        assert!(free_doc(handle));
     }
 }

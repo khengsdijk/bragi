@@ -1303,16 +1303,19 @@ fn apply_section_merge(
     if let Ok(length) = std::num::NonZeroU64::try_from(merged_length) {
         section_a.length_ticks = length;
     }
-    // A placement on B now lives in the merged section A (02 §6).
+    // A placement on B now lives in the merged section A (02 §6), and a ranged one keeps its
+    // place inside it: B's content moves by A's length.
     for source in &mut doc.sources {
-        if source
-            .placement
-            .as_ref()
-            .is_some_and(|placement| placement.section_id == removed_id)
-        {
-            source.placement = Some(crate::generated::SourcePlacement {
-                section_id: op.section_id_a.clone(),
-            });
+        let Some(placement) = source.placement.as_mut() else {
+            continue;
+        };
+        if placement.section_id != removed_id {
+            continue;
+        }
+        placement.section_id = op.section_id_a.clone();
+        if let Some(range) = &mut placement.range {
+            range.start_tick = range.start_tick.saturating_add(offset);
+            range.end_tick = range.end_tick.saturating_add(offset);
         }
     }
     Ok(())

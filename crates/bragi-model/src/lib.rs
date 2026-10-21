@@ -47,7 +47,9 @@ pub use commits::{CommitDocs, NoCommits};
 pub use diff::{EngineDelta, diff};
 pub use error::{ApplyError, ValidationCode, ValidationError};
 pub use placement::{
-    ExtendCandidate, ExtendDirection, ExtendPlacementRequest, PlacementError, extend_placement,
+    ExtendDirection, ExtendPlacementRequest, FillPlacementRequest, GeneratedCandidate,
+    PlacementError, TransitionPlacementRequest, extend_placement, fill_placement,
+    transition_placement,
 };
 pub use region::{RegionSlice, ResolvedRegion, resolve_region};
 pub use spans::{SectionSpan, section_spans};

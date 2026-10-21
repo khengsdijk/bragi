@@ -130,8 +130,8 @@ fn check_unique_fx(
     }
 }
 
-/// Checks invariant 7 for sources and that a `Source.placement` names an existing section (02 §3.2,
-/// §6).
+/// Checks invariant 7 for sources and that a `Source.placement` names an existing section and a
+/// usable span (02 §3.2, §6.4).
 fn check_sources(doc: &Project, errors: &mut Vec<ValidationError>) {
     let mut ids = BTreeSet::new();
     for source in &doc.sources {
@@ -143,13 +143,15 @@ fn check_sources(doc: &Project, errors: &mut Vec<ValidationError>) {
                 format!("duplicate source {id}"),
             );
         }
-        if let Some(placement) = &source.placement
-            && !doc
-                .arrangement
-                .sections
-                .iter()
-                .any(|section| section.id == placement.section_id)
-        {
+        let Some(placement) = &source.placement else {
+            continue;
+        };
+        let Some(index) = doc
+            .arrangement
+            .sections
+            .iter()
+            .position(|section| section.id == placement.section_id)
+        else {
             push(
                 errors,
                 ValidationCode::MissingTarget,
@@ -158,6 +160,45 @@ fn check_sources(doc: &Project, errors: &mut Vec<ValidationError>) {
                     source.id, placement.section_id
                 ),
             );
+            continue;
+        };
+        match &placement.range {
+            Some(range) => {
+                let length = i64::try_from(doc.arrangement.sections[index].length_ticks.get())
+                    .unwrap_or(i64::MAX);
+                let end = crate::spans::section_spans(doc)
+                    .get(index)
+                    .map_or(i64::MAX, |span| {
+                        span.start_tick.saturating_add(range.end_tick)
+                    });
+                if placement.src_start_samples.is_none()
+                    || range.start_tick < 0
+                    || range.start_tick >= length
+                    || range.end_tick <= range.start_tick
+                    || end > crate::spans::total_ticks(doc)
+                {
+                    push(
+                        errors,
+                        ValidationCode::NumericRange,
+                        format!(
+                            "source {} has an unusable placement range [{}, {}) or no srcStartSamples",
+                            source.id, range.start_tick, range.end_tick
+                        ),
+                    );
+                }
+            }
+            None => {
+                if placement.src_start_samples.is_some() {
+                    push(
+                        errors,
+                        ValidationCode::NumericRange,
+                        format!(
+                            "source {} has srcStartSamples without a placement range",
+                            source.id
+                        ),
+                    );
+                }
+            }
         }
     }
 }

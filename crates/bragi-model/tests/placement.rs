@@ -12,7 +12,7 @@ use bragi_model::generated::{
     SectionKind, SourceId, SourceKind, StemRole, TickRange, TransitionKind, Warp,
 };
 use bragi_model::placement::{
-    ExtendCandidate, ExtendDirection, ExtendPlacementRequest, PlacementError, extend_placement,
+    ExtendDirection, ExtendPlacementRequest, GeneratedCandidate, PlacementError, extend_placement,
 };
 use bragi_model::time::bar_ticks;
 use bragi_model::{
@@ -119,7 +119,7 @@ fn request(
             start_tick: 0,
             end_tick: last_bar_line(doc),
         },
-        candidate: ExtendCandidate {
+        candidate: GeneratedCandidate {
             source_id: "src_gen".parse::<SourceId>().unwrap(),
             original_asset: CANDIDATE.parse().unwrap(),
             working_asset: CANDIDATE.parse().unwrap(),
