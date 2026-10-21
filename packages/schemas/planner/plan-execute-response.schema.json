@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlanExecuteResponse",
+  "description": "The answer of `POST /v1/plans/{planId}/execute` (06 §5): one interactive generation job per generate step of the chosen variants. `variant` is the index into the stored plan, so the client can attach each job's partials to the right candidate commit.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["jobs"],
+  "properties": {
+    "jobs": { "$ref": "#/$defs/ExecuteJobList" }
+  },
+  "$defs": {
+    "ExecuteJobList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ExecuteJob" }
+    },
+    "ExecuteJob": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["variant", "stepId", "jobId", "capability", "status", "estimatedCredits"],
+      "properties": {
+        "variant": { "$ref": "plan-execute-request.schema.json#/$defs/ExecuteVariantIndex" },
+        "stepId": { "type": "string", "minLength": 1 },
+        "jobId": { "$ref": "../song/common.schema.json#/$defs/JobId" },
+        "capability": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/ExecuteJobStatus" },
+        "estimatedCredits": {
+          "description": "What this job was charged, from the credit table (05 §9).",
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "ExecuteJobStatus": {
+      "description": "`queued` for an executed plan: execute is interactive, so a spent GPU budget is a 503 rather than a paused job (05 §9).",
+      "type": "string",
+      "enum": ["queued", "paused"]
+    }
+  }
+}

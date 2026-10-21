@@ -1,0 +1,12 @@
+{
+  "jobs": [
+    {
+      "variant": 1,
+      "stepId": "g1",
+      "jobId": "job_01JAB5H7K8M9N0P1Q2R3S4T5V6",
+      "capability": "generate.inpaint",
+      "status": "queued",
+      "estimatedCredits": 2
+    }
+  ]
+}

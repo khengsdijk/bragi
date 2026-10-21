@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /** The system prompt version; bump it when the wording changes materially. */
-export const SYSTEM_PROMPT_VERSION = "2";
+export const SYSTEM_PROMPT_VERSION = "4";
 
 /** The plan system prompt, read once. */
 let cachedSystem: string | undefined;

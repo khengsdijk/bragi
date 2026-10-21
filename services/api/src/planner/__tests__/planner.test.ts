@@ -5,7 +5,14 @@ import { buildUserMessage } from "../context.js";
 import type { LlmReply, LlmRequest, PlannerLlm } from "../openrouter.js";
 import { Planner } from "../planner.js";
 import { loadModelWasm } from "../wasm.js";
-import { draftPlan, opsVariant, testProject, testRequest, trackFx } from "./fixtures.js";
+import {
+  draftPlan,
+  generationVariant,
+  opsVariant,
+  testProject,
+  testRequest,
+  trackFx,
+} from "./fixtures.js";
 
 const model = await loadModelWasm();
 
@@ -123,6 +130,45 @@ describe("Planner", () => {
     const { planner: service, calls } = planner([planReply(invalid), planReply(invalid)]);
     await expect(service.plan(testRequest())).rejects.toMatchObject({ code: "PLAN_INVALID" });
     expect(calls).toHaveLength(2);
+  });
+
+  it("returns a generative variant with the context filled and an estimate", async () => {
+    const draft = draftPlan([generationVariant("Fill")], "I'll fill the gap in bar 2.");
+    const { planner: service } = planner([planReply(draft)]);
+    const plan = await service.plan(
+      testRequest({
+        prompt: "fill the gap in bar 2",
+        region: { startTick: 3840, endTick: 7680, tracks: "all" },
+      }),
+    );
+    if (!("variants" in plan)) throw new Error("expected a plan");
+    const step = plan.variants[0]?.steps[0];
+    if (step?.kind !== "generate") throw new Error("expected a generate step");
+    expect(step.params).toMatchObject({
+      gapBars: 1,
+      overlapBars: 1,
+      context: { bpm: 120, timeSignature: [4, 4], sectionKind: "verse" },
+    });
+    expect(plan.estimatedCredits).toBe(4);
+    expect(plan.estimatedSeconds).toBe(30);
+  });
+
+  it("sends an over-budget generative plan back for its one repair round", async () => {
+    const draft = draftPlan([generationVariant("Fill")], "I'll fill the gap.");
+    const ops = draftPlan([opsVariant("Warm", [trackFx("trk_drums")])], "I'll warm the drums.");
+    const { planner: service, calls } = planner([planReply(draft), planReply(ops)]);
+    const plan = await service.plan(
+      testRequest({
+        prompt: "fill the gap in bar 2",
+        region: { startTick: 3840, endTick: 7680, tracks: "all" },
+      }),
+      { remainingCredits: 2 },
+    );
+    expect(calls).toHaveLength(2);
+    expect(lastMessage(calls[1])).toContain("only 2 are available");
+    if (!("variants" in plan)) throw new Error("expected a plan");
+    expect(plan.estimatedCredits).toBe(0);
+    expect(plan.variants[0]?.steps[0]?.kind).toBe("ops");
   });
 
   it("drops an invalid variant when another survives and records it", async () => {

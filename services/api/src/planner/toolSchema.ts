@@ -18,19 +18,50 @@ type JsonObject = Record<string, unknown>;
 /** The slim schema, built once. */
 let cached: JsonObject | undefined;
 
-/** The tool input schema: the `EditPlan` envelope with a loose ops step. */
+/** The tool input schema: the `EditPlan` envelope with loose steps. */
 export function plannerToolSchema(): JsonObject {
   if (cached !== undefined) return cached;
   const schema = structuredClone(PLAN_TOOL_SCHEMA);
   const defs = schema.$defs;
   if (!isRecord(defs)) throw new Error("PLAN_TOOL_SCHEMA has no $defs");
-  defs.PlanStep = looseOpsStep();
+  defs.PlanStep = looseSteps();
   // `notices` is filled from the policy pre-pass, not by the model.
   if (isRecord(schema.properties)) delete schema.properties.notices;
   schema.$defs = prunedDefs(defs, refsIn(schema));
   stripSchemaNoise(schema);
   cached = schema;
   return cached;
+}
+
+/**
+ * The four step kinds.
+ *
+ * `ops` is the only one whose contents the model writes in full (the op shapes block samples
+ * them); a generate step's params are the capability's schema and a placement's region is a
+ * `Region`, both of which would cost more prompt than they save, so their keys are required but
+ * untyped here and validated server-side with a precise error (06 §5).
+ */
+function looseSteps(): JsonObject {
+  return {
+    oneOf: [
+      looseOpsStep(),
+      looseStep("generate", ["id", "capability", "params", "context"]),
+      looseStep("apply_generated", ["from", "placement"]),
+      looseStep("smooth", ["region", "tools"]),
+    ],
+  };
+}
+
+/** One step of a given kind: `kind` plus the keys that kind must carry. */
+function looseStep(kind: string, keys: readonly string[]): JsonObject {
+  return {
+    type: "object",
+    additionalProperties: true,
+    required: ["kind", ...keys],
+    properties: {
+      kind: { type: "string", enum: [kind] },
+    },
+  };
 }
 
 /**

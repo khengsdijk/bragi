@@ -6,13 +6,16 @@
  */
 import type {
   Clip,
+  ContextSpec,
   EditPlan,
   LaneMap,
   Op,
+  Placement,
   PlanRequest,
   PlanVariant,
   Project,
   Region,
+  SmoothToolList,
 } from "@bragi/schemas";
 
 const ASSET = `sha256:${"1".repeat(64)}`;
@@ -43,8 +46,8 @@ function clip(id: string, start: number): Clip {
   };
 }
 
-/** Builds the fixture song. `locked` marks the second section locked. */
-export function testProject(options: { locked?: boolean } = {}): Project {
+/** Builds the fixture song. `locked` marks the second section locked; `analysedKey` adds the analysis summary. */
+export function testProject(options: { locked?: boolean; analysedKey?: string } = {}): Project {
   const lanes = (track: string, prefix: string, start: number): LaneMap => ({
     [track]: { clips: [clip(`clp_${prefix}`, start)], automation: [] },
   });
@@ -53,7 +56,23 @@ export function testProject(options: { locked?: boolean } = {}): Project {
     id: "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
     meta: { title: "Planner fixture", createdAt: DATE, tags: [] },
     sources: [],
-    analyses: {},
+    analyses:
+      options.analysedKey === undefined
+        ? {}
+        : {
+            src_a: {
+              profile: "standard",
+              status: { rhythm: "done", tag: "done" },
+              blobs: {},
+              summary: {
+                bpm: 120,
+                key: options.analysedKey,
+                durationSec: 4,
+                genres: [],
+                moods: [],
+              },
+            },
+          },
     tracks: [
       {
         id: "trk_drums",
@@ -165,6 +184,72 @@ export function opsVariant(label: string, ops: [Op, ...Op[]], scope?: "song"): P
     description: `${label} variant`,
     steps: [{ kind: "ops", ops }],
     ...(scope === undefined ? {} : { scope }),
+  };
+}
+
+/** What a fixture generate step can vary. */
+export interface GenerateStepOptions {
+  id?: string;
+  capability?: string;
+  params?: Record<string, unknown>;
+  context?: ContextSpec;
+  placement?: Placement;
+  /** A leading ops step, for a variant that also edits the song directly. */
+  ops?: [Op, ...Op[]];
+  smooth?: Region;
+  scope?: "song";
+}
+
+/**
+ * A generate + apply_generated variant as the model returns it.
+ *
+ * The default inpaint fills the second of the fixture's three one-bar sections: the gap is
+ * 3840–7680 and the server derives the two context ranges from the request's region.
+ */
+export function generationVariant(label: string, options: GenerateStepOptions = {}): PlanVariant {
+  const id = options.id ?? "g1";
+  const capability = options.capability ?? "generate.inpaint";
+  const region = options.placement?.region ?? {
+    startTick: BAR,
+    endTick: BAR * 2,
+    tracks: ["trk_drums"],
+  };
+  const steps: PlanVariant["steps"][number][] = [
+    ...(options.ops === undefined ? [] : [{ kind: "ops" as const, ops: options.ops }]),
+    {
+      kind: "generate",
+      id,
+      capability,
+      params: options.params ?? {
+        context: { key: { tonic: "A", mode: "minor" } },
+        tier: "preview",
+        n: 2,
+        prompt: "a dusty drum fill",
+      },
+      context: options.context ?? { tracks: "all" },
+    },
+    {
+      kind: "apply_generated",
+      from: id,
+      placement: options.placement ?? { region, trackId: "trk_drums", mode: "replace" },
+    },
+    ...(options.smooth === undefined
+      ? []
+      : [
+          {
+            kind: "smooth" as const,
+            region: options.smooth,
+            tools: ["crossfade"] as SmoothToolList,
+          },
+        ]),
+  ];
+  const [first, ...rest] = steps;
+  if (first === undefined) throw new Error("a variant needs a step");
+  return {
+    label,
+    description: `${label} variant`,
+    steps: [first, ...rest],
+    ...(options.scope === undefined ? {} : { scope: options.scope }),
   };
 }
 

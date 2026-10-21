@@ -53,6 +53,7 @@ const OUTPUTS = {
   fxCatalog: "packages/schemas/src/generated/fx-catalog.ts",
   macros: "packages/schemas/src/generated/macros.ts",
   planner: "packages/schemas/src/generated/planner.ts",
+  capabilities: "packages/schemas/src/generated/capabilities.ts",
   rust: "crates/bragi-model/src/generated/mod.rs",
   python: "services/workers/bragi_common/src/bragi_common/generated/models.py",
   // The tagging taxonomy (specs/04 §6.2) is data, not a schema, so the schema walk ignores it; the
@@ -455,6 +456,39 @@ function generatePlannerSchemas(bundle) {
 }
 
 /**
+ * Emits the params schemas of the generation capabilities under `jobs/capabilities/`, keyed by
+ * capability id and carrying their reachable `$defs`.
+ *
+ * The planner's catalogue renders each capability's compact param shape from this file (06 §2, §5),
+ * so a param the API validates and a param the prompt offers cannot drift. Only `*Params` roots are
+ * emitted: the result blobs are not planner material.
+ *
+ * @param {Record<string, unknown>} bundle
+ * @param {import("./bundle.mjs").SchemaFile[]} files
+ * @returns {string}
+ */
+function generateCapabilitySchemas(bundle, files) {
+  const defs = /** @type {Record<string, Record<string, unknown>>} */ (bundle.$defs);
+  /** @type {Record<string, unknown>} */
+  const out = {};
+  for (const { path, schema } of files) {
+    if (!path.startsWith("jobs/capabilities/")) continue;
+    const title = schema.title;
+    if (typeof title !== "string" || !title.endsWith("Params")) continue;
+    if (defs[title] === undefined) continue;
+    const capability = path.slice("jobs/capabilities/".length, -".schema.json".length);
+    const body = clone(defs[title]);
+    delete body.title;
+    out[capability] = { $defs: reachableDefs(defs, [title]), ...body };
+  }
+  const banner = BANNER("The generation capabilities' params schemas, for the planner catalogue.", [
+    "// Derived from packages/schemas/jobs/capabilities/*.schema.json.",
+    "// Edit those and run `pnpm schemas:gen`; the generated copy is never hand-edited.",
+  ]);
+  return `${banner}\n\n/** Capability id → its params schema with the reachable \`$defs\`. */\nexport const CAPABILITY_PARAMS_SCHEMAS: Record<string, Record<string, unknown>> = ${JSON.stringify(out, null, 2)};\n`;
+}
+
+/**
  * Runs `crates/bragi-schemas-codegen` (typify) over the bundle, adds the header and `ROOT_TYPES`,
  * and formats the result with `rustfmt`.
  *
@@ -781,6 +815,7 @@ async function main() {
     readCatalogue("macros", "MacroCatalog", bundle),
   );
   const planner = generatePlannerSchemas(bundle);
+  const capabilities = generateCapabilitySchemas(bundle, files);
 
   // The taxonomy data file: re-serialised so the committed copy is stable and byte-checkable.
   const taxonomyPath = join(SCHEMAS, "analysis/taxonomy.json");
@@ -806,6 +841,7 @@ async function main() {
     [OUTPUTS.fxCatalog]: fxCatalog,
     [OUTPUTS.macros]: macros,
     [OUTPUTS.planner]: planner,
+    [OUTPUTS.capabilities]: capabilities,
     [OUTPUTS.rust]: rust,
     [OUTPUTS.python]: python,
     [OUTPUTS.taxonomy]: taxonomy,

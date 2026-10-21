@@ -520,6 +520,23 @@ export type MacroRange = [number, number];
  */
 export type MacroCurvePoint = [number, number];
 /**
+ * @maxItems 3
+ */
+export type ExecuteVariantList =
+  | []
+  | [ExecuteVariantIndex]
+  | [ExecuteVariantIndex, ExecuteVariantIndex]
+  | [ExecuteVariantIndex, ExecuteVariantIndex, ExecuteVariantIndex];
+/**
+ * 0-based index into the plan's `variants`; the plan's own length is the upper bound, so an out-of-range index is a 400 that names it.
+ */
+export type ExecuteVariantIndex = number;
+/**
+ * `queued` for an executed plan: execute is interactive, so a spent GPU budget is a 503 rather than a paused job (05 §9).
+ */
+export type ExecuteJobStatus = "queued" | "paused";
+export type ExecuteJobList = ExecuteJob[];
+/**
  * Document schema version. Additive changes bump the minor version of the schema, removals and renames need `migrate` (02 §9).
  */
 export type ProjectSchemaVersion = 1;
@@ -1518,7 +1535,7 @@ export interface DrumComponentAsset {
   asset: AssetHash;
 }
 /**
- * A plan the planner offers as 1–3 variants (06 §3). v1 only executes `ops` steps; the other kinds are part of the contract for WP-2.7.
+ * A plan the planner offers as 1–3 variants (06 §3). Ops steps apply instantly; a variant with a `generate` step becomes interactive jobs when the client executes the plan (06 §5).
  */
 export interface EditPlan {
   planId: PlanId;
@@ -1550,7 +1567,7 @@ export interface OpsStep {
   ops: OpList;
 }
 /**
- * A generation job (09). Not offered in v1.
+ * A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, descriptors, seed) except `key`, which the model reads from the summary (06 §3).
  */
 export interface GenerateStep {
   kind: GenerateStepKind;
@@ -1566,7 +1583,7 @@ export interface ContextSpec {
   conditioningStems?: TrackIdList;
 }
 /**
- * Turns a generation job's output into clip ops (06 §3). Not offered in v1.
+ * Turns a generation job's output into clip ops (06 §3). Every generate step needs one in the same variant, naming it with `from`.
  */
 export interface ApplyGeneratedStep {
   kind: ApplyGeneratedStepKind;
@@ -1584,7 +1601,7 @@ export interface NewTrack {
   role: StemRole;
 }
 /**
- * Seam smoothing tools compiled client-side (03 §8.2). Not offered in v1.
+ * Seam smoothing tools compiled client-side (03 §8.2).
  */
 export interface SmoothStep {
   kind: SmoothStepKind;
@@ -2179,6 +2196,44 @@ export interface MacroDrive {
    * A fixed value for a discrete parameter of the same effect (e.g. filter mode 0 = low-pass).
    */
   mode?: number;
+}
+/**
+ * The body of `POST /v1/plans/{planId}/execute` (06 §5): which variants to run, and the context audio the client rendered and uploaded for every generate step. The plan itself is stored server-side from `POST /v1/plans`, so the client never posts it back. `contexts` is keyed by the generate step's `id`; a `generate.extend` step needs `context`, `generate.inpaint` and `generate.transition` need `before` and `after` (09 §2.1).
+ */
+export interface PlanExecuteRequest {
+  variants?: ExecuteVariantList;
+  contexts: ExecuteContextMap;
+}
+/**
+ * Rendered context assets per generate step id.
+ */
+export interface ExecuteContextMap {
+  [k: string]: ExecuteContext;
+}
+/**
+ * The assets one generate step was rendered with. Only the keys its capability declares are accepted.
+ */
+export interface ExecuteContext {
+  context?: AssetHash;
+  before?: AssetHash;
+  after?: AssetHash;
+}
+/**
+ * The answer of `POST /v1/plans/{planId}/execute` (06 §5): one interactive generation job per generate step of the chosen variants. `variant` is the index into the stored plan, so the client can attach each job's partials to the right candidate commit.
+ */
+export interface PlanExecuteResponse {
+  jobs: ExecuteJobList;
+}
+export interface ExecuteJob {
+  variant: ExecuteVariantIndex;
+  stepId: string;
+  jobId: JobId;
+  capability: string;
+  status: ExecuteJobStatus;
+  /**
+   * What this job was charged, from the credit table (05 §9).
+   */
+  estimatedCredits: number;
 }
 /**
  * One planner request (06 §2). v1 carries the song document because the server holds no projects (docs/wp/2.6.md); the API never stores it.

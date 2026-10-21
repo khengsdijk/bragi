@@ -234,4 +234,22 @@ CREATE INDEX IF NOT EXISTS usage_ledger_user_created_idx
   ON usage_ledger (user_id, created_at DESC);
 `,
   },
+  {
+    // WP-2.8 executes a proposed plan by id (06 §5): the plan is stored when it is returned and
+    // read back at execute, so the client never posts it back. Rows expire rather than being
+    // deleted, so a stale id is a 404 and a live one is untouched.
+    id: "004_plans",
+    sql: `
+CREATE TABLE IF NOT EXISTS plans (
+  id text PRIMARY KEY,
+  user_id text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  plan jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS plans_user_created_idx ON plans (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS plans_expires_idx ON plans (expires_at);
+`,
+  },
 ];

@@ -557,7 +557,7 @@ pub struct AnalysisSummary {
 pub struct ApiError {
     pub error: ErrorBody,
 }
-///Turns a generation job's output into clip ops (06 §3). Not offered in v1.
+///Turns a generation job's output into clip ops (06 §3). Every generate step needs one in the same variant, naming it with `from`.
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct ApplyGeneratedStep {
@@ -3512,7 +3512,7 @@ impl<'de> ::serde::Deserialize<'de> for DrumSplitResultSchemaVersion {
             .map_err(|e| <D::Error as ::serde::de::Error>::custom(e.to_string()))
     }
 }
-///A plan the planner offers as 1–3 variants (06 §3). v1 only executes `ops` steps; the other kinds are part of the contract for WP-2.7.
+///A plan the planner offers as 1–3 variants (06 §3). Ops steps apply instantly; a variant with a `generate` step becomes interactive jobs when the client executes the plan (06 §5).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct EditPlan {
@@ -4019,6 +4019,346 @@ impl ::std::convert::TryFrom<::std::string::String> for ErrorCode {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
+    }
+}
+///The assets one generate step was rendered with. Only the keys its capability declares are accepted.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, Default)]
+#[serde(deny_unknown_fields)]
+pub struct ExecuteContext {
+    ///The incoming side of a two-sided capability (inputs.assets.after).
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub after: ::std::option::Option<AssetHash>,
+    ///The outgoing side of a two-sided capability (inputs.assets.before).
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub before: ::std::option::Option<AssetHash>,
+    ///The single rendered context of `generate.extend` (inputs.assets.context).
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub context: ::std::option::Option<AssetHash>,
+}
+///Rendered context assets per generate step id.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct ExecuteContextMap(pub ::std::collections::HashMap<ExecuteContextMapKey, ExecuteContext>);
+impl ::std::ops::Deref for ExecuteContextMap {
+    type Target = ::std::collections::HashMap<ExecuteContextMapKey, ExecuteContext>;
+    fn deref(&self) -> &::std::collections::HashMap<ExecuteContextMapKey, ExecuteContext> {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExecuteContextMap>
+    for ::std::collections::HashMap<ExecuteContextMapKey, ExecuteContext>
+{
+    fn from(value: ExecuteContextMap) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::collections::HashMap<ExecuteContextMapKey, ExecuteContext>>
+    for ExecuteContextMap
+{
+    fn from(value: ::std::collections::HashMap<ExecuteContextMapKey, ExecuteContext>) -> Self {
+        Self(value)
+    }
+}
+///`ExecuteContextMapKey`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ExecuteContextMapKey(::std::string::String);
+impl ::std::ops::Deref for ExecuteContextMapKey {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExecuteContextMapKey> for ::std::string::String {
+    fn from(value: ExecuteContextMapKey) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ExecuteContextMapKey {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExecuteContextMapKey {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ExecuteContextMapKey {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ExecuteContextMapKey {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`ExecuteJob`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ExecuteJob {
+    pub capability: ExecuteJobCapability,
+    ///What this job was charged, from the credit table (05 §9).
+    #[serde(rename = "estimatedCredits")]
+    pub estimated_credits: f64,
+    #[serde(rename = "jobId")]
+    pub job_id: JobId,
+    pub status: ExecuteJobStatus,
+    #[serde(rename = "stepId")]
+    pub step_id: ExecuteJobStepId,
+    pub variant: ExecuteVariantIndex,
+}
+///`ExecuteJobCapability`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ExecuteJobCapability(::std::string::String);
+impl ::std::ops::Deref for ExecuteJobCapability {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExecuteJobCapability> for ::std::string::String {
+    fn from(value: ExecuteJobCapability) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ExecuteJobCapability {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExecuteJobCapability {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ExecuteJobCapability {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ExecuteJobCapability {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`ExecuteJobList`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct ExecuteJobList(pub ::std::vec::Vec<ExecuteJob>);
+impl ::std::ops::Deref for ExecuteJobList {
+    type Target = ::std::vec::Vec<ExecuteJob>;
+    fn deref(&self) -> &::std::vec::Vec<ExecuteJob> {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExecuteJobList> for ::std::vec::Vec<ExecuteJob> {
+    fn from(value: ExecuteJobList) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<ExecuteJob>> for ExecuteJobList {
+    fn from(value: ::std::vec::Vec<ExecuteJob>) -> Self {
+        Self(value)
+    }
+}
+///`queued` for an executed plan: execute is interactive, so a spent GPU budget is a 503 rather than a paused job (05 §9).
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ExecuteJobStatus {
+    #[serde(rename = "queued")]
+    Queued,
+    #[serde(rename = "paused")]
+    Paused,
+}
+impl ::std::fmt::Display for ExecuteJobStatus {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Queued => f.write_str("queued"),
+            Self::Paused => f.write_str("paused"),
+        }
+    }
+}
+impl ::std::str::FromStr for ExecuteJobStatus {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "queued" => Ok(Self::Queued),
+            "paused" => Ok(Self::Paused),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExecuteJobStatus {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ExecuteJobStatus {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`ExecuteJobStepId`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ExecuteJobStepId(::std::string::String);
+impl ::std::ops::Deref for ExecuteJobStepId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExecuteJobStepId> for ::std::string::String {
+    fn from(value: ExecuteJobStepId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ExecuteJobStepId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExecuteJobStepId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ExecuteJobStepId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ExecuteJobStepId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///0-based index into the plan's `variants`; the plan's own length is the upper bound, so an out-of-range index is a 400 that names it.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct ExecuteVariantIndex(pub u64);
+impl ::std::ops::Deref for ExecuteVariantIndex {
+    type Target = u64;
+    fn deref(&self) -> &u64 {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExecuteVariantIndex> for u64 {
+    fn from(value: ExecuteVariantIndex) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<u64> for ExecuteVariantIndex {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+impl ::std::fmt::Display for ExecuteVariantIndex {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl ::std::str::FromStr for ExecuteVariantIndex {
+    type Err = <u64 as ::std::str::FromStr>::Err;
+    fn from_str(value: &str) -> ::std::result::Result<Self, Self::Err> {
+        Ok(Self(value.parse()?))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExecuteVariantIndex {
+    type Error = <u64 as ::std::str::FromStr>::Err;
+    fn try_from(value: &str) -> ::std::result::Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<String> for ExecuteVariantIndex {
+    type Error = <u64 as ::std::str::FromStr>::Err;
+    fn try_from(value: String) -> ::std::result::Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+///`ExecuteVariantList`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct ExecuteVariantList(pub ::std::vec::Vec<ExecuteVariantIndex>);
+impl ::std::ops::Deref for ExecuteVariantList {
+    type Target = ::std::vec::Vec<ExecuteVariantIndex>;
+    fn deref(&self) -> &::std::vec::Vec<ExecuteVariantIndex> {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExecuteVariantList> for ::std::vec::Vec<ExecuteVariantIndex> {
+    fn from(value: ExecuteVariantList) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<ExecuteVariantIndex>> for ExecuteVariantList {
+    fn from(value: ::std::vec::Vec<ExecuteVariantIndex>) -> Self {
+        Self(value)
     }
 }
 ///The answer to "Explain this" (06 §8). Every claim is grounded in an analysis feature; the highlights are drawn on the canvas.
@@ -5567,7 +5907,7 @@ impl<'de> ::serde::Deserialize<'de> for GenerateInpaintParamsPrompt {
             })
     }
 }
-///A generation job (09). Not offered in v1.
+///A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, descriptors, seed) except `key`, which the model reads from the summary (06 §3).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct GenerateStep {
@@ -8345,6 +8685,21 @@ impl ::std::convert::TryFrom<::std::string::String> for PlacementMode {
         value.parse()
     }
 }
+///The body of `POST /v1/plans/{planId}/execute` (06 §5): which variants to run, and the context audio the client rendered and uploaded for every generate step. The plan itself is stored server-side from `POST /v1/plans`, so the client never posts it back. `contexts` is keyed by the generate step's `id`; a `generate.extend` step needs `context`, `generate.inpaint` and `generate.transition` need `before` and `after` (09 §2.1).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct PlanExecuteRequest {
+    pub contexts: ExecuteContextMap,
+    ///Indexes into the stored plan's `variants` (0-based). Omitted means every variant that has a generate step.
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub variants: ::std::option::Option<ExecuteVariantList>,
+}
+///The answer of `POST /v1/plans/{planId}/execute` (06 §5): one interactive generation job per generate step of the chosen variants. `variant` is the index into the stored plan, so the client can attach each job's partials to the right candidate commit.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct PlanExecuteResponse {
+    pub jobs: ExecuteJobList,
+}
 ///AI edit plan ID: `pln_` + ULID (02 §2.1, 06).
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[serde(transparent)]
@@ -10941,7 +11296,7 @@ impl ::std::convert::From<Null> for SidechainSourcePatch {
         Self::Null(value)
     }
 }
-///Seam smoothing tools compiled client-side (03 §8.2). Not offered in v1.
+///Seam smoothing tools compiled client-side (03 §8.2).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct SmoothStep {
@@ -13154,6 +13509,8 @@ pub const ROOT_TYPES: &[&str] = &[
     "MacroCatalog",
     "Op",
     "OpBatch",
+    "PlanExecuteRequest",
+    "PlanExecuteResponse",
     "PlanRequest",
     "PreviewResult",
     "Project",

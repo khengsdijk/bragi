@@ -1,11 +1,13 @@
-import type { PlanVariant } from "@bragi/schemas";
+import type { PlanRequest, PlanVariant, Region } from "@bragi/schemas";
 import { describe, expect, it } from "vitest";
+import { hasSongWideIntent } from "../classify.js";
 import { normalizePlanEnvelope } from "../json.js";
 import { diffDocuments, validateRawPlan } from "../validate.js";
 import { loadModelWasm } from "../wasm.js";
 import {
   draftPlan,
   FIRST_SECTION_DRUMS,
+  generationVariant,
   opsVariant,
   testProject,
   testRequest,
@@ -184,27 +186,18 @@ describe("validateRawPlan — locks and v1 scope", () => {
     expect(locked.errors.join(" ")).toMatch(/locked section/);
   });
 
-  it("rejects a generate step because no capability is offered in v1", async () => {
+  it("rejects a capability the planner does not offer", async () => {
     const result = await validateRawPlan(
       draftPlan([
-        {
-          label: "Generated",
-          description: "New drums",
-          steps: [
-            {
-              kind: "generate",
-              id: "g1",
-              capability: "generate.stem",
-              params: { prompt: "dusty half-time drums" },
-              context: { tracks: "all" },
-            },
-          ],
-        },
+        generationVariant("Generated", {
+          capability: "generate.stem",
+          params: { prompt: "dusty half-time drums" },
+        }),
       ]),
       options(),
     );
     expect(result.ok).toBe(false);
-    expect(result.errors.join(" ")).toMatch(/not available in v1/);
+    expect(result.errors.join(" ")).toMatch(/generate\.stem" is not offered/);
   });
 
   it("rejects an artist name left in a generation prompt with a policy violation", async () => {
@@ -385,6 +378,463 @@ describe("validateRawPlan — precise op errors", () => {
     const result = await validateRawPlan(raw, options());
     expect(result.ok).toBe(true);
     expect(result.variants.map((variant) => variant.label)).toEqual(["Warm"]);
+  });
+});
+
+describe("validateRawPlan — generation steps", () => {
+  /** The lasso around the fixture's second bar; the default variant fills it. */
+  const GAP: Region = { startTick: 3840, endTick: 7680, tracks: "all" };
+
+  /** Options whose request selects a region; `undefined` means the song view. */
+  function withRegion(region: Region | undefined, prompt = "fill the gap in bar 2") {
+    const request = songView(prompt);
+    if (region !== undefined) request.region = region;
+    return options({ request, songWideIntent: hasSongWideIntent(prompt) });
+  }
+
+  /** A request from the song view, with no lasso. */
+  function songView(prompt: string): PlanRequest {
+    const request = testRequest({ prompt });
+    delete request.region;
+    return request;
+  }
+
+  it("accepts an inpaint and fills its context from the song and the lasso", async () => {
+    const result = await validateRawPlan(draftPlan([generationVariant("Fill")]), withRegion(GAP));
+    expect(result.errors).toEqual([]);
+    expect(result.ok).toBe(true);
+    const variant = result.variants[0];
+    if (variant === undefined) throw new Error("expected a variant");
+    const generate = variant.steps[0];
+    if (generate?.kind !== "generate") throw new Error("expected a generate step");
+    // The lasso is the gap; four bars of context on each side clamp to the song.
+    expect(generate.context.before).toEqual({ startTick: 0, endTick: 3840 });
+    expect(generate.context.after).toEqual({ startTick: 7680, endTick: 11520 });
+    // The server fills what the song knows and keeps the model's key.
+    expect(generate.params.context).toEqual({
+      bpm: 120,
+      timeSignature: [4, 4],
+      key: { tonic: "A", mode: "minor" },
+      sectionKind: "verse",
+      descriptors: [],
+      seed: expect.any(Number),
+    });
+    // The gap is one bar, so `gapBars` is one no matter what the model wrote.
+    expect(generate.params.gapBars).toBe(1);
+    expect(generate.params.overlapBars).toBe(1);
+  });
+
+  it("keeps a seed the model wrote instead of deriving one", async () => {
+    const result = await validateRawPlan(
+      draftPlan([
+        generationVariant("Fill", {
+          params: {
+            context: { key: { tonic: "A", mode: "minor" }, seed: 77 },
+            tier: "preview",
+            n: 1,
+          },
+        }),
+      ]),
+      withRegion(GAP),
+    );
+    const generate = result.variants[0]?.steps[0];
+    if (generate?.kind !== "generate") throw new Error("expected a generate step");
+    expect(generate.params.context).toMatchObject({ seed: 77 });
+  });
+
+  it("rejects a context without a key when the song has no analysis", async () => {
+    const result = await validateRawPlan(
+      draftPlan([generationVariant("Fill", { params: { context: {}, tier: "preview", n: 1 } })]),
+      withRegion(GAP),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/params\.context\.key is required/);
+  });
+
+  it("fills the key from the analysis summary", async () => {
+    const request = testRequest({
+      doc: testProject({ analysedKey: "F# minor" }),
+      prompt: "fill the gap in bar 2",
+      region: GAP,
+    });
+    const result = await validateRawPlan(
+      draftPlan([generationVariant("Fill", { params: { context: {}, tier: "preview", n: 1 } })]),
+      options({ request, songWideIntent: false }),
+    );
+    expect(result.errors).toEqual([]);
+    const generate = result.variants[0]?.steps[0];
+    if (generate?.kind !== "generate") throw new Error("expected a generate step");
+    expect(generate.params.context).toMatchObject({ key: { tonic: "F#", mode: "minor" } });
+  });
+
+  it("rejects a two-sided capability without a lasso and without ranges", async () => {
+    const result = await validateRawPlan(
+      draftPlan([generationVariant("Fill")]),
+      withRegion(undefined),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/needs the lasso around the gap/);
+  });
+
+  it("rejects a gap inside a locked section", async () => {
+    const request = testRequest({
+      doc: testProject({ locked: true }),
+      prompt: "fill the gap in bar 2",
+      region: GAP,
+    });
+    const result = await validateRawPlan(
+      draftPlan([generationVariant("Fill")]),
+      options({ request, songWideIntent: false }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/locked section/);
+  });
+
+  it("rejects a gap that is not whole bars", async () => {
+    const result = await validateRawPlan(
+      draftPlan([generationVariant("Fill")]),
+      withRegion({ startTick: 3840, endTick: 5800, tracks: "all" }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/whole bar/);
+  });
+
+  it("rejects context ranges outside the song", async () => {
+    const result = await validateRawPlan(
+      draftPlan([
+        generationVariant("Fill", {
+          context: {
+            before: { startTick: 0, endTick: 3840 },
+            after: { startTick: 7680, endTick: 999_999 },
+            tracks: "all",
+          },
+        }),
+      ]),
+      withRegion(GAP),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/outside the song/);
+  });
+
+  it("rejects an unknown track in the context", async () => {
+    const result = await validateRawPlan(
+      draftPlan([generationVariant("Fill", { context: { tracks: ["trk_nope"] } })]),
+      withRegion(GAP),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/unknown track trk_nope/);
+  });
+
+  it("derives a transition's boundary and context from the lasso", async () => {
+    const result = await validateRawPlan(
+      draftPlan([
+        generationVariant("Bridge", {
+          capability: "generate.transition",
+          params: {
+            context: { key: { tonic: "A", mode: "minor" } },
+            lengthBars: 2,
+            tier: "preview",
+            n: 2,
+          },
+          placement: {
+            region: { startTick: 3840, endTick: 7680, tracks: "all" },
+            mode: "replace",
+            newTrack: { name: "Bridge", role: "other" },
+          },
+        }),
+      ]),
+      withRegion({ startTick: 1920, endTick: 5760, tracks: "all" }, "smooth the transition"),
+    );
+    expect(result.errors).toEqual([]);
+    const generate = result.variants[0]?.steps[0];
+    if (generate?.kind !== "generate") throw new Error("expected a generate step");
+    // The nearest section boundary to the lasso's middle is sec_b at 3840.
+    expect(generate.context.before).toEqual({ startTick: 0, endTick: 3840 });
+    expect(generate.context.after).toEqual({ startTick: 3840, endTick: 11520 });
+  });
+
+  it("rejects a transition whose two sides do not meet", async () => {
+    const result = await validateRawPlan(
+      draftPlan([
+        generationVariant("Bridge", {
+          capability: "generate.transition",
+          params: {
+            context: { key: { tonic: "A", mode: "minor" } },
+            lengthBars: 1,
+            tier: "preview",
+            n: 1,
+          },
+          context: {
+            before: { startTick: 0, endTick: 3000 },
+            after: { startTick: 3840, endTick: 7680 },
+            tracks: "all",
+          },
+          placement: {
+            region: { startTick: 3000, endTick: 3840, tracks: "all" },
+            mode: "replace",
+            newTrack: { name: "Bridge", role: "other" },
+          },
+        }),
+      ]),
+      withRegion({ startTick: 1920, endTick: 5760, tracks: "all" }, "smooth the transition"),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/must start where context\.before ends/);
+  });
+
+  it("rejects a transition into a locked section", async () => {
+    const request = testRequest({
+      doc: testProject({ locked: true }),
+      prompt: "smooth the transition",
+      region: { startTick: 1920, endTick: 5760, tracks: "all" },
+    });
+    const result = await validateRawPlan(
+      draftPlan([
+        generationVariant("Bridge", {
+          capability: "generate.transition",
+          params: {
+            context: { key: { tonic: "A", mode: "minor" } },
+            lengthBars: 1,
+            tier: "preview",
+            n: 1,
+          },
+          context: {
+            before: { startTick: 0, endTick: 3840 },
+            after: { startTick: 3840, endTick: 7680 },
+            tracks: "all",
+          },
+          placement: {
+            region: { startTick: 3840, endTick: 7680, tracks: "all" },
+            mode: "replace",
+            newTrack: { name: "Bridge", role: "other" },
+          },
+        }),
+      ]),
+      options({ request, songWideIntent: false }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/locked section/);
+  });
+
+  it("requires song scope for an extend and places it at the song edge", async () => {
+    const extend = (scope: "song" | undefined) =>
+      generationVariant("Longer", {
+        capability: "generate.extend",
+        params: {
+          context: { key: { tonic: "A", mode: "minor" } },
+          bars: 4,
+          direction: "forward",
+          tier: "preview",
+          n: 1,
+        },
+        placement: {
+          region: { startTick: 11520, endTick: 26880, tracks: "all" },
+          mode: "replace",
+          newTrack: { name: "Generated", role: "other" },
+        },
+        ...(scope === undefined ? {} : { scope }),
+      });
+    const prompt = "extend the outro by 4 bars";
+    const request = songView(prompt);
+    const unscoped = await validateRawPlan(draftPlan([extend(undefined)]), {
+      ...options({ request, songWideIntent: true }),
+    });
+    expect(unscoped.ok).toBe(false);
+    expect(unscoped.errors.join(" ")).toMatch(/needs scope "song"/);
+
+    const scoped = await validateRawPlan(draftPlan([extend("song")]), {
+      ...options({ request, songWideIntent: true }),
+    });
+    expect(scoped.errors).toEqual([]);
+    expect(scoped.ok).toBe(true);
+  });
+
+  it("rejects an extend with no room at the song end", async () => {
+    const result = await validateRawPlan(
+      draftPlan([
+        generationVariant("Longer", {
+          capability: "generate.extend",
+          params: {
+            context: { key: { tonic: "A", mode: "minor" } },
+            bars: 4,
+            direction: "forward",
+            tier: "preview",
+            n: 1,
+          },
+          placement: {
+            region: { startTick: 0, endTick: 3840, tracks: "all" },
+            mode: "replace",
+            newTrack: { name: "Generated", role: "other" },
+          },
+          scope: "song",
+        }),
+      ]),
+      options({
+        request: songView("extend the outro by 4 bars"),
+        songWideIntent: true,
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/placed at the end of the song/);
+  });
+
+  it("rejects a placement that does not name an earlier generate step", async () => {
+    const result = await validateRawPlan(
+      draftPlan([
+        generationVariant("Fill", {
+          placement: {
+            region: { startTick: 3840, endTick: 7680, tracks: ["trk_drums"] },
+            trackId: "trk_drums",
+            mode: "replace",
+          },
+        }),
+      ]),
+      withRegion(GAP),
+    );
+    expect(result.ok).toBe(true);
+    const wrong = await validateRawPlan(
+      {
+        interpretation: "x",
+        variants: [
+          {
+            label: "Fill",
+            description: "x",
+            steps: [
+              {
+                kind: "apply_generated",
+                from: "g9",
+                placement: {
+                  region: { startTick: 3840, endTick: 7680, tracks: ["trk_drums"] },
+                  trackId: "trk_drums",
+                  mode: "replace",
+                },
+              },
+              {
+                kind: "generate",
+                id: "g9",
+                capability: "generate.inpaint",
+                params: { context: { key: { tonic: "A", mode: "minor" } }, tier: "preview", n: 1 },
+                context: { tracks: "all" },
+              },
+            ],
+          },
+        ],
+      },
+      withRegion(GAP),
+    );
+    expect(wrong.ok).toBe(false);
+    expect(wrong.errors.join(" ")).toMatch(/not an earlier generate step/);
+  });
+
+  it("rejects a generate step that is never placed", async () => {
+    const result = await validateRawPlan(
+      {
+        interpretation: "x",
+        variants: [
+          {
+            label: "Fill",
+            description: "x",
+            steps: [
+              {
+                kind: "generate",
+                id: "g1",
+                capability: "generate.inpaint",
+                params: { context: { key: { tonic: "A", mode: "minor" } }, tier: "preview", n: 1 },
+                context: { tracks: "all" },
+              },
+            ],
+          },
+        ],
+      },
+      withRegion(GAP),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/is never placed/);
+  });
+
+  it("rejects a placement region that is not the gap", async () => {
+    const result = await validateRawPlan(
+      draftPlan([
+        generationVariant("Fill", {
+          placement: {
+            region: { startTick: 0, endTick: 3840, tracks: ["trk_drums"] },
+            trackId: "trk_drums",
+            mode: "replace",
+          },
+        }),
+      ]),
+      withRegion(GAP),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/fills its gap/);
+  });
+
+  it("accepts smooth tools after a placement and rejects a locked region", async () => {
+    const accepted = await validateRawPlan(
+      draftPlan([
+        generationVariant("Fill", {
+          smooth: { startTick: 3840, endTick: 7680, tracks: ["trk_drums"] },
+        }),
+      ]),
+      withRegion(GAP),
+    );
+    expect(accepted.errors).toEqual([]);
+    expect(accepted.ok).toBe(true);
+
+    const request = testRequest({
+      doc: testProject({ locked: true }),
+      prompt: "fill the gap in bar 2",
+      region: GAP,
+    });
+    const locked = await validateRawPlan(
+      draftPlan([
+        generationVariant("Fill", {
+          smooth: { startTick: 3840, endTick: 7680, tracks: ["trk_drums"] },
+        }),
+      ]),
+      options({ request, songWideIntent: false }),
+    );
+    expect(locked.ok).toBe(false);
+    expect(locked.errors.join(" ")).toMatch(/smooth region would change a locked section/);
+  });
+
+  it("allows at most one generative variant", async () => {
+    const result = await validateRawPlan(
+      draftPlan([generationVariant("Fill A"), generationVariant("Fill B", { id: "g2" })]),
+      withRegion(GAP),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/at most one variant per plan/);
+  });
+
+  it("requires generate step ids to be unique across variants", async () => {
+    const result = await validateRawPlan(
+      draftPlan([generationVariant("Fill A"), generationVariant("Fill B")]),
+      withRegion(GAP),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/used twice in the plan/);
+  });
+
+  it("estimates credits and seconds, and refuses a plan above the ceiling", async () => {
+    const priced = await validateRawPlan(draftPlan([generationVariant("Fill")]), withRegion(GAP));
+    // One bar of gap is one 30 s window: 2 credits per candidate, two candidates.
+    expect(priced.estimate).toEqual({ estimatedCredits: 4, estimatedSeconds: 30 });
+
+    const capped = await validateRawPlan(draftPlan([generationVariant("Fill")]), {
+      ...withRegion(GAP),
+      maxCredits: 2,
+    });
+    expect(capped.ok).toBe(false);
+    expect(capped.errors.join(" ")).toMatch(/needs 4 credits, but only 2 are available/);
+  });
+
+  it("keeps an ops-only variant free", async () => {
+    const result = await validateRawPlan(
+      draftPlan([opsVariant("Warm", [trackFx("trk_drums")])]),
+      options(),
+    );
+    expect(result.estimate).toEqual({ estimatedCredits: 0, estimatedSeconds: 0 });
   });
 });
 

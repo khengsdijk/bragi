@@ -88,6 +88,27 @@ interface ContextSpec { before?: TickRange; after?: TickRange; tracks: TrackId[]
 
 The plan is a **small program**. Ops-only variants are instant. Variants with `generate` steps become jobs.
 
+**What the model writes, what the server fills** (WP-2.8). The offered capabilities are
+`generate.extend`, `generate.inpaint` and `generate.transition`. The model writes the musical intent
+(capability, `bars`/`gapBars`/`lengthBars`, `prompt`, `tier`, `n`), the `ContextSpec` ranges it can
+know, and at most one generative variant per plan. The server completes the rest, because the
+document already holds it (and the model cannot get it wrong):
+
+| Field | Filled by | From |
+|---|---|---|
+| `params.context.bpm`, `.timeSignature` | server | the tempo map at the step's target tick |
+| `params.context.key` | server when the analysis has one, else the model | `analyses[*].summary.key`; an unanalysed song cannot be generated from (09 §6 keys the gates) |
+| `params.context.descriptors` | server | the song's tags (09 §2.1: never artist names) |
+| `params.context.seed` | server when absent | `hash(song id, capability, step id)`, so the same request renders the same audio |
+| `params.context.sectionKind`, `.energy` | server | the section at the target tick (`energyTarget`, or the client's `sectionFeatures`) |
+| `params.gapBars` | server | the inpaint gap, which must span whole bars |
+| `step.context.before` / `.after` | server when absent | the lasso: the selection is the gap of an inpaint and contains the boundary of a transition (the nearest section boundary). An extend needs no ranges (the client renders the song edge) |
+
+`estimatedCredits` is the sum of every variant's generate steps — what trying the whole plan costs,
+which is what the allowance check must cover — and `estimatedSeconds` is the longest single
+variant's (the user tries one). Both come from `config/credits.toml` and the 09 §5 latency targets,
+so the numbers the UI shows are the numbers execute charges.
+
 ## 4. LLM call
 
 - Calls an LLM through **OpenRouter** (OpenAI-compatible chat completions, key `OPENROUTER_API_KEY`, [ADR-0012](decisions/ADR-0012-describe-llm-client.md)) using OpenAI-format **tool calling** with a single tool `propose_edit_plan` whose input schema is the `EditPlan` JSON Schema (minus `planId`, `notices` and the estimates). To keep the prompt inside §2's budget, the envelope stays strict but `ops` items are described loosely (`op` is an enum, the rest is free); §5 validates every op against its own schema. The op shapes the model needs are a generated `OP SHAPES` block in the user message, not a copy of the `Op` union.
@@ -118,10 +139,27 @@ LLM → EditPlan (raw)
 ```
 
 **Execution** (after the user clicks "Try it", or immediately if the user has "auto-run" on):
-1. The client calls `POST /plans/{id}/execute`. The API enqueues `generate` steps as jobs (variants run in parallel) and returns job IDs.
-2. The client builds each variant's **candidate commit** progressively. Ops steps are applied immediately. `apply_generated` steps are applied when their job's `preview` output arrives (low quality) and **re-applied with the HQ asset** on accept ([09 §5](09-generation.md)).
-3. `smooth` steps compile into ops (fades, `match_eq` fx, gain automation, warp anchors) using the engine's seam toolkit ([03 §8.2](03-audio-engine.md)). They run client-side in the engine's offline renderer.
-4. The candidates appear in the Audition bar ([07 §6](07-song-canvas.md)).
+1. The client renders and uploads the context audio of every generate step, then calls
+   `POST /v1/plans/{planId}/execute` with the chosen variant indexes and, per generate step id, the
+   uploaded asset hashes (`context` for an extend; `before` and `after` for an inpaint or
+   transition). The API enqueues one interactive (`priority: "interactive"`) job per generate step of
+   every chosen variant and returns `{ jobs: [{ variant, stepId, jobId, capability, status, estimatedCredits }] }`
+   (06 §3's `PlanExecuteRequest`/`PlanExecuteResponse`). Variants without a generate step are legal in
+   the request and contribute no jobs.
+2. **The plan is stored, not posted back.** `POST /v1/plans` writes the plan to the `plans` table
+   (05 §5) and execute reads it by id, for 24 hours. A stored plan cannot be tampered with between
+   propose and execute, so execute re-checks what the client *can* influence — the variant indexes,
+   the context assets (format and ownership) — plus everything that needs no document: each
+   capability's params schema, the step-id graph (`from` names an earlier generate step, every
+   generate step has a placement), the content policy on prompts, the credits and the GPU budget.
+   Region discipline and the ranges-inside-the-song checks ran at propose time and cannot change.
+3. The client builds each variant's **candidate commit** progressively. Ops steps are applied
+   immediately. `apply_generated` steps are applied when their job's `preview` output arrives
+   (low quality) and **re-applied with the HQ asset** on accept ([09 §5](09-generation.md)).
+4. `smooth` steps compile into ops (fades, `match_eq` fx, gain automation, warp anchors) using the
+   engine's seam toolkit ([03 §8.2](03-audio-engine.md)). They run client-side in the engine's
+   offline renderer.
+5. The candidates appear in the Audition bar ([07 §6](07-song-canvas.md)).
 
 ## 6. Energy skyline compiler (deterministic)
 
@@ -164,10 +202,11 @@ Explanations must ground every claim in analysis features. For example: "At bar 
 
 ## 9. Evaluation
 
-`services/api/test/planner-bench/` contains 43 ops-only cases in WP-2.6 (the set grows with the
-generation capabilities in WP-2.7): `{ fixtureProject, region?, prompt, expectations }`. Expectations
-are structural, for example "uses only fx/macro ops", "touches only trk_drums in bars 41–56", "≥ 2
-distinct lever types across variants", or "asks clarification".
+`services/api/test/planner-bench/` contains 49 cases (WP-2.8): 43 ops-only cases from WP-2.6 and six
+`gen-*` cases that allow or require one generative variant. `{ fixtureProject, region?, prompt, expectations }`.
+Expectations are structural, for example "uses only fx/macro ops", "touches only trk_drums in bars 41–56",
+"≥ 2 distinct lever types across variants", "requires a `generate.inpaint`", "at most one generative variant",
+"asks clarification".
 
 | Metric | Target |
 |---|---|

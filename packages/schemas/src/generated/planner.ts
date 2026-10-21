@@ -111,7 +111,7 @@ export const PLAN_TOOL_SCHEMA: Record<string, unknown> = {
     },
     "ApplyGeneratedStep": {
       "title": "ApplyGeneratedStep",
-      "description": "Turns a generation job's output into clip ops (06 §3). Not offered in v1.",
+      "description": "Turns a generation job's output into clip ops (06 §3). Every generate step needs one in the same variant, naming it with `from`.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -720,7 +720,7 @@ export const PLAN_TOOL_SCHEMA: Record<string, unknown> = {
     },
     "EditPlan": {
       "title": "EditPlan",
-      "description": "A plan the planner offers as 1–3 variants (06 §3). v1 only executes `ops` steps; the other kinds are part of the contract for WP-2.7.",
+      "description": "A plan the planner offers as 1–3 variants (06 §3). Ops steps apply instantly; a variant with a `generate` step becomes interactive jobs when the client executes the plan (06 §5).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -1013,7 +1013,7 @@ export const PLAN_TOOL_SCHEMA: Record<string, unknown> = {
     },
     "GenerateStep": {
       "title": "GenerateStep",
-      "description": "A generation job (09). Not offered in v1.",
+      "description": "A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, descriptors, seed) except `key`, which the model reads from the summary (06 §3).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -2157,7 +2157,7 @@ export const PLAN_TOOL_SCHEMA: Record<string, unknown> = {
     },
     "SmoothStep": {
       "title": "SmoothStep",
-      "description": "Seam smoothing tools compiled client-side (03 §8.2). Not offered in v1.",
+      "description": "Seam smoothing tools compiled client-side (03 §8.2).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -2978,7 +2978,7 @@ export const PLAN_TOOL_SCHEMA: Record<string, unknown> = {
       ]
     }
   },
-  "description": "A plan the planner offers as 1–3 variants (06 §3). v1 only executes `ops` steps; the other kinds are part of the contract for WP-2.7.",
+  "description": "A plan the planner offers as 1–3 variants (06 §3). Ops steps apply instantly; a variant with a `generate` step becomes interactive jobs when the client executes the plan (06 §5).",
   "type": "object",
   "additionalProperties": false,
   "required": [

@@ -8,7 +8,7 @@ import type * as Types from "./types.js";
 import * as validators from "./ajv-validators.js";
 
 /** Every root schema type in `generated/bundle.schema.json`, sorted. */
-export const ROOT_TYPES = ["AnalysisApplyOp", "AnalysisRef", "ApiError", "Arrangement", "AssetMeta", "AuthModeResponse", "Automation", "AutomationClearOp", "AutomationSetOp", "Clip", "ClipAddOp", "ClipRemoveOp", "ClipReplaceOp", "ClipSplitOp", "ClipUpdateOp", "Commit", "DescriptionResult", "DrumSplitResult", "EditPlan", "EmbeddingResult", "Explanation", "FxAddOp", "FxCatalog", "FxInstance", "FxRemoveOp", "FxReorderOp", "FxUpdateOp", "GenerateExtendParams", "GenerateExtendResult", "GenerateFillResult", "GenerateInpaintParams", "GenerateTransitionParams", "GenerateWarmupParams", "HarmonyResult", "IngestResult", "JobEvent", "JobRequest", "KeyTransposeOp", "LoudnessEnergyResult", "LyricsResult", "MacroCatalog", "Op", "OpBatch", "PlanRequest", "PreviewResult", "Project", "ProjectSetMetaOp", "Refs", "Region", "RegionAdoptOp", "RegionClearOp", "RhythmResult", "SectionDuplicateOp", "SectionInsertOp", "SectionInstance", "SectionMergeOp", "SectionMoveOp", "SectionRemoveOp", "SectionResizeOp", "SectionSetTransitionOp", "SectionSplitOp", "SectionSummary", "SectionUpdateOp", "SeparationResult", "Source", "SourceAddOp", "StemActivityResult", "StemEnergyResult", "StructureResult", "TagResult", "TempoSetOp", "Track", "TrackAddOp", "TrackRemoveOp", "TrackUpdateOp", "TranscribeResult"] as const;
+export const ROOT_TYPES = ["AnalysisApplyOp", "AnalysisRef", "ApiError", "Arrangement", "AssetMeta", "AuthModeResponse", "Automation", "AutomationClearOp", "AutomationSetOp", "Clip", "ClipAddOp", "ClipRemoveOp", "ClipReplaceOp", "ClipSplitOp", "ClipUpdateOp", "Commit", "DescriptionResult", "DrumSplitResult", "EditPlan", "EmbeddingResult", "Explanation", "FxAddOp", "FxCatalog", "FxInstance", "FxRemoveOp", "FxReorderOp", "FxUpdateOp", "GenerateExtendParams", "GenerateExtendResult", "GenerateFillResult", "GenerateInpaintParams", "GenerateTransitionParams", "GenerateWarmupParams", "HarmonyResult", "IngestResult", "JobEvent", "JobRequest", "KeyTransposeOp", "LoudnessEnergyResult", "LyricsResult", "MacroCatalog", "Op", "OpBatch", "PlanExecuteRequest", "PlanExecuteResponse", "PlanRequest", "PreviewResult", "Project", "ProjectSetMetaOp", "Refs", "Region", "RegionAdoptOp", "RegionClearOp", "RhythmResult", "SectionDuplicateOp", "SectionInsertOp", "SectionInstance", "SectionMergeOp", "SectionMoveOp", "SectionRemoveOp", "SectionResizeOp", "SectionSetTransitionOp", "SectionSplitOp", "SectionSummary", "SectionUpdateOp", "SeparationResult", "Source", "SourceAddOp", "StemActivityResult", "StemEnergyResult", "StructureResult", "TagResult", "TempoSetOp", "Track", "TrackAddOp", "TrackRemoveOp", "TrackUpdateOp", "TranscribeResult"] as const;
 
 /** A root schema type in `generated/bundle.schema.json`. */
 export type RootType = (typeof ROOT_TYPES)[number];
@@ -141,6 +141,12 @@ export const validateOp: ValidateFunction<Types.Op> = validators.Op as ValidateF
 
 /** Validates a `OpBatch` (see `packages/schemas/song|analysis|jobs|api`). */
 export const validateOpBatch: ValidateFunction<Types.OpBatch> = validators.OpBatch as ValidateFunction<Types.OpBatch>;
+
+/** Validates a `PlanExecuteRequest` (see `packages/schemas/song|analysis|jobs|api`). */
+export const validatePlanExecuteRequest: ValidateFunction<Types.PlanExecuteRequest> = validators.PlanExecuteRequest as ValidateFunction<Types.PlanExecuteRequest>;
+
+/** Validates a `PlanExecuteResponse` (see `packages/schemas/song|analysis|jobs|api`). */
+export const validatePlanExecuteResponse: ValidateFunction<Types.PlanExecuteResponse> = validators.PlanExecuteResponse as ValidateFunction<Types.PlanExecuteResponse>;
 
 /** Validates a `PlanRequest` (see `packages/schemas/song|analysis|jobs|api`). */
 export const validatePlanRequest: ValidateFunction<Types.PlanRequest> = validators.PlanRequest as ValidateFunction<Types.PlanRequest>;
