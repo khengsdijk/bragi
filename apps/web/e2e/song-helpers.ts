@@ -13,21 +13,34 @@ export interface Rect {
 }
 
 export interface ProjectLike {
-  tracks: { id: string; name: string; mute: boolean; solo: boolean; role?: string }[];
+  tracks: {
+    id: string;
+    name: string;
+    mute: boolean;
+    solo: boolean;
+    role?: string;
+    hidden?: boolean;
+  }[];
   sources?: {
     id: string;
     kind: string;
     workingAsset: string;
     originalAsset?: string;
-    placement?: { sectionId: string };
+    placement?: { sectionId: string; range?: { startTick: number; endTick: number } };
   }[];
   arrangement: {
+    timebase?: {
+      ppq: number;
+      tempoMap: { tick: number; bpm: number }[];
+      timeSignatures: { bar: number; numerator: number; denominator: number }[];
+    };
     sections: {
       id: string;
       label: string;
       kind?: string;
       lengthTicks: number;
-      lanes?: Record<string, { clips: { id: string; asset: string }[] }>;
+      lanes?: Record<string, { clips: { id: string; asset: string; start?: number }[] }>;
+      transitionIn?: { kind: string; asset?: string; lengthTicks: number };
     }[];
   };
 }
@@ -109,6 +122,9 @@ export interface Hooks {
         auditionSlot: number;
       };
     };
+    seek(sec: number): void;
+    play(): Promise<void>;
+    toggle(): Promise<void>;
   };
   /** The extend flow; `null` on a canvas without a generation host. */
   readonly extend?: {
@@ -116,11 +132,37 @@ export interface Hooks {
       getState(): { phase: string; candidates: number; message?: string };
     };
   } | null;
+  /** Fill gap and Smooth with AI; `null` on a canvas without a generation host. */
+  readonly fill?: {
+    store: {
+      getState(): { phase: string; candidates: number; message?: string };
+    };
+  } | null;
+  readonly smooth?: {
+    store: {
+      getState(): { phase: string; candidates: number; message?: string };
+    };
+  } | null;
+  /** The chips' state: the erased gap and the re-joined boundaries. */
+  readonly offers?: {
+    store: {
+      getState(): {
+        fill: { region: { startTick: number; endTick: number }; label: string } | null;
+        smooth: readonly { sectionId: string; boundaryTick: number }[];
+      };
+    };
+  } | null;
+  /** The planner's execute path. */
+  readonly plannerGeneration?: { group(): string | null } | null;
   /** The audition bar, when a stored song has one. */
   readonly audition?: {
     store: {
       getState(): {
-        group: { id: string; kind: string } | null;
+        group: {
+          id: string;
+          kind: string;
+          candidates: { id: string; label: string; slot: number; status: { kind: string } }[];
+        } | null;
         selected: number;
         warm: number[];
       };

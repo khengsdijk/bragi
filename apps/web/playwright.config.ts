@@ -39,7 +39,7 @@ const WEBGPU_ARGS = ["--enable-unsafe-webgpu", ...GPU_ARGS];
 export default defineConfig({
   testDir: "e2e",
   testMatch:
-    /(platform|song-canvas|song-audio|brush-paint|canvas-visual|canvas-perf|upload-flow|history-flow|inspector-flow|section-flow|audition-flow|brush-flow|reopen-play|planner-flow|planner-prompt|extend-flow)\.spec\.ts$/,
+    /(platform|song-canvas|song-audio|brush-paint|canvas-visual|canvas-perf|upload-flow|history-flow|inspector-flow|section-flow|audition-flow|brush-flow|reopen-play|planner-flow|planner-prompt|extend-flow|fill-flow|transition-flow|planner-generate-flow)\.spec\.ts$/,
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
