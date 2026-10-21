@@ -367,7 +367,14 @@ export async function runBench(options: BenchOptions = {}): Promise<BenchSummary
     }
   }
 
-  if (options.record === true) saveRecordings(recorded, config.models.fast, startedAt);
+  if (options.record === true) {
+    saveRecordings(
+      recorded,
+      config.models.fast,
+      startedAt,
+      allCases.map((benchCase) => benchCase.id),
+    );
+  }
 
   const summary: BenchSummary = {
     model: config.models.fast,
@@ -826,14 +833,27 @@ function loadRecordings(path = RECORDINGS_PATH): Recordings {
   return raw as unknown as Recordings;
 }
 
-/** Writes the recordings, merging with cases this run did not cover. */
+/**
+ * Writes the recordings, merging with cases this run did not cover.
+ *
+ * @param recorded replies by case id
+ * @param model the model that produced them
+ * @param recordedAt the run's start
+ * @param caseIds the cases that exist now; a renamed or removed case's replies are dropped, so the
+ *   file cannot accumulate entries nothing selects
+ */
 function saveRecordings(
   recorded: Map<string, RecordedReply[]>,
   model: string,
   recordedAt: string,
+  caseIds: readonly string[],
 ): void {
   const existing = loadRecordings();
-  const cases = { ...existing.cases };
+  const known = new Set(caseIds);
+  const cases: Record<string, { replies: RecordedReply[] }> = {};
+  for (const [id, entry] of Object.entries(existing.cases)) {
+    if (known.has(id)) cases[id] = entry;
+  }
   for (const [id, replies] of recorded) cases[id] = { replies };
   const document: Recordings = { version: 1, model, recordedAt, cases };
   mkdirSync(dirname(RECORDINGS_PATH), { recursive: true });
