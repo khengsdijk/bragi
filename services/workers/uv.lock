@@ -332,6 +332,18 @@ source = { editable = "embed" }
 name = "bragi-generate"
 version = "0.0.0"
 source = { editable = "generate" }
+dependencies = [
+    { name = "bragi-analysis" },
+    { name = "numpy" },
+    { name = "scipy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "bragi-analysis", editable = "analysis" },
+    { name = "numpy", specifier = ">=2.0" },
+    { name = "scipy", specifier = ">=1.14" },
+]
 
 [[package]]
 name = "bragi-workers"

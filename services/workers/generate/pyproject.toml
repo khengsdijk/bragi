@@ -3,7 +3,13 @@ name = "bragi-generate"
 version = "0.0.0"
 description = "Generation workers: extend, inpaint, stem-gen, text-to-music, fx, transform"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  # The postprocess gates (09 §6) reuse the analysis worker's chroma, key fitting,
+  # K-weighted loudness and beat tracker instead of re-implementing them (WP-2.7 B).
+  "bragi-analysis",
+  "numpy>=2.0",
+  "scipy>=1.14",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -11,3 +17,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bragi_generate"]
+
+[tool.uv.sources]
+bragi-analysis = { workspace = true }
