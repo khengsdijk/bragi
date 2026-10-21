@@ -7,6 +7,9 @@
  *   candidate is committed, a new section appears after the last one with the generated clip ->
  *   undo restores the exact document -> axe with the popover open.
  *
+ * After Accept, the generated audio's own separation puts its stems on the song's stem tracks and
+ * removes the mix-only generated lane (09 §9 check 2).
+ *
  * Same gate and stack as `upload-flow.spec.ts` (`BRAGI_E2E_STACK=1`, single-user `dev:backend`,
  * `BRAGI_GENERATION_BACKEND=fake`).
  */
@@ -23,6 +26,7 @@ import {
   SKIP_REASON,
   STACK,
   seriousOrCritical,
+  type TrackLike,
 } from "./stack-helpers.js";
 
 test.skip(!STACK, SKIP_REASON);
@@ -172,6 +176,36 @@ test.describe("extending the song with AI", () => {
       "the new section plays the generated audio",
     ).toBe(true);
     expect(last?.kind).toBe("outro");
+
+    // 09 §9 check 2: when the generated audio's separation lands, the new section's lanes are on
+    // the song's own stem tracks and the mix-only generated lane is gone.
+    const STEM_EXCLUDED = new Set(["full_mix", "generated", "residual"]);
+    const songStems = new Set(
+      (before.tracks as TrackLike[])
+        .filter((track) => track.role !== undefined && !STEM_EXCLUDED.has(track.role))
+        .map((track) => track.id),
+    );
+    expect(songStems.size, "the song has stem tracks").toBeGreaterThan(1);
+    const mapped = async () => {
+      const doc = await hookDoc(appPage);
+      const roles = new Map(
+        ((doc?.tracks ?? []) as TrackLike[]).map((track) => [track.id, track.role]),
+      );
+      const section = doc?.arrangement.sections.at(-1);
+      const lanes = Object.entries(section?.lanes ?? {}).filter(
+        ([, lane]) => lane.clips.length > 0,
+      );
+      return {
+        generatedLane: lanes.some(([trackId]) => roles.get(trackId) === "generated"),
+        onSongStems: lanes.filter(([trackId]) => songStems.has(trackId)).length,
+      };
+    };
+    await expect
+      .poll(mapped, { timeout: 180_000, intervals: [1_000] })
+      .toEqual({ generatedLane: false, onSongStems: songStems.size });
+    console.log(
+      `[extend] ${testInfo.project.name}: generated audio separated onto ${songStems.size} stem tracks`,
+    );
 
     const states = await withHooks(
       appPage,

@@ -236,25 +236,28 @@ test.describe("upload -> live analysis -> playable, soloable canvas", () => {
           ),
         )
         .toEqual([stem.id]);
-      const userOps = await withHooks(appPage, (h) => {
-        const history = (
-          h as unknown as {
-            history: {
-              store: {
-                getState(): {
-                  commits: Map<string, { authorKind: string; batch: { ops: { op: string }[] } }>;
+      // The history commit can land a moment after the document shows the solo (Firefox), so the
+      // newest user commit is polled as well.
+      const userOps = () =>
+        withHooks(appPage, (h) => {
+          const history = (
+            h as unknown as {
+              history: {
+                store: {
+                  getState(): {
+                    commits: Map<string, { authorKind: string; batch: { ops: { op: string }[] } }>;
+                  };
                 };
-              };
-            } | null;
-          }
-        ).history;
-        const commits = [...(history?.store.getState().commits.values() ?? [])];
-        return commits
-          .filter((commit) => commit.authorKind === "user")
-          .at(-1)
-          ?.batch.ops.map((o) => o.op);
-      });
-      expect(userOps, `solo ${stem.name}`).toEqual(["track.update"]);
+              } | null;
+            }
+          ).history;
+          const commits = [...(history?.store.getState().commits.values() ?? [])];
+          return commits
+            .filter((commit) => commit.authorKind === "user")
+            .at(-1)
+            ?.batch.ops.map((o) => o.op);
+        });
+      await expect.poll(userOps, { message: `solo ${stem.name}` }).toEqual(["track.update"]);
       // The accessible grid reflects it, and the engine silences everything else.
       await expect(appPage.getByTestId(`grid-solo-${stem.id}`)).toHaveAttribute(
         "aria-pressed",
