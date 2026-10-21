@@ -23,7 +23,7 @@
 //! assert_eq!(ctx.seconds_to_ticks(0.5), 960);
 //! ```
 
-use crate::generated::{Project, TempoCurve, TempoMap, TempoPoint, TimeSig, Timebase};
+use crate::generated::{Project, TempoCurve, TempoMap, TempoPoint, TickRange, TimeSig, Timebase};
 
 use crate::PPQ;
 
@@ -330,6 +330,131 @@ pub fn ticks_to_bar_beat(doc: &Project, ticks: i64) -> (u64, f64) {
     }
 }
 
+/// Which end of the song a [`bar_aligned_context_range`] is anchored to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContextEdge {
+    /// The first bar line (tick 0), for a backward extend or an intro.
+    Start,
+    /// The last bar line at or before the song's end, for a forward extend.
+    End,
+}
+
+/// A bar-aligned tick range of about `seconds` seconds at one song edge.
+///
+/// Generation conditioning wants roughly the last (or first) 30 s of the song,
+/// but a model that works in bars must be handed bar lines (`specs/03-audio-engine.md`
+/// §9, `specs/09-generation.md` §3). This walks the bar lines derived from the
+/// tempo map and the time signatures and picks the range whose duration is
+/// closest to `seconds`; on a tie it keeps the longer range. The range is at
+/// least one bar and clamped to the song, so a short song yields the whole song
+/// and a song that ends mid-bar ends the range on the bar line before it.
+///
+/// `seconds` is a target, not a promise: bars change length across a time
+/// signature and a tempo change, so the result lands on the nearest bar line.
+/// A non-finite or negative `seconds` picks the shortest one-bar range.
+///
+/// ```
+/// # use bragi_model::generated::Project;
+/// # fn project() -> Project { serde_json::from_value(serde_json::json!({
+/// #     "schemaVersion": 1, "id": "prj_01",
+/// #     "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+/// #     "sources": [], "analyses": {},
+/// #     "tracks": [{ "id": "trk_01", "name": "Mix", "role": "full_mix", "color": "#8A8F98",
+/// #                  "gainDb": 0, "pan": 0, "mute": false, "solo": false, "hidden": false, "fx": [] }],
+/// #     "arrangement": { "timebase": { "ppq": 960,
+/// #         "tempoMap": [{ "tick": 0, "bpm": 120, "curve": "step" }],
+/// #         "timeSignatures": [{ "bar": 0, "numerator": 4, "denominator": 4 }] },
+/// #         "sections": [{ "id": "sec_a", "kind": "custom", "label": "A", "lengthTicks": 15360,
+/// #             "lanes": {}, "transitionIn": { "kind": "cut", "lengthTicks": 0 } }],
+/// #         "master": { "fx": [], "automation": [], "gainDb": 0 } }
+/// # })).unwrap() }
+/// // Four bars of 4/4 at 120 bpm (2 s per bar). Five seconds is a tie between
+/// // two bars (4 s) and three bars (6 s); the longer range wins.
+/// let range = bragi_model::bar_aligned_context_range(
+///     &project(), bragi_model::ContextEdge::End, 5.0);
+/// assert_eq!((range.start_tick, range.end_tick), (3840, 15360));
+/// ```
+#[must_use]
+pub fn bar_aligned_context_range(doc: &Project, edge: ContextEdge, seconds: f64) -> TickRange {
+    let total = crate::spans::total_ticks(doc);
+    if total <= 0 {
+        return TickRange {
+            start_tick: 0,
+            end_tick: total.max(0),
+        };
+    }
+    let ppq = *doc.arrangement.timebase.ppq;
+    let signatures = &doc.arrangement.timebase.time_signatures;
+    let tempo = TempoCtx::from_project(doc);
+    let target = if seconds.is_finite() {
+        seconds.max(0.0)
+    } else {
+        0.0
+    };
+
+    // Every bar line from 0 up to the song end, plus the end itself when it
+    // lands on one. A partial last bar is not a candidate: the range must end
+    // (or start) exactly on a bar line.
+    let mut bars = vec![0_i64];
+    let mut tick = 0_i64;
+    let mut bar = 0_u64;
+    loop {
+        let next = tick.saturating_add(bar_ticks(signatures, bar, ppq).max(1));
+        if next > total {
+            break;
+        }
+        bars.push(next);
+        tick = next;
+        bar += 1;
+        if next == total {
+            break;
+        }
+    }
+
+    // Fewer than two bar lines means the song is shorter than one bar: clamp.
+    if bars.len() < 2 {
+        return TickRange {
+            start_tick: 0,
+            end_tick: total,
+        };
+    }
+
+    let duration =
+        |start: i64, end: i64| tempo.ticks_to_seconds(end) - tempo.ticks_to_seconds(start);
+    let mut best = match edge {
+        ContextEdge::Start => (0, bars[1]),
+        ContextEdge::End => (bars[bars.len() - 2], bars[bars.len() - 1]),
+    };
+    let mut best_diff = (duration(best.0, best.1) - target).abs();
+    match edge {
+        // Later boundaries are longer ranges; on a tie they win.
+        ContextEdge::Start => {
+            for &end in &bars[2..] {
+                let diff = (duration(0, end) - target).abs();
+                if diff <= best_diff {
+                    best = (0, end);
+                    best_diff = diff;
+                }
+            }
+        }
+        // Walk backwards so the earlier (longer) range wins a tie.
+        ContextEdge::End => {
+            let end = *bars.last().unwrap_or(&total);
+            for &start in bars[..bars.len() - 1].iter().rev() {
+                let diff = (duration(start, end) - target).abs();
+                if diff <= best_diff {
+                    best = (start, end);
+                    best_diff = diff;
+                }
+            }
+        }
+    }
+    TickRange {
+        start_tick: best.0,
+        end_tick: best.1,
+    }
+}
+
 /// A convenience wrapper for callers that already hold a [`TempoMap`].
 #[must_use]
 pub fn tempo_map_seconds(points: &TempoMap, ticks: i64) -> f64 {
@@ -396,5 +521,119 @@ mod tests {
         let ctx = TempoCtx::new(&[], 960);
         assert!((ctx.ticks_to_seconds(960) - 0.5).abs() < 1e-12);
         assert_eq!(ctx.seconds_to_ticks(0.5), 960);
+    }
+
+    /// A document with one section per entry in `lengths`.
+    fn context_project(
+        tempo: serde_json::Value,
+        signatures: serde_json::Value,
+        lengths: &[u64],
+    ) -> Project {
+        let sections: Vec<serde_json::Value> = lengths
+            .iter()
+            .enumerate()
+            .map(|(index, length)| {
+                serde_json::json!({
+                    "id": format!("sec_{index}"), "kind": "custom", "label": format!("{index}"),
+                    "lengthTicks": length, "lanes": {},
+                    "transitionIn": { "kind": "cut", "lengthTicks": 0 }
+                })
+            })
+            .collect();
+        serde_json::from_value(serde_json::json!({
+            "schemaVersion": 1, "id": "prj_01",
+            "meta": { "title": "t", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+            "sources": [], "analyses": {}, "tracks": [],
+            "arrangement": { "timebase": { "ppq": 960, "tempoMap": tempo,
+                "timeSignatures": signatures },
+                "sections": sections,
+                "master": { "fx": [], "automation": [], "gainDb": 0 } }
+        }))
+        .unwrap()
+    }
+
+    fn four_four() -> serde_json::Value {
+        serde_json::json!([{ "bar": 0, "numerator": 4, "denominator": 4 }])
+    }
+
+    #[test]
+    fn context_range_snaps_to_bar_lines() {
+        // Eight bars of 4/4 at 120 bpm: 2 s per bar, 16 s total.
+        let doc = context_project(
+            serde_json::json!([{ "tick": 0, "bpm": 120, "curve": "step" }]),
+            four_four(),
+            &[30_720],
+        );
+        let edge = bar_aligned_context_range(&doc, ContextEdge::End, 5.0);
+        // 4 s and 6 s are equally far from 5 s; the longer range wins.
+        assert_eq!((edge.start_tick, edge.end_tick), (19_200, 30_720));
+        assert_eq!(ticks_to_bar_beat(&doc, edge.start_tick), (5, 0.0));
+
+        // 4.6 s is closer to two bars (4 s) than to three (6 s).
+        let first = bar_aligned_context_range(&doc, ContextEdge::Start, 4.6);
+        assert_eq!((first.start_tick, first.end_tick), (0, 7_680));
+        assert_eq!(ticks_to_bar_beat(&doc, first.end_tick), (2, 0.0));
+    }
+
+    #[test]
+    fn context_range_follows_a_tempo_change() {
+        // Four bars at 120 bpm (8 s), then four at 60 bpm (16 s).
+        let doc = context_project(
+            serde_json::json!([
+                { "tick": 0, "bpm": 120, "curve": "step" },
+                { "tick": 15_360, "bpm": 60, "curve": "step" }
+            ]),
+            four_four(),
+            &[15_360, 15_360],
+        );
+        let range = bar_aligned_context_range(&doc, ContextEdge::End, 10.0);
+        // Two bars are 8 s and three are 12 s, both 2 s from the target; the
+        // longer range wins and it spans the tempo change.
+        assert_eq!((range.start_tick, range.end_tick), (19_200, 30_720));
+        let seconds = TempoCtx::from_project(&doc).ticks_to_seconds(range.end_tick)
+            - TempoCtx::from_project(&doc).ticks_to_seconds(range.start_tick);
+        assert!((seconds - 12.0).abs() < 1e-9, "{seconds}");
+    }
+
+    #[test]
+    fn context_range_uses_three_four_bars() {
+        // Four bars of 4/4, then four of 3/4 at 120 bpm (1.5 s per bar).
+        let doc = context_project(
+            serde_json::json!([{ "tick": 0, "bpm": 120, "curve": "step" }]),
+            serde_json::json!([
+                { "bar": 0, "numerator": 4, "denominator": 4 },
+                { "bar": 4, "numerator": 3, "denominator": 4 }
+            ]),
+            &[15_360, 11_520],
+        );
+        let range = bar_aligned_context_range(&doc, ContextEdge::End, 3.0);
+        // Two 3/4 bars are exactly 3 s and start on bar 6.
+        assert_eq!((range.start_tick, range.end_tick), (21_120, 26_880));
+        assert_eq!(ticks_to_bar_beat(&doc, range.start_tick), (6, 0.0));
+    }
+
+    #[test]
+    fn context_range_clamps_to_the_song() {
+        let tempo = serde_json::json!([{ "tick": 0, "bpm": 120, "curve": "step" }]);
+        // Shorter than one 4/4 bar: the whole song, since no bar line fits.
+        let short = context_project(tempo.clone(), four_four(), &[1_920]);
+        for edge in [ContextEdge::Start, ContextEdge::End] {
+            let range = bar_aligned_context_range(&short, edge, 30.0);
+            assert_eq!((range.start_tick, range.end_tick), (0, 1_920));
+        }
+
+        // 1.3 bars: the range stops on the last bar line, not mid-bar.
+        let partial = context_project(tempo, four_four(), &[5_000]);
+        let range = bar_aligned_context_range(&partial, ContextEdge::End, 30.0);
+        assert_eq!((range.start_tick, range.end_tick), (0, 3_840));
+
+        // A non-finite target degrades to the shortest range (one bar).
+        let eight = context_project(
+            serde_json::json!([{ "tick": 0, "bpm": 120, "curve": "step" }]),
+            four_four(),
+            &[30_720],
+        );
+        let range = bar_aligned_context_range(&eight, ContextEdge::End, f64::NAN);
+        assert_eq!(range.end_tick - range.start_tick, 3_840);
     }
 }

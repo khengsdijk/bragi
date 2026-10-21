@@ -47,8 +47,8 @@ pub use error::{ApplyError, ValidationCode, ValidationError};
 pub use region::{RegionSlice, ResolvedRegion, resolve_region};
 pub use spans::{SectionSpan, section_spans};
 pub use time::{
-    MAX_BPM, MIN_BPM, TempoCtx, bar_beat_to_ticks, seconds_to_ticks, ticks_to_bar_beat,
-    ticks_to_seconds,
+    ContextEdge, MAX_BPM, MIN_BPM, TempoCtx, bar_aligned_context_range, bar_beat_to_ticks,
+    seconds_to_ticks, ticks_to_bar_beat, ticks_to_seconds,
 };
 pub use validate::validate;
 
