@@ -112,6 +112,8 @@ fn reserialize_root(name: &str, value: Value) -> Result<Value, String> {
         "FxRemoveOp" => reserialize::<g::FxRemoveOp>(value),
         "FxReorderOp" => reserialize::<g::FxReorderOp>(value),
         "FxUpdateOp" => reserialize::<g::FxUpdateOp>(value),
+        "GenerateExtendParams" => reserialize::<g::GenerateExtendParams>(value),
+        "GenerateExtendResult" => reserialize::<g::GenerateExtendResult>(value),
         "HarmonyResult" => reserialize::<g::HarmonyResult>(value),
         "IngestResult" => reserialize::<g::IngestResult>(value),
         "JobEvent" => reserialize::<g::JobEvent>(value),

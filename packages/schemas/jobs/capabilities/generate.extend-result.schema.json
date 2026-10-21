@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GenerateExtendResult",
+  "description": "One `generate.extend` candidate's result blob (specs/09-generation.md §6): every gate's verdict, the metrics the eval dashboard tracks, and what placement needs. The candidate audio is the sibling asset in the same `JobOutputs` entry. The blob is uploaded as `blobs.candidate_<index>` and published with the candidate's asset on the streaming `partial` event (09 §5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "index",
+    "asset",
+    "seed",
+    "model",
+    "modelVersion",
+    "passed",
+    "qualityWarning",
+    "seamScore",
+    "tempoError",
+    "spliceOffsetSamples",
+    "direction",
+    "steps"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [1]
+    },
+    "index": {
+      "description": "Candidate index within the job, in the order partials were published.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "asset": {
+      "description": "The processed candidate audio (48 kHz, 24-bit FLAC).",
+      "$ref": "../../song/common.schema.json#/$defs/AssetHash"
+    },
+    "seed": {
+      "description": "The seed the backend actually used, echoed for regeneration and HQ re-render.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "model": {
+      "description": "Backend model name, e.g. \"ace-step\".",
+      "type": "string",
+      "minLength": 1
+    },
+    "modelVersion": {
+      "description": "Backend model version, e.g. \"1.5.0\".",
+      "type": "string",
+      "minLength": 1
+    },
+    "passed": {
+      "description": "Every non-skipped gate passed. A rejected candidate can still be returned, with qualityWarning (09 §6).",
+      "type": "boolean"
+    },
+    "qualityWarning": {
+      "description": "Set when no candidate passed: the UI shows \"This one might not blend perfectly\" (09 §6).",
+      "type": "boolean"
+    },
+    "seamScore": {
+      "description": "03 §8.2 seam score of the final render, lower is better. null when the gates could not score the candidate; JSON has no Infinity.",
+      "type": ["number", "null"]
+    },
+    "tempoError": {
+      "description": "Relative tempo error before warping, 0..1 (0 when it could not be measured).",
+      "type": "number",
+      "minimum": 0
+    },
+    "keyMatch": {
+      "$ref": "#/$defs/ExtendKeyMatch"
+    },
+    "matchEq": {
+      "$ref": "#/$defs/ExtendMatchEq"
+    },
+    "spliceOffsetSamples": {
+      "description": "Where the processed audio starts relative to the context edge being extended: the context end for forward, the context start for backward. Negative means it starts inside the overlap (09 §6, 03 §8.2).",
+      "type": "integer"
+    },
+    "direction": { "$ref": "generate.extend.schema.json#/$defs/ExtendDirection" },
+    "steps": { "$ref": "#/$defs/ExtendStepList" }
+  },
+  "$defs": {
+    "ExtendStepList": {
+      "description": "The seven gate verdicts of 09 §6, in order; short-circuited steps are skipped.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/ExtendStep" }
+    },
+    "ExtendStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step", "passed", "metrics", "skipped"],
+      "properties": {
+        "step": {
+          "description": "Gate name: sanity, tempo, key, beat_align, splice, match or final_seam.",
+          "type": "string",
+          "minLength": 1
+        },
+        "passed": { "type": "boolean" },
+        "skipped": {
+          "description": "True for a step after a short circuit.",
+          "type": "boolean"
+        },
+        "reason": {
+          "description": "Why a gate failed, e.g. \"silent\" or \"tempo error above the gate\".",
+          "type": "string",
+          "minLength": 1
+        },
+        "metrics": {
+          "description": "The gate's own numbers. Deliberately open: each gate owns its metric names (config/generation_gates.toml).",
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "ExtendKeyMatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["detected", "confidence", "relation", "shiftSemitones"],
+      "properties": {
+        "detected": { "$ref": "common.schema.json#/$defs/MusicalKey" },
+        "confidence": { "$ref": "../../analysis/common.schema.json#/$defs/Confidence" },
+        "relation": { "$ref": "#/$defs/ExtendKeyRelation" },
+        "shiftSemitones": {
+          "description": "Semitones the key gate shifted the candidate by (0, +-1).",
+          "type": "integer",
+          "minimum": -12,
+          "maximum": 12
+        }
+      }
+    },
+    "ExtendKeyRelation": {
+      "description": "How the candidate's detected key relates to the requested one (09 §6 step 3).",
+      "type": "string",
+      "enum": ["same", "relative", "shifted", "off"]
+    },
+    "ExtendMatchEq": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bands", "amount"],
+      "properties": {
+        "bands": { "$ref": "#/$defs/ExtendMatchEqBands" },
+        "amount": {
+          "description": "Wet amount of the spectral match, 0..1.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "ExtendMatchEqBands": {
+      "description": "One gain in dB per band of the `match_eq` fx (03 §8.2).",
+      "type": "array",
+      "items": { "type": "number" }
+    }
+  }
+}

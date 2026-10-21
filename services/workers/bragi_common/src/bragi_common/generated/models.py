@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from enum import Enum, IntEnum, StrEnum
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -198,6 +198,21 @@ class ChannelCount(IntEnum):
     integer_2 = 2
 
 
+class ChordAtBeat(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    startBeat: Annotated[
+        float, Field(description='Beats relative to the start of the target span.')
+    ]
+    symbol: Annotated[
+        str, Field(description='Display symbol, e.g. "Am7".', min_length=1)
+    ]
+
+
+type ChordAtBeatList = Annotated[list[ChordAtBeat], Field(title='ChordAtBeatList')]
+
+
 class ClipAddOpOp(StrEnum):
     clip_add = 'clip.add'
 
@@ -286,6 +301,12 @@ class DescriptionResultSchemaVersion(IntEnum):
     integer_1 = 1
 
 
+type DescriptorListItem = Annotated[str, Field(min_length=1)]
+
+
+type DescriptorList = Annotated[list[DescriptorListItem], Field(title='DescriptorList')]
+
+
 class DrumComponent(StrEnum):
     """
     A drum sub-stem produced by the deep `drum_split` stage (04 §7).
@@ -367,6 +388,90 @@ class ErrorCode(StrEnum):
     BUDGET_EXCEEDED = 'BUDGET_EXCEEDED'
     COMMIT_PARENT_MISSING = 'COMMIT_PARENT_MISSING'
     INTERNAL = 'INTERNAL'
+
+
+class ExtendDirection(StrEnum):
+    """
+    `forward` continues the song at its end; `backward` generates an intro before its start (09 §4.2 step 5).
+    """
+
+    forward = 'forward'
+    backward = 'backward'
+
+
+class ExtendKeyRelation(StrEnum):
+    """
+    How the candidate's detected key relates to the requested one (09 §6 step 3).
+    """
+
+    same = 'same'
+    relative = 'relative'
+    shifted = 'shifted'
+    off = 'off'
+
+
+type ExtendMatchEqBands = Annotated[
+    list[float],
+    Field(
+        description='One gain in dB per band of the `match_eq` fx (03 §8.2).',
+        title='ExtendMatchEqBands',
+    ),
+]
+"""
+One gain in dB per band of the `match_eq` fx (03 §8.2).
+"""
+
+
+class ExtendStep(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    step: Annotated[
+        str,
+        Field(
+            description='Gate name: sanity, tempo, key, beat_align, splice, match or final_seam.',
+            min_length=1,
+        ),
+    ]
+    passed: bool
+    skipped: Annotated[
+        bool, Field(description='True for a step after a short circuit.')
+    ]
+    reason: Annotated[
+        str | None,
+        Field(
+            description='Why a gate failed, e.g. "silent" or "tempo error above the gate".',
+            min_length=1,
+        ),
+    ] = None
+    metrics: Annotated[
+        dict[str, Any],
+        Field(
+            description="The gate's own numbers. Deliberately open: each gate owns its metric names (config/generation_gates.toml)."
+        ),
+    ]
+
+
+type ExtendStepList = Annotated[
+    list[ExtendStep],
+    Field(
+        description='The seven gate verdicts of 09 §6, in order; short-circuited steps are skipped.',
+        min_length=1,
+        title='ExtendStepList',
+    ),
+]
+"""
+The seven gate verdicts of 09 §6, in order; short-circuited steps are skipped.
+"""
+
+
+class ExtendTier(StrEnum):
+    """
+    Latency tier (09 §5): `preview` streams fast candidates, `hq` is the background re-render.
+    """
+
+    preview = 'preview'
+    hq = 'hq'
 
 
 class FadeCurve(StrEnum):
@@ -453,6 +558,14 @@ class FxType(StrEnum):
 
 class FxUpdateOpOp(StrEnum):
     fx_update = 'fx.update'
+
+
+class GenerateExtendResultSchemaVersion(IntEnum):
+    """
+    Blob schema version (01 §7).
+    """
+
+    integer_1 = 1
 
 
 class HarmonyResultSchemaVersion(IntEnum):
@@ -668,6 +781,16 @@ class MasterAutomationScopeKind(StrEnum):
 
 class MasterFxScopeKind(StrEnum):
     master = 'master'
+
+
+class MusicalKey(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    tonic: Annotated[
+        str, Field(description='Note name, e.g. "F#" or "Bb".', min_length=1)
+    ]
+    mode: KeyMode
 
 
 type NamedAssetMap = dict[str, AssetHash]
@@ -1163,6 +1286,23 @@ class TimeSigDenominator(IntEnum):
     integer_32 = 32
 
 
+type TimeSignatureItem = Annotated[int, Field(ge=1)]
+
+
+type TimeSignature = Annotated[
+    list[TimeSignatureItem],
+    Field(
+        description='[numerator, denominator], e.g. [4, 4].',
+        max_length=2,
+        min_length=2,
+        title='TimeSignature',
+    ),
+]
+"""
+[numerator, denominator], e.g. [4, 4].
+"""
+
+
 class TimebasePpq(IntEnum):
     """
     Pulses per quarter note. Fixed at 960 (02 §2.2).
@@ -1546,6 +1686,34 @@ class ErrorBody(BaseModel):
     details: FreeformParams | None = None
 
 
+class ExtendKeyMatch(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    detected: MusicalKey
+    confidence: Confidence
+    relation: ExtendKeyRelation
+    shiftSemitones: Annotated[
+        int,
+        Field(
+            description='Semitones the key gate shifted the candidate by (0, +-1).',
+            ge=-12,
+            le=12,
+        ),
+    ]
+
+
+class ExtendMatchEq(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    bands: ExtendMatchEqBands
+    amount: Annotated[
+        float,
+        Field(description='Wet amount of the spectral match, 0..1.', ge=0.0, le=1.0),
+    ]
+
+
 class FxInstance(BaseModel):
     """
     One effect in a chain (02 §3.7). Parameter ranges and defaults per type are in crates/bragi-dsp/fx_catalog.json (03 §6).
@@ -1590,6 +1758,76 @@ class FxReorderOp(BaseModel):
     op: FxReorderOpOp
     fxId: FxId
     newIndex: Annotated[int, Field(description='New position in the chain.', ge=0)]
+
+
+class GenerateExtendResult(BaseModel):
+    """
+    One `generate.extend` candidate's result blob (specs/09-generation.md §6): every gate's verdict, the metrics the eval dashboard tracks, and what placement needs. The candidate audio is the sibling asset in the same `JobOutputs` entry. The blob is uploaded as `blobs.candidate_<index>` and published with the candidate's asset on the streaming `partial` event (09 §5).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: GenerateExtendResultSchemaVersion
+    index: Annotated[
+        int,
+        Field(
+            description='Candidate index within the job, in the order partials were published.',
+            ge=0,
+        ),
+    ]
+    asset: Annotated[
+        AssetHash,
+        Field(description='The processed candidate audio (48 kHz, 24-bit FLAC).'),
+    ]
+    seed: Annotated[
+        int,
+        Field(
+            description='The seed the backend actually used, echoed for regeneration and HQ re-render.',
+            ge=0,
+        ),
+    ]
+    model: Annotated[
+        str, Field(description='Backend model name, e.g. "ace-step".', min_length=1)
+    ]
+    modelVersion: Annotated[
+        str, Field(description='Backend model version, e.g. "1.5.0".', min_length=1)
+    ]
+    passed: Annotated[
+        bool,
+        Field(
+            description='Every non-skipped gate passed. A rejected candidate can still be returned, with qualityWarning (09 §6).'
+        ),
+    ]
+    qualityWarning: Annotated[
+        bool,
+        Field(
+            description='Set when no candidate passed: the UI shows "This one might not blend perfectly" (09 §6).'
+        ),
+    ]
+    seamScore: Annotated[
+        float | None,
+        Field(
+            description='03 §8.2 seam score of the final render, lower is better. null when the gates could not score the candidate; JSON has no Infinity.'
+        ),
+    ]
+    tempoError: Annotated[
+        float,
+        Field(
+            description='Relative tempo error before warping, 0..1 (0 when it could not be measured).',
+            ge=0.0,
+        ),
+    ]
+    keyMatch: ExtendKeyMatch | None = None
+    matchEq: ExtendMatchEq | None = None
+    spliceOffsetSamples: Annotated[
+        int,
+        Field(
+            description='Where the processed audio starts relative to the context edge being extended: the context end for forward, the context start for backward. Negative means it starts inside the overlap (09 §6, 03 §8.2).'
+        ),
+    ]
+    direction: ExtendDirection
+    steps: ExtendStepList
 
 
 class IngestResult(BaseModel):
@@ -1804,6 +2042,55 @@ class MasterFxScope(BaseModel):
         extra='forbid',
     )
     kind: MasterFxScopeKind
+
+
+class MusicalContext(BaseModel):
+    """
+    The musical facts every generation request carries (09 §2.1). Context audio is a job input asset (inputs.assets.context), not a param, because it is content-addressed and streamed like any other input.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    bpm: Annotated[
+        float,
+        Field(
+            description='Tempo of the song the generated audio must continue.',
+            ge=1.0,
+            le=400.0,
+        ),
+    ]
+    timeSignature: TimeSignature
+    key: MusicalKey
+    chords: Annotated[
+        ChordAtBeatList | None,
+        Field(
+            description='Chord symbols for the target span, relative to its start (09 §2.1).'
+        ),
+    ] = None
+    sectionKind: SectionKind | None = None
+    energy: Annotated[
+        float | None,
+        Field(
+            description='Target energy in 0..1; 0 is the quietest, 1 the loudest.',
+            ge=0.0,
+            le=1.0,
+        ),
+    ] = None
+    descriptors: Annotated[
+        DescriptorList,
+        Field(
+            description="Style descriptors from tags and the user's prompt. Never artist names (specs/10-fusion.md §7)."
+        ),
+    ]
+    seed: Annotated[
+        int,
+        Field(
+            description='Deterministic seed. Backends may derive one seed per candidate from it.',
+            ge=0,
+            le=4294967295,
+        ),
+    ]
 
 
 class PreviewResult(BaseModel):
@@ -2494,6 +2781,39 @@ class FxUpdateOp(BaseModel):
             description='The key track for `sidechain_duck` (03 §6 `sourceTrack`); `null` clears it.'
         ),
     ] = None
+
+
+class GenerateExtendParams(BaseModel):
+    """
+    Params of `generate.extend` (specs/09-generation.md §4.2): continue the song forward, or generate an intro backward. The rendered context audio is the job's `inputs.assets.context`; the backend requests `bars + overlapBars` bars so the gate pass can splice inside the overlap.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    context: MusicalContext
+    bars: Annotated[
+        int,
+        Field(description='Bars of new audio, not counting the overlap.', ge=1, le=32),
+    ]
+    overlapBars: Annotated[
+        int | None,
+        Field(
+            description='Bars of rendered context the model may re-create for the splice search (09 §4.2 step 2).',
+            ge=1,
+            le=8,
+        ),
+    ] = 2
+    direction: ExtendDirection
+    prompt: Annotated[
+        str | None,
+        Field(
+            description='Optional user prompt. The planner/API rewrites artist names into descriptors before this point (specs/10-fusion.md §7).',
+            max_length=1000,
+        ),
+    ] = None
+    tier: ExtendTier
+    n: Annotated[int, Field(description='Candidates to generate (09 §5).', ge=1, le=4)]
 
 
 class HarmonyResult(BaseModel):
@@ -3262,6 +3582,8 @@ ROOT_TYPES: tuple[str, ...] = (
     "FxRemoveOp",
     "FxReorderOp",
     "FxUpdateOp",
+    "GenerateExtendParams",
+    "GenerateExtendResult",
     "HarmonyResult",
     "IngestResult",
     "JobEvent",

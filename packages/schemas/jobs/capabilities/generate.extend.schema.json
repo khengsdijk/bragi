@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GenerateExtendParams",
+  "description": "Params of `generate.extend` (specs/09-generation.md §4.2): continue the song forward, or generate an intro backward. The rendered context audio is the job's `inputs.assets.context`; the backend requests `bars + overlapBars` bars so the gate pass can splice inside the overlap.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["context", "bars", "direction", "tier", "n"],
+  "properties": {
+    "context": { "$ref": "common.schema.json#/$defs/MusicalContext" },
+    "bars": {
+      "description": "Bars of new audio, not counting the overlap.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 32
+    },
+    "overlapBars": {
+      "description": "Bars of rendered context the model may re-create for the splice search (09 §4.2 step 2).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8,
+      "default": 2
+    },
+    "direction": { "$ref": "#/$defs/ExtendDirection" },
+    "prompt": {
+      "description": "Optional user prompt. The planner/API rewrites artist names into descriptors before this point (specs/10-fusion.md §7).",
+      "type": "string",
+      "maxLength": 1000
+    },
+    "tier": { "$ref": "#/$defs/ExtendTier" },
+    "n": {
+      "description": "Candidates to generate (09 §5).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4
+    }
+  },
+  "$defs": {
+    "ExtendDirection": {
+      "description": "`forward` continues the song at its end; `backward` generates an intro before its start (09 §4.2 step 5).",
+      "type": "string",
+      "enum": ["forward", "backward"]
+    },
+    "ExtendTier": {
+      "description": "Latency tier (09 §5): `preview` streams fast candidates, `hq` is the background re-render.",
+      "type": "string",
+      "enum": ["preview", "hq"]
+    }
+  }
+}
