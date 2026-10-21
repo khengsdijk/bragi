@@ -143,6 +143,7 @@ fn reserialize_root(name: &str, value: Value) -> Result<Value, String> {
         "SectionUpdateOp" => reserialize::<g::SectionUpdateOp>(value),
         "SeparationResult" => reserialize::<g::SeparationResult>(value),
         "Source" => reserialize::<g::Source>(value),
+        "SourceAddOp" => reserialize::<g::SourceAddOp>(value),
         "StemActivityResult" => reserialize::<g::StemActivityResult>(value),
         "StemEnergyResult" => reserialize::<g::StemEnergyResult>(value),
         "StructureResult" => reserialize::<g::StructureResult>(value),
