@@ -393,7 +393,12 @@
       "expectations": {
         "minVariants": 1,
         "scopeSong": true,
-        "onlyOpKinds": ["section.resize", "section.split", "section.remove", "section.set_transition"]
+        "onlyOpKinds": [
+          "section.resize",
+          "section.split",
+          "section.remove",
+          "section.set_transition"
+        ]
       }
     },
     {
