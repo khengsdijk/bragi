@@ -55,7 +55,6 @@ export function ExtendHandle({ flow, warmup, open, onOpenChange }: ExtendHandleP
           <Button
             variant="secondary"
             size="sm"
-            aria-label={label}
             title={disabled ? t("generation.extend.disabled.hint") : label}
             data-testid={`extend-handle-${direction}`}
           >

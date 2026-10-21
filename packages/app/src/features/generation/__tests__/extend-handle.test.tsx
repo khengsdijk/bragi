@@ -47,7 +47,7 @@ describe("ExtendHandle", () => {
     const { flow, start } = fakeFlow();
     render(<Harness flow={flow} />);
 
-    const trigger = screen.getByRole("button", { name: "Make the song longer with AI" });
+    const trigger = screen.getByRole("button", { name: "Make longer with AI…" });
     trigger.focus();
     await userEvent.keyboard("{Enter}");
 
@@ -71,7 +71,7 @@ describe("ExtendHandle", () => {
   it("offers an intro popover at the start handle", async () => {
     const { flow, start } = fakeFlow();
     render(<Harness flow={flow} />);
-    await userEvent.click(screen.getByRole("button", { name: "Add an intro with AI" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add an intro with AI…" }));
     await screen.findByRole("dialog", { name: "Add an intro with AI" });
     expect(screen.getByRole("textbox", { name: "What should happen first?" })).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Generate" }));
@@ -81,7 +81,7 @@ describe("ExtendHandle", () => {
   it("disables Generate and says why when the server has no generator", async () => {
     const { flow } = fakeFlow();
     render(<Harness flow={flow} warmup="disabled" />);
-    await userEvent.click(screen.getByRole("button", { name: "Make the song longer with AI" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make longer with AI…" }));
     await screen.findByRole("dialog");
     expect(screen.getByRole("note").textContent).toBe(
       "Extending needs the generation worker; this server has none",
@@ -94,7 +94,7 @@ describe("ExtendHandle", () => {
   it("shows a failed start as an alert and stays open", async () => {
     const { flow } = fakeFlow({ phase: "failed", candidates: 0, message: "The generator is busy" });
     render(<Harness flow={flow} />);
-    await userEvent.click(screen.getByRole("button", { name: "Make the song longer with AI" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make longer with AI…" }));
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toBe("The generator is busy");
   });
