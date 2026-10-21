@@ -146,7 +146,7 @@ describe("Planner", () => {
     if (step?.kind !== "generate") throw new Error("expected a generate step");
     expect(step.params).toMatchObject({
       gapBars: 1,
-      overlapBars: 1,
+      overlapBars: 2,
       context: { bpm: 120, timeSignature: [4, 4], sectionKind: "verse" },
     });
     expect(plan.estimatedCredits).toBe(4);

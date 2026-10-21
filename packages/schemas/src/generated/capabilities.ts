@@ -344,11 +344,11 @@ export const CAPABILITY_PARAMS_SCHEMAS: Record<string, Record<string, unknown>> 
             "maximum": 32
           },
           "overlapBars": {
-            "description": "Bars of context on each side the model may re-create for the splice searches.",
+            "description": "Bars of context on each side the model may re-create for the splice searches. Two by default: with one bar the key detector misread the dominant on 3 of 5 bench songs (WP-2.8 fill bench).",
             "type": "integer",
             "minimum": 1,
             "maximum": 4,
-            "default": 1
+            "default": 2
           },
           "prompt": {
             "description": "Optional user prompt; artist names are rewritten into descriptors before this point (specs/10-fusion.md §7).",
@@ -501,11 +501,11 @@ export const CAPABILITY_PARAMS_SCHEMAS: Record<string, Record<string, unknown>> 
         "maximum": 32
       },
       "overlapBars": {
-        "description": "Bars of context on each side the model may re-create for the splice searches.",
+        "description": "Bars of context on each side the model may re-create for the splice searches. Two by default: with one bar the key detector misread the dominant on 3 of 5 bench songs (WP-2.8 fill bench).",
         "type": "integer",
         "minimum": 1,
         "maximum": 4,
-        "default": 1
+        "default": 2
       },
       "prompt": {
         "description": "Optional user prompt; artist names are rewritten into descriptors before this point (specs/10-fusion.md §7).",

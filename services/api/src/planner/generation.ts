@@ -377,7 +377,8 @@ function withFilledParams(
         );
       }
     }
-    params.overlapBars ??= 1;
+    // Two bars: with one the key detector misread the dominant (WP-2.8 fill bench).
+    params.overlapBars ??= 2;
   } else if (step.capability === "generate.extend") {
     params.overlapBars ??= 2;
   } else if (step.capability === "generate.transition") {

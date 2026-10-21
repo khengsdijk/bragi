@@ -421,7 +421,7 @@ describe("validateRawPlan — generation steps", () => {
     });
     // The gap is one bar, so `gapBars` is one no matter what the model wrote.
     expect(generate.params.gapBars).toBe(1);
-    expect(generate.params.overlapBars).toBe(1);
+    expect(generate.params.overlapBars).toBe(2);
   });
 
   it("keeps a seed the model wrote instead of deriving one", async () => {

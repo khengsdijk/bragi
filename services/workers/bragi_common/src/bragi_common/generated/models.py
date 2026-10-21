@@ -3198,11 +3198,11 @@ class GenerateInpaintParams(BaseModel):
     overlapBars: Annotated[
         int | None,
         Field(
-            description='Bars of context on each side the model may re-create for the splice searches.',
+            description='Bars of context on each side the model may re-create for the splice searches. Two by default: with one bar the key detector misread the dominant on 3 of 5 bench songs (WP-2.8 fill bench).',
             ge=1,
             le=4,
         ),
-    ] = 1
+    ] = 2
     prompt: Annotated[
         str | None,
         Field(

@@ -29,7 +29,7 @@ def test_inpaint_params_example_round_trips() -> None:
     params = GenerateInpaintParams.model_validate_json(text)
 
     assert params.gapBars == 4
-    assert params.overlapBars == 1
+    assert params.overlapBars == 2
     assert params.n == 3
     assert json.loads(params.model_dump_json(exclude_none=True)) == json.loads(text)
 

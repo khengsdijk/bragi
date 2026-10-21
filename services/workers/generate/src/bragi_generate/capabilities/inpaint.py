@@ -37,7 +37,7 @@ async def run(job: JobRequest, ctx: JobContext) -> JobOutputs:
         context=params.context,
         gap_bars=params.gapBars,
         lead_bars=0.0,
-        overlap_bars=params.overlapBars or 1,
+        overlap_bars=params.overlapBars or 2,
         tier=params.tier,
         n=params.n,
         seed=params.seed,

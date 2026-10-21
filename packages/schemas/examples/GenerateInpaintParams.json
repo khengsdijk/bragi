@@ -10,7 +10,7 @@
     "seed": 1234
   },
   "gapBars": 4,
-  "overlapBars": 1,
+  "overlapBars": 2,
   "tier": "preview",
   "n": 3
 }

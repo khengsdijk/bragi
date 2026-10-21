@@ -5843,10 +5843,10 @@ pub struct GenerateInpaintParams {
     pub gap_bars: ::std::num::NonZeroU64,
     ///Candidates to generate (09 §5).
     pub n: ::std::num::NonZeroU64,
-    ///Bars of context on each side the model may re-create for the splice searches.
+    ///Bars of context on each side the model may re-create for the splice searches. Two by default: with one bar the key detector misread the dominant on 3 of 5 bench songs (WP-2.8 fill bench).
     #[serde(
         rename = "overlapBars",
-        default = "defaults::default_nzu64::<::std::num::NonZeroU64, 1>"
+        default = "defaults::default_nzu64::<::std::num::NonZeroU64, 2>"
     )]
     pub overlap_bars: ::std::num::NonZeroU64,
     ///Optional user prompt; artist names are rewritten into descriptors before this point (specs/10-fusion.md §7).

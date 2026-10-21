@@ -1904,7 +1904,7 @@ export interface GenerateInpaintParams {
    */
   gapBars: number;
   /**
-   * Bars of context on each side the model may re-create for the splice searches.
+   * Bars of context on each side the model may re-create for the splice searches. Two by default: with one bar the key detector misread the dominant on 3 of 5 bench songs (WP-2.8 fill bench).
    */
   overlapBars?: number;
   /**
