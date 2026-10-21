@@ -34,6 +34,27 @@ const EXTEND = {
   n: 3,
 };
 
+/** The shared context of the two-sided capabilities; `context` is params here, not an asset. */
+const MUSICAL_CONTEXT = EXTEND.context;
+
+const INPAINT = {
+  context: MUSICAL_CONTEXT,
+  gapBars: 4,
+  overlapBars: 1,
+  tier: "preview",
+  n: 2,
+};
+
+const TRANSITION = {
+  context: MUSICAL_CONTEXT,
+  lengthBars: 2,
+  tier: "preview",
+  n: 3,
+};
+
+const HASH_B = `sha256:${"b".repeat(64)}`;
+const TWO_SIDED = { before: HASH, after: HASH_B };
+
 interface Query {
   readonly sql: string;
   readonly params?: readonly unknown[] | undefined;
@@ -207,6 +228,71 @@ describe("POST /v1/jobs — params validation", () => {
 
     expect(response.statusCode).toBe(404);
     expect(response.json<{ error: { code: string } }>().error.code).toBe("NOT_FOUND");
+    expect(pool.paramsOf("INSERT INTO jobs")).toHaveLength(0);
+  });
+});
+
+describe("POST /v1/jobs — the inpaint and transition capabilities", () => {
+  it("accepts an inpaint and charges its gap, not its contexts", async () => {
+    const { app, pool } = await build();
+    const response = await app.inject(
+      submit({ capability: "generate.inpaint", assets: TWO_SIDED, params: INPAINT }),
+    );
+
+    expect(response.statusCode).toBe(202);
+    // 4 bars at 120 BPM in 4/4 is 8 s: one started window, 2 credits, two candidates.
+    expect(response.json<{ estimatedCredits: number }>().estimatedCredits).toBe(4);
+    const ledger = pool.paramsOf("INSERT INTO usage_ledger");
+    expect(ledger[0]?.[3]).toBe(4);
+    expect(ledger[0]?.[4]).toBe("generate.inpaint");
+    expect(ledger[0]?.[5]).toBe("preview");
+  });
+
+  it("accepts a transition and charges it per candidate", async () => {
+    const { app, pool } = await build();
+    const response = await app.inject(
+      submit({ capability: "generate.transition", assets: TWO_SIDED, params: TRANSITION }),
+    );
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json<{ estimatedCredits: number }>().estimatedCredits).toBe(3);
+    expect(pool.paramsOf("INSERT INTO usage_ledger")[0]?.[3]).toBe(3);
+  });
+
+  it("requires both rendered sides of a two-sided capability", async () => {
+    const { app } = await build();
+    const response = await app.inject(
+      submit({ capability: "generate.inpaint", assets: { before: HASH }, params: INPAINT }),
+    );
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error: { message: string } }>().error.message).toContain("assets.after");
+  });
+
+  it("names an invalid inpaint field", async () => {
+    const { app } = await build();
+    const response = await app.inject(
+      submit({
+        capability: "generate.inpaint",
+        assets: TWO_SIDED,
+        params: { ...INPAINT, gapBars: 0 },
+      }),
+    );
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error: { message: string } }>().error.message).toContain(
+      "params.gapBars",
+    );
+  });
+
+  it("refuses a two-sided input the user does not own", async () => {
+    const { app, pool } = await build();
+    pool.owned = false;
+    const response = await app.inject(
+      submit({ capability: "generate.transition", assets: TWO_SIDED, params: TRANSITION }),
+    );
+
+    expect(response.statusCode).toBe(404);
     expect(pool.paramsOf("INSERT INTO jobs")).toHaveLength(0);
   });
 });

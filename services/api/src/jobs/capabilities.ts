@@ -6,8 +6,16 @@
  * the field beats a job that fails a second later. The registry maps a capability
  * to the generated validator from `packages/schemas`; a capability without an
  * entry keeps the pre-WP-2.7 behaviour (the worker is the schema authority).
+ *
+ * It also says which input assets a capability cannot run without. The audio is a
+ * job input, not a param (09 §2.1), so the params schema cannot express it: a
+ * `generate.extend` needs `context`, an inpaint or transition needs both sides.
  */
-import { validateGenerateExtendParams } from "@bragi/schemas";
+import {
+  validateGenerateExtendParams,
+  validateGenerateInpaintParams,
+  validateGenerateTransitionParams,
+} from "@bragi/schemas";
 
 import { ApiError } from "../errors.js";
 
@@ -30,7 +38,26 @@ type ParamsValidator = ((value: unknown) => boolean) & {
 /** Capability → params validator. Only the implemented capabilities appear. */
 export const PARAMS_VALIDATORS: Readonly<Record<string, ParamsValidator>> = {
   "generate.extend": validateGenerateExtendParams,
+  "generate.inpaint": validateGenerateInpaintParams,
+  "generate.transition": validateGenerateTransitionParams,
 };
+
+/**
+ * Capability → the input assets it cannot run without (09 §2.1, §4.2–4.4).
+ *
+ * The values are the keys of `inputs.assets`; the audio itself is content-addressed
+ * and streamed like any other input, so the schema never sees it.
+ */
+export const CAPABILITY_INPUT_ASSETS: Readonly<Record<string, readonly string[]>> = {
+  "generate.extend": ["context"],
+  "generate.inpaint": ["before", "after"],
+  "generate.transition": ["before", "after"],
+};
+
+/** The input asset keys a capability requires, or an empty list for the others. */
+export function requiredInputAssets(capability: string): readonly string[] {
+  return CAPABILITY_INPUT_ASSETS[capability] ?? [];
+}
 
 /** `params.a.b`, skipping empty segments. */
 function field(...parts: readonly (string | undefined)[]): string {
@@ -50,6 +77,23 @@ function describe(issue: ValidationIssue): string {
 }
 
 /**
+ * The first reason `params` do not match the capability's schema.
+ *
+ * @param capability the job's capability
+ * @param params its params
+ * @returns `undefined` when the params validate, or when the capability has no schema
+ */
+export function capabilityParamsError(
+  capability: string,
+  params: Record<string, unknown>,
+): string | undefined {
+  const validator = PARAMS_VALIDATORS[capability];
+  if (validator === undefined || validator(params)) return undefined;
+  const issue = validator.errors?.[0];
+  return issue === undefined ? "params do not match the capability schema" : describe(issue);
+}
+
+/**
  * Validates one job's params against its capability's schema.
  *
  * @throws ApiError `VALIDATION_FAILED` naming the first offending field
@@ -58,12 +102,7 @@ export function validateCapabilityParams(
   capability: string,
   params: Record<string, unknown>,
 ): void {
-  const validator = PARAMS_VALIDATORS[capability];
-  if (validator === undefined || validator(params)) return;
-  const issue = validator.errors?.[0];
-  throw new ApiError(
-    "VALIDATION_FAILED",
-    issue === undefined ? "params do not match the capability schema" : describe(issue),
-    { capability },
-  );
+  const message = capabilityParamsError(capability, params);
+  if (message === undefined) return;
+  throw new ApiError("VALIDATION_FAILED", message, { capability });
 }

@@ -4,8 +4,9 @@
 # missing or malformed file fails the process instead of charging 0 by accident.
 # A capability is charged per job:
 #
-#   per30s  -> per candidate (n), per started window_sec of requested output audio
-#   flat    -> once per job, independent of length and candidate count
+#   per30s        -> per candidate (n), per started window_sec of requested output audio
+#   per_candidate -> per candidate (n), independent of length
+#   flat          -> once per job, independent of length and candidate count
 #
 # Analysis profiles are free for now (quick = 0, standard = 1 in 05 §9; the
 # analysis route does not charge yet), so only generation capabilities appear here.
@@ -19,13 +20,17 @@ window_sec = 30
 per30s = 2
 
 [capabilities."generate.inpaint"]
+# 09 §2: 2 per 30 s of the gap. The two rendered contexts are free; only the new
+# audio between them is charged, so a 4-bar gap is one window = 2 per candidate.
 per30s = 2
 
 [capabilities."generate.variation"]
 per30s = 2
 
 [capabilities."generate.transition"]
-flat = 1
+# 09 §2: 1 per candidate, whatever its length (1–4 bars). A bridge is one short
+# generation, so the per-30-s rate would round every candidate to the same 2.
+per_candidate = 1
 
 [capabilities."generate.stem"]
 per30s = 2
