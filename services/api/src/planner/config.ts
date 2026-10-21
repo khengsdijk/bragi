@@ -2,21 +2,16 @@
  * Planner configuration: `config/planner.toml` plus environment overrides (06 §4).
  *
  * The model IDs are OpenRouter slugs and live in config, not in code, so the owner can trade
- * quality against cost without a release. The TOML subset is deliberately tiny (`[section]`,
- * `key = value` with strings, integers, floats and booleans); the repo has no TOML parser in
- * the API's dependency tree and a new dependency is out of scope (docs/wp/2.6.md §B).
+ * quality against cost without a release. `smol-toml` parses the file; the parsed shape is
+ * validated here, because TOML knows nothing about planner tiers or limits (docs/wp/2.6.md §B).
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { parse } from "smol-toml";
+
 /** The three model tiers (06 §4). */
 export type PlannerTier = "fast" | "smart" | "explain";
-
-/** A value the tiny parser understands. */
-export type TomlScalar = string | number | boolean;
-
-/** A TOML document: top-level scalars and one nested record per `[section]`. */
-export type TomlDocument = Record<string, TomlScalar | Record<string, TomlScalar>>;
 
 /**
  * How much a tier's model may reason before it answers (OpenRouter's unified `reasoning`
@@ -53,70 +48,40 @@ const MODEL_ENV: Record<PlannerTier, string> = {
 const REASONING_ENV = "BRAGI_PLANNER_REASONING";
 
 /**
- * Parses the flat TOML subset planner config uses.
+ * Reads and parses one TOML file.
  *
- * Comments (`#` outside a string), blank lines, `[section]` headers and `key = value` lines are
- * supported. Values are double-quoted strings, integers, floats or `true`/`false`; anything else
- * (arrays, inline tables, dates) is rejected with a line number instead of being guessed at.
+ * smol-toml's message carries the line, the column and a code frame; the path is prefixed so a
+ * boot failure names the file it came from.
  *
- * @param text the file contents
- * @returns top-level scalars and one record per section
- * @throws Error naming the line when the input is outside the subset
+ * @param path the file to read
+ * @returns the parsed document, narrowed by the caller
+ * @throws Error naming the file when it is unreadable or not valid TOML
  */
-export function parseToml(text: string): TomlDocument {
-  const document: TomlDocument = {};
-  let section: Record<string, TomlScalar> | null = null;
-
-  text.split(/\r?\n/).forEach((rawLine, index) => {
-    const line = stripComment(rawLine).trim();
-    if (line === "") return;
-    const where = `line ${index + 1}`;
-
-    if (line.startsWith("[")) {
-      const match = /^\[([A-Za-z0-9_-]+)\]$/.exec(line);
-      if (match?.[1] === undefined) throw new Error(`${where}: malformed [section] header`);
-      const name = match[1];
-      if (Object.hasOwn(document, name)) throw new Error(`${where}: duplicate section [${name}]`);
-      section = {};
-      document[name] = section;
-      return;
-    }
-
-    const equals = line.indexOf("=");
-    if (equals <= 0) throw new Error(`${where}: expected "key = value"`);
-    const key = line.slice(0, equals).trim();
-    if (!/^[A-Za-z0-9_-]+$/.test(key)) throw new Error(`${where}: invalid key "${key}"`);
-    const value = parseScalar(line.slice(equals + 1).trim(), where);
-    const target = section ?? document;
-    if (Object.hasOwn(target, key)) throw new Error(`${where}: duplicate key "${key}"`);
-    target[key] = value;
-  });
-
-  return document;
+function parseDocument(path: string): unknown {
+  const source = readFileSync(path, "utf8");
+  try {
+    return parse(source);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`${path}: ${detail}`);
+  }
 }
 
-/** Removes a `#` comment that is not inside a double-quoted string. */
-function stripComment(line: string): string {
-  let quoted = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-    if (char === '"' && line[i - 1] !== "\\") quoted = !quoted;
-    if (char === "#" && !quoted) return line.slice(0, i);
-  }
-  return line;
+/** True for a TOML table, which is what smol-toml nests every section as. */
+function isTable(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Parses one supported TOML scalar. */
-function parseScalar(raw: string, where: string): TomlScalar {
-  if (raw.startsWith('"')) {
-    if (raw.length < 2 || !raw.endsWith('"')) throw new Error(`${where}: unterminated string`);
-    return raw.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
-  }
-  if (raw === "true") return true;
-  if (raw === "false") return false;
-  if (/^-?[0-9]+$/.test(raw)) return Number.parseInt(raw, 10);
-  if (/^-?[0-9]+\.[0-9]+$/.test(raw)) return Number.parseFloat(raw);
-  throw new Error(`${where}: unsupported value "${raw}"`);
+/** A required `[section]` of the document. */
+function requiredTable(
+  document: Record<string, unknown>,
+  name: string,
+  path: string,
+): Record<string, unknown> {
+  const value = document[name];
+  if (value === undefined) throw new Error(`${path}: missing [${name}] section`);
+  if (!isTable(value)) throw new Error(`${path}: [${name}] must be a table`);
+  return value;
 }
 
 /**
@@ -131,15 +96,10 @@ export function loadPlannerConfig(
   env: NodeJS.ProcessEnv = process.env,
   path: string = PLANNER_CONFIG_PATH,
 ): PlannerConfig {
-  const document = parseToml(readFileSync(path, "utf8"));
-  const models = document.models;
-  const limits = document.limits;
-  if (models === undefined || typeof models !== "object") {
-    throw new Error(`${path}: missing [models] section`);
-  }
-  if (limits === undefined || typeof limits !== "object") {
-    throw new Error(`${path}: missing [limits] section`);
-  }
+  const parsed = parseDocument(path);
+  if (!isTable(parsed)) throw new Error(`${path}: the document must be a TOML table`);
+  const models = requiredTable(parsed, "models", path);
+  const limits = requiredTable(parsed, "limits", path);
 
   const resolved = {} as Record<PlannerTier, string>;
   for (const tier of ["fast", "smart", "explain"] as const) {
@@ -150,17 +110,20 @@ export function loadPlannerConfig(
     resolved[tier] = value.trim();
   }
 
-  const reasoningSection = document.reasoning;
+  const reasoningSection = parsed.reasoning;
+  if (reasoningSection !== undefined && !isTable(reasoningSection)) {
+    throw new Error(`${path}: [reasoning] must be a table`);
+  }
   const reasoning = {} as Record<PlannerTier, ReasoningLevel>;
   for (const tier of ["fast", "smart", "explain"] as const) {
     const value =
       env[REASONING_ENV] ??
-      (typeof reasoningSection === "object" ? reasoningSection[tier] : undefined) ??
+      (isTable(reasoningSection) ? reasoningSection[tier] : undefined) ??
       "default";
-    if (typeof value !== "string" || !REASONING_LEVELS.includes(value as ReasoningLevel)) {
+    if (!isReasoningLevel(value)) {
       throw new Error(`${path}: reasoning.${tier} must be one of ${REASONING_LEVELS.join(", ")}`);
     }
-    reasoning[tier] = value as ReasoningLevel;
+    reasoning[tier] = value;
   }
 
   return {
@@ -172,8 +135,13 @@ export function loadPlannerConfig(
   };
 }
 
+/** True for one of the reasoning levels the planner understands. */
+function isReasoningLevel(value: unknown): value is ReasoningLevel {
+  return typeof value === "string" && REASONING_LEVELS.some((level) => level === value);
+}
+
 /** A positive integer from the config, or a clear error. */
-function positiveInteger(value: TomlScalar | undefined, where: string): number {
+function positiveInteger(value: unknown, where: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
     throw new Error(`${where} must be a positive integer`);
   }
@@ -181,7 +149,7 @@ function positiveInteger(value: TomlScalar | undefined, where: string): number {
 }
 
 /** The default variant count: an integer 1–3 (06 §2). */
-function boundedVariantCount(value: TomlScalar | undefined, where: string): number {
+function boundedVariantCount(value: unknown, where: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 3) {
     throw new Error(`${where} must be 1, 2 or 3`);
   }
