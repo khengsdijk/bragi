@@ -1766,8 +1766,22 @@ impl MixContext<'_> {
 
         // Generated transition overlays (`specs/03-audio-engine.md` §5.5): mixed into the master
         // bus after the tracks and before the master chain. They belong to no track, so they are
-        // not metered, not soloed and not part of a stem export.
+        // not metered, not soloed and not part of a stem export. The bridge *replaces* the music
+        // it covers: inside its window the track bus is ducked by sqrt(1 - g^2), the equal-power
+        // complement of the overlay's own gain g, so the two never play at full level together.
         if !self.plan.overlays.is_empty() {
+            for overlay in &self.plan.overlays {
+                if let Some((offset, len)) = overlay.overlap(start, frames) {
+                    let span = overlay.dst_end - overlay.dst_start;
+                    let center = overlay.dst_start + span / 2;
+                    for frame in offset..offset + len {
+                        let gain = crate::plan::overlay_gain(center, span, start + frame as u64);
+                        let duck = (1.0 - gain * gain).max(0.0).sqrt();
+                        dst[frame * 2] *= duck;
+                        dst[frame * 2 + 1] *= duck;
+                    }
+                }
+            }
             for sample in self.scratch.track[..frames * 2].iter_mut() {
                 *sample = 0.0;
             }

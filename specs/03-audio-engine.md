@@ -209,11 +209,12 @@ asset as a **track-free overlay** centred on *B*:
   unity over the middle half. `plan::overlay_gain(center, L, sample)` is the same envelope. The
   quarter fades keep the overlay's edges at zero, so the overlay adds no step at `B ± L/2`; the
   boundary crossfade underneath still owns the join if the overlay is absent.
-- The overlay is **additive** on top of the crossfade, as WP-2.8 specifies: a generated piece is
-  gated against both sides, but it is not subtracted from the sections. For uncorrelated material
-  that lifts the level inside the window by up to +3 dB (measured +2.4 dB RMS on the WP-2.8
-  fixture); the safety limiter catches peaks. Ducking the crossfade under the overlay
-  (`× √(1 − g²)`, which would hold the power constant) is the follow-up if the owner hears a swell.
+- The bridge **replaces** the music it covers: inside the window the track bus is ducked by
+  `√(1 − g²)`, the equal-power complement of the overlay's gain `g`, so the song crossfades into the
+  bridge over the first quarter, the bridge plays alone over the middle half, and the song returns
+  over the last quarter. The power stays constant for uncorrelated material and the two pieces never
+  play at full level together. The boundary crossfade underneath still runs (and is what plays when
+  the overlay is absent).
 - A missing `asset`, or an asset that is not in the index, plans no overlay, keeps the crossfade
   placeholder and reports a plan warning. A `generated` transition cannot exist on the first
   section, which has no boundary.

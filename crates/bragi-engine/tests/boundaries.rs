@@ -778,6 +778,37 @@ fn a_generated_transition_is_an_overlay_centred_on_the_boundary() {
 }
 
 #[test]
+fn the_bridge_replaces_the_music_in_the_middle_of_its_window() {
+    // Inside the middle half the overlay's gain is 1, so the track bus is ducked to silence and
+    // the render is the bridge alone: muting every track changes nothing there (03 §5.5).
+    let asset = transition_asset();
+    let doc = transition_song(generated_transition(Some(&asset)), Some(&asset));
+    let plan = compile(&doc, &transition_assets(), 48_000, 1).unwrap();
+    let mut muted_doc = doc.clone();
+    for track in &mut muted_doc.tracks {
+        track.mute = true;
+    }
+    let muted = compile(&muted_doc, &transition_assets(), 48_000, 1).unwrap();
+    let pcm = transition_pcm();
+    let full = render_plan(&plan, &pcm, plan.length_samples as usize, 512);
+    let bridge_only = render_plan(&muted, &pcm, muted.length_samples as usize, 512);
+
+    let overlay = &plan.overlays[0];
+    let span = overlay.dst_end - overlay.dst_start;
+    let from = (overlay.dst_start + span / 4) as usize;
+    let to = (overlay.dst_end - span / 4) as usize;
+    let mut worst = 0.0_f32;
+    for frame in from..to {
+        worst = worst.max((full[frame * 2] - bridge_only[frame * 2]).abs());
+    }
+    assert!(worst < 1e-6, "the bed leaks into the bridge by {worst}");
+    let bridge_peak = (from..to)
+        .map(|frame| bridge_only[frame * 2].abs())
+        .fold(0.0_f32, f32::max);
+    assert!(bridge_peak > 0.01, "the bridge is audible");
+}
+
+#[test]
 fn the_overlay_adds_no_step_at_its_edges() {
     let asset = transition_asset();
     let doc = transition_song(generated_transition(Some(&asset)), Some(&asset));
