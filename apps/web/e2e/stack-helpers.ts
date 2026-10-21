@@ -44,6 +44,26 @@ export const hookDoc = (page: Page): Promise<ProjectLike | null> =>
     return doc === null ? null : (JSON.parse(JSON.stringify(doc)) as ProjectLike);
   });
 
+/** The song's bar length in seconds and ticks, from its own tempo and meter (02 §2.2). */
+export function barLengths(doc: ProjectLike): { sec: number; ticks: number } {
+  const timebase = doc.arrangement.timebase;
+  const bpm = timebase?.tempoMap[0]?.bpm ?? 120;
+  const numerator = timebase?.timeSignatures[0]?.numerator ?? 4;
+  const denominator = timebase?.timeSignatures[0]?.denominator ?? 4;
+  const beatsPerBar = (4 * numerator) / denominator;
+  return {
+    sec: (beatsPerBar * 60) / bpm,
+    ticks: Math.round((timebase?.ppq ?? 960) * beatsPerBar),
+  };
+}
+
+/** The song's stem tracks: the instrument roles, without the mix-only and generated lanes. */
+export function stemTracks(doc: ProjectLike): TrackLike[] {
+  return visible(doc).filter(
+    (track) => !["full_mix", "generated", "residual"].includes(track.role ?? ""),
+  );
+}
+
 /** The slice of the history store the specs read (`window.__bragi.history`). */
 interface HistoryLike {
   store: {

@@ -82,15 +82,33 @@ export function totalTicks(doc: Project): number {
   return doc.arrangement.sections.reduce((sum, section) => sum + section.lengthTicks, 0);
 }
 
+/** The number of ticks in the bar that contains `tick` (02 §2.2). */
+export function ticksPerBarAt(doc: Project, tick: number): number {
+  const meter = meterSignatureAt(doc, tick);
+  const ppq = doc.arrangement.timebase.ppq;
+  return Math.max(1, Math.round((ppq * 4 * meter.numerator) / meter.denominator));
+}
+
+/** Seconds elapsed at `tick`; the wasm boundary carries ticks as `bigint`. */
+export function secondsAtTick(model: ModelApi, handle: number, tick: number): number {
+  return Number(model.ticksToSeconds(handle, BigInt(Math.round(tick))));
+}
+
+/** The absolute start tick of every section, in arrangement order. */
+export function sectionStarts(doc: Project): number[] {
+  const starts: number[] = [];
+  let tick = 0;
+  for (const section of doc.arrangement.sections) {
+    starts.push(tick);
+    tick += section.lengthTicks;
+  }
+  return starts;
+}
+
 /** Whether a free-text prompt asks for the song to end ("make an outro"). */
 export function asksForEnding(prompt: string | undefined): boolean {
   if (prompt === undefined) return false;
   return /\b(outro|ending|fade[\s-]?out|end the song|finish(es|ing)? the song)\b/i.test(prompt);
-}
-
-/** Seconds elapsed at `tick`; the wasm boundary carries ticks as `bigint`. */
-function secondsAt(model: ModelApi, handle: number, tick: number): number {
-  return Number(model.ticksToSeconds(handle, BigInt(Math.round(tick))));
 }
 
 /** The key the analysis heard, from the harmony blob or the summary line. */
@@ -123,22 +141,32 @@ function keyFromAnalysis(
   return { key: { tonic: "C", mode: "major" }, chords: [] };
 }
 
+/** The span and section a capability conditions on (09 §2.1). */
+export interface MusicalSpanInput {
+  readonly doc: Project;
+  readonly model: ModelApi;
+  readonly handle: number;
+  /** The target span, in absolute ticks: the gap, the boundary's bars or the new section. */
+  readonly span: { readonly startTick: number; readonly endTick: number };
+  /** The section whose kind travels with the request; default: the one at `span.startTick`. */
+  readonly sectionId?: string;
+  /** The span the energy is averaged over; default: the target span. */
+  readonly energyRange?: { readonly startTick: number; readonly endTick: number };
+  readonly seed: number;
+  readonly prompt?: string;
+  readonly energy?: EnergyCurve;
+  readonly readBlob: (hash: string) => Promise<unknown>;
+}
+
 /**
- * Builds the {@link MusicalContext} of one extend request.
+ * Builds the {@link MusicalContext} of one request over an explicit target span.
  *
- * Chords are expressed in beats from the target span's start, as 09 §2.1 asks. The target span is
- * the new section: after the song for a forward extend, before it for an intro.
+ * Chords are expressed in beats from the span's start, as 09 §2.1 asks. Every capability passes
+ * the span it generates into, so an inpaint hears the gap and a transition hears its boundary.
  */
-export async function musicalContextFor(input: MusicalContextInput): Promise<MusicalContext> {
-  const { doc, model, handle, direction } = input;
-  const total = totalTicks(doc);
-  const spanStart = direction === "forward" ? total : 0;
-  const meter = meterSignatureAt(doc, spanStart);
-  const ticksPerBar = Math.max(
-    1,
-    Math.round((doc.arrangement.timebase.ppq * 4 * meter.numerator) / meter.denominator),
-  );
-  const spanEnd = spanStart + input.bars * ticksPerBar;
+export async function musicalContextForSpan(input: MusicalSpanInput): Promise<MusicalContext> {
+  const { doc, model, handle, span } = input;
+  const meter = meterSignatureAt(doc, span.startTick);
   const bpm = doc.arrangement.timebase.tempoMap[0]?.bpm ?? 120;
   const secondsPerBeat = 60 / bpm;
 
@@ -150,8 +178,8 @@ export async function musicalContextFor(input: MusicalContextInput): Promise<Mus
       : await input.readBlob(harmonyHash).catch(() => undefined);
   const analysis = keyFromAnalysis(doc, harmony);
 
-  const spanStartSec = secondsAt(model, handle, spanStart);
-  const spanEndSec = secondsAt(model, handle, spanEnd);
+  const spanStartSec = secondsAtTick(model, handle, span.startTick);
+  const spanEndSec = secondsAtTick(model, handle, span.endTick);
   const chords: ChordAtBeat[] = analysis.chords
     .filter((chord) => chord.endSec > spanStartSec && chord.startSec < spanEndSec)
     .map((chord) => ({
@@ -159,10 +187,8 @@ export async function musicalContextFor(input: MusicalContextInput): Promise<Mus
       symbol: chord.symbol,
     }));
 
-  const sections = doc.arrangement.sections;
-  const section = direction === "forward" ? sections.at(-1) : sections[0];
-  const kind: SectionKind | undefined =
-    direction === "forward" && asksForEnding(input.prompt) ? "outro" : section?.kind;
+  const kind = sectionKindAt(doc, input.sectionId, span.startTick);
+  const energyRange = input.energyRange ?? span;
 
   return {
     bpm,
@@ -172,10 +198,60 @@ export async function musicalContextFor(input: MusicalContextInput): Promise<Mus
     ...(kind === undefined ? {} : { sectionKind: kind }),
     ...(input.energy === undefined
       ? {}
-      : { energy: meanEnergy(input.energy, input.contextRange, model, handle) }),
+      : { energy: meanEnergy(input.energy, energyRange, model, handle) }),
     descriptors: descriptorsFor(doc),
     seed: input.seed,
   };
+}
+
+/**
+ * Builds the {@link MusicalContext} of one extend request.
+ *
+ * The target span is the new section: after the song for a forward extend, before it for an intro.
+ */
+export async function musicalContextFor(input: MusicalContextInput): Promise<MusicalContext> {
+  const { doc } = input;
+  const total = totalTicks(doc);
+  const spanStart = input.direction === "forward" ? total : 0;
+  const spanEnd = spanStart + input.bars * ticksPerBarAt(doc, spanStart);
+  const sections = doc.arrangement.sections;
+  const section = input.direction === "forward" ? sections.at(-1) : sections[0];
+  const kind =
+    input.direction === "forward" && asksForEnding(input.prompt) ? "outro" : section?.kind;
+
+  const context = await musicalContextForSpan({
+    doc,
+    model: input.model,
+    handle: input.handle,
+    span: { startTick: spanStart, endTick: spanEnd },
+    ...(section === undefined ? {} : { sectionId: section.id }),
+    energyRange: input.contextRange,
+    seed: input.seed,
+    ...(input.prompt === undefined ? {} : { prompt: input.prompt }),
+    ...(input.energy === undefined ? {} : { energy: input.energy }),
+    readBlob: input.readBlob,
+  });
+  // The ending guess is extend's alone: a fill or a transition keeps the section it sits in.
+  return kind === context.sectionKind || kind === undefined
+    ? context
+    : { ...context, sectionKind: kind };
+}
+
+/** The kind of the section at `tick`, or of the section with `sectionId`. */
+function sectionKindAt(
+  doc: Project,
+  sectionId: string | undefined,
+  tick: number,
+): SectionKind | undefined {
+  const starts = sectionStarts(doc);
+  const index =
+    sectionId === undefined
+      ? doc.arrangement.sections.findIndex(
+          (section, position) =>
+            tick >= (starts[position] ?? 0) && tick < (starts[position] ?? 0) + section.lengthTicks,
+        )
+      : doc.arrangement.sections.findIndex((section) => section.id === sectionId);
+  return index >= 0 ? doc.arrangement.sections[index]?.kind : undefined;
 }
 
 /** Mean of the energy curve over the context span, 0..1. */
@@ -186,8 +262,8 @@ function meanEnergy(
   handle: number,
 ): number {
   if (curve.values.length === 0) return 0;
-  const startSec = secondsAt(model, handle, range.startTick);
-  const endSec = secondsAt(model, handle, range.endTick);
+  const startSec = secondsAtTick(model, handle, range.startTick);
+  const endSec = secondsAtTick(model, handle, range.endTick);
   const first = Math.max(0, Math.floor(startSec / curve.hopSec));
   const last = Math.min(curve.values.length - 1, Math.ceil(endSec / curve.hopSec));
   let sum = 0;

@@ -222,6 +222,31 @@ describe("createApiClient", () => {
       message: "The planner model is unavailable.",
     });
   });
+
+  it("posts a plan execute request with the rendered context assets (06 §5)", async () => {
+    const response = {
+      jobs: [
+        {
+          variant: 1,
+          stepId: "g1",
+          jobId: "job_01",
+          capability: "generate.inpaint",
+          status: "queued",
+          estimatedCredits: 2,
+        },
+      ],
+    };
+    const { fetch, calls } = fakeFetch({ body: response });
+    const client = createApiClient({ baseUrl: "https://api.test", fetch });
+    const request = {
+      contexts: { g1: { before: "sha256:aa", after: "sha256:bb" } },
+    };
+
+    await expect(client.executePlan("pln_01/a", request)).resolves.toEqual(response);
+    expect(calls[0]?.url).toBe("https://api.test/v1/plans/pln_01%2Fa/execute");
+    expect(calls[0]?.init.method).toBe("POST");
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual(request);
+  });
 });
 
 class FakeSocket implements SocketLike {

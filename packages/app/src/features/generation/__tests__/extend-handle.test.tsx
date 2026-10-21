@@ -26,6 +26,7 @@ function fakeFlow(state: ExtendState = { phase: "idle", candidates: 0 }) {
     start,
     accepted: vi.fn(),
     discarded: vi.fn(),
+    group: () => null,
     dispose: vi.fn(),
   };
   return { flow, store, start };

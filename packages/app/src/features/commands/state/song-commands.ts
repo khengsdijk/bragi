@@ -205,3 +205,37 @@ export const EXTEND_COMMANDS: readonly Command[] = [
     run: (context) => context.actions.openExtend("backward"),
   },
 ];
+
+/**
+ * The offers that appear after an edit (07 §4.8, §4.1): Fill gap follows an erase and Smooth with
+ * AI follows a move/remove that re-joined a boundary. They are commands so the palette, the section
+ * menu and the chips share one action; the workspace adds them only when a generation host exists.
+ */
+export const GENERATION_OFFER_COMMANDS: readonly Command[] = [
+  {
+    id: "generation.fillGap",
+    label: "commands.generation.fillGap",
+    group: "generation",
+    keywords: ["fill", "gap", "erase", "inpaint", "ai"],
+    enabled: (context) => context.fillGapLabel !== null,
+    run: (context) => context.actions.fillGap(),
+  },
+  {
+    id: "generation.smooth",
+    label: "commands.generation.smooth",
+    group: "generation",
+    keywords: ["smooth", "transition", "join", "boundary", "ai"],
+    enabled: (context) =>
+      (hasSection(context) && context.sectionIndex > 0) || context.smoothTargetIds.length > 0,
+    run: (context) => {
+      const selected =
+        context.section !== null && context.sectionIndex > 0 ? context.section : null;
+      if (selected !== null) {
+        context.actions.smoothTransition(selected.id);
+        return;
+      }
+      const target = context.smoothTargetIds[0];
+      if (target !== undefined) context.actions.smoothTransition(target);
+    },
+  },
+];

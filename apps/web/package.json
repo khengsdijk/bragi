@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:e2e:flow": "BRAGI_E2E_STACK=1 playwright test upload-flow history-flow inspector-flow section-flow audition-flow brush-flow reopen-play planner-flow extend-flow --project=chromium-dev"
+    "test:e2e:flow": "BRAGI_E2E_STACK=1 playwright test upload-flow history-flow inspector-flow section-flow audition-flow brush-flow reopen-play planner-flow extend-flow fill-flow transition-flow planner-generate-flow --project=chromium-dev"
   },
   "dependencies": {
     "@bragi/app": "workspace:*",

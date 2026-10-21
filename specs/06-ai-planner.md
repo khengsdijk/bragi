@@ -161,6 +161,15 @@ LLM → EditPlan (raw)
    offline renderer.
 5. The candidates appear in the Audition bar ([07 §6](07-song-canvas.md)).
 
+**As built in WP-2.8:** a candidate is a document snapshot (02 §7), and the history has no op that
+replaces one, so a variant with a `generate` step becomes **one** candidate when its first passing
+partial arrives: its `ops` steps, the `apply_generated` placement and the compiled `smooth` steps are
+committed together. Until then the bar shows the job's progress as one queue chip next to the
+ops-only variants, which are instant as before. `smooth` compiles to ops client-side: `crossfade`
+becomes a one-beat `section.set_transition` on each boundary in its region; `loudness_match` and
+`spectral_match` need `match_eq`, whose `bands` array cannot be expressed in `FxParams`, and
+`beat_align` is already a worker gate, so those three are no-ops for now (`docs/wp/2.8.md`, task D).
+
 ## 6. Energy skyline compiler (deterministic)
 
 When the user drags the energy skyline, each affected section gets an `energyTarget`. The compiler computes `Δ = target − current` per section and picks levers from a ladder, stopping when the predicted energy reaches the target:

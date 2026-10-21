@@ -21,6 +21,7 @@ import type {
 } from "@bragi/render-canvas";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 import { t } from "../../../i18n/index.js";
 import { usePlatform } from "../../../platform-context.js";
@@ -31,26 +32,44 @@ import {
   createAudition,
   EMPTY_AUDITION_STORE,
 } from "../../audition/state/audition.js";
-import type { CandidateSource } from "../../audition/state/candidate-status.js";
+import {
+  type CandidateSource,
+  mergeCandidateSources,
+} from "../../audition/state/candidate-status.js";
 import { BrushApplyDialog } from "../../brushes/components/BrushApplyDialog.js";
 import { BrushPalette } from "../../brushes/components/BrushPalette.js";
 import { usePaintStroke } from "../../brushes/hooks/use-paint-stroke.js";
 import { createBrushStore } from "../../brushes/state/brush-store.js";
 import { CommandPaletteDialog } from "../../commands/components/CommandPaletteDialog.js";
 import { createCommandRegistry } from "../../commands/state/commands.js";
-import { EXTEND_COMMANDS, SONG_COMMANDS } from "../../commands/state/song-commands.js";
+import {
+  EXTEND_COMMANDS,
+  GENERATION_OFFER_COMMANDS,
+  SONG_COMMANDS,
+} from "../../commands/state/song-commands.js";
 import { ExtendHandle } from "../../generation/components/ExtendHandle.js";
+import { type ChipBox, FillGapChip } from "../../generation/components/FillGapChip.js";
+import { SmoothChip } from "../../generation/components/SmoothChip.js";
 import {
   createExtendFlow,
   type ExtendDirection,
   type ExtendFlow,
   type WarmupStatus,
 } from "../../generation/state/extend-flow.js";
+import { createFillGapFlow, type FillGapFlow } from "../../generation/state/fill-flow.js";
+import { createGenerationOffers } from "../../generation/state/generation-offers.js";
+import { EMPTY_GENERATION_STORE } from "../../generation/state/generation-session.js";
+import { createSmoothFlow, type SmoothFlow } from "../../generation/state/smooth-flow.js";
 import { HistoryPanel } from "../../history/components/HistoryPanel.js";
-import type { History } from "../../history/state/history.js";
+import {
+  EMPTY_HISTORY_STATE,
+  type History,
+  type HistoryState,
+} from "../../history/state/history.js";
 import { Inspector } from "../../inspector/components/Inspector.js";
 import { ExplainPopover } from "../../planner/components/ExplainPopover.js";
 import { PromptBar } from "../../planner/components/PromptBar.js";
+import { createPlannerGeneration } from "../../planner/planner-generation.js";
 import { createPlanner } from "../../planner/state/planner.js";
 import type { SettingsStore } from "../../settings/state/settings-store.js";
 import { buildGridModel } from "../api/grid-model.js";
@@ -108,6 +127,13 @@ export interface BragiTestHooks {
   audition: Audition | null;
   /** The extend flow, when this canvas has a generation host. */
   extend: ExtendFlow | null;
+  /** Fill gap and Smooth with AI, when this canvas has a generation host. */
+  fill: FillGapFlow | null;
+  smooth: SmoothFlow | null;
+  /** The chips' state (the erased gap and the re-joined boundaries). */
+  offers: ReturnType<typeof createGenerationOffers> | null;
+  /** The planner's execute path, when this canvas has a generation host. */
+  plannerGeneration: ReturnType<typeof createPlannerGeneration> | null;
 }
 
 declare global {
@@ -115,6 +141,9 @@ declare global {
     __bragi?: BragiTestHooks | undefined;
   }
 }
+
+/** A history store with nothing in it, for the demo (no version tree). */
+const NO_HISTORY_STORE = createStore<HistoryState>(() => EMPTY_HISTORY_STATE);
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -172,8 +201,51 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       onCommit: (commit, document) => controller.commit(commit, document),
     });
   }, [controller, generation, history, songStore]);
+  /** Fill gap and Smooth with AI share the same session; their adapters differ (09 §4.3–4.4). */
+  const fillFlow = useMemo<FillGapFlow | null>(() => {
+    if (generation === undefined || history === undefined) return null;
+    return createFillGapFlow({
+      platform: generation.platform,
+      api: generation.api,
+      realtime: generation.realtime,
+      songStore,
+      history,
+      renderContext: (range) => controller.renderContext(range),
+      audition: {
+        open: (options) => auditionRef.current?.openCandidates(options) ?? Promise.resolve(false),
+        setQueue: (status) => auditionRef.current?.setQueue(status),
+        isOpen: () => auditionRef.current?.store.getState().group != null,
+      },
+      energy: () => analysisRef.current?.energy,
+      onAnnounce: setAnnouncement,
+      onError: setAnnouncement,
+      onCommit: (commit, document) => controller.commit(commit, document),
+    });
+  }, [controller, generation, history, songStore]);
+  const smoothFlow = useMemo<SmoothFlow | null>(() => {
+    if (generation === undefined || history === undefined) return null;
+    return createSmoothFlow({
+      platform: generation.platform,
+      api: generation.api,
+      realtime: generation.realtime,
+      songStore,
+      history,
+      renderContext: (range) => controller.renderContext(range),
+      audition: {
+        open: (options) => auditionRef.current?.openCandidates(options) ?? Promise.resolve(false),
+        setQueue: (status) => auditionRef.current?.setQueue(status),
+        isOpen: () => auditionRef.current?.store.getState().group != null,
+      },
+      energy: () => analysisRef.current?.energy,
+      onAnnounce: setAnnouncement,
+      onError: setAnnouncement,
+      onCommit: (commit, document) => controller.commit(commit, document),
+    });
+  }, [controller, generation, history, songStore]);
   const [warmup, setWarmup] = useState<WarmupStatus>("idle");
   const [extendOpen, setExtendOpen] = useState<ExtendDirection | null>(null);
+  const [smoothOpen, setSmoothOpen] = useState<string | null>(null);
+  const offers = useMemo(() => createGenerationOffers(), []);
   useEffect(() => {
     if (flow === null) return;
     let live = true;
@@ -185,8 +257,55 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       live = false;
     };
   }, [flow]);
-  useEffect(() => () => flow?.dispose(), [flow]);
-  const candidateSource = props.candidateSource ?? flow?.source;
+  useEffect(
+    () => () => {
+      flow?.dispose();
+      fillFlow?.dispose();
+      smoothFlow?.dispose();
+    },
+    [flow, fillFlow, smoothFlow],
+  );
+  const generationFlows = useMemo(
+    () =>
+      [flow, fillFlow, smoothFlow].filter(
+        (entry): entry is NonNullable<typeof entry> => entry !== null,
+      ),
+    [flow, fillFlow, smoothFlow],
+  );
+  /** Executes a plan's generate steps; its streamed candidate joins the same Audition bar. */
+  const plannerGeneration = useMemo(
+    () =>
+      generation === undefined || history === undefined
+        ? null
+        : createPlannerGeneration({
+            platform: generation.platform,
+            api: generation.api,
+            realtime: generation.realtime,
+            songStore,
+            history,
+            renderContext: (range) => controller.renderContext(range),
+            audition: {
+              open: (options) =>
+                auditionRef.current?.openCandidates(options) ?? Promise.resolve(false),
+              setQueue: (status) => auditionRef.current?.setQueue(status),
+              isOpen: () => auditionRef.current?.store.getState().group != null,
+            },
+            onAnnounce: setAnnouncement,
+            onCommit: (commit, document) => controller.commit(commit, document),
+          }),
+    [controller, generation, history, songStore],
+  );
+  useEffect(() => () => plannerGeneration?.dispose(), [plannerGeneration]);
+  /** One source over every generation participant: the bar does not know who owns a group. */
+  const mergedSource = useMemo(
+    () =>
+      mergeCandidateSources([
+        ...generationFlows.map((entry) => entry.source),
+        ...(plannerGeneration === null ? [] : [plannerGeneration.source]),
+      ]),
+    [generationFlows, plannerGeneration],
+  );
+  const candidateSource = props.candidateSource ?? mergedSource;
   /** The open candidate group or comparison (07 §6); needs a version tree. */
   const audition = useMemo(
     () =>
@@ -197,11 +316,17 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             history,
             document: () => songStore.store.getState().doc,
             ...(candidateSource === undefined ? {} : { source: candidateSource }),
-            ...(flow === null
+            ...(generationFlows.length === 0 && plannerGeneration === null
               ? {}
               : {
-                  onAccept: (candidateId: string) => flow.accepted(candidateId),
-                  onDiscard: (group: string) => flow.discarded(group),
+                  onAccept: (candidateId: string) => {
+                    for (const entry of generationFlows) entry.accepted(candidateId);
+                    plannerGeneration?.accepted(candidateId);
+                  },
+                  onDiscard: (group: string) => {
+                    for (const entry of generationFlows) entry.discarded(group);
+                    plannerGeneration?.discarded(group);
+                  },
                 }),
             onOutcome: (outcome, message) => {
               if (outcome?.ok) {
@@ -213,7 +338,7 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             },
             onAnnounce: setAnnouncement,
           }),
-    [controller, history, songStore, candidateSource, flow],
+    [controller, history, songStore, candidateSource, generationFlows, plannerGeneration],
   );
   auditionRef.current = audition;
   useEffect(() => () => audition?.dispose(), [audition]);
@@ -228,9 +353,10 @@ export function SongWorkspace(props: SongWorkspaceProps) {
         analysis: () => analysisRef.current,
         ...(history === undefined ? {} : { history }),
         ...(audition === null ? {} : { audition }),
+        ...(plannerGeneration === null ? {} : { generation: plannerGeneration }),
         onAnnounce: setAnnouncement,
       }),
-    [api, audition, history, songStore],
+    [api, audition, history, plannerGeneration, songStore],
   );
   useEffect(() => () => planner.dispose(), [planner]);
   const plannerOpen = useStore(planner.store, (state) => state.open);
@@ -244,6 +370,10 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       ? null
       : (state.group?.candidates.find((candidate) => candidate.slot === state.selected)?.doc ??
         null),
+  );
+  const auditionGroupId = useStore(
+    audition?.store ?? EMPTY_AUDITION_STORE,
+    (state) => state.group?.id ?? null,
   );
   const viewDoc = auditionDoc ?? preview ?? doc;
   const [level, setLevel] = useState<ZoomLevel>("L2");
@@ -263,6 +393,50 @@ export function SongWorkspace(props: SongWorkspaceProps) {
   const brushDirection = useStore(brushes.store, (state) => state.direction);
   const selectedTrack =
     selection.kind === "tracks" && selection.ids.length === 1 ? (selection.ids[0] ?? null) : null;
+  /** The offers after an edit: a cleared gap, and the boundaries a move/remove re-joined. */
+  const historyHead = useStore(history?.store ?? NO_HISTORY_STORE, (state) => state.head);
+  const lastCommit = useStore(songStore.store, (state) => state.lastCommit);
+  const fill = useStore(offers.store, (state) => state.fill);
+  const smoothTargets = useStore(offers.store, (state) => state.smooth);
+  const fillPhase = useStore(fillFlow?.store ?? EMPTY_GENERATION_STORE, (state) => state.phase);
+  const fillMessage = useStore(fillFlow?.store ?? EMPTY_GENERATION_STORE, (state) => state.message);
+  const [canvasTick, setCanvasTick] = useState(0);
+  useEffect(() => {
+    if (history !== undefined) {
+      const commit =
+        historyHead === null ? null : (history.store.getState().commits.get(historyHead) ?? null);
+      offers.consider(commit?.batch ?? null, doc);
+      return;
+    }
+    offers.consider(lastCommit?.batch ?? null, doc);
+  }, [doc, history, historyHead, lastCommit, offers]);
+
+  /** The canvas box of a time span and its tracks, for the chips (07 §9 DOM overlays). */
+  const chipBox = useCallback(
+    (startSec: number, endSec: number, trackIds: readonly string[]): ChipBox | null => {
+      const canvas = handle?.current?.canvas;
+      if (canvas === undefined) return null;
+      return canvas.regionRect({ startSec, endSec, trackIds });
+    },
+    [canvasTick],
+  );
+  const songHandle = songStore.handle();
+  const fillAnchor =
+    fill === null || songHandle === null
+      ? null
+      : chipBox(
+          secondsAtTicks(songStore.model, songHandle, fill.region.startTick),
+          secondsAtTicks(songStore.model, songHandle, fill.region.endTick),
+          fill.region.tracks === "all" ? [] : fill.region.tracks,
+        );
+  const smoothChips = smoothTargets.flatMap((target) => {
+    if (songHandle === null) return [];
+    const section = doc?.arrangement.sections.find((entry) => entry.id === target.sectionId);
+    if (section === undefined) return [];
+    const sec = secondsAtTicks(songStore.model, songHandle, target.boundaryTick);
+    const anchor = chipBox(Math.max(0, sec - 0.01), sec + 0.01, []);
+    return anchor === null ? [] : [{ target, label: section.label, anchor }];
+  });
 
   // Selecting one ribbon opens the Inspector (07 §4.5). Closing it does not reopen it until
   // another instrument is selected; with nothing selected it stays open as the master inspector.
@@ -442,6 +616,20 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     ...(flow === null
       ? {}
       : { onOpenExtend: (direction: ExtendDirection) => setExtendOpen(direction) }),
+    ...(fillFlow === null || fill === null
+      ? {}
+      : {
+          onFillGap: () => {
+            void fillFlow.start({ region: fill.region });
+          },
+        }),
+    ...(smoothFlow === null
+      ? {}
+      : {
+          onSmooth: (sectionId: string) => setSmoothOpen(sectionId),
+        }),
+    fillGapLabel: fill?.label ?? null,
+    smoothTargetIds: smoothTargets.map((target) => target.sectionId),
   });
   const drag = useSectionDrag({
     songStore,
@@ -461,8 +649,16 @@ export function SongWorkspace(props: SongWorkspaceProps) {
   });
   const commandRegistry = useMemo(
     () =>
-      createCommandRegistry(flow === null ? SONG_COMMANDS : [...SONG_COMMANDS, ...EXTEND_COMMANDS]),
-    [flow],
+      createCommandRegistry(
+        flow === null
+          ? SONG_COMMANDS
+          : [
+              ...SONG_COMMANDS,
+              ...EXTEND_COMMANDS,
+              ...(fillFlow === null ? [] : GENERATION_OFFER_COMMANDS),
+            ],
+      ),
+    [fillFlow, flow],
   );
 
   /** Right-click or Shift+F10: select the part and open the shared menu at that point. */
@@ -520,11 +716,27 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       history: props.history ?? null,
       audition,
       extend: flow,
+      fill: fillFlow,
+      smooth: smoothFlow,
+      offers: generation === undefined ? null : offers,
+      plannerGeneration,
     } as BragiTestHooks;
     return () => {
       window.__bragi = undefined;
     };
-  }, [props.testHooks, songStore, controller, props.history, audition, flow]);
+  }, [
+    props.testHooks,
+    songStore,
+    controller,
+    props.history,
+    audition,
+    flow,
+    fillFlow,
+    smoothFlow,
+    generation,
+    offers,
+    plannerGeneration,
+  ]);
 
   // Global shortcuts (07 §3, 11 §6.2). The grid handles M and O itself when it has focus.
   useEffect(() => {
@@ -764,7 +976,10 @@ export function SongWorkspace(props: SongWorkspaceProps) {
               onHoverTrack={(trackId) => {
                 hovered.current = trackId;
               }}
-              onViewport={(next: ZoomLevel, _viewport: Viewport) => setLevel(next)}
+              onViewport={(next: ZoomLevel, _viewport: Viewport) => {
+                setLevel(next);
+                setCanvasTick((tick) => tick + 1);
+              }}
               onReady={(next) => {
                 handle.current = next;
                 next?.canvas.setTool(explainMode ? "select" : brushes.store.getState().tool);
@@ -780,6 +995,32 @@ export function SongWorkspace(props: SongWorkspaceProps) {
                 onOpenChange={setExtendOpen}
               />
             )}
+            {fillFlow === null ? null : (
+              <FillGapChip
+                anchor={auditionGroupId === null ? fillAnchor : null}
+                label={fill?.label ?? ""}
+                disabled={warmup === "disabled"}
+                running={["rendering", "uploading", "submitting", "generating"].includes(fillPhase)}
+                message={fillPhase === "failed" ? fillMessage : undefined}
+                onFill={() => {
+                  if (fill !== null) void fillFlow.start({ region: fill.region });
+                }}
+              />
+            )}
+            {smoothFlow === null
+              ? null
+              : smoothChips.map((chip) => (
+                  <SmoothChip
+                    key={chip.target.sectionId}
+                    flow={smoothFlow}
+                    sectionId={chip.target.sectionId}
+                    sectionLabel={chip.label}
+                    anchor={auditionGroupId === null ? chip.anchor : null}
+                    disabled={warmup === "disabled"}
+                    open={smoothOpen === chip.target.sectionId}
+                    onOpenChange={(open) => setSmoothOpen(open ? chip.target.sectionId : null)}
+                  />
+                ))}
           </div>
           <AccessibleGrid
             model={grid}

@@ -118,6 +118,7 @@ async function harness(
     plan: async () => {
       throw new Error("the planner is not used in this test");
     },
+    executePlan: async () => ({ jobs: [] }),
     meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
     getAuthMode: async () => ({ mode: "multi-user", user: null }),
     signInWithEmail: async () => {},
@@ -542,6 +543,7 @@ describe("the upload -> live-analysis flow", () => {
         plan: async () => {
           throw new Error("the planner is not used in this test");
         },
+        executePlan: async () => ({ jobs: [] }),
         meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
         getAuthMode: async () => ({ mode: "multi-user", user: null }),
         signInWithEmail: async () => {},
@@ -644,6 +646,7 @@ describe("the upload -> live-analysis flow", () => {
         plan: async () => {
           throw new Error("the planner is not used in this test");
         },
+        executePlan: async () => ({ jobs: [] }),
         meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
         getAuthMode: async () => ({ mode: "multi-user", user: null }),
         signInWithEmail: async () => {},

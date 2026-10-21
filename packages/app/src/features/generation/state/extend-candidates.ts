@@ -88,6 +88,71 @@ export function extendAssetMeta(
   };
 }
 
+/** Every asset one candidate batch references (the working copy and the worker's bytes). */
+export function extendCandidateAssets(partial: ExtendCandidatePartial): AssetMeta[] {
+  const metas = [extendAssetMeta(partial.asset)];
+  if (
+    partial.asset.originalAsset !== undefined &&
+    partial.asset.originalAsset !== partial.asset.hash
+  ) {
+    metas.push({ ...extendAssetMeta(partial.asset), hash: partial.asset.originalAsset });
+  }
+  return metas;
+}
+
+/**
+ * The placement batch for one finished extend candidate (09 §4.2 step 4).
+ *
+ * Pure over the document: the caller adds the assets and commits the batch. `extendPlacement` is
+ * `bragi-model`'s helper, so the section, clip and fades are the model's decisions.
+ */
+export function extendCandidateBatch(
+  deps: Pick<ExtendCandidateDependencies, "songStore">,
+  job: ExtendJob,
+  partial: ExtendCandidatePartial,
+  createdAt: string,
+): OpBatch {
+  const handle = deps.songStore.handle();
+  if (handle === null) throw new Error("an extend needs a loaded project");
+  const sourceId = generatedSourceId();
+  const request = {
+    direction: job.direction,
+    contextRange: job.contextRange,
+    candidate: {
+      sourceId,
+      originalAsset: partial.asset.originalAsset ?? partial.asset.hash,
+      workingAsset: partial.asset.hash,
+      durationSamples: partial.asset.durationSamples,
+      channels: partial.asset.channels,
+      label:
+        partial.asset.label ??
+        t(
+          job.direction === "forward"
+            ? "generation.extend.sourceOutro"
+            : "generation.extend.sourceIntro",
+        ),
+      provenance: {
+        kind: "generation" as const,
+        createdAt,
+        ...(job.jobId === undefined ? {} : { jobId: job.jobId }),
+        ...(job.model === undefined ? {} : { model: job.model }),
+        ...(job.modelVersion === undefined ? {} : { modelVersion: job.modelVersion }),
+        ...(job.prompt === undefined ? {} : { prompt: job.prompt }),
+      },
+    },
+    spliceOffset: partial.result.spliceOffsetSamples,
+    bars: job.bars,
+    crossfadeTicks: job.crossfadeTicks,
+    ...(job.sectionKind === undefined ? {} : { sectionKind: job.sectionKind }),
+    batchId: `bat_${ulid()}`,
+    label: t("generation.extend.candidate", { bars: job.bars }),
+    createdAt,
+  };
+  return JSON.parse(
+    deps.songStore.model.extendPlacement(handle, JSON.stringify(request)),
+  ) as OpBatch;
+}
+
 /**
  * Turns the partials of one job into candidate commits, in arrival order.
  *
@@ -105,61 +170,11 @@ export async function addExtendCandidates(
   if (handle === null) throw new Error("an extend needs a loaded project");
 
   const now = deps.now ?? (() => new Date());
-  const assets = partials.flatMap((partial) => {
-    const metas = [extendAssetMeta(partial.asset)];
-    if (
-      partial.asset.originalAsset !== undefined &&
-      partial.asset.originalAsset !== partial.asset.hash
-    ) {
-      metas.push({
-        ...extendAssetMeta(partial.asset),
-        hash: partial.asset.originalAsset,
-      });
-    }
-    return metas;
-  });
-  deps.songStore.addAssets(assets);
+  deps.songStore.addAssets(partials.flatMap((partial) => extendCandidateAssets(partial)));
 
-  const batches: OpBatch[] = partials.map((partial) => {
-    const createdAt = now().toISOString();
-    const sourceId = generatedSourceId();
-    const request = {
-      direction: job.direction,
-      contextRange: job.contextRange,
-      candidate: {
-        sourceId,
-        originalAsset: partial.asset.originalAsset ?? partial.asset.hash,
-        workingAsset: partial.asset.hash,
-        durationSamples: partial.asset.durationSamples,
-        channels: partial.asset.channels,
-        label:
-          partial.asset.label ??
-          t(
-            job.direction === "forward"
-              ? "generation.extend.sourceOutro"
-              : "generation.extend.sourceIntro",
-          ),
-        provenance: {
-          kind: "generation" as const,
-          createdAt,
-          ...(job.jobId === undefined ? {} : { jobId: job.jobId }),
-          ...(job.model === undefined ? {} : { model: job.model }),
-          ...(job.modelVersion === undefined ? {} : { modelVersion: job.modelVersion }),
-          ...(job.prompt === undefined ? {} : { prompt: job.prompt }),
-        },
-      },
-      spliceOffset: partial.result.spliceOffsetSamples,
-      bars: job.bars,
-      crossfadeTicks: job.crossfadeTicks,
-      ...(job.sectionKind === undefined ? {} : { sectionKind: job.sectionKind }),
-      batchId: `bat_${ulid()}`,
-      label: t("generation.extend.candidate", { bars: job.bars }),
-      createdAt,
-    };
-    return JSON.parse(
-      deps.songStore.model.extendPlacement(handle, JSON.stringify(request)),
-    ) as OpBatch;
-  });
+  const batches: OpBatch[] = partials.map((partial) =>
+    extendCandidateBatch(deps, job, partial, now().toISOString()),
+  );
 
   return deps.history.addCandidates(batches, job.group);
 }

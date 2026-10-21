@@ -22,7 +22,8 @@ import { secondsAtTicks, ticksAtSeconds } from "../../song/api/section-time.js";
 import type { ModelApi } from "../../song/model/model-api.js";
 import { meterAt } from "../../song/state/section-ops.js";
 import type { SongStore } from "../../song/state/song-store.js";
-import { candidateBatches, isExplanation } from "../candidates.js";
+import { candidateBatches, isExplanation, isGenerativeVariant } from "../candidates.js";
+import type { PlannerGeneration } from "../planner-generation.js";
 import { buildPlanRequest } from "../request.js";
 import type { PlannerAnalysis } from "../section-features.js";
 import { snapLassoRegion } from "../snap.js";
@@ -80,6 +81,8 @@ export interface PlannerOptions {
   readonly analysis: () => PlannerAnalysis | null;
   readonly history?: History;
   readonly audition?: Audition;
+  /** The controller that executes a plan's generate steps (06 §5); absent on hosts without a backend. */
+  readonly generation?: PlannerGeneration;
   readonly onAnnounce: (message: string) => void;
   readonly now?: () => Date;
   readonly newGroupId?: () => string;
@@ -401,13 +404,56 @@ export function createPlanner(options: PlannerOptions): PlannerController {
           return;
         }
         const batches = candidateBatches(result, { prompt, now: now() });
-        if (batches.length === 0) {
+        const generative = result.variants.some((variant) => isGenerativeVariant(variant));
+        if (batches.length === 0 && !generative) {
           store.setState({
             phase: "error",
             interpretation: result.interpretation,
             notices: result.notices ?? [],
             message: t("planner.error.noIdea"),
           });
+          return;
+        }
+        if (generative) {
+          // A generative variant executes server-side: the client renders each step's context,
+          // then the plan's jobs stream into the same Audition group as the ops-only variants.
+          const controller = options.generation;
+          if (controller === undefined) {
+            store.setState({
+              phase: "done",
+              interpretation: result.interpretation,
+              notices: result.notices ?? [],
+              message: t("planner.demo.noCandidates"),
+            });
+            return;
+          }
+          if (options.audition?.store.getState().group !== null) {
+            store.setState({ phase: "error", message: t("planner.error.auditionOpen") });
+            return;
+          }
+          const started = await controller.execute({
+            plan: result,
+            prompt,
+            region: target.region,
+            opsBatches: batches,
+          });
+          if (ticket !== generation) return;
+          if (!started) {
+            store.setState({
+              phase: "error",
+              interpretation: result.interpretation,
+              notices: result.notices ?? [],
+              message: t("planner.error.noIdea"),
+            });
+            return;
+          }
+          store.setState({
+            phase: "done",
+            interpretation: result.interpretation,
+            notices: result.notices ?? [],
+            candidates: batches.length + 1,
+          });
+          options.onAnnounce(t("planner.live.ready", { count: batches.length + 1 }));
           return;
         }
         const history = options.history;

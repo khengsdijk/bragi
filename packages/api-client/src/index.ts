@@ -13,7 +13,11 @@ import type {
   EditPlan,
   Explanation,
   GenerateExtendParams,
+  GenerateInpaintParams,
+  GenerateTransitionParams,
   JobOutputs,
+  PlanExecuteRequest,
+  PlanExecuteResponse,
   PlanRequest,
 } from "@bragi/schemas";
 
@@ -139,16 +143,42 @@ export interface JobAccepted {
 }
 
 /**
+ * The generation capabilities the v1 API accepts (09 §2).
+ */
+export type GenerationCapability = "generate.extend" | "generate.inpaint" | "generate.transition";
+
+/** Every generation submit body: the shared envelope plus the capability's params. */
+export interface GenerationSubmit<
+  Params = GenerateExtendParams | GenerateInpaintParams | GenerateTransitionParams,
+> {
+  readonly capability: GenerationCapability;
+  readonly priority: JobPriority;
+  readonly projectId: string;
+  /** The rendered conditioning audio, keyed by the capability's input names (09 §2.1). */
+  readonly assets: Readonly<Record<string, string>>;
+  readonly params: Params;
+}
+
+/**
  * The `generate.extend` submit body (09 §4.2, 09 §5). The rendered context is the job's
  * `assets.context`; the candidate count is in `params.n`.
  */
-export interface GenerateExtendSubmit {
+export type GenerateExtendSubmit = GenerationSubmit<GenerateExtendParams> & {
   readonly capability: "generate.extend";
-  readonly priority: JobPriority;
-  readonly projectId: string;
   readonly assets: { readonly context: string };
-  readonly params: GenerateExtendParams;
-}
+};
+
+/** The `generate.inpaint` submit body: the contexts on both sides of the gap (09 §4.3). */
+export type GenerateInpaintSubmit = GenerationSubmit<GenerateInpaintParams> & {
+  readonly capability: "generate.inpaint";
+  readonly assets: { readonly before: string; readonly after: string };
+};
+
+/** The `generate.transition` submit body: the audio on both sides of the boundary (09 §4.4). */
+export type GenerateTransitionSubmit = GenerationSubmit<GenerateTransitionParams> & {
+  readonly capability: "generate.transition";
+  readonly assets: { readonly before: string; readonly after: string };
+};
 
 /**
  * `POST /v1/generations/warmup` (09 §5): a cheap ping that loads the model. `disabled` means
@@ -203,10 +233,10 @@ export interface ApiClient {
     enqueuedStages: readonly string[];
   }>;
   /**
-   * Submits a generation job (05 §2, 09 §5). Typed for `generate.extend`: the params are the
-   * generated schema type, so a missing field is a compile error, not a 400.
+   * Submits a generation job (05 §2, 09 §5). Typed per capability: the params are the generated
+   * schema types, so a missing field is a compile error, not a 400.
    */
-  submitJob(request: GenerateExtendSubmit): Promise<JobAccepted>;
+  submitJob(request: GenerationSubmit): Promise<JobAccepted>;
   /** Cancels a job the user no longer wants (05 §4.4); Discard and Escape use it. */
   cancelJob(jobId: string): Promise<void>;
   /** Warms the generation pool once per session (09 §5). */
@@ -222,6 +252,13 @@ export interface ApiClient {
     request: PlanRequest,
     options?: { readonly signal?: AbortSignal },
   ): Promise<EditPlan | Explanation>;
+
+  /**
+   * `POST /v1/plans/{planId}/execute` (06 §5): enqueues one interactive job per generate step of
+   * the chosen variants. The plan is stored server-side, so only the variant indexes and the
+   * rendered context assets are sent.
+   */
+  executePlan(planId: string, request: PlanExecuteRequest): Promise<PlanExecuteResponse>;
 }
 
 /** Creates the client. No request is made until a method is called. */
@@ -311,6 +348,8 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         throw error;
       }
     },
+    executePlan: (planId, body) =>
+      request<PlanExecuteResponse>("POST", `/v1/plans/${encodeURIComponent(planId)}/execute`, body),
   };
 }
 

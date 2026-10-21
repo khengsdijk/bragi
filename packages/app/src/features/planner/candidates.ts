@@ -1,10 +1,10 @@
 /**
- * An `EditPlan` → one candidate `OpBatch` per variant (06 §3, §5; 02 §7).
+ * An `EditPlan` → one candidate `OpBatch` per ops-only variant (06 §3, §5; 02 §7).
  *
- * v1 plans are ops-only. Each variant's `ops` steps are concatenated in order into one batch, so
- * the candidate is instant and the Audition bar can compare it against HEAD. Variants that carry
- * only generation steps (WP-2.7 and later) are skipped; when nothing is left the prompt bar says
- * it could not find a way to do that here.
+ * Each variant's `ops` steps are concatenated in order into one batch, so the candidate is instant
+ * and the Audition bar can compare it against HEAD. A variant with a `generate` step is not here:
+ * `planner-generation.ts` builds its candidate when the job's first passing partial arrives, because
+ * a candidate is a document snapshot and its placement only exists then.
  */
 import type { EditPlan, Explanation, Op, OpBatch } from "@bragi/schemas";
 
@@ -18,9 +18,14 @@ export function isExplanation(value: EditPlan | Explanation): value is Explanati
   return "text" in value && "highlights" in value;
 }
 
-/** Concatenates a variant's ops steps, ignoring the other step kinds v1 does not offer. */
+/** Concatenates a variant's ops steps. */
 export function opsForVariant(variant: EditPlan["variants"][number]): Op[] {
   return variant.steps.flatMap((step) => (step.kind === "ops" ? [...step.ops] : []));
+}
+
+/** Whether a variant needs a generation job before it can become a candidate. */
+export function isGenerativeVariant(variant: EditPlan["variants"][number]): boolean {
+  return variant.steps.some((step) => step.kind === "generate");
 }
 
 /** A non-empty op tuple, or `null` when the variant has no instant steps. */
@@ -44,6 +49,7 @@ export function candidateBatches(plan: EditPlan, options: CandidateBatchOptions 
   const newId = options.newId ?? newBatchId;
   const batches: OpBatch[] = [];
   for (const variant of plan.variants) {
+    if (isGenerativeVariant(variant)) continue;
     const ops = opsTuple(opsForVariant(variant));
     if (ops === null) continue;
     batches.push({
