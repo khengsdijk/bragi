@@ -23,6 +23,9 @@ RUN apt-get update \
 RUN pip install --no-cache-dir "uv==0.12.5"
 WORKDIR /app
 COPY services/workers ./services/workers
+# The generation quality-gate thresholds (WP-2.7): `bragi_generate.postprocess` reads
+# config/generation_gates.toml by walking up from its own module, so it must be at /app/config.
+COPY config ./config
 # `--group models` adds torch + demucs (WP-1.3, ADR-0004); `--extra ml` (WITH_ML=1) adds Beat This!
 # (WP-1.2, ADR-0007). The default local sync installs neither.
 RUN cd services/workers \

@@ -1,0 +1,51 @@
+# Quality-gate thresholds for generated audio (specs/09-generation.md §6).
+# Read by services/workers/generate/src/bragi_generate/postprocess/config.py with the
+# stdlib tomllib. Every value also has a default in GateConfig, so a missing key is not
+# an error, but this file is the reviewable source of truth.
+
+[sanity]
+# Step 1: a frame is silent below this level; a candidate is silent when more than
+# `silence_fraction` of the 50 ms frames are. Clipping is a sample at |x| >= clip_level.
+silence_frame_sec = 0.05
+silence_dbfs = -50.0
+silence_fraction = 0.5
+clip_level = 0.999
+clip_fraction = 0.001
+
+[tempo]
+# Step 2: reject when the tracked tempo deviates more than this before warping.
+# Half and double time count as the same tempo.
+max_error = 0.04
+
+[key]
+# Step 3: the same key and its relative pass; a ±1 semitone error is pitch-shifted.
+allow_relative = true
+max_shift_semitones = 1
+
+[beat_align]
+# Step 4: cross-correlate the candidate head with this many bars of context.
+window_bars = 2
+min_confidence = 0.5
+search_beats = 1.0
+
+[seam]
+# Step 5: seam_score = flux_weight * flux jump + loudness_weight * LU jump +
+# onset_weight * onset-regularity change. Lower is better.
+window_sec = 0.5
+flux_weight = 1.0
+loudness_weight = 0.2
+onset_weight = 0.5
+max_score = 1.0
+
+[crossfade]
+# Step 5: one beat, capped at 500 ms (03 §8.2).
+length_beats = 1.0
+max_sec = 0.5
+phase_search_sec = 0.010
+
+[match]
+# Step 6: loudness ramp over 2 s windows; the match_eq bands are clamped to ±6 dB.
+loudness_window_sec = 2.0
+max_gain_db = 24.0
+eq_bands = 31
+eq_max_db = 6.0
