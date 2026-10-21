@@ -159,3 +159,107 @@ def test_a_run_restores_the_backend_override(
     options = runner.BenchOptions(backend="fake", fixtures="pop", n=1, out=tmp_path, quiet=True)
     runner.run_bench(options)
     assert os.environ[routing.ENV_OVERRIDE] == "ace_step"
+
+
+def test_the_inpaint_span_cuts_a_gap_mid_song_on_bar_lines() -> None:
+    fixture = fixtures.by_id("pop")
+    options = runner.BenchOptions(backend="fake", capability="inpaint", n=1)
+    span = runner._span(fixture, options)
+    before, after = span.before, span.after
+
+    assert before is not None and after is not None
+    assert span.gap_start_bar is not None
+    bar = round(fixture.bar_sec * RATE)
+    assert before.frames == span.context_bars * bar
+    assert after.frames == span.context_bars * bar
+    assert span.params["gapBars"] == 4
+    assert span.params["overlapBars"] == 2
+    # The gap is really missing between the two rendered contexts.
+    song = fixture.render(RATE)
+    gap_start = span.gap_start_bar * bar
+    assert np.array_equal(before.samples, song.samples[gap_start - before.frames : gap_start])
+    assert np.array_equal(
+        after.samples, song.samples[gap_start + 4 * bar : gap_start + 4 * bar + after.frames]
+    )
+
+
+def test_the_transition_span_is_the_context_around_a_mid_song_bar_line() -> None:
+    fixture = fixtures.by_id("pop")
+    options = runner.BenchOptions(backend="fake", capability="transition", n=1)
+    span = runner._span(fixture, options)
+    before, after = span.before, span.after
+
+    assert before is not None and after is not None
+    assert span.boundary_bar == fixture.bars // 2
+    assert span.params["lengthBars"] == 2
+    assert "overlapBars" not in span.params
+    bar = round(fixture.bar_sec * RATE)
+    song = fixture.render(RATE)
+    boundary = span.boundary_bar * bar
+    assert np.array_equal(before.samples, song.samples[boundary - before.frames : boundary])
+    assert np.array_equal(after.samples, song.samples[boundary : boundary + after.frames])
+
+
+def test_the_runner_smoke_tests_an_inpaint_and_a_transition(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for capability in ("inpaint", "transition"):
+        out = tmp_path / capability
+        code = runner.main(
+            [
+                "--capability",
+                capability,
+                "--backend",
+                "fake",
+                "--fixtures",
+                "pop",
+                "--n",
+                "1",
+                "--out",
+                str(out),
+            ]
+        )
+        assert code == 0
+        reports = sorted(out.glob(f"generate-*-fake-{capability}.json"))
+        assert len(reports) == 1
+        report = BenchReport.model_validate_json(reports[0].read_text(encoding="utf-8"))
+        assert report.capability == capability
+        assert report.n == 1
+        fixture = report.fixtures[0]
+        assert fixture.capability == capability
+        assert len(fixture.candidates) == 1
+        candidate = fixture.candidates[0]
+        assert candidate.passed, [attempt.steps for attempt in fixture.attempts]
+        assert candidate.seam_score is not None
+        assert candidate.end_seam_score is not None
+        assert candidate.start_offset_samples < 0
+        assert candidate.end_offset_samples is not None and candidate.end_offset_samples > 0
+        assert fixture.attempts[0].steps["final_seam"] == "pass"
+    assert "inpaint" in capsys.readouterr().out
+
+
+def test_kept_fill_audio_writes_the_song_around_the_span(tmp_path: Path) -> None:
+    options = runner.BenchOptions(
+        backend="fake",
+        capability="inpaint",
+        fixtures="pop",
+        n=1,
+        out=tmp_path,
+        keep_audio=True,
+        quiet=True,
+    )
+    report = runner.run_bench(options)
+    assert report.audio_dir is not None
+    audio_dir = Path(report.audio_dir)
+    candidate = report.fixtures[0].candidates[0]
+    assert candidate.splice_wav is not None
+    assert Path(candidate.splice_wav).name == "inpaint-A.wav"
+    preview, _ = sf.read(candidate.splice_wav)
+    fixture = fixtures.by_id("pop")
+    # The preview is the song with the span filled: longer than the gap alone and
+    # shorter than the whole fixture (it starts at the before context).
+    assert len(preview) > round(4 * fixture.bar_sec * RATE)
+    assert len(preview) < round(fixture.duration_sec * RATE)
+    order = json.loads((audio_dir / "listening-order-inpaint.json").read_text(encoding="utf-8"))
+    assert order["entries"][0]["capability"] == "inpaint"
+    assert order["entries"][0]["file"] == "splices/inpaint-A.wav"

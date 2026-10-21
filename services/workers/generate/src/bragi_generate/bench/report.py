@@ -51,6 +51,7 @@ class AttemptReport(BaseModel):
     failed_step: str | None = None
     reason: str | None = None
     seam_score: float | None = None
+    end_seam_score: float | None = None
     tempo_error: float | None = None
     key_detected: str | None = None
     key_relation: str | None = None
@@ -71,12 +72,17 @@ class CandidateReport(BaseModel):
     passed: bool
     quality_warning: bool
     seam_score: float | None = None
+    end_seam_score: float | None = None
     tempo_error: float | None = None
     key_detected: str | None = None
     key_relation: str | None = None
     key_confidence: float | None = None
     alignment_confidence: float | None = None
-    splice_offset_samples: int
+    #: Extend's one splice offset, or a fill's start offset; both are relative to
+    #: the context edge / gap start and negative inside the left overlap.
+    start_offset_samples: int
+    #: A fill's end offset relative to the gap end; ``None`` for an extend.
+    end_offset_samples: int | None = None
     asset: str | None = None
     blob: str | None = None
     candidate_wav: str | None = None
@@ -93,7 +99,12 @@ class FixtureReport(BaseModel):
     bpm: float
     time_signature: list[int]
     key_requested: str
+    capability: str = "extend"
     bars: int
+    #: Inpaint: first bar of the cut gap. Transition: the bar line of the boundary.
+    gap_start_bar: int | None = None
+    gap_bars: int | None = None
+    boundary_bar: int | None = None
     context_bars: int
     context_sec: float
     detected_context_tempo_bpm: float | None = None
@@ -162,6 +173,8 @@ class AggregateReport(BaseModel):
     step_rates: list[StepRate]
     seam_passing: SeamStats
     seam_scored: SeamStats
+    end_seam_passing: SeamStats | None = None
+    end_seam_scored: SeamStats | None = None
     time_to_first_pass: TimingStats
     regeneration_rounds: int
     total_sec: float
@@ -178,6 +191,7 @@ class BenchReport(BaseModel):
     machine: str
     timing_label: str = TIMING_LABEL
     backend: str
+    capability: str = "extend"
     tier: Literal["preview"] = "preview"
     n: int
     bars: int
