@@ -103,7 +103,7 @@ describe("generation offers", () => {
     expect(fill?.label).toContain("bars 3–4");
   });
 
-  it("keeps only the latest erase when the ranges do not touch", () => {
+  it("keeps only the latest erase when they cover different bars", () => {
     const offers = createGenerationOffers();
     offers.consider([clear("trk_bass", 7_680, 15_360), clear("trk_drums", 0, 3_840)], project());
     expect(offers.store.getState().fill?.region).toEqual({
@@ -111,6 +111,36 @@ describe("generation offers", () => {
       endTick: 15_360,
       tracks: ["trk_bass"],
     });
+  });
+
+  it("keeps only the latest stroke when staggered erases overlap", () => {
+    const offers = createGenerationOffers();
+    // Bass over bars 11–14 at HEAD, drums over bars 9–12 just before it.
+    offers.consider(
+      [clear("trk_bass", 38_400, 53_760), clear("trk_drums", 30_720, 46_080)],
+      project(),
+    );
+    expect(offers.store.getState().fill?.region).toEqual({
+      startTick: 38_400,
+      endTick: 53_760,
+      tracks: ["trk_bass"],
+    });
+  });
+
+  it("merges erases over the same bars with slightly different tick edges", () => {
+    const offers = createGenerationOffers();
+    // Both strokes snap inward to bars 3–4 even though one starts in bar 2 and ends in bar 5.
+    offers.consider(
+      [clear("trk_bass", 7_680, 15_360), clear("trk_drums", 7_600, 15_400)],
+      project(),
+    );
+    const fill = offers.store.getState().fill;
+    expect(fill?.region).toEqual({
+      startTick: 7_680,
+      endTick: 15_360,
+      tracks: ["trk_drums", "trk_bass"],
+    });
+    expect(fill?.label).toContain("bars 3–4");
   });
 
   it("stops merging at a commit that is not a clear", () => {

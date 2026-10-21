@@ -61,7 +61,10 @@ export function barAt(doc: Project, tick: number): BarRange & { ticksPerBar: num
  * the user erased, so a partial bar at either end is not filled. A region inside one bar is
  * widened to that bar, because a gap smaller than a bar is not something the worker can generate.
  */
-export function snapRegionToBars(doc: Project, region: Region): BarRange {
+export function snapRegionToBars(
+  doc: Project,
+  region: Pick<Region, "startTick" | "endTick">,
+): BarRange {
   const total = totalTicks(doc);
   const startTick = Math.max(0, Math.min(total, region.startTick));
   const endTick = Math.max(0, Math.min(total, region.endTick));

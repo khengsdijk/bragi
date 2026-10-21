@@ -14,6 +14,7 @@ import type { OpBatch, Project, Region } from "@bragi/schemas";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { t } from "../../../i18n/index.js";
 import { meterAt, sectionStartTick } from "../../song/state/section-ops.js";
+import { snapRegionToBars } from "./context-windows.js";
 
 /** The erased gap the Fill gap chip offers (already the region the user cleared). */
 export interface FillGapOffer {
@@ -66,19 +67,25 @@ function onlyClears(batch: OpBatch): Region[] | null {
   return regions.length === 0 ? null : regions;
 }
 
-/** Whether a cleared span overlaps the merged one or shares an edge with it. */
-function touches(merged: MergedClear, region: Region): boolean {
-  return region.endTick >= merged.startTick && merged.endTick >= region.startTick;
+/** Whether a cleared span covers exactly the same whole bars as the merged span. */
+function sameBars(doc: Project, merged: MergedClear, region: Region): boolean {
+  const left = snapRegionToBars(doc, merged);
+  const right = snapRegionToBars(doc, region);
+  return left.startTick === right.startTick && left.endTick === right.endTick;
 }
 
-function absorb(merged: MergedClear, region: Region): void {
-  merged.startTick = Math.min(merged.startTick, region.startTick);
-  merged.endTick = Math.max(merged.endTick, region.endTick);
+function absorbTracks(merged: MergedClear, region: Region): void {
   if (region.tracks === "all") {
     merged.allTracks = true;
     return;
   }
   for (const id of region.tracks) merged.trackIds.add(id);
+}
+
+function absorbSpan(merged: MergedClear, region: Region): void {
+  merged.startTick = Math.min(merged.startTick, region.startTick);
+  merged.endTick = Math.max(merged.endTick, region.endTick);
+  absorbTracks(merged, region);
 }
 
 /** The merged span as a region: document track order, so the label reads consistently. */
@@ -95,8 +102,9 @@ function mergedRegion(doc: Project, merged: MergedClear): Region {
 
 /**
  * HEAD's clears merged with the erase commits directly behind it. An ancestor joins while it is a
- * user edit of only `region.clear` ops whose range touches the span so far; anything else ends the
- * chain, so a move, a trim or an unrelated edit in between leaves only the latest stroke.
+ * user edit of only `region.clear` ops whose range covers the same whole bars as the span so far,
+ * and contributes its tracks but not its tick edges; anything else ends the chain, so a move, a
+ * trim or an unrelated edit in between leaves only the latest stroke.
  */
 function mergedClear(doc: Project, batches: readonly OpBatch[]): Region | null {
   const chain = batches.slice(0, FILL_MERGE_COMMITS);
@@ -111,12 +119,12 @@ function mergedClear(doc: Project, batches: readonly OpBatch[]): Region | null {
     allTracks: false,
     trackIds: new Set(),
   };
-  for (const region of headClears) absorb(merged, region);
+  for (const region of headClears) absorbSpan(merged, region);
   for (const batch of chain.slice(1)) {
     const clears = onlyClears(batch);
     if (clears === null || batch.author.kind !== "user") break;
-    if (!clears.some((region) => touches(merged, region))) break;
-    for (const region of clears) absorb(merged, region);
+    if (!clears.every((region) => sameBars(doc, merged, region))) break;
+    for (const region of clears) absorbTracks(merged, region);
   }
   return mergedRegion(doc, merged);
 }

@@ -35,7 +35,6 @@ describe("bar-aligned context windows", () => {
     const snapped = snapRegionToBars(doc, {
       startTick: 2 * TICKS_PER_BAR + 100,
       endTick: 5 * TICKS_PER_BAR - 100,
-      tracks: "all",
     });
     expect(snapped).toEqual({ startTick: 3 * TICKS_PER_BAR, endTick: 4 * TICKS_PER_BAR });
     expect(gapBars(doc, snapped)).toBe(1);
@@ -44,7 +43,6 @@ describe("bar-aligned context windows", () => {
       snapRegionToBars(doc, {
         startTick: 2 * TICKS_PER_BAR + 100,
         endTick: 2 * TICKS_PER_BAR + 200,
-        tracks: "all",
       }),
     ).toEqual({ startTick: 2 * TICKS_PER_BAR, endTick: 3 * TICKS_PER_BAR });
   });
