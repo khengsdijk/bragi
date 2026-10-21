@@ -1,10 +1,16 @@
-"""Launch the ACE-Step 1.5 REST API on PyTorch/MPS.
+"""Launch the ACE-Step 1.5 REST API on PyTorch/MPS or MLX.
 
-ACE-Step 1.5 auto-selects native MLX for DiT and VAE on Apple Silicon, and its
-API server has no flag to opt out. The WP-2.7 A1 spike pins the portable
-PyTorch/MPS path instead, so this launcher turns both MLX backends off before
-the FastAPI app is imported. ``scripts/ace-step-serve.sh`` calls it; the pinned
-checkout is never modified.
+ACE-Step 1.5 auto-selects native MLX for DiT (and its VAE) on Apple Silicon, and
+its API server has no flag to choose. ``BRAGI_ACE_STEP_ENGINE`` selects the engine
+before the FastAPI app is imported:
+
+* ``pytorch`` (the default) pins the portable PyTorch/MPS path by turning both MLX
+  backends off (the A1 spike's setting); it measured faster for a 30 s extend on
+  the M2 Pro, see ``docs/wp/2.7.md``;
+* ``mlx`` leaves ACE-Step's Apple Silicon defaults alone.
+
+``scripts/ace-step-serve.sh`` calls this launcher; the pinned checkout is never
+modified.
 """
 
 from __future__ import annotations
@@ -12,6 +18,9 @@ from __future__ import annotations
 import os
 
 import uvicorn
+
+ENGINE_ENV = "BRAGI_ACE_STEP_ENGINE"
+DEFAULT_ENGINE = "pytorch"
 
 
 def force_pytorch_backends() -> None:
@@ -33,8 +42,13 @@ def force_pytorch_backends() -> None:
 
 
 def main() -> None:
-    """Run uvicorn exactly like ``acestep-api`` does, but without MLX."""
-    force_pytorch_backends()
+    """Run uvicorn exactly like ``acestep-api`` does, with the selected engine."""
+    engine = os.getenv(ENGINE_ENV, DEFAULT_ENGINE).strip().lower()
+    if engine == "pytorch":
+        force_pytorch_backends()
+    elif engine != "mlx":
+        raise SystemExit(f"{ENGINE_ENV} must be 'mlx' or 'pytorch', got {engine!r}")
+    os.environ[ENGINE_ENV] = engine
     uvicorn.run(
         "acestep.api_server:app",
         host=os.getenv("ACESTEP_API_HOST", "127.0.0.1"),

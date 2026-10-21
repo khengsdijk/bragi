@@ -10,7 +10,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from bragi_common.cancel import CancelToken
-from bragi_common.generated.models import JobOutputs, JobRequest
+from bragi_common.generated.models import JobMetrics, JobOutputs, JobRequest
 from bragi_common.progress import ProgressReporter
 from bragi_common.s3 import ObjectStore
 
@@ -35,11 +35,21 @@ class JobContext:
         self._cancel = cancel
         self._scratch = scratch
         self._publish_partial = publish_partial
+        self._metrics: JobMetrics | None = None
 
     @property
     def job(self) -> JobRequest:
         """The request being executed."""
         return self._job
+
+    @property
+    def metrics(self) -> JobMetrics | None:
+        """The metrics a capability recorded, published with ``completed`` (05 §4.2)."""
+        return self._metrics
+
+    def record_metrics(self, metrics: JobMetrics) -> None:
+        """Records the run's cost and provenance for the ``completed`` event."""
+        self._metrics = metrics
 
     @property
     def scratch(self) -> Path:

@@ -1,10 +1,10 @@
 """Minimal HTTP client for the ACE-Step 1.5 REST API (WP-2.7 A1 spike).
 
 ACE-Step runs as its own process (``scripts/ace-step-serve.sh``); the generation
-worker only speaks HTTP to it. This module is deliberately narrower than the
-``GenerationBackend`` protocol of ``specs/09-generation.md`` §3.1: it contains
-exactly the calls the A1 spike exercised — health and a forward extend through
-the ``repaint`` task — so that task A2 can build the full backend on top.
+worker only speaks HTTP to it. The client is deliberately narrow: health plus the
+``repaint`` task, both as a forward extend (``ExtendRequest``, the A1 spike) and
+with an explicit span (``RepaintRequest``, which A2's backward extend needs). The
+``GenerationBackend`` adapter in ``ace_step.py`` builds on these calls.
 
 The extend mapping (measured on M2 Pro / MPS, see ``docs/wp/2.7.md``):
 
@@ -134,6 +134,67 @@ class ExtendRequest:
 
 
 @dataclass(frozen=True)
+class RepaintRequest:
+    """One repaint with an explicit span (A2: backward extend).
+
+    ``ExtendRequest`` expresses a forward extend as "last ``overlap`` seconds plus
+    ``extend_sec`` past the source". A backward extend instead prepends silence and
+    repaints ``[0, new + overlap]``, which no positive ``extend_sec`` can describe, so
+    the span is explicit here. The conditioning fields are the same.
+
+    Args:
+        src_audio_path: Absolute path of the source WAV on the ACE-Step host.
+        src_duration_sec: Length of that file (it may be shorter than ``end_sec``;
+            ACE-Step pads silence on the right).
+        start_sec: First repainted sample, in seconds.
+        end_sec: End of the repainted span, in seconds.
+        caption: Target description. Empty means "continue seamlessly".
+        bpm: Conditioning BPM, or ``None`` for the model's estimate.
+        key_scale: ACE-Step key spelling, e.g. ``"Am"``.
+        time_signature: ``"2"``, ``"3"``, ``"4"`` or ``"6"``.
+        seed: Deterministic seed, or ``None`` for a random one.
+        steps: Diffusion steps.
+        output_format: ``wav32`` keeps the model's float output (A1 saw int16 for ``wav``).
+    """
+
+    src_audio_path: str
+    src_duration_sec: float
+    start_sec: float
+    end_sec: float
+    caption: str = ""
+    lyrics: str = ""
+    instrumental: bool = True
+    bpm: int | None = None
+    key_scale: str = ""
+    time_signature: str = "4"
+    seed: int | None = None
+    steps: int = DEFAULT_STEPS
+    guidance_scale: float = 7.0
+    batch_size: int = 1
+    repaint_mode: Literal["conservative", "balanced", "aggressive"] = "balanced"
+    repaint_strength: float = 0.5
+    output_format: AudioFormat = "wav32"
+    model: str | None = None
+
+    def __post_init__(self) -> None:
+        """Rejects a span the API cannot express."""
+        if not self.src_audio_path:
+            raise ValueError("src_audio_path is required")
+        if self.src_duration_sec <= 0:
+            raise ValueError("src_duration_sec must be positive")
+        if not 0.0 <= self.start_sec < self.end_sec:
+            raise ValueError("the repaint span must satisfy 0 <= start < end")
+        if max(self.src_duration_sec, self.end_sec) > 600:
+            raise ValueError("ACE-Step supports at most 600 s of output")
+        if not 1 <= self.steps <= 200:
+            raise ValueError("steps must be in 1..200")
+        if not 1 <= self.batch_size <= 8:
+            raise ValueError("batch_size must be in 1..8")
+        if not 0 <= self.repaint_strength <= 1:
+            raise ValueError("repaint_strength must be in 0..1")
+
+
+@dataclass(frozen=True)
 class TaskEntry:
     """One parsed item from a ``/query_result`` result string.
 
@@ -198,38 +259,103 @@ def build_extend_payload(request: ExtendRequest) -> dict[str, object]:
     Kept separate from the transport so the mapping can be unit-tested against a
     fake server and inspected without a model.
     """
+    return _repaint_payload(
+        src_audio_path=request.src_audio_path,
+        start_sec=request.repaint_start_sec,
+        end_sec=request.repaint_end_sec,
+        caption=request.caption,
+        lyrics=request.lyrics,
+        instrumental=request.instrumental,
+        bpm=request.bpm,
+        key_scale=request.key_scale,
+        time_signature=request.time_signature,
+        seed=request.seed,
+        steps=request.steps,
+        guidance_scale=request.guidance_scale,
+        batch_size=request.batch_size,
+        repaint_mode=request.repaint_mode,
+        repaint_strength=request.repaint_strength,
+        output_format=request.output_format,
+        model=request.model,
+    )
+
+
+def build_repaint_payload(request: RepaintRequest) -> dict[str, object]:
+    """Build the JSON body for a repaint with an explicit span (see :class:`RepaintRequest`)."""
+    return _repaint_payload(
+        src_audio_path=request.src_audio_path,
+        start_sec=request.start_sec,
+        end_sec=request.end_sec,
+        caption=request.caption,
+        lyrics=request.lyrics,
+        instrumental=request.instrumental,
+        bpm=request.bpm,
+        key_scale=request.key_scale,
+        time_signature=request.time_signature,
+        seed=request.seed,
+        steps=request.steps,
+        guidance_scale=request.guidance_scale,
+        batch_size=request.batch_size,
+        repaint_mode=request.repaint_mode,
+        repaint_strength=request.repaint_strength,
+        output_format=request.output_format,
+        model=request.model,
+    )
+
+
+def _repaint_payload(
+    *,
+    src_audio_path: str,
+    start_sec: float,
+    end_sec: float,
+    caption: str,
+    lyrics: str,
+    instrumental: bool,
+    bpm: int | None,
+    key_scale: str,
+    time_signature: str,
+    seed: int | None,
+    steps: int,
+    guidance_scale: float,
+    batch_size: int,
+    repaint_mode: str,
+    repaint_strength: float,
+    output_format: AudioFormat,
+    model: str | None,
+) -> dict[str, object]:
+    """The one payload both request types share."""
     payload: dict[str, object] = {
-        "prompt": request.caption or "continue the music seamlessly",
-        "lyrics": "" if request.instrumental else request.lyrics,
+        "prompt": caption or "continue the music seamlessly",
+        "lyrics": "" if instrumental else lyrics,
         "task_type": "repaint",
-        "src_audio_path": request.src_audio_path,
-        "repainting_start": request.repaint_start_sec,
-        "repainting_end": request.repaint_end_sec,
+        "src_audio_path": src_audio_path,
+        "repainting_start": round(start_sec, 3),
+        "repainting_end": round(end_sec, 3),
         "chunk_mask_mode": "explicit",
-        "repaint_mode": request.repaint_mode,
-        "repaint_strength": request.repaint_strength,
-        "inference_steps": request.steps,
-        "guidance_scale": request.guidance_scale,
-        "batch_size": request.batch_size,
-        "audio_format": request.output_format,
+        "repaint_mode": repaint_mode,
+        "repaint_strength": repaint_strength,
+        "inference_steps": steps,
+        "guidance_scale": guidance_scale,
+        "batch_size": batch_size,
+        "audio_format": output_format,
         # Repaint never consults the LM; keep the request cheap and deterministic.
         "thinking": False,
         "use_cot_caption": False,
         "use_cot_language": False,
     }
-    if request.bpm is not None:
-        payload["bpm"] = request.bpm
-    if request.key_scale:
-        payload["key_scale"] = request.key_scale
-    if request.time_signature:
-        payload["time_signature"] = request.time_signature
-    if request.model is not None:
-        payload["model"] = request.model
-    if request.seed is None:
+    if bpm is not None:
+        payload["bpm"] = bpm
+    if key_scale:
+        payload["key_scale"] = key_scale
+    if time_signature:
+        payload["time_signature"] = time_signature
+    if model is not None:
+        payload["model"] = model
+    if seed is None:
         payload["use_random_seed"] = True
     else:
         payload["use_random_seed"] = False
-        payload["seed"] = request.seed
+        payload["seed"] = seed
     return payload
 
 
@@ -362,7 +488,14 @@ class AceStepClient:
 
     def submit_extend(self, request: ExtendRequest) -> str:
         """Queue an extend and return its task id."""
-        data = self._request("POST", "/release_task", body=build_extend_payload(request))
+        return self._submit(build_extend_payload(request))
+
+    def submit_repaint(self, request: RepaintRequest) -> str:
+        """Queue a repaint with an explicit span and return its task id."""
+        return self._submit(build_repaint_payload(request))
+
+    def _submit(self, payload: dict[str, object]) -> str:
+        data = self._request("POST", "/release_task", body=payload)
         if not isinstance(data, dict):
             raise AceStepError("release_task returned no object")
         task_id = data.get("task_id")
@@ -421,7 +554,38 @@ class AceStepClient:
         timeout_sec: float = 600.0,
     ) -> ExtendOutput:
         """Run one extend to completion and write the audio to ``output_path``."""
-        task_id = self.submit_extend(request)
+        return self._finish(
+            self.submit_extend(request),
+            output_path,
+            poll_interval_sec=poll_interval_sec,
+            timeout_sec=timeout_sec,
+        )
+
+    def repaint(
+        self,
+        request: RepaintRequest,
+        output_path: str | Path,
+        *,
+        poll_interval_sec: float = 1.0,
+        timeout_sec: float = 600.0,
+    ) -> ExtendOutput:
+        """Run one explicit-span repaint to completion and write its audio."""
+        return self._finish(
+            self.submit_repaint(request),
+            output_path,
+            poll_interval_sec=poll_interval_sec,
+            timeout_sec=timeout_sec,
+        )
+
+    def _finish(
+        self,
+        task_id: str,
+        output_path: str | Path,
+        *,
+        poll_interval_sec: float,
+        timeout_sec: float,
+    ) -> ExtendOutput:
+        """Wait for a submitted task, download its first file and return it."""
         result = self.wait(
             task_id,
             poll_interval_sec=poll_interval_sec,

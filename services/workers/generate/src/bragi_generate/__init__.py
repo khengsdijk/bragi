@@ -10,5 +10,7 @@ offered to the user, and the content policy in ``specs/10-fusion.md`` §7 is
 binding on anything AI-facing.
 
 Status:
-    Scaffold (WP-0.1). Built from **WP-2.7** onwards (ADR-0004).
+    Backends, routing and ``generate.extend`` (WP-2.7 A2); the quality gates are
+    in ``postprocess/`` (WP-2.7 B). The other capabilities of 09 §2 are registered
+    in ``services/workers/generate/capabilities.yaml`` but not implemented yet.
 """
