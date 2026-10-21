@@ -89,7 +89,7 @@ test.describe("extending the song with AI", () => {
     }
 
     // The handle at the song end opens the labelled popover; axe runs with it open.
-    await appPage.getByRole("button", { name: "Make the song longer with AI" }).click();
+    await appPage.getByRole("button", { name: "Make longer with AI…" }).click();
     const dialog = appPage.getByRole("dialog", { name: "Make the song longer with AI" });
     await expect(dialog).toBeVisible();
     expect(
@@ -183,13 +183,14 @@ test.describe("extending the song with AI", () => {
     );
     expect(states.filter((state) => state === "committed")).toHaveLength(1);
     expect(states.filter((state) => state === "discarded")).toHaveLength(2);
-    // The accepted idea is the one extend entry on the version tree.
+    // The accepted idea is the one committed extend entry on the version tree; its siblings stay
+    // in history as discarded candidates (02 §7).
     const extendStates = await withHooks(appPage, (hooks) =>
       [...(hooks.history?.store.getState().commits.values() ?? [])]
         .filter((commit) => commit.label === "Extend: 8 bars")
         .map((commit) => commit.state),
     );
-    expect(extendStates).toEqual(["committed"]);
+    expect(extendStates.filter((state) => state === "committed")).toEqual(["committed"]);
     const endHistory = await historyView(appPage);
     console.log(
       `[extend] ${testInfo.project.name}: accepted one idea, ${startHistory.count} -> ${endHistory.count} commits, underruns ${underrunsBefore}`,
