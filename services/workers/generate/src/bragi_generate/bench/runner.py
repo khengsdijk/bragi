@@ -1,17 +1,21 @@
-"""The generation bench behind ``pnpm bench:generate`` (09 §9 check 1).
+"""The generation bench behind ``pnpm bench:generate`` (09 §9 check 1, WP-2.8).
 
-For each fixture song it renders the last ~30 s as a 48 kHz WAV, builds the
-``generate.extend`` job the API would submit (preview, forward, ``bars`` of new
-audio), and runs it **through the capability the worker runs** — routing →
-backend → the seven gates → regeneration rounds — with a local
+For each fixture song it renders the context(s) a job would carry, builds the
+``generate.extend`` / ``generate.inpaint`` / ``generate.transition`` job the API would
+submit (preview, ``n`` candidates), and runs it **through the capability the worker
+runs** — routing → backend → the gates → regeneration rounds — with a local
 :class:`~bragi_generate.bench.context.BenchContext` instead of NATS/S3. The report
-records every attempt and candidate, the 09 §9 check-1 verdict, the per-step gate
-pass rate, the seam distribution and the time to the first passing candidate.
+records every attempt and candidate, the check verdict, the per-step gate pass rate,
+the seam distribution and the time to the first passing candidate.
+
+``--capability inpaint`` cuts a four-bar gap out of each song mid-song and renders
+~15 s of context on each side on bar lines; ``--capability transition`` takes the
+2 bars across a mid-song bar line. Extend stays the default and is unchanged.
 
 The model is whatever the route selects; ``--backend fake`` forces the synthetic
 backend for a fast smoke test. With ``--keep-audio`` the processed candidates and a
-context+candidate splice preview land in ``bench-results/`` for the owner's blind
-listening sheet (``docs/wp/2.7-MANUAL_CHECKS.md``).
+context + candidate + context preview land in ``bench-results/`` for the owner's
+blind listening sheet (``docs/wp/2.8-MANUAL_CHECKS.md``).
 """
 
 from __future__ import annotations
@@ -25,11 +29,12 @@ import os
 import random
 import sys
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Coroutine, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, cast
+from types import ModuleType
+from typing import Any, Literal, cast
 
 import numpy as np
 import soundfile as sf
@@ -38,6 +43,7 @@ from bragi_common.context import JobContext
 from bragi_common.generated.models import (
     FreeformParams,
     GenerateExtendResult,
+    GenerateFillResult,
     JobInputs,
     JobOutputs,
     JobPriority,
@@ -68,14 +74,27 @@ from bragi_generate.bench.report import (
     step_rates,
     timing_stats,
 )
-from bragi_generate.capabilities import extend
-from bragi_generate.postprocess import Audio, GateConfig, GateRequest, GateResult, seam, tonality
+from bragi_generate.capabilities import extend, inpaint, streaming, transition
+from bragi_generate.postprocess import (
+    Audio,
+    FillGateResult,
+    GateConfig,
+    GateResult,
+    seam,
+    tonality,
+)
 from bragi_generate.postprocess import tempo as tempo_step
 from bragi_generate.postprocess.pipeline import STEP_NAMES
 from bragi_generate.postprocess.types import NOTE_NAMES
 
-#: 09 §6 asks for two bars of overlap; the gate searches the splice inside it.
+#: 09 §6 asks for two bars of overlap for an extend; the gate searches the splice in it.
 OVERLAP_BARS = 2
+#: A transition's schema has no overlap field; one bar each side holds the splices.
+FILL_OVERLAP_BARS = 2
+#: Fills render a ~15 s context on each side, on bar lines (WP-2.8 task A).
+FILL_CONTEXT_TARGET_SEC = 15.0
+#: The transition contexts are "end of A / start of B, up to 8 bars" (09 §4.4).
+TRANSITION_CONTEXT_BARS = 8
 #: The base seed of every job; the capability derives one per attempt from it.
 BASE_SEED = 1234
 #: Default output directory (git-ignored, like the planner bench's). Resolved against
@@ -84,6 +103,24 @@ BASE_SEED = 1234
 RESULTS_DIR = Path("bench-results")
 #: The bench has no JSON schema of its own; the report is a measurement artifact.
 REPORT_VERSION = 1
+#: Bars of new audio / gap / bridge, per capability (the task's defaults).
+DEFAULT_BARS: dict[str, int] = {"extend": 8, "inpaint": 4, "transition": 2}
+#: The capability modules, their names and their entry points (13 §3).
+CAPABILITY_MODULES: dict[str, ModuleType] = {
+    "extend": extend,
+    "inpaint": inpaint,
+    "transition": transition,
+}
+CAPABILITY_NAMES: dict[str, str] = {
+    "extend": extend.CAPABILITY,
+    "inpaint": inpaint.CAPABILITY,
+    "transition": transition.CAPABILITY,
+}
+CAPABILITY_RUNS: dict[str, Callable[[JobRequest, JobContext], Coroutine[Any, Any, JobOutputs]]] = {
+    "extend": extend.run,
+    "inpaint": inpaint.run,
+    "transition": transition.run,
+}
 #: Candidate/attempt rows are printed in this order.
 _TIER: Literal["preview"] = "preview"
 
@@ -93,19 +130,42 @@ class BenchOptions:
     """One run's settings, after the CLI has validated them."""
 
     backend: str
+    capability: str = "extend"
     fixtures: str | None = None
     n: int = 3
-    bars: int = 8
+    bars: int | None = None
     out: Path = RESULTS_DIR
     keep_audio: bool = False
     quiet: bool = False
+
+    @property
+    def span_bars(self) -> int:
+        """The bars the capability is asked for (its default when unset)."""
+        return self.bars if self.bars is not None else DEFAULT_BARS[self.capability]
+
+
+@dataclass(frozen=True)
+class _Span:
+    """The fixture's rendered context(s) and the params of the job they feed."""
+
+    params: dict[str, object]
+    payloads: dict[str, bytes]
+    #: The audio the report's tempo/key reading describes (extend's context or a
+    #: fill's left context).
+    analysis: Audio
+    context_bars: int
+    context_sec: float
+    gap_start_bar: int | None = None
+    boundary_bar: int | None = None
+    before: Audio | None = None
+    after: Audio | None = None
 
 
 @dataclass(frozen=True)
 class _GateRun:
     """One gate pass and how long it took."""
 
-    result: GateResult
+    result: GateResult | FillGateResult
     seconds: float
 
 
@@ -147,7 +207,7 @@ def _forced_backend(name: str) -> Iterator[None]:
 
 def _run_bench(options: BenchOptions) -> BenchReport:
     """The run itself; :func:`run_bench` owns the backend override."""
-    routed = routing.backend_name(extend.CAPABILITY, _TIER)
+    routed = routing.backend_name(CAPABILITY_NAMES[options.capability], _TIER)
     if routed != options.backend:
         raise RuntimeError(f"routing selected {routed!r}, not {options.backend!r}")
     fixtures = bench_fixtures.select(options.fixtures)
@@ -165,12 +225,13 @@ def _run_bench(options: BenchOptions) -> BenchReport:
     audio_dir = out / "audio" if options.keep_audio else None
     listening: list[tuple[str, FixtureReport, CandidateReport]] = []
     if audio_dir is not None:
-        listening = _keep_audio(fixtures, reports, kept, audio_dir)
+        listening = _keep_audio(fixtures, reports, kept, audio_dir, options.capability)
 
     attempts = [attempt for report in reports for attempt in report.attempts]
     candidates = [candidate for report in reports for candidate in report.candidates]
     passing = [candidate for candidate in candidates if candidate.passed]
     status, detail = check_one(reports, options.n)
+    fill = options.capability != "extend"
     aggregates = AggregateReport(
         fixtures=len(reports),
         attempts=len(attempts),
@@ -186,6 +247,22 @@ def _run_bench(options: BenchOptions) -> BenchReport:
         seam_scored=seam_stats(
             attempt.seam_score for attempt in attempts if attempt.seam_score is not None
         ),
+        end_seam_passing=(
+            seam_stats(
+                candidate.end_seam_score
+                for candidate in passing
+                if candidate.end_seam_score is not None
+            )
+            if fill
+            else None
+        ),
+        end_seam_scored=(
+            seam_stats(
+                attempt.end_seam_score for attempt in attempts if attempt.end_seam_score is not None
+            )
+            if fill
+            else None
+        ),
         time_to_first_pass=timing_stats(
             report.time_to_first_pass_sec
             for report in reports
@@ -200,18 +277,22 @@ def _run_bench(options: BenchOptions) -> BenchReport:
     report = BenchReport(
         machine=machine_label(),
         backend=options.backend,
+        capability=options.capability,
         n=options.n,
-        bars=options.bars,
+        bars=options.span_bars,
         base_seed=BASE_SEED,
         started_at=started_at,
         finished_at=now(),
         fixtures=reports,
         aggregates=aggregates,
-        results_path=str(out / f"generate-{started_at.replace(':', '-')}-{options.backend}.json"),
+        results_path=str(
+            out / f"generate-{started_at.replace(':', '-')}-{options.backend}-"
+            f"{options.capability}.json"
+        ),
         audio_dir=str(audio_dir) if audio_dir is not None else None,
     )
     if audio_dir is not None:
-        _write_listening_order(listening, audio_dir)
+        _write_listening_order(listening, audio_dir, options.capability)
     _write_report(report, out)
     if not options.quiet:
         _print_summary(report, listening)
@@ -219,28 +300,25 @@ def _run_bench(options: BenchOptions) -> BenchReport:
 
 
 def _run_fixture(fixture: Fixture, options: BenchOptions) -> tuple[FixtureReport, list[_KeptAudio]]:
-    """Runs one fixture through ``generate.extend`` and measures it."""
-    context = fixture.context_audio(WORKING_RATE)
-    payload = encode_wav(context)
-    context_hash = "sha256:" + hashlib.sha256(payload).hexdigest()
-    params = _params(fixture, options)
-    job = _job(fixture, params, context_hash)
-    ctx = BenchContext(payload)
+    """Runs one fixture through the selected capability and measures it."""
+    span = _span(fixture, options)
+    job = _job(fixture, options, span)
+    ctx = BenchContext(span.payloads)
     gates: list[_GateRun] = []
     started = time.perf_counter()
-    with _capture_gates(gates):
+    with _capture_gates(CAPABILITY_MODULES[options.capability], gates):
         # The capability is typed against the framework's context; the bench implements
         # the same surface in memory (05 §4.3).
-        outputs = asyncio.run(extend.run(job, cast(JobContext, ctx)))
+        outputs = asyncio.run(CAPABILITY_RUNS[options.capability](job, cast(JobContext, ctx)))
     total_sec = time.perf_counter() - started
 
-    detected_bpm, _beats = tempo_step.beat_times(context)
-    detected_key, detected_confidence = tonality.detect(context)
+    detected_bpm, _beats = tempo_step.beat_times(span.analysis)
+    detected_key, detected_confidence = tonality.detect(span.analysis)
     attempts = _attempts(gates, options.n)
-    candidates = _candidates(outputs, ctx, attempts)
+    candidates = _candidates(outputs, ctx, attempts, options.capability)
     passing = sum(1 for candidate in candidates if candidate.passed)
     first_pass = min((partial.at_sec for partial in ctx.partials), default=None)
-    kept = _kept_audio(ctx, candidates, context, fixture) if options.keep_audio else []
+    kept = _kept_audio(ctx, candidates, span, fixture) if options.keep_audio else []
 
     report = FixtureReport(
         id=fixture.id,
@@ -248,9 +326,13 @@ def _run_fixture(fixture: Fixture, options: BenchOptions) -> tuple[FixtureReport
         bpm=fixture.bpm,
         time_signature=list(fixture.time_signature),
         key_requested=fixture.key_label,
-        bars=options.bars,
-        context_bars=fixture.context_bars,
-        context_sec=round(fixture.context_sec, 3),
+        capability=options.capability,
+        bars=options.span_bars,
+        gap_start_bar=span.gap_start_bar,
+        gap_bars=options.span_bars if options.capability == "inpaint" else None,
+        boundary_bar=span.boundary_bar,
+        context_bars=span.context_bars,
+        context_sec=round(span.context_sec, 3),
         detected_context_tempo_bpm=round(detected_bpm, 3),
         detected_context_key=detected_key.label,
         detected_context_key_confidence=round(detected_confidence, 3),
@@ -267,37 +349,129 @@ def _run_fixture(fixture: Fixture, options: BenchOptions) -> tuple[FixtureReport
     return report, kept
 
 
-def _params(fixture: Fixture, options: BenchOptions) -> dict[str, object]:
-    """The ``generate.extend`` params the API would validate and submit."""
+def _span(fixture: Fixture, options: BenchOptions) -> _Span:
+    """Renders the fixture's context(s) and builds the capability's params."""
+    if options.capability == "extend":
+        return _extend_span(fixture, options)
+    if options.capability == "inpaint":
+        return _inpaint_span(fixture, options)
+    return _transition_span(fixture, options)
+
+
+def _base_context(fixture: Fixture) -> dict[str, object]:
+    """The ``MusicalContext`` every capability's params nest (09 §2.1)."""
     return {
-        "context": {
-            "bpm": fixture.bpm,
-            "timeSignature": list(fixture.time_signature),
-            "key": {"tonic": NOTE_NAMES[fixture.key.tonic_pc], "mode": fixture.key.mode},
-            "descriptors": list(fixture.descriptors),
-            "seed": BASE_SEED,
-        },
-        "bars": options.bars,
+        "bpm": fixture.bpm,
+        "timeSignature": list(fixture.time_signature),
+        "key": {"tonic": NOTE_NAMES[fixture.key.tonic_pc], "mode": fixture.key.mode},
+        "descriptors": list(fixture.descriptors),
+        "seed": BASE_SEED,
+    }
+
+
+def _extend_span(fixture: Fixture, options: BenchOptions) -> _Span:
+    """Extend's context: the song's tail on a bar line (unchanged from WP-2.7)."""
+    context = fixture.context_audio(WORKING_RATE)
+    payload = encode_wav(context)
+    params = {
+        "context": _base_context(fixture),
+        "bars": options.span_bars,
         "overlapBars": OVERLAP_BARS,
         "direction": "forward",
         "tier": _TIER,
         "n": options.n,
     }
+    return _Span(
+        params=params,
+        payloads={"context": payload},
+        analysis=context,
+        context_bars=fixture.context_bars,
+        context_sec=fixture.context_sec,
+    )
 
 
-def _job(fixture: Fixture, params: dict[str, object], context_hash: str) -> JobRequest:
-    """The job envelope of 05 §4.2, with the fixture context as its only input."""
+def _inpaint_span(fixture: Fixture, options: BenchOptions) -> _Span:
+    """A four-bar gap cut mid-song, with ~15 s of context on each side."""
+    song = fixture.render(WORKING_RATE)
+    bar = max(1, round(fixture.bar_sec * WORKING_RATE))
+    gap_bars = options.span_bars
+    gap_start = max(1, (fixture.bars - gap_bars) // 2)
+    context_bars = max(2, round(FILL_CONTEXT_TARGET_SEC / fixture.bar_sec))
+    context_bars = min(context_bars, gap_start, fixture.bars - gap_start - gap_bars)
+    before = _slice(song, (gap_start - context_bars) * bar, gap_start * bar)
+    after = _slice(song, (gap_start + gap_bars) * bar, (gap_start + gap_bars + context_bars) * bar)
+    params = {
+        "context": _base_context(fixture),
+        "gapBars": gap_bars,
+        "overlapBars": FILL_OVERLAP_BARS,
+        "tier": _TIER,
+        "n": options.n,
+    }
+    return _Span(
+        params=params,
+        payloads={"before": encode_wav(before), "after": encode_wav(after)},
+        analysis=before,
+        context_bars=context_bars,
+        context_sec=before.duration_sec,
+        gap_start_bar=gap_start,
+        before=before,
+        after=after,
+    )
+
+
+def _transition_span(fixture: Fixture, options: BenchOptions) -> _Span:
+    """The 2 bars across a mid-song bar line: end of A | start of B."""
+    song = fixture.render(WORKING_RATE)
+    bar = max(1, round(fixture.bar_sec * WORKING_RATE))
+    boundary = fixture.bars // 2
+    context_bars = min(TRANSITION_CONTEXT_BARS, boundary, fixture.bars - boundary)
+    before = _slice(song, (boundary - context_bars) * bar, boundary * bar)
+    after = _slice(song, boundary * bar, (boundary + context_bars) * bar)
+    params = {
+        "context": _base_context(fixture),
+        "lengthBars": options.span_bars,
+        "tier": _TIER,
+        "n": options.n,
+    }
+    return _Span(
+        params=params,
+        payloads={"before": encode_wav(before), "after": encode_wav(after)},
+        analysis=before,
+        context_bars=context_bars,
+        context_sec=before.duration_sec,
+        boundary_bar=boundary,
+        before=before,
+        after=after,
+    )
+
+
+def _slice(audio: Audio, start: int, end: int) -> Audio:
+    """Frames ``[start, end)`` of a rendered fixture, clamped to its length."""
+    begin = max(0, min(start, audio.frames))
+    stop = max(begin, min(end, audio.frames))
+    return Audio(
+        np.ascontiguousarray(audio.samples[begin:stop], dtype=np.float32), audio.sample_rate
+    )
+
+
+def _job(fixture: Fixture, options: BenchOptions, span: _Span) -> JobRequest:
+    """The job envelope of 05 §4.2, with the rendered context(s) as its inputs."""
+    assets = {
+        name: "sha256:" + hashlib.sha256(payload).hexdigest()
+        for name, payload in span.payloads.items()
+    }
+    bars = options.span_bars
     return JobRequest(
         schemaVersion=JobRequestSchemaVersion.integer_1,
-        jobId=f"job_01BENCH{fixture.id.upper().replace('-', '')}",
-        capability=extend.CAPABILITY,
+        jobId=f"job_01BENCH{fixture.id.upper().replace('-', '')}{options.capability.upper()}",
+        capability=CAPABILITY_NAMES[options.capability],
         priority=JobPriority.interactive,
         userId="user_bench",
         inputs=JobInputs(
-            assets={"context": context_hash},
-            params=FreeformParams.model_validate(params),
+            assets=assets,
+            params=FreeformParams.model_validate(span.params),
         ),
-        idempotencyKey=f"bench-{fixture.id}-{params['bars']}-{params['n']}",
+        idempotencyKey=f"bench-{fixture.id}-{options.capability}-{bars}-{options.n}",
         attempt=0,
         deadline="2026-10-21T00:00:00.000Z",
         traceparent="00-11111111111111111111111111111111-2222222222222222-01",
@@ -306,34 +480,36 @@ def _job(fixture: Fixture, params: dict[str, object], context_hash: str) -> JobR
 
 
 @contextmanager
-def _capture_gates(runs: list[_GateRun]) -> Iterator[None]:
+def _capture_gates(module: ModuleType, runs: list[_GateRun]) -> Iterator[None]:
     """Records every gate pass and its duration.
 
-    ``run_gates`` is the capability's documented seam for tests (09 §6): wrapping it
+    ``run_gates`` is each capability's documented seam for tests (09 §6): wrapping it
     changes nothing about the run, it only makes failed attempts visible to the
-    report (a rejected attempt is never published as a partial).
+    report (a rejected attempt is never published as a partial). Extend takes
+    ``(candidate, context, request)``, a fill ``(candidate, before, after, request)``,
+    so the wrapper forwards whatever it is given.
     """
-    original = extend.run_gates
+    original = module.run_gates
 
-    def recording(candidate: Audio, context: Audio, request: GateRequest) -> GateResult:
+    def recording(*args: object) -> GateResult | FillGateResult:
         started = time.perf_counter()
-        result = original(candidate, context, request)
+        result = cast(GateResult | FillGateResult, original(*args))
         runs.append(_GateRun(result, time.perf_counter() - started))
         return result
 
-    extend.run_gates = recording
+    module.run_gates = recording  # type: ignore[attr-defined]
     try:
         yield
     finally:
-        extend.run_gates = original
+        module.run_gates = original  # type: ignore[attr-defined]
 
 
 def _attempts(runs: Sequence[_GateRun], n: int) -> list[AttemptReport]:
     """Per-attempt rows, with the round and seed the capability derived.
 
-    The capability's loop is deterministic (09 §6): round 0 asks for ``n``
-    candidates, every later round only for the missing ones, and the seed is
-    ``base + round * 16 + slot``. Replaying that here keeps the report honest
+    The loop is deterministic (09 §6, now ``capabilities/streaming``): round 0 asks
+    for ``n`` candidates, every later round only for the missing ones, and the seed
+    is ``base + round * 16 + slot``. Replaying that here keeps the report honest
     without adding a hook to the capability.
     """
     rows: list[AttemptReport] = []
@@ -342,7 +518,7 @@ def _attempts(runs: Sequence[_GateRun], n: int) -> list[AttemptReport]:
     slot = 0
     missing = n
     for run in runs:
-        seed = (BASE_SEED + round_index * 16 + slot) & 0xFFFFFFFF
+        seed = streaming.seed_for(BASE_SEED, round_index, slot)
         rows.append(_attempt_report(run, round_index, seed))
         if run.result.passed:
             accepted += 1
@@ -368,6 +544,7 @@ def _attempt_report(run: _GateRun, round_index: int, seed: int) -> AttemptReport
         failed_step=failed.step if failed is not None else None,
         reason=failed.reason if failed is not None else None,
         seam_score=_finite(result.seam_score),
+        end_seam_score=_end_score(result),
         tempo_error=_finite(result.tempo_error),
         key_detected=key.detected.label if key is not None else None,
         key_relation=key.relation if key is not None else None,
@@ -378,7 +555,7 @@ def _attempt_report(run: _GateRun, round_index: int, seed: int) -> AttemptReport
     )
 
 
-def _statuses(result: GateResult) -> dict[str, Literal["pass", "fail", "skipped"]]:
+def _statuses(result: GateResult | FillGateResult) -> dict[str, Literal["pass", "fail", "skipped"]]:
     """Every gate's verdict as ``pass``/``fail``/``skipped``, in 09 §6 order."""
     by_name = {verdict.step: verdict for verdict in result.steps}
     statuses: dict[str, Literal["pass", "fail", "skipped"]] = {}
@@ -392,7 +569,10 @@ def _statuses(result: GateResult) -> dict[str, Literal["pass", "fail", "skipped"
 
 
 def _candidates(
-    outputs: JobOutputs, ctx: BenchContext, attempts: Sequence[AttemptReport]
+    outputs: JobOutputs,
+    ctx: BenchContext,
+    attempts: Sequence[AttemptReport],
+    capability: str,
 ) -> list[CandidateReport]:
     """The candidates the job returned, read from their result blobs."""
     rounds = {attempt.seed: attempt.round for attempt in attempts}
@@ -403,7 +583,20 @@ def _candidates(
         data = ctx.uploads.get(blob_hash)
         if data is None:
             raise RuntimeError(f"result blob {blob_hash} was not uploaded")
-        result = GenerateExtendResult.model_validate_json(data)
+        result: GenerateExtendResult | GenerateFillResult
+        if capability == "extend":
+            result = GenerateExtendResult.model_validate_json(data)
+            start_offset = result.spliceOffsetSamples
+            end_offset = None
+            end_score = None
+        else:
+            fill_result = GenerateFillResult.model_validate_json(data)
+            result = fill_result
+            start_offset = fill_result.startOffsetSamples
+            end_offset = fill_result.endOffsetSamples
+            end_score = (
+                _finite(fill_result.endSeamScore) if fill_result.endSeamScore is not None else None
+            )
         asset = assets.get(name) or result.asset
         key = result.keyMatch
         rows.append(
@@ -414,6 +607,7 @@ def _candidates(
                 passed=result.passed,
                 quality_warning=result.qualityWarning,
                 seam_score=_finite(result.seamScore) if result.seamScore is not None else None,
+                end_seam_score=end_score,
                 tempo_error=_finite(result.tempoError) if result.tempoError is not None else None,
                 key_detected=key.detected.tonic + " " + key.detected.mode
                 if key is not None
@@ -421,7 +615,8 @@ def _candidates(
                 key_relation=key.relation.value if key is not None else None,
                 key_confidence=round(key.confidence, 3) if key is not None else None,
                 alignment_confidence=_blob_metric(result, "beat_align", "confidence"),
-                splice_offset_samples=result.spliceOffsetSamples,
+                start_offset_samples=start_offset,
+                end_offset_samples=end_offset,
                 asset=asset,
                 blob=blob_hash,
             )
@@ -429,7 +624,7 @@ def _candidates(
     return rows
 
 
-def _metric(result: GateResult, step: str, name: str) -> float | None:
+def _metric(result: GateResult | FillGateResult, step: str, name: str) -> float | None:
     """A numeric metric from one gate verdict."""
     for verdict in result.steps:
         if verdict.step == step:
@@ -439,13 +634,22 @@ def _metric(result: GateResult, step: str, name: str) -> float | None:
     return None
 
 
-def _blob_metric(result: GenerateExtendResult, step: str, name: str) -> float | None:
+def _blob_metric(
+    result: GenerateExtendResult | GenerateFillResult, step: str, name: str
+) -> float | None:
     """The same, from a result blob's step metrics."""
     for verdict in result.steps:
         if verdict.step == step:
             value = verdict.metrics.get(name)
             if isinstance(value, int | float) and not isinstance(value, bool):
                 return _finite(float(value))
+    return None
+
+
+def _end_score(result: GateResult | FillGateResult) -> float | None:
+    """The end seam score of a fill; ``None`` for an extend."""
+    if isinstance(result, FillGateResult):
+        return _finite(result.end_seam_score)
     return None
 
 
@@ -457,12 +661,11 @@ def _finite(value: float) -> float | None:
 def _kept_audio(
     ctx: BenchContext,
     candidates: Sequence[CandidateReport],
-    context: Audio,
+    span: _Span,
     fixture: Fixture,
 ) -> list[_KeptAudio]:
-    """Decodes the returned candidates and joins them onto the context for listening."""
-    rate = WORKING_RATE
-    fade = _crossfade_samples(fixture.bpm, rate)
+    """Decodes the returned candidates and joins them for listening."""
+    fade = _crossfade_samples(fixture.bpm, WORKING_RATE)
     kept: list[_KeptAudio] = []
     for candidate in candidates:
         if candidate.asset is None:
@@ -477,7 +680,11 @@ def _kept_audio(
                 candidate_index=candidate.index,
                 seed=candidate.seed,
                 candidate=processed,
-                splice=_splice_preview(context, processed, candidate, fade),
+                splice=(
+                    _splice_preview(span.analysis, processed, candidate, fade)
+                    if span.before is None
+                    else _fill_preview(span, processed, candidate)
+                ),
             )
         )
     return kept
@@ -504,7 +711,7 @@ def _splice_preview(
     which is the placement it would get as the best rejected one.
     """
     rate = context.sample_rate
-    skip = max(0, -candidate.splice_offset_samples)
+    skip = max(0, -candidate.start_offset_samples)
     new = processed.samples[skip:] if processed.frames > skip else processed.samples[:0]
     if context.frames < fade or new.shape[0] < fade:
         preview = np.concatenate([context.samples, new])
@@ -515,11 +722,33 @@ def _splice_preview(
     return Audio(np.ascontiguousarray(preview, dtype=np.float32), rate)
 
 
+def _fill_preview(span: _Span, processed: Audio, candidate: CandidateReport) -> Audio:
+    """The song around the span: context, the processed clip, the remaining context.
+
+    The clip's start offset is relative to the join (the before context's end) and
+    its end offset to the gap end (the after context's start), exactly as placement
+    reads them. The clip already carries the gate's fade-in and fade-out, so the
+    preview concatenates the context before the clip, the clip, and the context from
+    where the clip ends; nothing else is crossfaded here.
+    """
+    before, after = span.before, span.after
+    if before is None or after is None:
+        raise RuntimeError("a fill preview needs both contexts")
+    rate = before.sample_rate
+    before_end = max(0, min(before.frames + candidate.start_offset_samples, before.frames))
+    after_start = max(0, min(candidate.end_offset_samples or 0, after.frames))
+    preview = np.concatenate(
+        [before.samples[:before_end], processed.samples, after.samples[after_start:]], axis=0
+    )
+    return Audio(np.ascontiguousarray(preview, dtype=np.float32), rate)
+
+
 def _keep_audio(
     fixtures: Sequence[Fixture],
     reports: Sequence[FixtureReport],
     kept: Sequence[_KeptAudio],
     audio_dir: Path,
+    capability: str,
 ) -> list[tuple[str, FixtureReport, CandidateReport]]:
     """Writes sources, candidates and blind splice previews; returns label → candidate."""
     sources = audio_dir / "sources"
@@ -528,10 +757,13 @@ def _keep_audio(
     for directory in (sources, candidates, splices):
         directory.mkdir(parents=True, exist_ok=True)
     by_fixture = {report.id: report for report in reports}
+    # Extend's WP-2.7 paths stay as they are (the 2.7 sheet points at them); a fill
+    # prefixes its files so the two capabilities can share one output directory.
+    prefix = "" if capability == "extend" else f"{capability}-"
     for fixture in fixtures:
         _write_wav(sources / f"{fixture.id}.wav", fixture.render(WORKING_RATE))
     for audio in kept:
-        name = f"{audio.fixture}-c{audio.candidate_index}-seed{audio.seed}"
+        name = f"{prefix}{audio.fixture}-c{audio.candidate_index}-seed{audio.seed}"
         path = candidates / f"{name}.wav"
         _write_wav(path, audio.candidate)
         candidate = _candidate_of(by_fixture[audio.fixture], audio.candidate_index)
@@ -542,7 +774,7 @@ def _keep_audio(
     listening: list[tuple[str, FixtureReport, CandidateReport]] = []
     for position, audio in enumerate(order):
         label = _label(position)
-        path = splices / f"{label}.wav"
+        path = splices / f"{prefix}{label}.wav"
         _write_wav(path, audio.splice)
         candidate = _candidate_of(by_fixture[audio.fixture], audio.candidate_index)
         candidate.splice_wav = str(path)
@@ -575,17 +807,25 @@ def _write_wav(path: Path, audio: Audio) -> None:
 
 
 def _write_listening_order(
-    listening: Sequence[tuple[str, FixtureReport, CandidateReport]], audio_dir: Path
+    listening: Sequence[tuple[str, FixtureReport, CandidateReport]],
+    audio_dir: Path,
+    capability: str,
 ) -> None:
     """Writes the blind label → source mapping next to the previews."""
+    prefix = "" if capability == "extend" else f"{capability}-"
+    name = (
+        "listening-order.json" if capability == "extend" else f"listening-order-{capability}.json"
+    )
     document = {
         "note": (
-            "Blind listening order for docs/wp/2.7-MANUAL_CHECKS.md; do not open before rating."
+            f"Blind listening order for docs/wp/2.8-MANUAL_CHECKS.md; do not open before "
+            f"rating. Capability: {capability}."
         ),
         "entries": [
             {
                 "label": label,
-                "file": f"splices/{label}.wav",
+                "file": f"splices/{prefix}{label}.wav",
+                "capability": capability,
                 "fixture": report.id,
                 "candidate": candidate.index,
                 "seed": candidate.seed,
@@ -593,9 +833,7 @@ def _write_listening_order(
             for label, report, candidate in listening
         ],
     }
-    (audio_dir / "listening-order.json").write_text(
-        json.dumps(document, indent=2) + "\n", encoding="utf-8"
-    )
+    (audio_dir / name).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
 
 def _write_report(report: BenchReport, out: Path) -> Path:
@@ -621,14 +859,17 @@ def _print_summary(
     report: BenchReport, listening: Sequence[tuple[str, FixtureReport, CandidateReport]]
 ) -> None:
     """Prints the per-attempt table and the 09 §9 aggregates."""
+    span = _span_label(report)
     print(
-        f"\ngenerate bench · {report.backend} · {report.n} candidates · "
-        f"{report.bars} bars · preview · {len(report.fixtures)} song(s)"
+        f"\ngenerate bench · {report.capability} · {report.backend} · {report.n} candidates · "
+        f"{report.bars} bars{span} · preview · {len(report.fixtures)} song(s)"
     )
     print(f"machine: {report.machine} · {TIMING_LABEL}")
+    fill = report.capability != "extend"
+    end_header = f"  {'END SEAM':>8s}" if fill else ""
     header = (
         f"{'FIXTURE':8s}  {'#':>2s}  {'RND':>3s}  {'SEED':>10s}  {'PASS':4s}  "
-        f"{'FAILED STEP':12s}  {'SEAM':>6s}  {'TEMPO':>7s}  {'KEY':28s}  "
+        f"{'FAILED STEP':12s}  {'SEAM':>6s}{end_header}  {'TEMPO':>7s}  {'KEY':28s}  "
         f"{'ALIGN':>5s}  {'GATE S':>6s}"
     )
     print(header)
@@ -639,11 +880,12 @@ def _print_summary(
                 f"{attempt.key_detected or '-':14s} "
                 f"{_relation(attempt.key_relation):10s} {_confidence(attempt.key_confidence)}"
             )
+            end = f"  {_number(attempt.end_seam_score, 3):>8s}" if fill else ""
             print(
                 f"{fixture.id:8s}  {position:2d}  {attempt.round:3d}  {attempt.seed:10d}  "
                 f"{'yes' if attempt.passed else 'no':4s}  "
                 f"{(attempt.failed_step or '-'):12s}  "
-                f"{_number(attempt.seam_score, 3):>6s}  "
+                f"{_number(attempt.seam_score, 3):>6s}{end}  "
                 f"{_percent(attempt.tempo_error):>7s}  {key}  "
                 f"{_number(attempt.alignment_confidence, 2):>5s}  "
                 f"{attempt.gate_sec:6.2f}"
@@ -656,21 +898,24 @@ def _print_summary(
             f"{fixture.regeneration_rounds} regen round(s) · "
             f"first pass {_seconds(fixture.time_to_first_pass_sec)} · "
             f"total {fixture.total_sec:.1f} s · gpu {_seconds(fixture.gpu_seconds)} · "
-            f"context {_number(fixture.detected_context_tempo_bpm, 1)} BPM "
+            f"contexts {fixture.context_bars} bars / {fixture.context_sec:.1f} s "
+            f"read as {_number(fixture.detected_context_tempo_bpm, 1)} BPM "
             f"({_tempo_multiple(fixture.detected_context_tempo_bpm, fixture.bpm)}x) "
             f"{fixture.detected_context_key} "
             f"(wrote {fixture.key_requested}, {fixture.bpm:.0f} BPM)"
         )
 
     aggregates = report.aggregates
-    print("\n09 §9 acceptance")
+    print("\nacceptance")
     print(
-        f"  check 1 (2 of 3 pass, 4 of 5 songs)  {aggregates.check1}  ({aggregates.check1_detail})"
+        f"  {report.capability} (2 of 3 pass, 4 of 5 songs)  "
+        f"{aggregates.check1}  ({aggregates.check1_detail})"
     )
-    print(
-        "  check 4 (first preview P50 <= 15 s)  "
-        f"NOT MEASURED  ({TIMING_LABEL}; the reference GPU is the reference)"
-    )
+    if not fill:
+        print(
+            "  check 4 (first preview P50 <= 15 s)  "
+            f"NOT MEASURED  ({TIMING_LABEL}; the reference GPU is the reference)"
+        )
     print("\ngate pass rate (of every attempt)")
     for rate in aggregates.step_rates:
         print(
@@ -679,8 +924,12 @@ def _print_summary(
         )
 
     print("\nseam score (lower is better, 03 §8.2)")
-    print(f"  passing candidates  {_distribution(aggregates.seam_passing)}")
-    print(f"  every scored attempt {_distribution(aggregates.seam_scored)}")
+    print(f"  passing candidates, start  {_distribution(aggregates.seam_passing)}")
+    print(f"  every scored attempt, start {_distribution(aggregates.seam_scored)}")
+    if aggregates.end_seam_passing is not None:
+        print(f"  passing candidates, end    {_distribution(aggregates.end_seam_passing)}")
+    if aggregates.end_seam_scored is not None:
+        print(f"  every scored attempt, end  {_distribution(aggregates.end_seam_scored)}")
     timings = aggregates.time_to_first_pass
     print(
         f"\ntime to first passing candidate  P50 {_seconds(timings.p50)} "
@@ -694,9 +943,18 @@ def _print_summary(
         f"peak server {_megabytes(aggregates.peak_server_mb)}"
     )
     if listening:
-        print(f"\nkept audio: {report.audio_dir} ({len(listening)} blind splice preview(s))")
+        print(f"\nkept audio: {report.audio_dir} ({len(listening)} blind preview(s))")
     if report.results_path is not None:
         print(f"report: {report.results_path}")
+
+
+def _span_label(report: BenchReport) -> str:
+    """``(gap)`` / ``(bridge)`` after the capability's main number."""
+    if report.capability == "inpaint":
+        return " (gap)"
+    if report.capability == "transition":
+        return " (bridge)"
+    return ""
 
 
 def _tempo_multiple(detected: float | None, requested: float) -> str:
@@ -769,7 +1027,16 @@ def parse_args(argv: Sequence[str] | None = None) -> BenchOptions:
     """
     parser = argparse.ArgumentParser(
         prog="python -m bragi_generate.bench",
-        description="Generation bench: 5 fixture songs through generate.extend (09 §9 check 1).",
+        description=(
+            "Generation bench: 5 fixture songs through generate.extend (09 §9 check 1), "
+            "generate.inpaint or generate.transition."
+        ),
+    )
+    parser.add_argument(
+        "--capability",
+        choices=sorted(CAPABILITY_NAMES),
+        default="extend",
+        help="capability to run (default extend)",
     )
     parser.add_argument(
         "--backend",
@@ -781,7 +1048,12 @@ def parse_args(argv: Sequence[str] | None = None) -> BenchOptions:
         "--fixtures", default=None, help="comma-separated fixture ids or globs (default: all)"
     )
     parser.add_argument("--n", type=int, default=3, help="candidates per song (default 3)")
-    parser.add_argument("--bars", type=int, default=8, help="bars of new audio (default 8)")
+    parser.add_argument(
+        "--bars",
+        type=int,
+        default=None,
+        help="bars of new audio / gap / bridge (default: extend 8, inpaint 4, transition 2)",
+    )
     parser.add_argument(
         "--out",
         type=Path,
@@ -797,17 +1069,19 @@ def parse_args(argv: Sequence[str] | None = None) -> BenchOptions:
     args = parser.parse_args(argv)
     if args.n < 1:
         parser.error("--n must be >= 1")
-    if args.bars < 1:
+    if args.bars is not None and args.bars < 1:
         parser.error("--bars must be >= 1")
-    backend = args.backend or routing.backend_name(extend.CAPABILITY, _TIER)
+    capability = args.capability
+    backend = args.backend or routing.backend_name(CAPABILITY_NAMES[capability], _TIER)
     # ``uv run --directory`` changes the process's working directory, so a relative
     # --out means "next to the repository root", like the default.
     out = args.out if args.out.is_absolute() else _repo_root() / args.out
     return BenchOptions(
         backend=backend,
+        capability=capability,
         fixtures=args.fixtures,
         n=args.n,
-        bars=args.bars,
+        bars=None if args.bars is None else int(args.bars),
         out=out,
         keep_audio=bool(args.keep_audio),
         quiet=bool(args.quiet),
@@ -823,7 +1097,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             or len(bench_fixtures.select(options.fixtures)) < CHECK1_SONGS
         ):
             print(
-                f"note: 09 §9 check 1 needs {CHECK1_SONGS} songs at n >= {CHECK1_CANDIDATES}; "
+                f"note: the fill check needs {CHECK1_SONGS} songs at n >= {CHECK1_CANDIDATES}; "
                 "a smaller run is PENDING by design",
                 file=sys.stderr,
             )

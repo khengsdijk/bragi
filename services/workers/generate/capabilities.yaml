@@ -1,6 +1,7 @@
 # The generation capability registry (specs/09-generation.md §2), exported to the
 # planner's catalogue (06 §2). `implemented` is false until the capability's module,
-# schema and route exist; only `generate.extend` is implemented in WP-2.7.
+# schema and route exist; WP-2.7 implements `generate.extend`, WP-2.8 adds
+# `generate.inpaint` and `generate.transition`.
 # `generate.warmup` (09 §5) is an internal job, not a user-facing capability, so it
 # is deliberately not listed here.
 capabilities:
@@ -11,7 +12,7 @@ capabilities:
     output: audio (bars + overlapBars)
     credits: 2
   generate.inpaint:
-    implemented: false
+    implemented: true
     purpose: Fill a gap.
     inputs: [context before, context after, gap bars, "prompt?"]
     output: audio (gap + overlaps)
@@ -23,7 +24,7 @@ capabilities:
     output: audio (section length)
     credits: 2
   generate.transition:
-    implemented: false
+    implemented: true
     purpose: Bridge two sections smoothly.
     inputs: [end of A, start of B, length]
     output: audio

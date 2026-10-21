@@ -20,7 +20,8 @@ def repo_root() -> Path:
 
 def test_the_checked_in_table_routes_both_tiers_to_ace_step() -> None:
     routes = routing.load_routes()
-    assert routes["generate.extend"] == {"preview": "ace_step", "hq": "ace_step"}
+    for capability in ("generate.extend", "generate.inpaint", "generate.transition"):
+        assert routes[capability] == {"preview": "ace_step", "hq": "ace_step"}
 
 
 def test_env_override_forces_the_fake_backend_everywhere(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -37,7 +38,7 @@ def test_an_explicit_override_beats_the_environment(monkeypatch: pytest.MonkeyPa
 def test_unknown_capability_or_tier_is_rejected() -> None:
     routes = routing.load_routes()
     with pytest.raises(ValueError, match="no route for capability"):
-        routing.backend_name("generate.inpaint", "preview", routes=routes)
+        routing.backend_name("generate.variation", "preview", routes=routes)
     with pytest.raises(ValueError, match="unknown tier"):
         routing.backend_name("generate.extend", "ultra", routes=routes)
 
@@ -59,13 +60,13 @@ def test_unknown_backend_name_is_rejected() -> None:
         routing.backend_for("generate.extend", "preview", override="does-not-exist")
 
 
-def test_the_capability_registry_lists_only_extend_as_implemented() -> None:
+def test_the_capability_registry_lists_the_three_generative_capabilities() -> None:
     path = repo_root() / "services" / "workers" / "generate" / "capabilities.yaml"
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
     capabilities = document["capabilities"]
 
     implemented = [name for name, entry in capabilities.items() if entry["implemented"]]
-    assert implemented == ["generate.extend"]
+    assert implemented == ["generate.extend", "generate.inpaint", "generate.transition"]
     assert set(capabilities) == {
         "generate.extend",
         "generate.inpaint",

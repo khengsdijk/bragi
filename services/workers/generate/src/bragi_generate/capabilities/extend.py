@@ -15,59 +15,31 @@ document: placement is task E.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import math
-from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
-from bragi_common.cancel import JobCancelledError
 from bragi_common.context import JobContext
 from bragi_common.generated.models import (
     ExtendDirection,
-    ExtendKeyMatch,
-    ExtendKeyRelation,
-    ExtendMatchEq,
-    ExtendStep,
     ExtendTier,
     GenerateExtendParams,
     GenerateExtendResult,
     GenerateExtendResultSchemaVersion,
-    JobMetrics,
     JobOutputs,
     JobRequest,
-    KeyMode,
-    MusicalKey,
 )
 from bragi_common.protocol import params_of
 from bragi_generate import routing
-from bragi_generate.audio import WORKING_RATE, decode, encode_flac
+from bragi_generate.audio import WORKING_RATE, decode
 from bragi_generate.backend import Direction, GenOutput, GenRequest, Tier
+from bragi_generate.capabilities import blobs, streaming
+from bragi_generate.capabilities.streaming import ROUNDS, Candidate
 from bragi_generate.postprocess import Audio, GateRequest, GateResult, KeySpec, postprocess
-from bragi_generate.postprocess.types import NOTE_NAMES
 
 #: Capability name; the NATS subject is ``jobs.generate.extend.<priority>`` (05 §4.1).
 CAPABILITY = "generate.extend"
-#: 09 §6: the initial round plus two rounds of new seeds.
-ROUNDS = 3
 _LOGGER = logging.getLogger("bragi_generate.extend")
-
-
-@dataclass(frozen=True)
-class _Candidate:
-    """One generated and gated candidate, before or after upload."""
-
-    index: int
-    output: GenOutput
-    gate: GateResult
-    asset: str | None = None
-    blob: str | None = None
-
-    @property
-    def sort_key(self) -> tuple[float, int]:
-        """Best first: a finite seam score, then generation order."""
-        score = self.gate.seam_score
-        return (score if math.isfinite(score) else math.inf, self.output.seed)
 
 
 def run_gates(candidate: Audio, context: Audio, request: GateRequest) -> GateResult:
@@ -96,67 +68,33 @@ async def run(job: JobRequest, ctx: JobContext) -> JobOutputs:
         overlap_bars=request.overlap_bars,
         direction=request.direction,
     )
-    target = params.n
-    accepted: list[_Candidate] = []
-    failures: list[_Candidate] = []
-    attempts = 0
-    total_gpu_sec = 0.0
-    last: GenOutput | None = None
 
-    for round_index in range(ROUNDS):
-        missing = target - len(accepted)
-        if missing <= 0:
-            break
-        for slot in range(missing):
-            if await ctx.cancelled():
-                raise JobCancelledError(f"job {job.jobId} cancelled at candidate {attempts}")
-            seed = (request.seed + round_index * 16 + slot) & 0xFFFFFFFF
-            outputs = await asyncio.to_thread(
-                backend.generate, replace(request, seed=seed), tier, 1, _ignore_progress
-            )
-            if not outputs:
-                raise RuntimeError(f"backend {backend.name!r} returned no candidate")
-            output = outputs[0]
-            last = output
-            total_gpu_sec += output.timings.generate_sec
-            attempts += 1
+    def attempt(seed: int) -> tuple[GenOutput, GateResult]:
+        outputs = backend.generate(replace(request, seed=seed), tier, 1, _ignore_progress)
+        if not outputs:
+            raise RuntimeError(f"backend {backend.name!r} returned no candidate")
+        output = outputs[0]
+        return output, run_gates(output.audio, context, gate_request)
 
-            result = await asyncio.to_thread(run_gates, output.audio, context, gate_request)
-            if result.passed:
-                uploaded = await _upload(ctx, _Candidate(len(accepted), output, result))
-                accepted.append(uploaded)
-                await ctx.partial(_outputs(uploaded))
-            else:
-                failures.append(_Candidate(-1, output, result))
-            await ctx.progress(_progress(attempts, target), _eta(attempts, target, total_gpu_sec))
+    async def publish(
+        candidate: Candidate[GateResult], quality_warning: bool
+    ) -> Candidate[GateResult]:
+        return await _upload(ctx, candidate, quality_warning=quality_warning)
 
-    if not accepted:
-        if not failures:
-            raise RuntimeError("no candidate was produced")
-        best = min(failures, key=lambda candidate: candidate.sort_key)
-        accepted.append(await _upload(ctx, replace(best, index=0), quality_warning=True))
-
-    if last is not None:
-        ctx.record_metrics(
-            JobMetrics(
-                gpuSeconds=round(total_gpu_sec, 3),
-                model=last.model,
-                modelVersion=last.model_version,
-                worker=f"bragi-generate:{backend.name}",
-            )
-        )
-    await ctx.progress(1.0)
-    _LOGGER.info(
-        "extend done",
-        extra={
-            "job": job.jobId,
-            "backend": backend.name,
-            "accepted": len(accepted),
-            "attempts": attempts,
-            "seconds": round(total_gpu_sec, 2),
-        },
+    streamed = await streaming.stream(
+        job,
+        ctx,
+        capability=CAPABILITY,
+        backend=backend,
+        target=params.n,
+        base_seed=request.seed,
+        generate=attempt,
+        passed=_gate_passed,
+        sort_score=_gate_score,
+        publish=publish,
+        outputs=lambda items: _outputs(*items),
     )
-    return _outputs(*accepted)
+    return _outputs(*streamed.accepted)
 
 
 async def _load_context(job: JobRequest, ctx: JobContext) -> Audio:
@@ -215,52 +153,34 @@ def _ignore_progress(_pct: float) -> None:
     """The backend's own progress is folded into the capability's attempt counter."""
 
 
-def _progress(attempts: int, target: int) -> float:
-    """Attempt-based progress, capped below 1 until the job really finishes."""
-    return min(0.95, 0.05 + 0.90 * attempts / (target * ROUNDS))
+def _gate_passed(gate: GateResult) -> bool:
+    """A gate result counts when every non-skipped step passed (09 §6)."""
+    return gate.passed
 
 
-def _eta(attempts: int, target: int, seconds: float) -> float | None:
-    """A naive remaining-time estimate from the average attempt."""
-    if attempts <= 0 or seconds <= 0.0:
-        return None
-    return round(seconds / attempts * max(1, target * ROUNDS - attempts), 1)
+def _gate_score(gate: GateResult) -> float:
+    """The candidate's seam score, for picking the best rejected fallback."""
+    return gate.seam_score
 
 
 async def _upload(
-    ctx: JobContext, candidate: _Candidate, *, quality_warning: bool = False
-) -> _Candidate:
+    ctx: JobContext, candidate: Candidate[GateResult], *, quality_warning: bool = False
+) -> Candidate[GateResult]:
     """Uploads the processed audio and its result blob."""
-    data = await asyncio.to_thread(encode_flac, candidate.gate.processed)
-    asset = await ctx.upload(data, "audio/flac")
-    result = _result(candidate, asset, quality_warning=quality_warning)
-    # `exclude_none` drops the optional keyMatch/matchEq, but seamScore is required
-    # and null is meaningful (the gates could not score it), so re-add it.
-    document = result.model_dump(mode="json", exclude_none=True)
-    document["seamScore"] = result.seamScore
-    blob = await ctx.upload_json(json.dumps(document, separators=(",", ":")))
+    asset, blob = await blobs.upload(
+        ctx,
+        candidate.gate.processed,
+        lambda hash_: _result(candidate, hash_, quality_warning=quality_warning),
+        required=("seamScore",),
+    )
     return replace(candidate, asset=asset, blob=blob)
 
 
-def _result(candidate: _Candidate, asset: str, *, quality_warning: bool) -> GenerateExtendResult:
+def _result(
+    candidate: Candidate[GateResult], asset: str, *, quality_warning: bool
+) -> GenerateExtendResult:
     """The JSON-safe result blob of 09 §6 (``inf`` becomes ``null``)."""
     gate = candidate.gate
-    key_match: ExtendKeyMatch | None = None
-    if gate.key_match is not None:
-        key_match = ExtendKeyMatch(
-            detected=MusicalKey(
-                tonic=NOTE_NAMES[gate.key_match.detected.tonic_pc],
-                mode=KeyMode(gate.key_match.detected.mode),
-            ),
-            confidence=gate.key_match.confidence,
-            relation=ExtendKeyRelation(gate.key_match.relation),
-            shiftSemitones=gate.key_match.shift_semitones,
-        )
-    match_eq = (
-        ExtendMatchEq(bands=list(gate.match_eq.bands), amount=gate.match_eq.amount)
-        if gate.match_eq is not None
-        else None
-    )
     return GenerateExtendResult(
         schemaVersion=GenerateExtendResultSchemaVersion.integer_1,
         index=candidate.index,
@@ -272,38 +192,15 @@ def _result(candidate: _Candidate, asset: str, *, quality_warning: bool) -> Gene
         qualityWarning=quality_warning,
         seamScore=gate.seam_score if math.isfinite(gate.seam_score) else None,
         tempoError=gate.tempo_error if math.isfinite(gate.tempo_error) else 0.0,
-        keyMatch=key_match,
-        matchEq=match_eq,
+        keyMatch=blobs.key_match_model(gate.key_match),
+        matchEq=blobs.match_eq_model(gate.match_eq),
         spliceOffsetSamples=gate.splice_offset_samples,
         direction=ExtendDirection(gate.direction),
-        steps=[
-            ExtendStep(
-                step=verdict.step,
-                passed=verdict.passed,
-                skipped=verdict.skipped,
-                reason=verdict.reason,
-                metrics=_metrics(verdict.metrics),
-            )
-            for verdict in gate.steps
-        ],
+        steps=blobs.step_models(gate),
     )
 
 
-def _metrics(values: Mapping[str, object]) -> dict[str, object]:
-    """Gate metrics as JSON values: non-finite floats become ``null``."""
-    clean: dict[str, object] = {}
-    for name, value in values.items():
-        if isinstance(value, bool | int | str):
-            clean[name] = value
-        elif isinstance(value, float):
-            clean[name] = value if math.isfinite(value) else None
-        else:
-            item = getattr(value, "item", None)
-            clean[name] = item() if callable(item) else str(value)
-    return clean
-
-
-def _outputs(*candidates: _Candidate) -> JobOutputs:
+def _outputs(*candidates: Candidate[GateResult]) -> JobOutputs:
     """The job outputs: one asset and one result blob per candidate."""
     assets: dict[str, str] = {}
     blobs: dict[str, str] = {}

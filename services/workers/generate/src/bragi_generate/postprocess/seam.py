@@ -190,14 +190,35 @@ def render_splice(
     return np.ascontiguousarray(render, dtype=np.float32), pre.shape[0]
 
 
+def _positions(
+    beats: NDArray[np.int64], req: GateRequest, candidate: Audio, grid_fallback: bool
+) -> NDArray[np.int64]:
+    """The tracked beats, plus the requested grid anchored on the first of them."""
+    if not grid_fallback or beats.size == 0:
+        return beats
+    step = max(1, round(req.beat_sec * candidate.sample_rate))
+    first = int(beats[0])
+    last = int(beats[-1])
+    grid = np.arange(first, last + step + 1, step, dtype=np.int64)
+    return np.unique(np.concatenate([beats, grid]))
+
+
 def splice_search(
     context: Audio,
     candidate: Audio,
     beat_samples: NDArray[np.int64],
     req: GateRequest,
     cfg: GateConfig,
+    *,
+    grid_fallback: bool = False,
 ) -> SpliceSearch:
-    """Evaluates every beat position inside the overlap and picks the best one."""
+    """Evaluates every beat position inside the overlap and picks the best one.
+
+    ``grid_fallback`` adds the requested tempo's beat grid (anchored on the first
+    tracked beat) to the tracked positions. A two-bar overlap always holds enough
+    tracked beats; a one-bar one can hold none when the tracker locked to half time,
+    which would reject a good candidate for lack of a position rather than a seam.
+    """
     overlap = min(round(req.overlap_sec * candidate.sample_rate), context.frames)
     window = max(1, round(cfg.seam_window_sec * candidate.sample_rate))
     minimum = max(1, round(MIN_WINDOW_SEC * candidate.sample_rate))
@@ -212,7 +233,11 @@ def splice_search(
     )
     context_tail = np.ascontiguousarray(context.samples[-overlap:], dtype=np.float32)
     positions = sorted(
-        {int(position) for position in beat_samples if window <= int(position) <= overlap - fade}
+        {
+            int(position)
+            for position in _positions(beat_samples, req, candidate, grid_fallback)
+            if window <= int(position) <= overlap - fade
+        }
     )
     scored: list[int] = []
     scores: list[float] = []
