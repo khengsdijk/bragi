@@ -12,6 +12,7 @@ import { buildDemoProject, fakeAssetHash, SHORT_DEMO } from "../../song/api/demo
 import { sectionSpansSec } from "../../song/api/section-time.js";
 import { createEngineController } from "../../song/state/engine-controller.js";
 import { createSongStore } from "../../song/state/song-store.js";
+import type { PlannerGeneration } from "../planner-generation.js";
 import { createPlanner } from "../state/planner.js";
 
 const MIGRATIONS_DIR = new URL("../../../../../schemas/sqlite/migrations/", import.meta.url);
@@ -74,7 +75,10 @@ function analysis() {
   };
 }
 
-async function setup(result: () => Promise<EditPlan>) {
+async function setup(
+  result: () => Promise<EditPlan>,
+  generation?: Parameters<typeof createPlanner>[0]["generation"],
+) {
   const platform = await createMemoryPlatform(migrations);
   const model = await loadTestModel();
   const built = buildDemoProject(SHORT_DEMO, {
@@ -125,12 +129,42 @@ async function setup(result: () => Promise<EditPlan>) {
     analysis,
     history,
     audition,
+    ...(generation === undefined ? {} : { generation }),
     onAnnounce: (message) => announcements.push(message),
     now: () => NOW,
     newGroupId: () => "grp_planner",
   });
   const spans = sectionSpansSec(model, songStore.handle() ?? 0);
   return { songStore, history, audition, planner, calls, client, announcements, spans };
+}
+
+/** A variant with a generate step, as the API's generation contract returns it. */
+function generative(): PlanVariant {
+  return {
+    label: "Generated fill",
+    description: "Fill the gap with new bass.",
+    steps: [
+      {
+        kind: "generate",
+        id: "g1",
+        capability: "generate.inpaint",
+        params: { gapBars: 1, overlapBars: 1, tier: "preview", n: 3 },
+        context: {
+          before: { startTick: 0, endTick: 1920 },
+          after: { startTick: 5760, endTick: 7680 },
+          tracks: "all",
+        },
+      },
+      {
+        kind: "apply_generated",
+        from: "g1",
+        placement: {
+          region: { startTick: 1920, endTick: 5760, tracks: ["trk_bass"] },
+          mode: "replace",
+        },
+      },
+    ],
+  };
 }
 
 describe("the planner prompt", () => {
@@ -269,5 +303,37 @@ describe("the planner prompt", () => {
       "Accept or discard the open version ideas first.",
     );
     expect(client.plan).not.toHaveBeenCalled();
+  });
+
+  it("hands a plan with a generate step to the execute path", async () => {
+    const execute = vi.fn(async () => true);
+    const generation: PlannerGeneration = {
+      source: { subscribe: () => () => {} },
+      execute,
+      accepted: vi.fn(),
+      discarded: vi.fn(),
+      group: () => "pln_01JTESTPLANNER000000000",
+      dispose: vi.fn(),
+    };
+    const { planner, announcements } = await setup(
+      async () => planWith([variant("Subtle", "trk_bass", -1), generative()]),
+      generation,
+    );
+    planner.openRegion({ startTick: 1920, endTick: 5760, tracks: ["trk_bass"] }, "Bass");
+    await planner.submit("fill that gap");
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    const input = execute.mock.calls[0]?.[0] as {
+      prompt: string;
+      region: { startTick: number };
+      opsBatches: readonly OpBatch[];
+    };
+    expect(input.prompt).toBe("fill that gap");
+    expect(input.region.startTick).toBe(1920);
+    // Only the ops-only variant is instant; the generative one lands when its job does.
+    expect(input.opsBatches.map((batch) => batch.label)).toEqual(["Subtle"]);
+    expect(planner.store.getState().phase).toBe("done");
+    expect(planner.store.getState().candidates).toBe(2);
+    expect(announcements.at(-1)).toBe("2 version ideas ready");
   });
 });

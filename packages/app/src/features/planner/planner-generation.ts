@@ -545,11 +545,17 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
       const job = jobs.get(message.jobId);
       if (job === undefined) return;
       setQueue(null);
-      if (!job.published && job.lastRejected !== null) {
-        partials = partials.then(() =>
-          publish(job, job.lastRejected?.assetHash ?? "", job.lastRejected?.json ?? null, true),
-        );
-      }
+      // The partial chain may still be reading this job's last result; decide after it.
+      partials = partials
+        .then(async () => {
+          if (job.published || job.lastRejected === null) return;
+          const rejected = job.lastRejected;
+          await publish(job, rejected.assetHash, rejected.json, true);
+        })
+        .catch((error: unknown) => {
+          console.warn("could not add the planner's rejected candidate", error);
+          deps.onAnnounce?.(t("generation.extend.error.generic"));
+        });
       if ([...jobs.values()].every((entry) => entry.published)) setQueue(null);
       return;
     }
@@ -674,6 +680,8 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
           deps.onAnnounce?.(t("planner.error.auditionOpen"));
           return false;
         }
+        // `open` starts a fresh group; the queue badge goes on after it.
+        setQueue({ kind: "queued" });
 
         const contexts: Record<string, Record<string, string>> = {};
         const planned: {

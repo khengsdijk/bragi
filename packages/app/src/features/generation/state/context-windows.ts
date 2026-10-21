@@ -110,8 +110,10 @@ export function rangeEndingAt(
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const candidate = lines[index];
     if (candidate === undefined) break;
+    const span = secondsBetween(geometry, candidate, end);
+    if (span > maxSec && start < end) break;
     start = candidate;
-    if (secondsBetween(geometry, candidate, end) > maxSec) break;
+    if (span > maxSec) break;
   }
   return { startTick: start, endTick: end };
 }
@@ -128,8 +130,10 @@ export function rangeStartingAt(
   const start = Math.max(0, Math.min(total, startTick));
   let end = start;
   for (const candidate of lines) {
+    const span = secondsBetween(geometry, start, candidate);
+    if (span > maxSec && end > start) break;
     end = candidate;
-    if (secondsBetween(geometry, start, candidate) > maxSec) break;
+    if (span > maxSec) break;
   }
   return { startTick: start, endTick: Math.min(total, end) };
 }
