@@ -362,6 +362,51 @@ fn a_failed_separation_keeps_the_generated_lane() {
 }
 
 #[test]
+fn a_late_original_stem_does_not_fill_the_generated_section() {
+    let (doc, section_id) = placed_song();
+    // The original source reports an extra stem after the extend was placed.
+    let next = apply_op(
+        &doc,
+        analysis_op(
+            SRC,
+            "separation",
+            json!([{
+                "kind": "separation",
+                "stems": [
+                    { "role": "vocals", "asset": vocals() },
+                    { "role": "drums", "asset": drums() },
+                    { "role": "bass", "asset": gen_strings() }
+                ],
+                "residual": residual()
+            }]),
+        ),
+    );
+    let bass = next
+        .tracks
+        .iter()
+        .find(|track| track.role == StemRole::Bass)
+        .expect("the late stem creates its track");
+    let generated = next
+        .arrangement
+        .sections
+        .iter()
+        .find(|section| section.id.to_string() == section_id)
+        .unwrap();
+    assert!(
+        !generated.lanes.0.contains_key(&bass.id),
+        "another source's late stage must not fill a placed section"
+    );
+    assert!(
+        next.arrangement
+            .sections
+            .iter()
+            .filter(|section| section.id.to_string() != section_id)
+            .any(|section| section.lanes.0.contains_key(&bass.id)),
+        "the original song's sections still get the new stem"
+    );
+}
+
+#[test]
 fn the_mapping_is_order_independent_and_idempotent() {
     let (doc, _) = placed_song();
     let ingest = analysis_op(GEN, "ingest", json!([]));

@@ -1290,6 +1290,17 @@ fn fill_empty_lanes(
         tempo: &tempo,
     };
     let provenance = provenance(ProvenanceKind::Separation, generated_at);
+    // A placed source owns its section: a late stage of another source must not fill it.
+    let placed: HashSet<String> = doc
+        .sources
+        .iter()
+        .filter_map(|source| {
+            source
+                .placement
+                .as_ref()
+                .map(|placement| placement.section_id.to_string())
+        })
+        .collect();
 
     for track_id in added {
         let Some((_, asset)) = block.assets.iter().find(|(id, _)| id == track_id) else {
@@ -1303,7 +1314,7 @@ fn fill_empty_lanes(
             let section_end = section_start.saturating_add(section_length);
             let span_start = section_start.max(block_start);
             let span_end = section_end.min(block_end);
-            if span_end > span_start {
+            if span_end > span_start && !placed.contains(section.id.as_str()) {
                 let occupied = section
                     .lanes
                     .0
