@@ -134,7 +134,7 @@ Every generated output passes through `postprocess.py`, in this order:
 | 3. Key check | Key detection on the output | Off-key (not the same or a relative key) and not fixable by a ±1 semitone shift |
 | 4. Beat align | Align the first downbeat to the grid (cross-correlation of onset envelopes with context) | Alignment confidence < 0.5 |
 | 5. Splice search | Within the overlap window, find the splice point minimising `seam_score` at beat positions | Best `seam_score` > threshold (config) |
-| 6. Loudness + spectral match | `loudness_match`, `spectral_match` against the context | — |
+| 6. Loudness + spectral match | `loudness_match`, `spectral_match` against the context. Only a side that touches context is matched (an extend's far end keeps the model's own fade), and the gain never pushes the peak above −1 dBFS | — |
 | 7. Final seam score | Logged for every candidate, used to sort candidates (best first) | — |
 
 If fewer than the requested number of candidates pass, the worker regenerates (up to 2 extra rounds, new seeds). If none pass, it returns the best one with `qualityWarning: true`, and the UI shows "This one might not blend perfectly".

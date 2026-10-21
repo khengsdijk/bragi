@@ -1,9 +1,13 @@
 """Step 6 of 09 §6: loudness and spectral match against the context.
 
 Loudness is EBU R128 again, from the analysis worker's K-weighted power
-(``bragi_analysis.dsp.loudness``), measured over the first and last 2 s of the
-clip; the gain between the two is ramped linearly in dB so the head sits at the
-context's level and a long clip does not drift away from it.
+(``bragi_analysis.dsp.loudness``), measured over 2 s windows. Only a side that
+touches context is matched: the head always (it joins the song), the tail only when
+context follows it (an inpaint's right side, passed as ``after``); between the two
+the gain is ramped linearly in dB. Without ``after`` the whole clip gets the head's
+gain, so a model's own fade-out is kept instead of boosted. The gain is lowered as a
+whole when it would push the peak above ``PEAK_CEILING`` (-1 dBFS), so a matched
+candidate never clips.
 
 The spectral match is the 31-band 1/3-octave comparison of 03 §8.2 expressed as
 ``match_eq`` parameters: per-band ``context - candidate`` in dB, clamped to
@@ -38,6 +42,8 @@ EQ_FIRST_HZ = 20.0
 EQ_BAND_RATIO = 10.0**0.1
 #: Below this a band has no usable level and gets no correction.
 EQ_FLOOR_DB = -120.0
+#: The loudest a matched candidate may peak: -1 dBFS, ACE-Step's own normalisation level.
+PEAK_CEILING = 10.0 ** (-1.0 / 20.0)
 
 
 @dataclass(frozen=True)
@@ -83,9 +89,12 @@ def measure(audio: Audio) -> float:
     return lufs(weighted_power(audio.samples, audio.sample_rate))
 
 
-def loudness_match(clip: Audio, context: Audio, cfg: GateConfig) -> GainMatch:
-    """Ramps the clip so its first and last window match the context's level."""
+def loudness_match(
+    clip: Audio, context: Audio, cfg: GateConfig, *, after: Audio | None = None
+) -> GainMatch:
+    """Matches the clip's head to ``context`` and, given ``after``, its tail to that."""
     window = max(1, round(cfg.loudness_window_sec * clip.sample_rate))
+    limit = cfg.loudness_max_gain_db
 
     context_power = weighted_power(context.samples, context.sample_rate)
     context_window = min(window, context_power.size)
@@ -94,12 +103,24 @@ def loudness_match(clip: Audio, context: Audio, cfg: GateConfig) -> GainMatch:
     power = weighted_power(clip.samples, clip.sample_rate)
     head = lufs(power, 0, min(window, power.size))
     tail = lufs(power, max(0, power.size - window), power.size)
-    head_gain = float(np.clip(target - head, -cfg.loudness_max_gain_db, cfg.loudness_max_gain_db))
-    tail_gain = float(np.clip(target - tail, -cfg.loudness_max_gain_db, cfg.loudness_max_gain_db))
+    head_gain = float(np.clip(target - head, -limit, limit))
+    tail_gain = head_gain
+    if after is not None:
+        after_power = weighted_power(after.samples, after.sample_rate)
+        after_target = lufs(after_power, 0, min(window, after_power.size))
+        tail_gain = float(np.clip(after_target - tail, -limit, limit))
 
     ramp_db = np.linspace(head_gain, tail_gain, clip.frames, dtype=np.float64)
     gain = np.asarray(10.0 ** (ramp_db / 20.0), dtype=np.float32)[:, None]
     boosted = np.ascontiguousarray(clip.samples * gain, dtype=np.float32)
+    peak = float(np.max(np.abs(boosted))) if boosted.size else 0.0
+    if peak > PEAK_CEILING:
+        # Lower the whole ramp rather than limit: the shape (and the head match) is kept as
+        # closely as the headroom allows, and nothing is distorted.
+        trim_db = 20.0 * float(np.log10(PEAK_CEILING / peak))
+        head_gain += trim_db
+        tail_gain += trim_db
+        boosted = np.ascontiguousarray(boosted * np.float32(PEAK_CEILING / peak), dtype=np.float32)
     return GainMatch(
         audio=Audio(boosted, clip.sample_rate),
         target_lufs=target,
