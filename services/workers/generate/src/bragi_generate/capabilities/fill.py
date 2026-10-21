@@ -28,6 +28,7 @@ from bragi_generate.backend import FillRequest, GenOutput, Tier
 from bragi_generate.capabilities import blobs, streaming
 from bragi_generate.capabilities.streaming import Candidate
 from bragi_generate.postprocess import Audio, FillGateRequest, FillGateResult, KeySpec
+from bragi_generate.postprocess.config import GateConfig
 from bragi_generate.routing import backend_for
 
 
@@ -90,6 +91,26 @@ def gate_request(spec: FillSpec) -> FillGateRequest:
     )
 
 
+def fit_overlap(spec: FillSpec, before: Audio, after: Audio, seam_window_sec: float) -> FillSpec:
+    """Lowers the overlap to what both contexts can hold (at least one bar).
+
+    A gap near the song's start or end has less context than the requested overlap plus a seam
+    window on that side; the splice search then runs on a shorter overlap instead of failing.
+    """
+    beats, _ = (int(part) for part in spec.context.timeSignature)
+    bar_sec = 60.0 / float(spec.context.bpm) * beats
+    lead_sec = spec.lead_bars * bar_sec
+    shortest = min(before.duration_sec, after.duration_sec) - lead_sec - seam_window_sec
+    fits = math.floor(shortest / bar_sec + 1e-9) if bar_sec > 0 else 0
+    if fits < 1:
+        raise ValueError(
+            "the gap is too close to the song's edge: each side needs at least one bar of "
+            "context plus a seam window"
+        )
+    overlap = min(spec.overlap_bars, fits)
+    return spec if overlap == spec.overlap_bars else replace(spec, overlap_bars=overlap)
+
+
 def tier_of(tier: ExtendTier) -> Tier:
     """The generated enum as the backend protocol's literal."""
     return "preview" if tier == ExtendTier.preview else "hq"
@@ -103,6 +124,7 @@ async def run_fill(
 ) -> JobOutputs:
     """Generates and gates up to ``n`` two-sided candidates for one request."""
     before, after = await _load_contexts(job, ctx)
+    spec = fit_overlap(spec, before, after, GateConfig.load().seam_window_sec)
     request = gen_request(spec, before, after)
     grid = gate_request(spec)
     tier = tier_of(spec.tier)

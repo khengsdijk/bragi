@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import cast
 
+import numpy as np
 import pytest
 from extend_support import (
     SAMPLE_RATE,
@@ -30,7 +31,7 @@ from bragi_generate import routing
 from bragi_generate.audio import encode_wav
 from bragi_generate.backends.fake import FakeBackend
 from bragi_generate.bench import fixtures
-from bragi_generate.capabilities import inpaint, transition
+from bragi_generate.capabilities import fill, inpaint, transition
 from bragi_generate.postprocess import Audio, FillGateResult
 
 
@@ -291,3 +292,30 @@ def test_the_worker_registers_both_two_sided_capabilities() -> None:
         "generate.transition",
         "generate.warmup",
     ]
+
+
+def _spec(overlap_bars: int) -> fill.FillSpec:
+    params = GenerateInpaintParams.model_validate(inpaint_params(overlap_bars=overlap_bars))
+    return fill.FillSpec(
+        capability="generate.inpaint",
+        context=params.context,
+        gap_bars=params.gapBars,
+        lead_bars=0.0,
+        overlap_bars=overlap_bars,
+        tier=params.tier,
+        n=1,
+    )
+
+
+def _silence(seconds: float) -> Audio:
+    return Audio(np.zeros((round(seconds * SAMPLE_RATE), 2), dtype=np.float32), SAMPLE_RATE)
+
+
+def test_the_overlap_shrinks_to_fit_a_short_context() -> None:
+    # 120 BPM in 4/4: a bar is 2 s, and the seam window is 0.5 s.
+    spec = _spec(2)
+    assert fill.fit_overlap(spec, _silence(15.0), _silence(15.0), 0.5).overlap_bars == 2
+    # Two bars from the song start: one bar plus a window fits, two bars plus a window do not.
+    assert fill.fit_overlap(spec, _silence(4.0), _silence(15.0), 0.5).overlap_bars == 1
+    with pytest.raises(ValueError, match="too close to the song's edge"):
+        fill.fit_overlap(spec, _silence(2.2), _silence(15.0), 0.5)
