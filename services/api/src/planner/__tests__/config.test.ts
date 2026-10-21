@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { loadPlannerConfig, parseToml } from "../config.js";
+import { loadPlannerConfig } from "../config.js";
 
 const tempDirs: string[] = [];
 
@@ -33,38 +33,27 @@ timeoutMs = 30000
 variantCount = 2
 `;
 
-describe("parseToml", () => {
-  it("reads sections, strings, integers, floats and booleans", () => {
-    expect(
-      parseToml(`
-title = "hello # not a comment"
-ratio = 0.5
-enabled = true
-
-[models]
-fast = "vendor/model"
-`),
-    ).toEqual({
-      title: "hello # not a comment",
-      ratio: 0.5,
-      enabled: true,
-      models: { fast: "vendor/model" },
-    });
-  });
-
-  it.each([
-    ["[broken", /malformed \[section\]/],
-    ["key", /expected "key = value"/],
-    ["key = [1, 2]", /unsupported value/],
-    ['key = "open', /unterminated string/],
-    ["bad key = 1", /invalid key/],
-    ["a = 1\na = 2", /duplicate key/],
-  ])("rejects %s", (text, pattern) => {
-    expect(() => parseToml(text)).toThrow(pattern);
-  });
-});
-
 describe("loadPlannerConfig", () => {
+  it("reads a section written as an inline table", () => {
+    const config = loadPlannerConfig(
+      {},
+      tempConfig(`
+models = { fast = "a/fast", smart = "a/smart", explain = "a/explain" }
+limits = { maxTokens = 2048, timeoutMs = 30000, variantCount = 2 }
+`),
+    );
+    expect(config.models).toEqual({ fast: "a/fast", smart: "a/smart", explain: "a/explain" });
+    expect(config.maxTokens).toBe(2048);
+    expect(config.timeoutMs).toBe(30000);
+    expect(config.variantCount).toBe(2);
+  });
+
+  it("names the file when the TOML is malformed", () => {
+    expect(() => loadPlannerConfig({}, tempConfig("[models\n"))).toThrow(
+      /planner\.toml: Invalid TOML document/,
+    );
+  });
+
   it("reads the tiers and limits, with env overrides winning", () => {
     const config = loadPlannerConfig(
       { BRAGI_PLANNER_MODEL_SMART: "override/smart" },
