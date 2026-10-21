@@ -1,6 +1,6 @@
 # 09 — AI Generation
 
-Status: Draft v0.3 · Code: `services/workers/generate/` · Schemas: `packages/schemas/jobs/capabilities/`
+Status: Draft v0.4 · Code: `services/workers/generate/` · Schemas: `packages/schemas/jobs/capabilities/`
 
 Generation in Bragi is **always in service of editing**. Every generated piece of audio lands in the song model as clips with provenance, gets analysed and separated like any other source, and can be edited, auditioned and undone.
 
@@ -30,6 +30,8 @@ Defined in `services/workers/generate/capabilities.yaml` and exported to the pla
 | `transform.stem_resynth` | Clean a separated stem of artifacts | stem audio, role | stem audio | 2 per 30 s |
 
 Every capability's params are defined as JSON Schema in `packages/schemas/jobs/capabilities/<capability>.schema.json`.
+
+The API charges the "Credits (initial)" column through `config/credits.toml` (05 §9): a "per 30 s" cost is charged per candidate on the requested new audio, rounded up per started 30 s; a flat cost is charged once per job. `generate.extend` at 30 s therefore costs 2 per preview candidate and 2 for the HQ re-render.
 
 ### 2.1 Common conditioning block (all capabilities)
 ```ts
@@ -116,9 +118,10 @@ For stems with audible separation artifacts. Audio-to-audio at low strength cond
 | **preview** | Audition candidates quickly | First preview **≤ 15 s** after the request (when the GPU is warm) | Fewer diffusion steps / smaller model, 32–44.1 kHz, may be slightly noisy |
 | **hq** | Accepted result | ≤ 60 s, in the background after accept | Full steps, 44.1–48 kHz stereo |
 
-- Long jobs stream `partial` outputs ([05 §3](05-backend-and-jobs.md)). In long-form mode each block is a partial.
+- Long jobs stream `partial` outputs ([05 §3](05-backend-and-jobs.md)). In long-form mode each block is a partial. A partial carries the worker's `outputs` verbatim, so an extend candidate's audio and its gate-result blob arrive together.
+- An **HQ re-render** of an accepted candidate repeats the submit with `tier: "hq"`, `n: 1` and the candidate's `seed` (`params.seed`) as a `background` job, so the render starts from the same seed. Reproducibility is not bit-exact on MPS yet (see `docs/wp/2.7.md`, A1).
 - Queue transparency: the UI shows "Waiting for a free generator… (~20 s)" from the `etaSec` field.
-- Cold-start mitigation: the first interactive generation request of a session sends a cheap **warm-up ping** when the user opens the canvas, if a generation pool is scaled to zero.
+- Cold-start mitigation: the first interactive generation request of a session sends a cheap **warm-up ping** when the user opens the canvas, if a generation pool is scaled to zero. The ping is `POST /v1/generations/warmup` → `202 { status: "warming" | "warm" | "disabled" }`; it submits the internal `generate.warmup` job, which loads the model (ACE-Step loads through its `/v1/init`; the fake backend is a no-op). Pings while one is in flight, or within five minutes of a completion, do not queue work; `disabled` means no generation worker runs against this environment.
 
 ## 6. Seamlessness and quality gates (R1)
 

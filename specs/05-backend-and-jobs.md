@@ -1,6 +1,6 @@
 # 05 — Backend, Jobs & Sync
 
-Status: Draft v0.4 · Code: `services/api`, `services/workers` · Infra: `infra/`
+Status: Draft v0.5 · Code: `services/api`, `services/workers` · Infra: `infra/`
 
 ## 1. Services
 
@@ -40,15 +40,16 @@ All endpoints are under `/v1`, JSON, and authenticated (session cookie on web, b
 | `PUT /projects/{id}/refs` | Compare-and-swap ref update: `{ expected, next }` |
 | `POST /plans` | Planner: `{ projectId, commitId, region?, prompt, uiContext }` → `EditPlan` ([06](06-ai-planner.md)) |
 | `POST /plans/{id}/execute` | Runs the plan's generative steps as jobs and returns `{ jobIds }` |
-| `POST /jobs` | Direct job submission for UI actions that skip the planner (e.g. "Extend 16 bars") |
-| `GET /jobs/{id}` / `DELETE /jobs/{id}` | Status / cancel |
+| `POST /jobs` | Direct job submission for UI actions that skip the planner (e.g. "Extend 16 bars"). The params are validated against the capability's schema (`generate.extend` has one; analysis capabilities keep the worker-side check), generation inputs must be assets the user owns, and generation submits also check credits and the GPU budget (§9). |
+| `GET /jobs/{id}` / `DELETE /jobs/{id}` | Status (including `paused`, §9) / cancel |
+| `POST /generations/warmup` | `→ 202 { status: "warming" \| "warm" \| "disabled" }`: the cheap model load of 09 §5. Idempotent; `disabled` when no generation worker runs against this environment. |
 | `POST /search` | `{ query: { text } \| { audioAsset } \| { hum: assetHash }, scope: "song"\|"section"\|"stem", k, filters }` |
 | `GET /universe/layout?lens=` | Current 2D/3D layout for a lens ([08](08-universe.md)) |
 | `GET /universe/constellations?type=` | Relationship edges |
 | `POST /universe/path` | `{ from, to, mode: "playlist"\|"generate", steps }` |
 | `GET /usage` | Credits used/remaining |
 
-Error format: `{ error: { code: "QUOTA_EXCEEDED", message, details? } }`. Codes are stable and listed in `packages/schemas/api/errors.json`.
+Error format: `{ error: { code: "QUOTA_EXCEEDED", message, details? } }`. Codes are stable and listed in `packages/schemas/api/errors.json`. A generation submit that fails its params is `400 VALIDATION_FAILED` (the message names the field), an unaffordable one is `402 INSUFFICIENT_CREDITS` (`details: { required, used, allowance }`) and one past the daily GPU budget is `503 GENERATION_BUSY` (§9).
 
 ## 3. WebSocket protocol
 
@@ -62,7 +63,8 @@ Client → server:
 Server → client:
 ```json
 { "t": "job.progress",  "jobId": "job_…", "stage": "separation", "pct": 0.42, "etaSec": 18 }
-{ "t": "job.partial",   "jobId": "job_…", "index": 1, "output": { "asset": "sha256:…", "kind": "preview" } }
+{ "t": "job.partial",   "jobId": "job_…", "index": 1, "output": { "asset": "sha256:…", "kind": "preview" },
+  "outputs": { "assets": { "candidate_0": "sha256:…" }, "blobs": { "candidate_0": "sha256:…" } } }
 { "t": "job.completed", "jobId": "job_…", "outputs": {...} }
 { "t": "job.failed",    "jobId": "job_…", "code": "MODEL_ERROR", "retryable": true }
 { "t": "analysis.partial", "assetHash": "sha256:…", "stage": "rhythm", "blob": "sha256:…" }
@@ -71,6 +73,8 @@ Server → client:
 The client reconnects with exponential backoff and re-subscribes. After reconnecting it calls `GET /jobs/{id}` to fetch any missed final states.
 
 > **Note (WP-0.7):** the `JobEvent` envelope (§4.2) carries neither the stage nor a partial index, so the gateway fills `stage` from the job's capability (`analysis.rhythm` → `rhythm`) and numbers `partial` messages itself, per job.
+>
+> **Note (WP-2.7):** `job.partial` keeps `output` and adds `outputs`, the worker's partial outputs verbatim (09 §5), so a client reads a candidate's asset and its gate-result blob together. Every hash a partial carries is registered as a derived asset of the job's user as soon as the event arrives, so `GET /assets/{hash}/url` works before the job completes.
 
 ## 4. Jobs & events (NATS JetStream)
 
@@ -80,7 +84,7 @@ The client reconnects with exponential backoff and re-subscribes. After reconnec
 | `JOBS` | `jobs.<capability>.<priority>`, e.g. `jobs.analysis.separation.interactive`, `jobs.generate.extend.background` | Work-queue | One durable pull consumer per capability group (workers) |
 | `EVENTS` | `events.job.<jobId>`, `events.asset.<hash>`, `events.project.<id>` | Limits (24 h) | Orchestrator, WebSocket gateway |
 
-Capabilities (v1): `analysis.{ingest,rhythm,structure,separation,harmony,stem_activity,loudness_energy,energy_stems,embed_full,section_embed,stem_embed,tag,describe,drum_split,transcribe,lyrics}`, `embed.project`, `embed.constellations`, `generate.{extend,inpaint,stem,text2music,fx,transition,variation}`, `transform.{timbre,style,stem_resynth}`, `fusion.{align,mashup_plan}`.
+Capabilities (v1): `analysis.{ingest,rhythm,structure,separation,harmony,stem_activity,loudness_energy,energy_stems,embed_full,section_embed,stem_embed,tag,describe,drum_split,transcribe,lyrics}`, `embed.project`, `embed.constellations`, `generate.{extend,inpaint,stem,text2music,fx,transition,variation}`, `generate.warmup` (internal: the API's warm-up ping, 09 §5), `transform.{timbre,style,stem_resynth}`, `fusion.{align,mashup_plan}`.
 
 ### 4.2 Envelopes (`packages/schemas/jobs/`)
 ```ts
@@ -134,8 +138,10 @@ jobs(id, user_id, project_id, capability, priority, status, params jsonb, output
 job_results(idempotency_key pk, outputs jsonb, created_at)
 embeddings(id, asset_hash, scope text /*song|section|stem*/, scope_ref text, model text, vec vector(512))  -- HNSW index on vec
 library_layouts(user_id, lens, version, blob_hash, updated_at, primary key(user_id, lens))
-usage_ledger(id, user_id, job_id, credits numeric, reason, created_at)
+usage_ledger(id, user_id, job_id, credits numeric, capability, tier, reason, created_at)
 ```
+
+`jobs.status` is `queued | running | paused | done | failed | cancelled`; `paused` is a generation job the budget guard recorded but did not enqueue (§9). `usage_ledger.capability` and `.tier` say what the credits bought; `tier` is null for capabilities without latency tiers.
 - Embeddings are keyed by **asset**, not by user, so identical audio is embedded once. Access is controlled through `user_assets`.
 - Search queries join `embeddings` → `user_assets` (user's own) → `library_items`.
 - **Better Auth owns `user`, `session`, `account` and `verification`** (05 §8); the `users(...)` row above is Better Auth's `user` plus the application's `plan` and `settings` columns. The API's migrations create all four tables (WP-0.7).
@@ -191,6 +197,13 @@ GPU inference cost is the core business risk (R6), so it's designed in from the 
 | **Provider** | Containers are provider-agnostic. Evaluate serverless GPU platforms vs. AWS GPU instances in ADR-0005. The worker image must run on both. |
 | **Credits** | Each capability has a credit cost (`config/credits.toml`), e.g. `quick` analysis = 0, `standard` = 1, extend 30 s = 2, full text2music = 10. `usage_ledger` records each job. A free tier gets N credits/day. |
 | **Budget guard** | Global daily GPU-seconds cap per environment. When exceeded, background jobs pause and interactive jobs get a "busy" message. |
+| **Warm-up** | `POST /generations/warmup` loads the routed model before the first interactive generation (09 §5). `BRAGI_GENERATE_WORKERS` says whether a generation worker runs against this environment; unset answers `disabled`. `pnpm dev:backend` sets it because it starts the worker; compose has no generation pool. |
+
+**Credit formula (WP-2.7).** `config/credits.toml` holds `window_sec` and one cost per capability: `per30s` is charged per started 30 s of requested **new** audio (the overlap the model re-creates is free), per candidate; `flat` is charged once per job. `generate.extend` is `per30s = 2`, so 15 bars at 120 BPM in 4/4 (30 s) costs 2 credits per candidate: the default three previews cost 6, and the HQ re-render of one accepted candidate costs 2. Preview and HQ are charged the same (09 §5). Every charged submit writes one `usage_ledger` row with the credits, capability and tier. Analysis is free for now. The allowance is `BRAGI_DAILY_CREDITS`; unset means unlimited in single-user mode (jobs are still recorded) and `[daily].multi_user_credits` from the table in multi-user mode. Over it, the submit is `402 INSUFFICIENT_CREDITS` with `details: { required, used, allowance }`.
+
+**Budget guard (WP-2.7).** `BRAGI_GPU_SECONDS_PER_DAY` (unset = no cap) is compared with the sum of `jobs.gpu_seconds` for jobs that finished since UTC midnight, i.e. the `JobMetrics.gpuSeconds` the worker recorded (§4.2). Past the cap, an interactive generation submit is `503 GENERATION_BUSY` and a background one is recorded as `paused` without being published or charged. A paused job is not resumed automatically; the client sees `status: "paused"` in `GET /jobs/{id}` and retries (or the next environment restart/queue policy picks it up, which is out of scope for v1).
+
+The allowance check is a read of today's ledger, not a reservation: two submits racing can overshoot by one job each. Credit accounting is per submitted job, so a `job_results` cache hit is still charged; the cache saves GPU time, not the user's credits.
 
 ## 10. Bring-your-own-backend and local compute (post-v1, but designed for now)
 
