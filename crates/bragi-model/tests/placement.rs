@@ -347,6 +347,55 @@ fn undo_is_a_snapshot_restore() {
     assert_eq!(canonical_json(&doc), before);
 }
 
+#[test]
+fn source_add_inserts_at_the_index_and_validates_the_placement() {
+    let doc = bar_song();
+
+    // A source without a placement is ordinary; index 0 puts it before everything else.
+    let mut plain = source_add_op("src_plain", None);
+    plain["index"] = json!(0);
+    let next = apply(&doc, &batch(vec![plain]), &assets()).expect("source.add applies");
+    assert_eq!(next.sources[0].id.to_string(), "src_plain");
+
+    // A placement must name an existing section (02 §6.4).
+    let bad = source_add_op("src_bad", Some("sec_missing"));
+    let err = apply(&doc, &batch(vec![bad]), &assets()).unwrap_err();
+    assert_eq!(err.code(), bragi_model::ValidationCode::MissingTarget);
+
+    // An index past the end is a per-op error.
+    let mut past_end = source_add_op("src_after", None);
+    past_end["index"] = json!(9);
+    let err = apply(&doc, &batch(vec![past_end]), &assets()).unwrap_err();
+    assert_eq!(err.code(), bragi_model::ValidationCode::IndexOutOfRange);
+}
+
+fn batch(ops: Vec<serde_json::Value>) -> OpBatch {
+    serde_json::from_value(json!({
+        "id": "bat_01",
+        "label": "Test",
+        "createdAt": "2026-10-18T12:00:00Z",
+        "author": { "kind": "user" },
+        "ops": ops
+    }))
+    .expect("a valid batch")
+}
+
+fn source_add_op(id: &str, section: Option<&str>) -> serde_json::Value {
+    let mut source = json!({
+        "id": id,
+        "kind": "generated",
+        "originalAsset": CANDIDATE,
+        "workingAsset": CANDIDATE,
+        "durationSamples": CANDIDATE_SAMPLES,
+        "channels": 2,
+        "label": "Generated"
+    });
+    if let Some(section) = section {
+        source["placement"] = json!({ "sectionId": section });
+    }
+    json!({ "op": "source.add", "source": source })
+}
+
 proptest! {
     #![proptest_config(ProptestConfig { cases: 64, ..ProptestConfig::default() })]
 
