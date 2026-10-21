@@ -98,6 +98,66 @@ describe("createApiClient", () => {
       callbackURL: "http://localhost:5173/",
     });
   });
+
+  it("submits a generate.extend job with the generated params untouched", async () => {
+    const accepted = {
+      jobId: "job_01JEXTEND",
+      status: "queued",
+      createdAt: "2026-10-21T12:00:00Z",
+      estimatedCredits: 2,
+    };
+    const { fetch, calls } = fakeFetch({ status: 202, body: accepted });
+    const client = createApiClient({ baseUrl: "https://api.test", fetch });
+    const body = {
+      capability: "generate.extend" as const,
+      priority: "interactive" as const,
+      projectId: "prj_01J",
+      assets: { context: "sha256:aa" },
+      params: {
+        context: {
+          bpm: 120,
+          timeSignature: [4, 4] as [number, number],
+          key: { tonic: "A", mode: "minor" as const },
+          descriptors: ["dreamy"],
+          seed: 1234,
+        },
+        bars: 8,
+        overlapBars: 2,
+        direction: "forward" as const,
+        tier: "preview" as const,
+        n: 3,
+      },
+    };
+
+    await expect(client.submitJob(body)).resolves.toEqual(accepted);
+    expect(calls[0]?.url).toBe("https://api.test/v1/jobs");
+    expect(calls[0]?.init.method).toBe("POST");
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual(body);
+  });
+
+  it("cancels a job and pings the warm-up endpoint", async () => {
+    const cancelled = fakeFetch({ status: 200 });
+    const client = createApiClient({ baseUrl: "", fetch: cancelled.fetch });
+    await client.cancelJob("job_01J");
+    expect(cancelled.calls[0]?.url).toBe("/v1/jobs/job_01J");
+    expect(cancelled.calls[0]?.init.method).toBe("DELETE");
+
+    const warmed = fakeFetch({ status: 202, body: { status: "warming" } });
+    const warmClient = createApiClient({ baseUrl: "", fetch: warmed.fetch });
+    await expect(warmClient.warmupGeneration()).resolves.toEqual({ status: "warming" });
+    expect(warmed.calls[0]?.url).toBe("/v1/generations/warmup");
+  });
+
+  it("maps INSUFFICIENT_CREDITS and GENERATION_BUSY to ApiClientError", async () => {
+    for (const [status, code] of [
+      [402, "INSUFFICIENT_CREDITS"],
+      [503, "GENERATION_BUSY"],
+    ] as const) {
+      const { fetch } = fakeFetch({ status, body: { error: { code, message: "nope" } } });
+      const client = createApiClient({ baseUrl: "", fetch });
+      await expect(client.warmupGeneration()).rejects.toMatchObject({ code, status });
+    }
+  });
 });
 
 class FakeSocket implements SocketLike {

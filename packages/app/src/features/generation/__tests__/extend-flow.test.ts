@@ -1,27 +1,36 @@
 /**
- * Extend candidates → placement → generated analysis, with the real `bragi-model` wasm and the
- * history store (`specs/09-generation.md` §4.2, `specs/02-song-model.md` §7).
+ * The extend flow end to end (`specs/09-generation.md` §4.2, §5; `specs/07-song-canvas.md` §6).
  *
- * The job is fake: partials carry only an asset and a gate result, exactly the shape the worker
- * will emit. Every document change still goes through the model and a history commit.
+ * A fake API, a fake socket and a fake context render: the test drives one job from context render
+ * to streaming candidates, the accept path (analysis + HQ), discard, job errors and the quality
+ * warning. The document still goes through the real `bragi-model` wasm and the history store, so
+ * the candidate snapshots are the ones the app would commit.
  */
 import { readdirSync, readFileSync } from "node:fs";
 
-import { type Platform, parseMigrations } from "@bragi/platform";
+import type {
+  ApiClient,
+  GenerateExtendSubmit,
+  JobAccepted,
+  RealtimeClient,
+  RealtimeMessage,
+  RealtimeStatus,
+} from "@bragi/api-client";
+import { ApiClientError } from "@bragi/api-client";
+import type { EngineHost, EngineState } from "@bragi/platform";
+import { parseMigrations } from "@bragi/platform";
 import { createMemoryPlatform } from "@bragi/platform/testing";
-import type { Project, SeparationResult } from "@bragi/schemas";
-import { describe, expect, it } from "vitest";
+import type { GenerateExtendResult, TagResult } from "@bragi/schemas";
+import { describe, expect, it, vi } from "vitest";
 
+import { sha256Hex } from "../../analysis/api/hash.js";
+import { type Audition, createAudition } from "../../audition/state/audition.js";
 import { createHistory, type History } from "../../history/state/history.js";
 import { loadTestModel } from "../../song/__tests__/fixtures.js";
 import { buildDemoProject, fakeAssetHash, SHORT_DEMO } from "../../song/api/demo-song.js";
+import { createEngineController } from "../../song/state/engine-controller.js";
 import { createSongStore, type SongStore } from "../../song/state/song-store.js";
-import {
-  addExtendCandidates,
-  type ExtendCandidatePartial,
-  type ExtendJob,
-} from "../state/extend-candidates.js";
-import { applyGeneratedAnalysis, generatedSourceFor } from "../state/generated-analysis.js";
+import { createExtendFlow, type ExtendFlow, type ExtendState } from "../state/extend-flow.js";
 
 const MIGRATIONS_DIR = new URL("../../../../../schemas/sqlite/migrations/", import.meta.url);
 const migrations = parseMigrations(
@@ -33,253 +42,467 @@ const migrations = parseMigrations(
 );
 
 const NOW = new Date("2026-10-21T12:00:00.000Z");
-/** `generate.extend` asks for `bars + 2` bars; the asset is four bars. */
-const ASSET_SAMPLES = 4 * 96_000;
-/** The demo is 16 bars: the context ends on its last bar line. */
-const TOTAL_TICKS = 16 * 3_840;
+const SEED = 1234;
+const CONTEXT_BYTES = new TextEncoder().encode("context-wav");
 
-interface Fixture {
-  readonly platform: Platform;
-  readonly store: SongStore;
-  readonly history: History;
-  readonly project: Project;
+class FakeRealtime implements RealtimeClient {
+  private readonly handlers = new Set<(message: RealtimeMessage) => void>();
+  private readonly wanted = new Set<string>();
+
+  on(handler: (message: RealtimeMessage) => void): () => void {
+    this.handlers.add(handler);
+    return () => this.handlers.delete(handler);
+  }
+  subscribe(topics: readonly string[]): void {
+    for (const topic of topics) this.wanted.add(topic);
+  }
+  unsubscribe(topics: readonly string[]): void {
+    for (const topic of topics) this.wanted.delete(topic);
+  }
+  topics(): readonly string[] {
+    return [...this.wanted];
+  }
+  status(): RealtimeStatus {
+    return "open";
+  }
+  close(): void {}
+  emit(message: RealtimeMessage): void {
+    for (const handler of this.handlers) handler(message);
+  }
 }
 
-async function openFixture(): Promise<Fixture> {
+interface SubmitCall {
+  readonly body: GenerateExtendSubmit;
+  readonly jobId: string;
+}
+
+interface Harness {
+  readonly platform: Awaited<ReturnType<typeof createMemoryPlatform>>;
+  readonly songStore: SongStore;
+  readonly history: History;
+  readonly flow: ExtendFlow;
+  readonly audition: Audition;
+  readonly realtime: FakeRealtime;
+  readonly store: Map<string, Uint8Array>;
+  readonly submits: SubmitCall[];
+  readonly cancelled: string[];
+  readonly analysed: { hash: string; profile: string }[];
+  readonly announced: string[];
+  readonly errors: string[];
+  readonly renderContext: ReturnType<typeof vi.fn>;
+  /** The section count of the song before the job. */
+  readonly originalSections: number;
+  /** A finished candidate's asset + blob, both in the blob map. */
+  candidate(
+    index: number,
+    patch?: Partial<GenerateExtendResult>,
+  ): Promise<{ assetHash: string; blobHash: string; result: GenerateExtendResult }>;
+  partial(index: number, assetHash: string, blobHash: string, jobId?: string): void;
+  progress(pct: number, etaSec?: number): void;
+}
+
+interface HarnessOptions {
+  /** The first submit rejects with this error (the 402/503 paths). */
+  readonly submitError?: Error;
+  readonly warmup?: "warming" | "warm" | "disabled";
+}
+
+function fakeHost(): EngineHost {
+  return {
+    init: vi.fn(async () => {}),
+    loadDocument: vi.fn(async () => {}),
+    applyDelta: vi.fn(),
+    setPreview: vi.fn(),
+    transport: vi.fn(),
+    warm: vi.fn(async (_slot: number, _doc: unknown) => {}),
+    release: vi.fn((_slot: number) => {}),
+    audition: vi.fn((_slot: number) => {}),
+    render: vi.fn(),
+    peaks: vi.fn(),
+    spectrogram: vi.fn(),
+    onState: vi.fn((_cb: (state: EngineState) => void) => () => {}),
+    onEvent: vi.fn(() => () => {}),
+    dispose: vi.fn(async () => {}),
+  };
+}
+
+async function harness(options: HarnessOptions = {}): Promise<Harness> {
   const platform = await createMemoryPlatform(migrations);
   const model = await loadTestModel();
   const built = buildDemoProject(SHORT_DEMO, {
-    assetFor: (key) => fakeAssetHash(`generation:${key}`),
-    projectId: "GENERATIONTEST0000000001",
+    assetFor: (key) => fakeAssetHash(`extend:${key}`),
+    projectId: "EXTENDFLOWTEST00000000001",
   });
   await platform.localDb.run(
-    `INSERT OR IGNORE INTO projects (id, title, created_at, updated_at)
-     VALUES (?, ?, ?, ?)`,
+    "INSERT OR IGNORE INTO projects (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
     [built.project.id, built.project.meta.title, built.project.meta.createdAt, NOW.toISOString()],
   );
-  const store = createSongStore(model);
-  store.load(built.project, built.assets);
+  const songStore = createSongStore(model);
+  songStore.load(built.project, built.assets);
   const history = createHistory({
     platform,
-    songStore: store,
+    songStore,
     model,
     projectId: built.project.id,
     now: () => NOW,
   });
   await history.load();
-  return { platform, store, history, project: built.project };
-}
+  const host = fakeHost();
+  const controller = createEngineController({
+    createEngine: async () => host,
+    document: () => songStore.store.getState().doc,
+    durationSec: () => 32,
+  });
 
-function job(group = "extend-1"): ExtendJob {
-  return {
-    group,
-    direction: "forward",
-    bars: 2,
-    contextRange: { startTick: 0, endTick: TOTAL_TICKS },
-    crossfadeTicks: 480,
-    prompt: "dreamy outro",
-    model: "ace-step",
-    modelVersion: "1.5.0",
-    jobId: "job_01JAB4X2C3D4E5F6G7H8J9KMNP",
-  };
-}
+  const realtime = new FakeRealtime();
+  const store = new Map<string, Uint8Array>();
+  const submits: SubmitCall[] = [];
+  const cancelled: string[] = [];
+  const analysed: { hash: string; profile: string }[] = [];
+  const announced: string[] = [];
+  const errors: string[] = [];
+  const timers: (() => void)[] = [];
+  let jobCounter = 0;
 
-function partial(seed: string, spliceOffsetSamples = -48_000): ExtendCandidatePartial {
-  return {
-    asset: {
-      hash: fakeAssetHash(`candidate:${seed}`),
-      durationSamples: ASSET_SAMPLES,
-      channels: 2,
+  const doFetch = (async (url: string | URL) => {
+    const key = String(url).replace(/^blob:/, "");
+    if (key === "upload") return new Response("", { status: 200 });
+    const bytes = store.get(key);
+    return bytes === undefined
+      ? new Response("", { status: 404 })
+      : new Response(bytes as unknown as BodyInit, { status: 200 });
+  }) as unknown as typeof globalThis.fetch;
+
+  const api: ApiClient = {
+    baseUrl: "",
+    meta: async () => ({ apiVersion: "1", minClientVersion: "1", features: {} }),
+    getAuthMode: async () => ({ mode: "single-user", user: null }),
+    signInWithEmail: async () => {},
+    presign: async () => ({ exists: false, uploadUrl: "blob:upload", headers: {}, expiresIn: 900 }),
+    complete: async (hash) => ({ hash, bytes: 0, mime: null }),
+    assetUrl: async (hash) => ({ url: `blob:${hash}`, expiresIn: 60 }),
+    postAnalyses: async (hash, profile) => {
+      analysed.push({ hash, profile });
+      return { assetHash: hash, profile, stages: [] };
     },
-    result: { spliceOffsetSamples },
+    getAnalyses: async (hash) => ({ assetHash: hash, stages: [] }),
+    library: async () => ({ items: [], nextCursor: null }),
+    importLibrary: async () => ({ items: [], enqueuedStages: [] }),
+    submitJob: async (body) => {
+      if (options.submitError !== undefined) throw options.submitError;
+      jobCounter += 1;
+      const accepted: JobAccepted = {
+        jobId: `job_EXTEND0${jobCounter}`,
+        status: "queued",
+        createdAt: NOW.toISOString(),
+        estimatedCredits: 2,
+      };
+      submits.push({ body, jobId: accepted.jobId });
+      return accepted;
+    },
+    cancelJob: async (jobId) => {
+      cancelled.push(jobId);
+    },
+    warmupGeneration: async () => ({ status: options.warmup ?? "warm" }),
   };
-}
 
-function document(store: SongStore): Project {
-  const doc = store.store.getState().doc;
-  if (doc === null) throw new Error("no document");
-  return doc;
-}
-
-/** Accepts the first candidate so the generated source is the live document. */
-async function acceptFirstCandidate(
-  fixture: Fixture,
-): Promise<{ sourceId: string; sectionId: string; assetHash: string }> {
-  const [candidate] = await addExtendCandidates(
-    { songStore: fixture.store, history: fixture.history, now: () => NOW },
-    job(),
-    [partial("a"), partial("b")],
-  );
-  if (candidate === undefined) throw new Error("no candidate");
-  const outcome = await fixture.history.accept(candidate.id);
-  if (outcome === null || !outcome.ok) throw new Error("candidate did not accept");
-
-  const doc = document(fixture.store);
-  const source = doc.sources.find(
-    (entry) => entry.kind === "generated" && entry.placement !== undefined,
-  );
-  if (source === undefined || source.placement === undefined) {
-    throw new Error("the accepted candidate has no placed source");
-  }
-  return {
-    sourceId: source.id,
-    sectionId: source.placement.sectionId,
-    assetHash: source.workingAsset,
-  };
-}
-
-describe("extend candidates", () => {
-  it("turns job partials into one candidate commit per candidate", async () => {
-    const fixture = await openFixture();
-    const head = fixture.history.store.getState().head;
-    const candidates = await addExtendCandidates(
-      { songStore: fixture.store, history: fixture.history, now: () => NOW },
-      job(),
-      [partial("a"), partial("b")],
-    );
-
-    expect(candidates).toHaveLength(2);
-    const state = fixture.history.store.getState();
-    expect(state.head).toBe(head);
-    for (const candidate of candidates) {
-      expect(candidate.state).toBe("candidate");
-      expect(candidate.candidateGroup).toBe("extend-1");
-      expect(candidate.batch.ops[0]?.op).toBe("source.add");
-      const snapshot = await fixture.history.readSnapshot(candidate.id);
-      expect(snapshot?.arrangement.sections).toHaveLength(
-        fixture.project.arrangement.sections.length + 1,
-      );
-      expect(snapshot?.sources[0]?.kind).toBe("generated");
-    }
-
-    // The clip starts at the context edge: the gate's −48 000 sample splice skips the overlap.
-    const snapshot = await fixture.history.readSnapshot(candidates[0]?.id ?? "");
-    const section = snapshot?.arrangement.sections.at(-1);
-    const generated = snapshot?.tracks.find((track) => track.role === "generated");
-    expect(section?.kind).toBe("chorus");
-    expect(section?.transitionIn.kind).toBe("crossfade");
-    const clip = generated === undefined ? undefined : section?.lanes[generated.id]?.clips[0];
-    expect(clip?.srcStart).toBe(48_000);
-    expect(clip?.fadeInTicks).toBe(480);
-    expect(clip?.provenance.kind).toBe("generation");
-
-    // The index knows the candidate's asset, which candidate validation needs.
-    expect(fixture.store.assets().some((asset) => asset.hash === partial("a").asset.hash)).toBe(
-      true,
-    );
+  let audition: Audition | null = null;
+  const renderContext = vi.fn(async () => CONTEXT_BYTES);
+  const flow = createExtendFlow({
+    platform,
+    api,
+    realtime,
+    songStore,
+    history,
+    renderContext,
+    audition: {
+      open: (openOptions) => audition?.openCandidates(openOptions) ?? Promise.resolve(false),
+      setQueue: (status) => audition?.setQueue(status),
+      isOpen: () => audition?.store.getState().group != null,
+    },
+    fetch: doFetch,
+    hash: sha256Hex,
+    seed: () => SEED,
+    now: () => NOW,
+    onAnnounce: (message) => announced.push(message),
+    onError: (message) => errors.push(message),
+    onCommit: (commit, doc) => controller.commit(commit, doc),
+  });
+  audition = createAudition({
+    controller,
+    history,
+    document: () => songStore.store.getState().doc,
+    source: flow.source,
+    onAccept: (candidateId) => flow.accepted(candidateId),
+    onDiscard: (group) => flow.discarded(group),
+    onOutcome: (outcome) => {
+      if (outcome?.ok) controller.commit(outcome.commit, outcome.doc);
+    },
+    onAnnounce: (message) => announced.push(message),
+    setTimeout: (callback) => timers.push(callback),
   });
 
-  it("does nothing for an empty partial list", async () => {
-    const fixture = await openFixture();
-    const candidates = await addExtendCandidates(
-      { songStore: fixture.store, history: fixture.history, now: () => NOW },
-      job(),
-      [],
-    );
-    expect(candidates).toEqual([]);
-    expect(fixture.history.store.getState().commits.size).toBe(1);
-  });
-});
-
-describe("generated analysis", () => {
-  it("maps separation stems onto matching tracks as one history batch", async () => {
-    const fixture = await openFixture();
-    const accepted = await acceptFirstCandidate(fixture);
-    const before = fixture.history.store.getState().commits.size;
-
-    const separation: SeparationResult = {
+  async function candidate(
+    index: number,
+    patch: Partial<GenerateExtendResult> = {},
+  ): Promise<{ assetHash: string; blobHash: string; result: GenerateExtendResult }> {
+    const assetBytes = new TextEncoder().encode(`candidate-${index}`);
+    const assetHash = await sha256Hex(assetBytes);
+    store.set(assetHash, assetBytes);
+    const result: GenerateExtendResult = {
       schemaVersion: 1,
-      model: "htdemucs_6s-1",
-      stems: [
-        { role: "drums", asset: fakeAssetHash("stem:drums") },
-        { role: "vocals", asset: fakeAssetHash("stem:vocals") },
-      ],
-      residual: fakeAssetHash("stem:residual"),
+      index,
+      asset: assetHash,
+      seed: 100 + index,
+      model: "fake",
+      modelVersion: "1.0.0",
+      passed: true,
+      qualityWarning: false,
+      seamScore: 0.2,
+      tempoError: 0.001,
+      spliceOffsetSamples: -48_000,
+      direction: "forward",
+      steps: [{ step: "sanity", passed: true, skipped: false, metrics: {} }],
+      ...patch,
     };
-    const outcome = await applyGeneratedAnalysis(
-      { songStore: fixture.store, history: fixture.history, now: () => NOW },
-      {
-        assetHash: accepted.assetHash,
-        stage: "separation",
-        blob: fakeAssetHash("blob:separation"),
-        json: separation,
-      },
-    );
-    expect(outcome.ok).toBe(true);
+    const blobBytes = new TextEncoder().encode(JSON.stringify(result));
+    const blobHash = await sha256Hex(blobBytes);
+    store.set(blobHash, blobBytes);
+    return { assetHash, blobHash, result };
+  }
 
-    const doc = document(fixture.store);
-    const section = doc.arrangement.sections.find((entry) => entry.id === accepted.sectionId);
-    const generated = doc.tracks.find((track) => track.role === "generated");
-    expect(generated).toBeUndefined();
-    expect(doc.sources.some((source) => source.id === accepted.sourceId)).toBe(true);
+  return {
+    platform,
+    songStore,
+    history,
+    flow,
+    audition,
+    realtime,
+    store,
+    submits,
+    cancelled,
+    analysed,
+    announced,
+    errors,
+    renderContext,
+    originalSections: built.project.arrangement.sections.length,
+    candidate,
+    partial(index, assetHash, blobHash, jobId = "job_EXTEND01") {
+      realtime.emit({
+        t: "job.partial",
+        jobId,
+        index,
+        outputs: {
+          assets: { [`candidate_${index}`]: assetHash },
+          blobs: { [`candidate_${index}`]: blobHash },
+        },
+      });
+    },
+    progress(pct, etaSec) {
+      realtime.emit({
+        t: "job.progress",
+        jobId: "job_EXTEND01",
+        stage: "extend",
+        pct,
+        ...(etaSec === undefined ? {} : { etaSec }),
+      });
+    },
+  };
+}
 
-    for (const [role, asset] of [
-      ["drums", fakeAssetHash("stem:drums")],
-      ["vocals", fakeAssetHash("stem:vocals")],
-      ["residual", fakeAssetHash("stem:residual")],
-    ] as const) {
-      const track = doc.tracks.find((entry) => entry.role === role);
-      expect(track, role).toBeDefined();
-      const lanes = section?.lanes ?? {};
-      const lane = track === undefined ? undefined : lanes[track.id];
-      expect(lane?.clips[0]?.asset, role).toBe(asset);
-    }
+function state(h: Harness): ExtendState {
+  return h.flow.store.getState();
+}
 
-    // One commit, labelled for the History panel.
-    expect(fixture.history.store.getState().commits.size).toBe(before + 1);
-    const head = fixture.history.store.getState().head;
-    expect(
-      head === null ? undefined : fixture.history.store.getState().commits.get(head)?.label,
-    ).toBe("Generated audio: separation");
+async function startForward(h: Harness, prompt?: string): Promise<void> {
+  const started = await h.flow.start({
+    direction: "forward",
+    bars: 8,
+    ...(prompt === undefined ? {} : { prompt }),
+  });
+  expect(started).toBe(true);
+}
+
+describe("the extend flow", () => {
+  it("renders a bar-aligned context, submits the preview job and opens the bar", async () => {
+    const h = await harness();
+    await startForward(h, "dreamy outro");
+
+    expect(h.renderContext).toHaveBeenCalledTimes(1);
+    const range = h.renderContext.mock.calls[0]?.[0] as { startTick: number; endTick: number };
+    expect(range.startTick % 3_840).toBe(0);
+    expect(range.endTick % 3_840).toBe(0);
+
+    const submit = h.submits[0];
+    expect(submit?.body.capability).toBe("generate.extend");
+    expect(submit?.body.priority).toBe("interactive");
+    expect(submit?.body.projectId).toBe("prj_EXTENDFLOWTEST00000000001");
+    expect(submit?.body.assets.context).toMatch(/^sha256:/);
+    expect(submit?.body.params).toMatchObject({
+      bars: 8,
+      overlapBars: 2,
+      direction: "forward",
+      tier: "preview",
+      n: 3,
+      prompt: "dreamy outro",
+    });
+    expect(submit?.body.params.context).toMatchObject({
+      bpm: 120,
+      timeSignature: [4, 4],
+      sectionKind: "outro",
+      seed: SEED,
+    });
+    expect(submit?.body.params.context.descriptors.length).toBeGreaterThan(0);
+
+    // The bar is open before the first candidate exists, with the job's queue status.
+    const group = h.audition.store.getState().group;
+    expect(group?.id).toBe("job_EXTEND01");
+    expect(group?.candidates).toEqual([]);
+    expect(state(h).phase).toBe("generating");
+    expect(h.realtime.topics()).toContain("job:job_EXTEND01");
+    expect(h.announced).toContain("Generating 3 ideas…");
   });
 
-  it("leaves the generated lane when separation has not reported", async () => {
-    const fixture = await openFixture();
-    const accepted = await acceptFirstCandidate(fixture);
-    const tag = {
+  it("streams candidates into one audition group and accepts one with analysis and HQ", async () => {
+    const h = await harness();
+    await startForward(h, "dreamy outro");
+
+    h.progress(0, 20);
+    expect(h.audition.store.getState().group?.queue).toEqual({ kind: "queued", etaSec: 20 });
+    h.progress(0.4, 12);
+    expect(h.audition.store.getState().group?.queue).toEqual({ kind: "generating", pct: 0.4 });
+
+    const first = await h.candidate(0);
+    h.partial(0, first.assetHash, first.blobHash);
+    await vi.waitFor(() => {
+      expect(h.audition.store.getState().group?.candidates).toHaveLength(1);
+    });
+    const idea = h.audition.store.getState().group?.candidates[0];
+    expect(idea?.status).toEqual({ kind: "preview" });
+    expect(idea?.doc).not.toBeNull();
+    // The first idea that can play starts playing (07 §6).
+    expect(h.audition.store.getState().selected).toBe(1);
+    expect(h.audition.store.getState().group?.queue).toBeUndefined();
+    expect(state(h).candidates).toBe(1);
+    expect(h.announced).toContain("Idea 1 ready");
+
+    const second = await h.candidate(1);
+    const third = await h.candidate(2);
+    h.partial(1, second.assetHash, second.blobHash);
+    h.partial(2, third.assetHash, third.blobHash);
+    await vi.waitFor(() => {
+      expect(h.audition.store.getState().group?.candidates).toHaveLength(3);
+    });
+    expect(h.audition.store.getState().warm).toEqual([1, 2, 3]);
+
+    // Every candidate is one model batch on HEAD that adds a generated section.
+    const candidateCommits = [...h.history.store.getState().commits.values()].filter(
+      (commit) => commit.state === "candidate" && commit.candidateGroup === "job_EXTEND01",
+    );
+    expect(candidateCommits).toHaveLength(3);
+    const snapshot = await h.history.readSnapshot(candidateCommits[0]?.id ?? "");
+    expect(snapshot?.arrangement.sections).toHaveLength(h.originalSections + 1);
+    expect(snapshot?.sources.some((source) => source.kind === "generated")).toBe(true);
+    expect(h.songStore.store.getState().doc?.arrangement.sections).toHaveLength(h.originalSections);
+
+    // Accept idea 2: HEAD moves, analysis is queued and the HQ re-render is submitted.
+    const ideaTwo = h.audition.store.getState().group?.candidates.find((entry) => entry.slot === 2);
+    expect(h.audition.select(2)).toBe(true);
+    await h.audition.accept();
+    expect(h.history.store.getState().head).toBe(ideaTwo?.id);
+    await vi.waitFor(() => {
+      expect(h.analysed).toEqual([{ hash: second.assetHash, profile: "standard" }]);
+      expect(h.submits).toHaveLength(2);
+    });
+    const hq = h.submits[1]?.body;
+    expect(hq?.priority).toBe("background");
+    expect(hq?.params).toMatchObject({ tier: "hq", n: 1, bars: 8 });
+    expect(hq?.params.context.seed).toBe(101);
+    expect(h.realtime.topics()).toContain(`asset:${second.assetHash}`);
+    expect(h.realtime.topics()).toContain("job:job_EXTEND02");
+
+    // An analysis stage of the accepted asset becomes one history commit.
+    const tag: TagResult = {
       schemaVersion: 1,
       genres: [{ label: "synthwave", score: 0.8 }],
       moods: [],
       instruments: [],
       descriptors: [],
     };
-    const outcome = await applyGeneratedAnalysis(
-      { songStore: fixture.store, history: fixture.history, now: () => NOW },
-      {
-        assetHash: accepted.assetHash,
-        stage: "tag",
-        blob: fakeAssetHash("blob:tag"),
-        json: tag,
-      },
-    );
-    expect(outcome.ok).toBe(true);
+    const tagBytes = new TextEncoder().encode(JSON.stringify(tag));
+    const tagHash = await sha256Hex(tagBytes);
+    h.store.set(tagHash, tagBytes);
+    h.realtime.emit({
+      t: "analysis.partial",
+      assetHash: second.assetHash,
+      stage: "tag",
+      blob: tagHash,
+    });
+    await vi.waitFor(() => {
+      expect(h.songStore.store.getState().doc?.meta.tags ?? []).toContain("synthwave");
+    });
 
-    const doc = document(fixture.store);
-    const generated = doc.tracks.find((track) => track.role === "generated");
-    expect(generated).toBeDefined();
-    const section = doc.arrangement.sections.find((entry) => entry.id === accepted.sectionId);
-    const lane = generated === undefined ? undefined : section?.lanes[generated.id];
-    expect(lane?.clips).toHaveLength(1);
-    expect(doc.meta.tags).toContain("synthwave");
+    // The HQ render arriving is announced; the document keeps the preview (documented deviation).
+    const hqAssetBytes = new TextEncoder().encode("hq-candidate");
+    const hqAsset = await sha256Hex(hqAssetBytes);
+    h.store.set(hqAsset, hqAssetBytes);
+    const hqResult = await h.candidate(0, { asset: hqAsset });
+    h.partial(0, hqResult.assetHash, hqResult.blobHash, "job_EXTEND02");
+    await vi.waitFor(() => {
+      expect(h.announced).toContain("The HQ version is ready");
+    });
   });
 
-  it("routes by asset hash and rejects an unknown asset", async () => {
-    const fixture = await openFixture();
-    const accepted = await acceptFirstCandidate(fixture);
-    const doc = document(fixture.store);
-    expect(generatedSourceFor(doc, accepted.assetHash)?.id).toBe(accepted.sourceId);
-    expect(generatedSourceFor(doc, fakeAssetHash("nope"))).toBeUndefined();
+  it("cancels the job when the ideas are discarded", async () => {
+    const h = await harness();
+    await startForward(h);
+    const first = await h.candidate(0);
+    h.partial(0, first.assetHash, first.blobHash);
+    await vi.waitFor(() => {
+      expect(h.audition.store.getState().group?.candidates).toHaveLength(1);
+    });
 
-    await expect(
-      applyGeneratedAnalysis(
-        { songStore: fixture.store, history: fixture.history, now: () => NOW },
-        {
-          assetHash: fakeAssetHash("nope"),
-          stage: "tag",
-          blob: fakeAssetHash("blob:tag"),
-          json: {},
-        },
-      ),
-    ).rejects.toThrow("no generated source");
+    await h.audition.discard();
+    expect(h.cancelled).toEqual(["job_EXTEND01"]);
+    expect(state(h).phase).toBe("cancelled");
+    expect(h.audition.store.getState().group).toBeNull();
+  });
+
+  it("shows a plain message for credits and busy errors", async () => {
+    const credits = await harness({
+      submitError: new ApiClientError("INSUFFICIENT_CREDITS", "no credits", 402),
+    });
+    await credits.flow.start({ direction: "forward", bars: 4 });
+    expect(state(credits).phase).toBe("failed");
+    expect(state(credits).message).toBe("You do not have enough credits for this one");
+    expect(credits.errors).toEqual(["You do not have enough credits for this one"]);
+    expect(credits.audition.store.getState().group).toBeNull();
+
+    const busy = await harness({
+      submitError: new ApiClientError("GENERATION_BUSY", "budget", 503),
+    });
+    await busy.flow.start({ direction: "forward", bars: 4 });
+    expect(state(busy).message).toBe("The generator is busy right now. Try again in a minute");
+  });
+
+  it("flags a candidate whose gates warned (09 §6)", async () => {
+    const h = await harness();
+    await startForward(h);
+    const warned = await h.candidate(0, { passed: false, qualityWarning: true });
+    h.partial(0, warned.assetHash, warned.blobHash);
+    await vi.waitFor(() => {
+      expect(h.audition.store.getState().group?.candidates).toHaveLength(1);
+    });
+    const candidate = h.audition.store.getState().group?.candidates[0];
+    expect(candidate?.warning).toBe("This one might not blend perfectly");
+  });
+
+  it("warms the pool once and reports a disabled server", async () => {
+    const h = await harness();
+    await expect(h.flow.warmup()).resolves.toBe("warm");
+    await expect(h.flow.warmup()).resolves.toBe("warm");
+
+    const disabled = await harness({ warmup: "disabled" });
+    await expect(disabled.flow.warmup()).resolves.toBe("disabled");
   });
 });

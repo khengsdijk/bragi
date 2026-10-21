@@ -13,8 +13,23 @@ export interface Rect {
 }
 
 export interface ProjectLike {
-  tracks: { id: string; name: string; mute: boolean; solo: boolean }[];
-  arrangement: { sections: { id: string; label: string; lengthTicks: number }[] };
+  tracks: { id: string; name: string; mute: boolean; solo: boolean; role?: string }[];
+  sources?: {
+    id: string;
+    kind: string;
+    workingAsset: string;
+    originalAsset?: string;
+    placement?: { sectionId: string };
+  }[];
+  arrangement: {
+    sections: {
+      id: string;
+      label: string;
+      kind?: string;
+      lengthTicks: number;
+      lanes?: Record<string, { clips: { id: string; asset: string }[] }>;
+    }[];
+  };
 }
 
 export interface CommitLike {
@@ -80,9 +95,37 @@ export interface Hooks {
         underruns: number;
         meters: Record<string, number>;
         error: string | null;
+        auditionSlot: number;
       };
     };
   };
+  /** The extend flow; `null` on a canvas without a generation host. */
+  readonly extend?: {
+    store: {
+      getState(): { phase: string; candidates: number; message?: string };
+    };
+  } | null;
+  /** The audition bar, when a stored song has one. */
+  readonly audition?: {
+    store: {
+      getState(): {
+        group: { id: string; kind: string } | null;
+        selected: number;
+        warm: number[];
+      };
+    };
+  } | null;
+  readonly history?: {
+    store: {
+      getState(): {
+        commits: Map<
+          string,
+          { id: string; state: string; label?: string; candidateGroup?: string }
+        >;
+        head: string | null;
+      };
+    };
+  } | null;
 }
 
 /**

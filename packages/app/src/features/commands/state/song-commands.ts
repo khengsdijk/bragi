@@ -160,3 +160,30 @@ export const SONG_COMMANDS: readonly Command[] = [
     run: (context) => context.actions.togglePlay(),
   },
 ];
+
+/**
+ * The AI commands that only exist while a generation host is configured (09 §4.2, 07 §4.2).
+ * The workspace adds them to the registry when the canvas can reach a generation worker, so the
+ * palette and the section menu never offer an action that cannot run.
+ */
+export const EXTEND_COMMANDS: readonly Command[] = [
+  {
+    id: "generation.extendForward",
+    label: "commands.generation.extendForward",
+    group: "generation",
+    keywords: ["extend", "continue", "outro", "longer", "ai"],
+    enabled: (context) =>
+      hasSection(context) &&
+      context.sectionCount > 0 &&
+      context.sectionIndex === context.sectionCount - 1,
+    run: (context) => context.actions.openExtend("forward"),
+  },
+  {
+    id: "generation.extendBackward",
+    label: "commands.generation.extendBackward",
+    group: "generation",
+    keywords: ["intro", "before", "start", "ai"],
+    enabled: (context) => hasSection(context) && context.sectionIndex === 0,
+    run: (context) => context.actions.openExtend("backward"),
+  },
+];

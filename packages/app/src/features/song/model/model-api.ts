@@ -19,6 +19,8 @@ export interface ModelApi {
   readonly diffDocs: typeof ModelWasm.diffDocs;
   /** Builds the candidate batch that places an accepted extend (09 §4.2). */
   readonly extendPlacement: typeof ModelWasm.extendPlacement;
+  /** The bar-aligned context span at one song edge (03 §9). */
+  readonly barAlignedContextRange: typeof ModelWasm.barAlignedContextRange;
   readonly freeDoc: typeof ModelWasm.freeDoc;
   /** How many handles are live; the tests use it to prove nothing leaks. */
   readonly docCount: typeof ModelWasm.docCount;

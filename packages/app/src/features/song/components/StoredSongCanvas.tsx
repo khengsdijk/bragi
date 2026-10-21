@@ -120,6 +120,15 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
   const [progress, setProgress] = useState<string | null>(null);
   const dispose = useRef<(() => void)[]>([]);
   const settings = useMemo(() => createSettingsStore(platform.localDb), [platform.localDb]);
+  /**
+   * One API and WebSocket client for generation, created once per opened song (not per render):
+   * the extend flow is memoised on this object, so a new one would dispose a running job.
+   */
+  const generation = useMemo(() => {
+    if (platform.api === undefined) return undefined;
+    return { platform, api: apiFor(platform), realtime: realtimeFor(platform) };
+  }, [platform]);
+  useEffect(() => () => generation?.realtime.close(), [generation]);
 
   useEffect(() => {
     void settings.load();
@@ -237,6 +246,7 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
         selection={selection}
         testHooks={wantsTestHooks(search)}
         onSelectionChange={onSelectionChange}
+        {...(generation === undefined ? {} : { generation })}
       />
     </>
   );

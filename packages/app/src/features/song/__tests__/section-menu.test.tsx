@@ -9,8 +9,8 @@ import { userEvent } from "@testing-library/user-event";
 import { type ReactNode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { CommandActions, CommandContext } from "../../commands/state/commands.js";
-import { SONG_COMMANDS } from "../../commands/state/song-commands.js";
+import type { Command, CommandActions, CommandContext } from "../../commands/state/commands.js";
+import { EXTEND_COMMANDS, SONG_COMMANDS } from "../../commands/state/song-commands.js";
 import { SectionMenu } from "../components/SectionMenu.js";
 
 // Radix menu uses pointer capture and scrollIntoView; jsdom has neither.
@@ -59,6 +59,7 @@ function actions(): CommandActions {
     setLocked: vi.fn(),
     loopSection: vi.fn(),
     openResize: vi.fn(),
+    openExtend: vi.fn(),
     openBrush: vi.fn(),
     splitAtPlayhead: vi.fn(),
     undo: vi.fn(),
@@ -90,10 +91,17 @@ interface HarnessProps {
   readonly onClose: () => void;
   readonly onSmartTransitionsChange: (value: boolean) => void;
   readonly returnFocus: HTMLElement;
+  readonly commands?: readonly Command[];
 }
 
 /** Like the workspace: closing the menu removes its anchor, so Radix unmounts the content. */
-function Harness({ ctx, onClose, onSmartTransitionsChange, returnFocus }: HarnessProps): ReactNode {
+function Harness({
+  ctx,
+  onClose,
+  onSmartTransitionsChange,
+  returnFocus,
+  commands = SONG_COMMANDS,
+}: HarnessProps): ReactNode {
   const [open, setOpen] = useState(true);
   return (
     <SectionMenu
@@ -102,7 +110,7 @@ function Harness({ ctx, onClose, onSmartTransitionsChange, returnFocus }: Harnes
         setOpen(false);
         onClose();
       }}
-      commands={SONG_COMMANDS}
+      commands={commands}
       context={ctx}
       smartTransitions={ctx.smartTransitions}
       onSmartTransitionsChange={onSmartTransitionsChange}
@@ -116,6 +124,7 @@ function renderMenu(
     readonly onClose?: () => void;
     readonly onSmartTransitionsChange?: (value: boolean) => void;
     readonly returnFocus?: HTMLElement;
+    readonly commands?: readonly Command[];
   } = {},
 ) {
   const returnFocus = options.returnFocus ?? document.createElement("button");
@@ -126,6 +135,7 @@ function renderMenu(
       onClose={options.onClose ?? (() => {})}
       onSmartTransitionsChange={options.onSmartTransitionsChange ?? (() => {})}
       returnFocus={returnFocus}
+      {...(options.commands === undefined ? {} : { commands: options.commands })}
     />,
   );
 }
@@ -169,6 +179,17 @@ describe("SectionMenu", () => {
     expect(screen.queryByRole("menuitem", { name: "Lock part from AI" })).toBeNull();
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Smooth new joins" }));
     expect(onSmartTransitionsChange).toHaveBeenCalledWith(false);
+  });
+
+  it("adds the AI extend actions for the song's edges", async () => {
+    const ctx = context({ sectionIndex: 4, sectionCount: 5 });
+    renderMenu(ctx, { commands: [...SONG_COMMANDS, ...EXTEND_COMMANDS] });
+    const forward = await screen.findByRole("menuitem", { name: "Continue with AI…" });
+    expect(forward.getAttribute("data-disabled")).toBeNull();
+    const backward = screen.getByRole("menuitem", { name: "Add an intro with AI…" });
+    expect(backward.getAttribute("data-disabled")).toBe("");
+    fireEvent.click(forward);
+    await waitFor(() => expect(ctx.actions.openExtend).toHaveBeenCalledWith("forward"));
   });
 
   it("closes on Escape and returns focus to the element that opened it", async () => {

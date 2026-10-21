@@ -27,7 +27,9 @@ function ownedElsewhere(target: EventTarget | null): boolean {
 function statusText(status: CandidateStatus): string {
   switch (status.kind) {
     case "queued":
-      return t("audition.status.queued");
+      return status.etaSec === undefined
+        ? t("audition.status.queued")
+        : t("audition.status.waiting", { seconds: Math.max(0, Math.round(status.etaSec)) });
     case "generating":
       return t("audition.status.generating", { pct: Math.round(status.pct * 100) });
     case "preview":
@@ -67,7 +69,9 @@ export function AuditionBar({ audition }: AuditionBarProps): ReactNode {
         audition.select(slot);
         return;
       }
-      if (event.key === "Escape" && group.kind === "compare") {
+      if (event.key === "Escape") {
+        // Escape closes the group; a candidate group's Discard is also how its job is cancelled
+        // (05 §4.4), a comparison commits nothing (07 §6).
         event.preventDefault();
         void audition.discard();
       }
@@ -120,6 +124,11 @@ export function AuditionBar({ audition }: AuditionBarProps): ReactNode {
             {statusText(candidate.status)}
           </Chip>
         ) : null}
+        {candidate?.warning === undefined ? null : (
+          <Chip tone="danger" accessibleLabel={candidate.warning} className="audition-warning">
+            {t("generation.extend.qualityWarning")}
+          </Chip>
+        )}
       </Button>
     );
   };
@@ -139,6 +148,11 @@ export function AuditionBar({ audition }: AuditionBarProps): ReactNode {
       </p>
       <div style={ROW}>
         {chip(0, t("audition.original"))}
+        <span role="status" data-testid="audition-queue">
+          {group.kind === "candidates" && group.queue !== undefined ? (
+            <Chip tone="neutral">{statusText(group.queue)}</Chip>
+          ) : null}
+        </span>
         {group.candidates.map((candidate) => chip(candidate.slot, candidate.label, candidate))}
       </div>
       <div style={{ ...ROW, marginInlineStart: "auto" }}>

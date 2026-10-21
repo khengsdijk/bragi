@@ -10,11 +10,13 @@
 import type {
   AuditionSlot,
   CandidateSlot,
+  ContextRange,
   EngineDelta,
   EngineHost,
   EngineState,
   ProjectJson,
 } from "@bragi/platform";
+import { renderContext as renderContextAudio } from "@bragi/platform";
 import type { Project } from "@bragi/schemas";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
@@ -80,6 +82,11 @@ export interface EngineController {
   release(slot: CandidateSlot): void;
   /** Crossfades to a warm slot at the same playhead; 0 returns to HEAD. */
   audition(slot: AuditionSlot): void;
+  /**
+   * Renders a tick range of the song as the 48 kHz context WAV generation conditions on
+   * (03 §9). Starts the engine if it is not running yet, so call it from a user gesture.
+   */
+  renderContext(range: ContextRange, tracks?: readonly string[] | "all"): Promise<Uint8Array>;
   dispose(): Promise<void>;
 }
 
@@ -264,6 +271,15 @@ export function createEngineController(options: EngineControllerOptions): Engine
     audition(slot) {
       store.setState({ auditionSlot: slot });
       engine?.audition(slot);
+    },
+    async renderContext(range, tracks = "all") {
+      options.primeEngine?.();
+      if (!(await ensure()) || engine === null) {
+        throw new Error("the audio engine is not available");
+      }
+      const doc = options.document();
+      if (doc === null) throw new Error("no song is open");
+      return renderContextAudio(engine, doc as unknown as ProjectJson, range, tracks);
     },
     async dispose() {
       unsubscribe?.();

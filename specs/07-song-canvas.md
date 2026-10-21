@@ -1,6 +1,6 @@
 # 07 — Song Canvas (single-song editor)
 
-Status: Draft v0.3 · Code: `packages/app/src/features/song/`, `packages/render-canvas/`
+Status: Draft v0.4 · Code: `packages/app/src/features/song/`, `packages/render-canvas/`
 
 The Song Canvas is where a song becomes visible and editable. It covers zoom levels **L2 (Song)** and **L3 (Moment)** from [00 §4](00-vision.md).
 
@@ -77,9 +77,11 @@ Each interaction lists **gesture → live preview → committed result**. The pr
 
 ### 4.2 Resizing and extending
 - **Drag a section's right edge.** The popover on release asks "How should it get longer?": **Loop** (repeat bars), **Stretch** (slower), or **✨ Continue with AI** (generate new bars in style). Shortening offers **Trim** or **✨ Condense** (AI re-composes a shorter version). The ghost preview shows the bar count ("+8 bars").
-- **Extend handle at song end (⟶):** drag right to reveal a "future" zone with a bar counter. On release: `generate.extend` with 3 candidates for the requested length. Max per drag is 3 minutes. For longer lengths, Bragi suggests long-form mode ([09 §4.5](09-generation.md)).
+- **Extend handle at song end (⟶):** opens "Make longer…" for `generate.extend` with 3 candidates for the requested length. Max per request is 3 minutes. For longer lengths, Bragi suggests long-form mode ([09 §4.5](09-generation.md)).
 - **Extend handle at song start:** same, for generating an intro.
 - **"+" between sections** (appears on hover in gaps): "Insert…" → Bridge, Breakdown, Build-up, Drop, Instrumental break, or a custom prompt. Each is a generation job conditioned on both neighbours.
+
+**As built in WP-2.7:** the handle is a small button at each song edge rather than a drag gesture. It opens a labelled popover ("Make longer…" / "Add an intro…") with the bar count (4, 8 or 16; default 8) and an optional prompt ("What should happen next?"), and Generate submits one `generate.extend` job. The same action is in the command palette ("Continue with AI…" / "Add an intro with AI…") and the section menu of the last or first part. A drag-to-reveal "future" zone with a live bar counter is not built; the popover replaces it. When the server reports no generation worker, the handle stays visible but Generate is disabled and says why (09 §5).
 
 ### 4.3 Lasso + prompt
 1. Draw the lasso over any combination of time and ribbons. It snaps to beats (to bars if the lasso spans more than 2 bars). Hold `Alt` to disable snapping.
@@ -149,6 +151,8 @@ In explain mode, clicking a point or section requests an Explanation ([06 §8](0
 - **More like this** creates a new candidate group seeded from the chosen candidate's params.
 - **Discard** marks all candidates discarded and returns to HEAD.
 - Only one candidate group is active at a time. Starting a new AI action while one is open asks the user to accept or discard first.
+
+**As built in WP-2.7:** a job that streams its candidates (an extend) opens the bar before the first idea exists. Until then the bar shows the job's queue status as one chip, from `etaSec` ("Waiting for a free generator… (~20 s)") and then `pct` ("Generating 40%"); each `partial` adds its idea as a slot, and the first playable idea starts playing. `Escape` discards a candidate group and cancels its job, like **Discard**. The HQ render is announced when it arrives; the accepted preview stays in the document until a model op can swap a source's asset (see `docs/wp/2.7.md`).
 
 ## 7. History panel (version tree)
 

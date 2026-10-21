@@ -15,6 +15,7 @@ function fakeAudition(group: AuditionGroup, warm: AuditionState["warm"], moreLik
     store,
     openCandidates: vi.fn(async () => true),
     openCompare: vi.fn(async () => true),
+    setQueue: vi.fn(),
     select: vi.fn((slot: AuditionSlot) => {
       store.setState({ selected: slot });
       return true;

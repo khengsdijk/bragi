@@ -36,8 +36,8 @@ import {
   type TrackRef,
 } from "../api/analysis-view.js";
 import { analysisBatch, createInitialProject, type InitialProject } from "../api/document.js";
-import { sha256Hex } from "../api/hash.js";
 import { asAnalysisStage, effectsForStage } from "../api/stage-effects.js";
+import { uploadAsset } from "../api/upload.js";
 
 /** The implemented stages of the `standard` profile (matches the API's DAG gate). */
 export const STANDARD_STAGES: readonly AnalysisStage[] = [
@@ -143,7 +143,6 @@ export function titleFromFilename(filename: string): string {
 /** Creates the flow. It registers one realtime handler; {@link UploadFlow.dispose} removes it. */
 export function createUploadFlow(deps: FlowDependencies): UploadFlow {
   const doFetch = deps.fetch ?? globalThis.fetch;
-  const hashBytes = deps.hash ?? sha256Hex;
   const now = deps.now ?? (() => new Date());
 
   let state: UploadState = { phase: "hashing", stagesDone: 0, stagesTotal: STANDARD_STAGES.length };
@@ -323,27 +322,26 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
       filename = file.name;
       title = titleFromFilename(file.name);
       try {
-        emit({ phase: "hashing" });
         const bytes = await file.bytes();
-        const hash = await hashBytes(bytes);
-        assetHash = hash;
-        await deps.platform.blobCache.put(bytes);
-        emit({ phase: "checking", assetHash: hash });
-
         const mime = guessMime(file.name);
-        const presign = await deps.api.presign({ hash, bytes: bytes.byteLength, mime });
-        if (!presign.exists) {
-          emit({ phase: "uploading" });
-          const put = await doFetch(presign.uploadUrl, {
-            method: "PUT",
-            headers: presign.headers,
-            body: bytes as unknown as BodyInit,
-          });
-          if (!put.ok) throw new Error(`the upload failed (${put.status})`);
-        }
-        // Complete even when the object already existed: this is what records
-        // this user's ownership (`user_assets`), which upload dedupe does not (05 §2).
-        await deps.api.complete(hash, mime);
+        const uploaded = await uploadAsset(
+          {
+            platform: deps.platform,
+            api: deps.api,
+            ...(deps.fetch === undefined ? {} : { fetch: deps.fetch }),
+            ...(deps.hash === undefined ? {} : { hash: deps.hash }),
+          },
+          bytes,
+          mime,
+          (phase, hash) => {
+            if (hash !== null) assetHash = hash;
+            emit({
+              phase,
+              ...(hash === null ? {} : { assetHash: hash }),
+            });
+          },
+        );
+        assetHash = uploaded.hash;
 
         // Submit first, subscribe second. The server grants this user the outputs of stages another
         // user's upload of the same bytes already finished while it handles the POST, and the
@@ -351,9 +349,9 @@ export function createUploadFlow(deps: FlowDependencies): UploadFlow {
         // those stages too early (404). A stage finishing between the POST and the `sub` is not
         // lost, the `sub` replays every finished stage (05 §3) and so does `getAnalyses`.
         emit({ phase: "queueing" });
-        await deps.api.postAnalyses(hash, "standard");
-        await replayFromServer(hash);
-        return { projectId: await waitForProject(), assetHash: hash };
+        await deps.api.postAnalyses(uploaded.hash, "standard");
+        await replayFromServer(uploaded.hash);
+        return { projectId: await waitForProject(), assetHash: uploaded.hash };
       } catch (error) {
         emit({
           phase: "failed",

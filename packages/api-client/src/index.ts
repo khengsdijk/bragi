@@ -9,6 +9,7 @@
  * Sessions are cookie-based on web (`credentials: "include"`) and may carry a
  * bearer token on desktop (05 §8); both are expressed by the options.
  */
+import type { GenerateExtendParams, JobOutputs } from "@bragi/schemas";
 
 /** The error envelope of 05 §2, as an exception. */
 export class ApiClientError extends Error {
@@ -88,6 +89,37 @@ export interface Meta {
   readonly features: Readonly<Record<string, boolean>>;
 }
 
+/** `interactive` jobs are polled before `background` ones (05 §4.1). */
+export type JobPriority = "interactive" | "background";
+
+/** What `POST /v1/jobs` answers with (05 §2, 09 §5). */
+export interface JobAccepted {
+  readonly jobId: string;
+  readonly status: string;
+  readonly createdAt: string;
+  readonly estimatedCredits?: number;
+}
+
+/**
+ * The `generate.extend` submit body (09 §4.2, 09 §5). The rendered context is the job's
+ * `assets.context`; the candidate count is in `params.n`.
+ */
+export interface GenerateExtendSubmit {
+  readonly capability: "generate.extend";
+  readonly priority: JobPriority;
+  readonly projectId: string;
+  readonly assets: { readonly context: string };
+  readonly params: GenerateExtendParams;
+}
+
+/**
+ * `POST /v1/generations/warmup` (09 §5): a cheap ping that loads the model. `disabled` means
+ * this server has no generation worker or back-end, so the UI hides the AI option.
+ */
+export interface WarmupResponse {
+  readonly status: "warming" | "warm" | "disabled";
+}
+
 /** How the API authenticates requests (ADR-0014). */
 export type AuthMode = "single-user" | "multi-user";
 
@@ -132,6 +164,15 @@ export interface ApiClient {
     items: readonly string[];
     enqueuedStages: readonly string[];
   }>;
+  /**
+   * Submits a generation job (05 §2, 09 §5). Typed for `generate.extend`: the params are the
+   * generated schema type, so a missing field is a compile error, not a 400.
+   */
+  submitJob(request: GenerateExtendSubmit): Promise<JobAccepted>;
+  /** Cancels a job the user no longer wants (05 §4.4); Discard and Escape use it. */
+  cancelJob(jobId: string): Promise<void>;
+  /** Warms the generation pool once per session (09 §5). */
+  warmupGeneration(): Promise<WarmupResponse>;
 }
 
 /** Creates the client. No request is made until a method is called. */
@@ -200,6 +241,11 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         cursor === undefined ? "/v1/library" : `/v1/library?cursor=${encodeURIComponent(cursor)}`,
       ),
     importLibrary: (items) => request("POST", "/v1/library/import", { items }),
+    submitJob: (job) => request<JobAccepted>("POST", "/v1/jobs", job),
+    async cancelJob(jobId) {
+      await request<unknown>("DELETE", `/v1/jobs/${encodeURIComponent(jobId)}`);
+    },
+    warmupGeneration: () => request<WarmupResponse>("POST", "/v1/generations/warmup"),
   };
 }
 
@@ -248,7 +294,15 @@ export type RealtimeMessage =
       readonly pct: number;
       readonly etaSec?: number;
     }
-  | { readonly t: "job.completed"; readonly jobId: string; readonly outputs: unknown }
+  | {
+      readonly t: "job.partial";
+      readonly jobId: string;
+      /** 0-based candidate index (05 §3); present when the gateway numbers the partial. */
+      readonly index?: number;
+      /** The worker's partial outputs verbatim, e.g. `assets.candidate_0` (09 §5). */
+      readonly outputs?: JobOutputs;
+    }
+  | { readonly t: "job.completed"; readonly jobId: string; readonly outputs: JobOutputs }
   | {
       readonly t: "job.failed";
       readonly jobId: string;

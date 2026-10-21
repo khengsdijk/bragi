@@ -117,6 +117,9 @@ export function SectionMenu({
       {item("section.makeLonger")}
       {item("section.makeShorter")}
       <MenuSeparator />
+      {item("generation.extendForward")}
+      {item("generation.extendBackward")}
+      <MenuSeparator />
       {item("section.applyBrush")}
       <MenuSeparator />
       <MenuCheckboxItem checked={smartTransitions} onCheckedChange={onSmartTransitionsChange}>
