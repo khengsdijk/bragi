@@ -90,7 +90,7 @@ The plan is a **small program**. Ops-only variants are instant. Variants with `g
 
 ## 4. LLM call
 
-- Calls an LLM through **OpenRouter** (OpenAI-compatible chat completions, key `OPENROUTER_API_KEY`, [ADR-0012](decisions/ADR-0012-describe-llm-client.md)) using OpenAI-format **tool calling** with a single tool `propose_edit_plan` whose input schema is the `EditPlan` JSON Schema (minus `planId` and the estimates).
+- Calls an LLM through **OpenRouter** (OpenAI-compatible chat completions, key `OPENROUTER_API_KEY`, [ADR-0012](decisions/ADR-0012-describe-llm-client.md)) using OpenAI-format **tool calling** with a single tool `propose_edit_plan` whose input schema is the `EditPlan` JSON Schema (minus `planId`, `notices` and the estimates). To keep the prompt inside §2's budget, the envelope stays strict but `ops` items are described loosely (`op` is an enum, the rest is free); §5 validates every op against its own schema. The op shapes the model needs are a generated `OP SHAPES` block in the user message, not a copy of the `Op` union.
 - **Model tiering** (configured in `config/planner.toml` as OpenRouter slugs, `vendor/model`; never hard-coded, and the owner may change them freely to trade quality against cost):
   - `fast` tier for short prompts that map to mix/fx edits (classified by a cheap heuristic: no generation verbs, region ≤ 1 track).
   - `smart` tier for everything else.
@@ -109,7 +109,8 @@ The plan is a **small program**. Ops-only variants are instant. Variants with `g
 
 ```
 LLM → EditPlan (raw)
-  → JSON Schema validation
+  → JSON Schema validation (each op against the schema its `op` discriminator selects,
+    so the repair round gets one precise error rather than the `Op` union's branches)
   → for each variant: dry-run all "ops" steps with bragi-model::apply on the snapshot (generated assets stubbed)
   → check credits ≤ user remaining and ≤ preferences.maxCredits
   → on failure: one repair round (send validation errors back to the LLM), then fail gracefully with a message
