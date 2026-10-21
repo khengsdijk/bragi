@@ -22,12 +22,32 @@ describe("planner tool schema", () => {
   it("describes ops items loosely with the offered op enum", () => {
     const defs = plannerToolSchema().$defs as Record<string, Record<string, unknown>>;
     const step = defs.PlanStep;
-    const properties = step?.properties as Record<string, Record<string, unknown>>;
+    const branches = step?.oneOf as Record<string, Record<string, unknown>>[];
+    const ops = branches?.[0];
+    const properties = ops?.properties as Record<string, Record<string, unknown>>;
     const items = properties.ops?.items as Record<string, unknown>;
     expect(items.additionalProperties).toBe(true);
     const op = (items.properties as Record<string, Record<string, unknown>>).op;
     expect(op?.enum).toEqual(plannerOpNames());
     expect(plannerOpNames().length).toBeLessThan(OP_NAMES.length);
+  });
+
+  it("names the four step kinds and their required keys", () => {
+    const defs = plannerToolSchema().$defs as Record<string, Record<string, unknown>>;
+    const branches = (defs.PlanStep?.oneOf ?? []) as Record<string, unknown>[];
+    const kinds = branches.map((branch) => {
+      const properties = branch.properties as Record<string, Record<string, unknown>>;
+      const kind = properties.kind as Record<string, unknown>;
+      return { kind: (kind.enum as string[])[0], required: branch.required as string[] };
+    });
+    expect(kinds).toEqual([
+      { kind: "ops", required: ["kind", "ops"] },
+      { kind: "generate", required: ["kind", "id", "capability", "params", "context"] },
+      { kind: "apply_generated", required: ["kind", "from", "placement"] },
+      { kind: "smooth", required: ["kind", "region", "tools"] },
+    ]);
+    // A generate step's params and the region/constraints are validated server-side, not here.
+    expect(branches[1]?.additionalProperties).toBe(true);
   });
 
   it("is far smaller than the full generated tool schema", () => {

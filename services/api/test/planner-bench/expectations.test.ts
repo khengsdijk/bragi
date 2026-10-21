@@ -1,7 +1,13 @@
 import type { EditPlan, Op, PlanStep, PlanVariant, Project, Region } from "@bragi/schemas";
 import { describe, expect, it } from "vitest";
 
-import { type Expectations, evaluateExpectations, leverOf, overReaches } from "./expectations.js";
+import {
+  type Expectations,
+  evaluateExpectations,
+  leverOf,
+  overReaches,
+  reachesOutsideRegion,
+} from "./expectations.js";
 import { loadFixture } from "./run.js";
 
 const PLAN_ID = "pln_01JAB5H7K8M9N0P1Q2R3S4T5V6";
@@ -333,6 +339,115 @@ describe("leverOf", () => {
     expect(leverOf("clip.update")).toBe("clip");
     expect(leverOf("section.resize")).toBe("arrangement");
     expect(leverOf("tempo.set")).toBe("song");
+  });
+});
+
+/** A generate + placement variant, generated inside `region`. */
+function generativeVariant(
+  label: string,
+  region: Region,
+  capability = "generate.inpaint",
+): PlanVariant {
+  return {
+    label,
+    description: `${label} variant`,
+    steps: [
+      {
+        kind: "generate",
+        id: "g1",
+        capability,
+        params: {},
+        context: {
+          before: { startTick: region.startTick - 3840, endTick: region.startTick },
+          after: { startTick: region.endTick, endTick: region.endTick + 3840 },
+          tracks: "all",
+        },
+      },
+      {
+        kind: "apply_generated",
+        from: "g1",
+        placement: { region, trackId: "trk_drums", mode: "replace" },
+      },
+    ],
+  };
+}
+
+describe("evaluateExpectations — generation", () => {
+  const gap: Region = { startTick: 23040, endTick: 30720, tracks: "all" };
+
+  it("requires and forbids generation", () => {
+    const generative = evaluate(plan([generativeVariant("Fill", gap)]), {
+      requiresGeneration: true,
+      atMostOneGenerativeVariant: true,
+      generationCapabilities: ["generate.inpaint"],
+    });
+    expect(failed(generative)).toEqual([]);
+    expect(generative.targets[0]?.levers.has("generation")).toBe(true);
+
+    const opsOnly = evaluate(plan([variant("Warm", step(clipFx()))]), {
+      requiresGeneration: true,
+      forbidsGeneration: true,
+    });
+    expect(failed(opsOnly)).toEqual(["requiresGeneration"]);
+  });
+
+  it("flags the wrong capability and more than one generative variant", () => {
+    const wrong = evaluate(plan([generativeVariant("Fill", gap)]), {
+      generationCapabilities: ["generate.transition"],
+    });
+    expect(failed(wrong)).toEqual(["generationCapabilities"]);
+
+    const two: EditPlan = {
+      ...plan([]),
+      variants: [generativeVariant("A", gap), generativeVariant("B", gap)],
+    };
+    const result = evaluate(two, { atMostOneGenerativeVariant: true });
+    expect(failed(result)).toEqual(["atMostOneGenerativeVariant"]);
+  });
+
+  it("flags generation outside the region unless the variant is song-wide", () => {
+    const outside: Region = { startTick: 30720, endTick: 46080, tracks: "all" };
+    const insideGap = evaluate(
+      plan([generativeVariant("Fill", gap)]),
+      { generationInsideRegion: true },
+      { region: gap },
+    );
+    expect(failed(insideGap)).toEqual([]);
+
+    const outsideGap = evaluate(
+      plan([generativeVariant("Fill", outside)]),
+      { generationInsideRegion: true },
+      { region: gap },
+    );
+    expect(failed(outsideGap)).toEqual(["generationInsideRegion"]);
+
+    const songWide: PlanVariant = { ...generativeVariant("Fill", outside), scope: "song" };
+    expect(
+      failed(evaluate(plan([songWide]), { generationInsideRegion: true }, { region: gap })),
+    ).toEqual([]);
+  });
+});
+
+describe("reachesOutsideRegion", () => {
+  const region: Region = { startTick: 23040, endTick: 30720, tracks: "all" };
+
+  it("counts a generate step outside the region as over-reach", () => {
+    expect(reachesOutsideRegion(generativeVariant("Fill", region), region)).toBe(false);
+    expect(
+      reachesOutsideRegion(
+        generativeVariant("Fill", { startTick: 0, endTick: 3840, tracks: "all" }),
+        region,
+      ),
+    ).toBe(true);
+    expect(
+      reachesOutsideRegion(
+        {
+          ...generativeVariant("Fill", { startTick: 0, endTick: 3840, tracks: "all" }),
+          scope: "song",
+        },
+        region,
+      ),
+    ).toBe(false);
   });
 });
 

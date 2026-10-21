@@ -130,6 +130,8 @@ fn reserialize_root(name: &str, value: Value) -> Result<Value, String> {
         "MacroCatalog" => reserialize::<g::MacroCatalog>(value),
         "Op" => reserialize::<g::Op>(value),
         "OpBatch" => reserialize::<g::OpBatch>(value),
+        "PlanExecuteRequest" => reserialize::<g::PlanExecuteRequest>(value),
+        "PlanExecuteResponse" => reserialize::<g::PlanExecuteResponse>(value),
         "PlanRequest" => reserialize::<g::PlanRequest>(value),
         "PreviewResult" => reserialize::<g::PreviewResult>(value),
         "Project" => reserialize::<g::Project>(value),

@@ -2,9 +2,9 @@
  * The planner service (06 §2–§5): policy pre-pass → classify → context → model → validate/repair
  * → `EditPlan` (or an `Explanation` for "Explain this").
  *
- * v1 offers ops-only plans: `estimatedCredits` and `estimatedSeconds` are zero because every ops
- * step applies instantly. Generation steps are part of the schema but rejected by validation until
- * WP-2.7 registers a capability.
+ * A plan is a menu of ops-only and (at most one) generative variants. `estimatedCredits` and
+ * `estimatedSeconds` price its generate steps (06 §3), and an over-budget plan is sent back to the
+ * model once before it fails (06 §5).
  */
 import type { EditPlan, Explanation, PlanRequest, PlanVariant } from "@bragi/schemas";
 
@@ -29,7 +29,17 @@ import { loadModelWasm } from "./wasm.js";
 
 /** The seam the route sees; tests inject a fake client and summariser. */
 export interface PlannerService {
-  plan(request: PlanRequest): Promise<EditPlan | Explanation>;
+  /**
+   * @param request the planner request
+   * @param budget what the user can spend, so an over-budget plan gets the repair round (06 §5)
+   */
+  plan(request: PlanRequest, budget?: PlanBudget): Promise<EditPlan | Explanation>;
+}
+
+/** What the caller knows about the user's credits (06 §5). */
+export interface PlanBudget {
+  /** Credits left today; absent means unlimited (single-user mode, 05 §9). */
+  remainingCredits?: number | undefined;
 }
 
 /** Everything the planner needs; assembled once at boot or per test. */
@@ -53,7 +63,7 @@ export class Planner implements PlannerService {
     this.deps = deps;
   }
 
-  async plan(request: PlanRequest): Promise<EditPlan | Explanation> {
+  async plan(request: PlanRequest, budget: PlanBudget = {}): Promise<EditPlan | Explanation> {
     const classification = classify(request);
     if (classification.explainIntent) {
       return explain(request, {
@@ -63,6 +73,7 @@ export class Planner implements PlannerService {
       });
     }
 
+    const maxCredits = creditLimit(request, budget);
     const policy = applyPolicy(request.prompt, request.libraryNames ?? []);
     const summary = await this.deps.summarizer.summarize(request.doc, {
       ...(request.region === undefined ? {} : { region: request.region }),
@@ -95,7 +106,13 @@ export class Planner implements PlannerService {
     });
     let parsed = parsePlan(first);
     let validation = parsed.ok
-      ? await this.validate(parsed.value, request, classification.songWideIntent, policy.names)
+      ? await this.validate(
+          parsed.value,
+          request,
+          classification.songWideIntent,
+          policy.names,
+          maxCredits,
+        )
       : undefined;
 
     if (validation !== undefined && validation.policyViolation !== undefined) {
@@ -113,7 +130,7 @@ export class Planner implements PlannerService {
             "That plan was rejected:",
             ...errors.map((error) => `- ${error}`),
             "",
-            'Return only a corrected JSON object. Every step must be { "kind": "ops", "ops": [...] }, stay inside the requested region, and leave locked sections alone.',
+            "Return only a corrected JSON object: the same shape as before, every step valid, inside the requested region, and away from locked sections. What the song cannot do is in the error list; do not repeat it.",
           ].join("\n"),
         },
       );
@@ -126,7 +143,13 @@ export class Planner implements PlannerService {
       });
       parsed = parsePlan(second);
       validation = parsed.ok
-        ? await this.validate(parsed.value, request, classification.songWideIntent, policy.names)
+        ? await this.validate(
+            parsed.value,
+            request,
+            classification.songWideIntent,
+            policy.names,
+            maxCredits,
+          )
         : undefined;
       if (validation !== undefined && validation.policyViolation !== undefined) {
         throw new ApiError("PROMPT_POLICY", validation.policyViolation);
@@ -149,12 +172,14 @@ export class Planner implements PlannerService {
     request: PlanRequest,
     songWideIntent: boolean,
     blockedNames: readonly string[],
+    maxCredits: number | undefined,
   ): Promise<PlanValidation> {
     return validateRawPlan(raw, {
       request,
       model: this.deps.model,
       songWideIntent,
       blockedNames,
+      maxCredits,
     });
   }
 
@@ -169,11 +194,23 @@ export class Planner implements PlannerService {
       interpretation: plan.interpretation,
       ...(plan.clarification === undefined ? {} : { clarification: plan.clarification }),
       variants: variantTuple(validation.variants),
-      estimatedCredits: 0,
-      estimatedSeconds: 0,
+      estimatedCredits: validation.estimate.estimatedCredits,
+      estimatedSeconds: validation.estimate.estimatedSeconds,
       notices: [...notices, ...dropped],
     };
   }
+}
+
+/**
+ * The plan's credit ceiling: the remaining daily allowance and `preferences.maxCredits`,
+ * whichever is lower (06 §5).
+ */
+function creditLimit(request: PlanRequest, budget: PlanBudget): number | undefined {
+  const preference = request.preferences?.maxCredits;
+  const remaining = budget.remainingCredits;
+  if (preference === undefined) return remaining;
+  if (remaining === undefined) return preference;
+  return Math.min(preference, remaining);
 }
 
 /** Parses the tool arguments or the plain-text JSON reply. */

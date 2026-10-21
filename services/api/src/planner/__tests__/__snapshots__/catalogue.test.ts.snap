@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`capability catalogue > matches the generated DSP catalogues 1`] = `
+exports[`capability catalogue > matches the generated DSP catalogues and capability schemas 1`] = `
 {
   "fx": {
     "chorus": {
@@ -268,7 +268,64 @@ exports[`capability catalogue > matches the generated DSP catalogues 1`] = `
       },
     },
   },
-  "generation": [],
+  "generation": {
+    "capabilities": {
+      "generate.extend": {
+        "cost": "2/30s per candidate",
+        "params": {
+          "bars": 8,
+          "context": {
+            "key": {
+              "mode": "minor",
+              "tonic": "A",
+            },
+          },
+          "direction": "forward",
+          "n": 3,
+          "overlapBars": 2,
+          "prompt": "half-time drums",
+          "seed": 1234,
+          "tier": "preview",
+        },
+        "use": "the song must get longer or gain an intro; repeating a section is usually cheaper",
+      },
+      "generate.inpaint": {
+        "cost": "2/30s per candidate",
+        "params": {
+          "context": {
+            "key": {
+              "mode": "minor",
+              "tonic": "A",
+            },
+          },
+          "gapBars": 4,
+          "n": 3,
+          "overlapBars": 2,
+          "prompt": "half-time drums",
+          "seed": 1234,
+          "tier": "preview",
+        },
+        "use": "a silent, erased or empty stretch inside the song must be filled",
+      },
+      "generate.transition": {
+        "cost": "1/candidate",
+        "params": {
+          "context": {
+            "key": {
+              "mode": "minor",
+              "tonic": "A",
+            },
+          },
+          "lengthBars": 2,
+          "n": 3,
+          "prompt": "half-time drums",
+          "seed": 1234,
+          "tier": "preview",
+        },
+        "use": "a section boundary does not flow and a crossfade is not enough",
+      },
+    },
+  },
   "macros": {
     "brightness": {
       "max": 1,

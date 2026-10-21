@@ -38,8 +38,8 @@ All endpoints are under `/v1`, JSON, and authenticated (session cookie on web, b
 | `GET /projects/{id}/commits?since={cursor}` | Commits after cursor (sync pull) |
 | `POST /projects/{id}/commits` | Push commits (sync push). Snapshots uploaded as assets first. |
 | `PUT /projects/{id}/refs` | Compare-and-swap ref update: `{ expected, next }` |
-| `POST /plans` | Planner: `{ projectId, commitId, region?, prompt, uiContext }` → `EditPlan` ([06](06-ai-planner.md)) |
-| `POST /plans/{id}/execute` | Runs the plan's generative steps as jobs and returns `{ jobIds }` |
+| `POST /plans` | Planner: `{ projectId, commitId, region?, prompt, uiContext }` → `EditPlan` ([06](06-ai-planner.md)). A plan with variants is stored (`plans`, §5) so it can be executed by id. |
+| `POST /plans/{id}/execute` | Runs the chosen variants' `generate` steps as interactive jobs ([06 §5](06-ai-planner.md)): body `{ variants?: number[], contexts: { <stepId>: { context?, before?, after? } } }` (the rendered context assets), answer `{ jobs: [{ variant, stepId, jobId, capability, status, estimatedCredits }] }`. 400 for a bad index or missing context asset, 404 for an unknown/expired plan or an unowned asset, 402/503 as for a job submit. |
 | `POST /jobs` | Direct job submission for UI actions that skip the planner (e.g. "Extend 16 bars"). The params are validated against the capability's schema (`generate.extend` has one; analysis capabilities keep the worker-side check), generation inputs must be assets the user owns, and generation submits also check credits and the GPU budget (§9). |
 | `GET /jobs/{id}` / `DELETE /jobs/{id}` | Status (including `paused`, §9) / cancel |
 | `POST /generations/warmup` | `→ 202 { status: "warming" \| "warm" \| "disabled" }`: the cheap model load of 09 §5. Idempotent; `disabled` when no generation worker runs against this environment. |
@@ -49,7 +49,7 @@ All endpoints are under `/v1`, JSON, and authenticated (session cookie on web, b
 | `POST /universe/path` | `{ from, to, mode: "playlist"\|"generate", steps }` |
 | `GET /usage` | Credits used/remaining |
 
-Error format: `{ error: { code: "QUOTA_EXCEEDED", message, details? } }`. Codes are stable and listed in `packages/schemas/api/errors.json`. A generation submit that fails its params is `400 VALIDATION_FAILED` (the message names the field), an unaffordable one is `402 INSUFFICIENT_CREDITS` (`details: { required, used, allowance }`) and one past the daily GPU budget is `503 GENERATION_BUSY` (§9).
+Error format: `{ error: { code: "QUOTA_EXCEEDED", message, details? } }`. Codes are stable and listed in `packages/schemas/api/errors.json`. A generation submit that fails its params is `400 VALIDATION_FAILED` (the message names the field), an unaffordable one is `402 INSUFFICIENT_CREDITS` (`details: { required, used, allowance }`) and one past the daily GPU budget is `503 GENERATION_BUSY` (§9). `POST /plans` and `POST /plans/{id}/execute` answer the same way: an over-budget plan or execution is `402`, a spent GPU budget `503`, and an unowned context asset `404`.
 
 ## 3. WebSocket protocol
 
@@ -139,9 +139,10 @@ job_results(idempotency_key pk, outputs jsonb, created_at)
 embeddings(id, asset_hash, scope text /*song|section|stem*/, scope_ref text, model text, vec vector(512))  -- HNSW index on vec
 library_layouts(user_id, lens, version, blob_hash, updated_at, primary key(user_id, lens))
 usage_ledger(id, user_id, job_id, credits numeric, capability, tier, reason, created_at)
+plans(id pk, user_id, plan jsonb, created_at, expires_at)                   -- proposed plans awaiting execute (06 §5)
 ```
 
-`jobs.status` is `queued | running | paused | done | failed | cancelled`; `paused` is a generation job the budget guard recorded but did not enqueue (§9). `usage_ledger.capability` and `.tier` say what the credits bought; `tier` is null for capabilities without latency tiers.
+`jobs.status` is `queued | running | paused | done | failed | cancelled`; `paused` is a generation job the budget guard recorded but did not enqueue (§9). `usage_ledger.capability` and `.tier` say what the credits bought; `tier` is null for capabilities without latency tiers. `plans` rows are the planner's proposals; execute reads one by id for 24 hours (`expires_at`) and an expired row is a `404`, never a second execution path.
 - Embeddings are keyed by **asset**, not by user, so identical audio is embedded once. Access is controlled through `user_assets`.
 - Search queries join `embeddings` → `user_assets` (user's own) → `library_items`.
 - **Better Auth owns `user`, `session`, `account` and `verification`** (05 §8); the `users(...)` row above is Better Auth's `user` plus the application's `plan` and `settings` columns. The API's migrations create all four tables (WP-0.7).

@@ -10,6 +10,7 @@
  * runs under a strict CSP (specs/01-architecture.md §10).
  */
 
+export * from "./generated/capabilities.js";
 export * from "./generated/fx-catalog.js";
 export * from "./generated/macros.js";
 export * from "./generated/planner.js";

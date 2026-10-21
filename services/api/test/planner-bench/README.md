@@ -57,8 +57,9 @@ synthetic arrangements with invented names; no audio and no copyrighted material
 | `paper-lanterns.json` | 3 tracks, 4 sections, no analysis (the sparse case). |
 | `hostile-names.json` | The sparse song with prompt-injection text in a track name and a section label. |
 
-`cases.json` has 43 ops-only cases. Regions are absolute ticks and section-aligned, because the
-validator attributes a lane change to its whole section span. The families are:
+`cases.json` has 49 cases: the 43 ops-only ones and six `gen-*` ones that allow or require one
+generative variant. Regions are absolute ticks and section-aligned, because the validator
+attributes a lane change to its whole section span. The ops-only families are:
 
 - **fx/macro in a region** (`fx-*`): warmer, brighter, more space, punchier, quieter, filter sweep,
   lo-fi, a macro, and the same on the sparse fixture. These expect `onlyOpKinds`, the selected
@@ -74,6 +75,10 @@ validator attributes a lane change to its whole section span. The families are:
 - **content policy** (`policy-*`): five prompts from `policy-prompts.json`; each expects a
   "described" notice and no artist name in the plan body (the notice itself names what it
   described).
+
+The `gen-*` cases are the generation half (WP-2.8): a gap fill, a boundary bridge, an extend, an
+ops-only prompt that must not generate, and the same two capabilities on different regions. They
+require a fixture with an analysis summary (the key), which is why they all use `night-shift`.
 
 ## Expectation keys
 
@@ -95,9 +100,14 @@ run offline on hand-written plans.
 | `forbiddenText` | None appears in the interpretation, clarification or variants (notices excluded). |
 | `containsText` | Every string appears in the interpretation or variants. |
 | `interpretationExcludesDropped` | When validation dropped a variant, the interpretation neither names it nor talks about "options"/"variants". |
+| `requiresGeneration` / `forbidsGeneration` | At least one / no variant has a `generate` step. |
+| `atMostOneGenerativeVariant` | At most one variant has a `generate` step (system prompt rule 2). |
+| `generationCapabilities` | Every `generate` step's capability is in the list. |
+| `generationInsideRegion` | A non-`scope: "song"` variant's gap/boundary and placement stay inside the region (the context ranges may reach outside: they are read-only). |
 
 ## Offline smoke test
 
-`pnpm --filter @bragi/api test` runs `run.test.ts`, which replays three recorded cases
-(`arr-remove-section`, `mix-mute-texture`, `policy-jackson`) with `--dry` and asserts that they are
-valid, pass their expectations and have zero over-reach. The smoke test never touches the network.
+`pnpm --filter @bragi/api test` runs `run.test.ts`, which replays four recorded cases
+(`arr-duplicate-section`, `mix-mute-texture`, `policy-jackson`, `gen-fill-intro-gap`) with `--dry`
+and asserts that they are valid, pass their expectations and have zero over-reach. The generative
+case covers the generate/apply_generated path offline. The smoke test never touches the network.

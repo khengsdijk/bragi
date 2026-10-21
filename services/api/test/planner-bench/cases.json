@@ -1,5 +1,5 @@
 {
-  "$comment": "Ops-only planner bench cases (06 \u00a79). Regions are absolute ticks and always section-aligned so the validator's section-span region discipline can accept a time-limited plan. Generated from the fixtures in fixtures/; see README.md.",
+  "$comment": "Planner bench cases (06 \u00a79). Regions are absolute ticks and always section-aligned so the validator's section-span region discipline can accept a time-limited plan. The gen-* cases allow or require one generative variant (docs/wp/2.8.md task C); the rest are ops-only. Generated from the fixtures in fixtures/; see README.md.",
   "cases": [
     {
       "id": "fx-warm-drums",
@@ -377,7 +377,7 @@
       "expectations": {
         "minVariants": 1,
         "scopeSong": true,
-        "onlyOpKinds": ["section.resize"],
+        "onlyOpKinds": ["section.resize", "section.set_transition", "section.duplicate"],
         "containsText": ["loop"]
       }
     },
@@ -393,7 +393,7 @@
       "expectations": {
         "minVariants": 1,
         "scopeSong": true,
-        "onlyOpKinds": ["section.resize", "section.set_transition"]
+        "onlyOpKinds": ["section.resize", "section.split", "section.remove", "section.set_transition"]
       }
     },
     {
@@ -827,6 +827,134 @@
         "minVariants": 1,
         "noticeContains": ["described"],
         "forbiddenText": ["Beyonc\u00e9"]
+      }
+    },
+    {
+      "id": "gen-fill-gap",
+      "fixture": "night-shift",
+      "prompt": "fill the silence in bars 9-12 with something that fits",
+      "region": {
+        "startTick": 30720,
+        "endTick": 46080,
+        "tracks": "all"
+      },
+      "uiContext": {
+        "view": "moment",
+        "selectedTrackIds": [],
+        "selectedSectionIds": ["sec_verse1"]
+      },
+      "expectations": {
+        "minVariants": 1,
+        "requiresGeneration": true,
+        "generationCapabilities": ["generate.inpaint"],
+        "atMostOneGenerativeVariant": true,
+        "generationInsideRegion": true,
+        "interpretationExcludesDropped": true
+      }
+    },
+    {
+      "id": "gen-smooth-chorus",
+      "fixture": "night-shift",
+      "prompt": "make the chorus transition smoother with AI",
+      "region": {
+        "startTick": 180480,
+        "endTick": 192000,
+        "tracks": "all"
+      },
+      "uiContext": {
+        "view": "moment",
+        "selectedTrackIds": [],
+        "selectedSectionIds": ["sec_chorus2"]
+      },
+      "expectations": {
+        "minVariants": 1,
+        "requiresGeneration": true,
+        "generationCapabilities": ["generate.transition"],
+        "atMostOneGenerativeVariant": true,
+        "generationInsideRegion": true
+      }
+    },
+    {
+      "id": "gen-extend-outro",
+      "fixture": "night-shift",
+      "prompt": "extend the outro by 8 bars",
+      "uiContext": {
+        "view": "song",
+        "selectedTrackIds": [],
+        "selectedSectionIds": []
+      },
+      "expectations": {
+        "minVariants": 1,
+        "scopeSong": true,
+        "generationCapabilities": ["generate.extend"],
+        "atMostOneGenerativeVariant": true
+      }
+    },
+    {
+      "id": "gen-fill-intro-gap",
+      "fixture": "night-shift",
+      "prompt": "there's a silent stretch at the start of the intro, fill it with something that matches",
+      "region": {
+        "startTick": 7680,
+        "endTick": 15360,
+        "tracks": "all"
+      },
+      "uiContext": {
+        "view": "moment",
+        "selectedTrackIds": [],
+        "selectedSectionIds": ["sec_intro"]
+      },
+      "expectations": {
+        "minVariants": 1,
+        "requiresGeneration": true,
+        "generationCapabilities": ["generate.inpaint"],
+        "atMostOneGenerativeVariant": true,
+        "generationInsideRegion": true
+      }
+    },
+    {
+      "id": "gen-abrupt-verse-chorus",
+      "fixture": "night-shift",
+      "prompt": "the verse into the chorus feels abrupt, smooth it with AI",
+      "region": {
+        "startTick": 88320,
+        "endTick": 96000,
+        "tracks": "all"
+      },
+      "uiContext": {
+        "view": "moment",
+        "selectedTrackIds": [],
+        "selectedSectionIds": ["sec_chorus1"]
+      },
+      "expectations": {
+        "minVariants": 1,
+        "requiresGeneration": true,
+        "generationCapabilities": ["generate.transition"],
+        "atMostOneGenerativeVariant": true,
+        "generationInsideRegion": true
+      }
+    },
+    {
+      "id": "gen-ops-first",
+      "fixture": "night-shift",
+      "prompt": "make the bass a bit louder and tighter",
+      "region": {
+        "startTick": 30720,
+        "endTick": 92160,
+        "tracks": ["trk_bass"]
+      },
+      "uiContext": {
+        "view": "moment",
+        "selectedTrackIds": ["trk_bass"],
+        "selectedSectionIds": ["sec_verse1"]
+      },
+      "expectations": {
+        "minVariants": 1,
+        "forbidsGeneration": true,
+        "onlyOpKinds": ["fx.add", "fx.update", "automation.set", "track.update"],
+        "touchesOnlyTracks": ["trk_bass"],
+        "insideRegion": true,
+        "timeLimited": true
       }
     }
   ]

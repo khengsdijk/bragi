@@ -31,7 +31,7 @@ Defined in `services/workers/generate/capabilities.yaml` and exported to the pla
 
 Every capability's params are defined as JSON Schema in `packages/schemas/jobs/capabilities/<capability>.schema.json`.
 
-The API charges the "Credits (initial)" column through `config/credits.toml` (05 §9): a "per 30 s" cost is charged per candidate on the requested new audio, rounded up per started 30 s; a flat cost is charged once per job. `generate.extend` at 30 s therefore costs 2 per preview candidate and 2 for the HQ re-render.
+The API charges the "Credits (initial)" column through `config/credits.toml` (05 §9): a "per 30 s" cost is charged per candidate on the requested new audio, rounded up per started 30 s; a "flat" cost is charged once per job; a "per candidate" cost (a transition) is charged once per candidate, whatever its length. `generate.extend` at 30 s therefore costs 2 per preview candidate and 2 for the HQ re-render, `generate.inpaint` is charged on its gap (not on the two rendered contexts) and a transition costs 1 per candidate.
 
 ### 2.1 Common conditioning block (all capabilities)
 ```ts

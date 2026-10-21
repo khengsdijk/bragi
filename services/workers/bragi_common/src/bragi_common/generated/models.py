@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum, IntEnum, StrEnum
 from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 class AiAuthorKind(StrEnum):
     ai = 'ai'
@@ -406,6 +406,67 @@ class ErrorCode(StrEnum):
     PLAN_INVALID = 'PLAN_INVALID'
     PROMPT_POLICY = 'PROMPT_POLICY'
     INTERNAL = 'INTERNAL'
+
+
+class ExecuteContext(BaseModel):
+    """
+    The assets one generate step was rendered with. Only the keys its capability declares are accepted.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    context: Annotated[
+        AssetHash | None,
+        Field(
+            description='The single rendered context of `generate.extend` (inputs.assets.context).'
+        ),
+    ] = None
+    before: Annotated[
+        AssetHash | None,
+        Field(
+            description='The outgoing side of a two-sided capability (inputs.assets.before).'
+        ),
+    ] = None
+    after: Annotated[
+        AssetHash | None,
+        Field(
+            description='The incoming side of a two-sided capability (inputs.assets.after).'
+        ),
+    ] = None
+
+
+type ExecuteContextMap = Annotated[
+    dict[Annotated[str, StringConstraints(min_length=1, max_length=64)], ExecuteContext],
+    Field(
+        description='Rendered context assets per generate step id.',
+        title='ExecuteContextMap',
+    ),
+]
+
+
+class ExecuteJobStatus(StrEnum):
+    """
+    `queued` for an executed plan: execute is interactive, so a spent GPU budget is a 503 rather than a paused job (05 §9).
+    """
+
+    queued = 'queued'
+    paused = 'paused'
+
+
+type ExecuteVariantIndex = Annotated[
+    int,
+    Field(
+        description="0-based index into the plan's `variants`; the plan's own length is the upper bound, so an out-of-range index is a 400 that names it.",
+        ge=0,
+        title='ExecuteVariantIndex',
+    ),
+]
+
+
+type ExecuteVariantList = Annotated[
+    list[ExecuteVariantIndex], Field(max_length=3, title='ExecuteVariantList')
+]
 
 
 class ExtendDirection(StrEnum):
@@ -890,6 +951,23 @@ class PlacementMode(StrEnum):
     replace = 'replace'  # type: ignore[assignment]
     layer = 'layer'
     insert = 'insert'
+
+
+class PlanExecuteRequest(BaseModel):
+    """
+    The body of `POST /v1/plans/{planId}/execute` (06 §5): which variants to run, and the context audio the client rendered and uploaded for every generate step. The plan itself is stored server-side from `POST /v1/plans`, so the client never posts it back. `contexts` is keyed by the generate step's `id`; a `generate.extend` step needs `context`, `generate.inpaint` and `generate.transition` need `before` and `after` (09 §2.1).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    variants: Annotated[
+        ExecuteVariantList | None,
+        Field(
+            description="Indexes into the stored plan's `variants` (0-based). Omitted means every variant that has a generate step."
+        ),
+    ] = None
+    contexts: ExecuteContextMap
 
 
 type PlanId = Annotated[
@@ -1823,6 +1901,27 @@ class ErrorBody(BaseModel):
     details: FreeformParams | None = None
 
 
+class ExecuteJob(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    variant: ExecuteVariantIndex
+    stepId: Annotated[str, Field(min_length=1)]
+    jobId: JobId
+    capability: Annotated[str, Field(min_length=1)]
+    status: ExecuteJobStatus
+    estimatedCredits: Annotated[
+        float,
+        Field(
+            description='What this job was charged, from the credit table (05 §9).',
+            ge=0.0,
+        ),
+    ]
+
+
+type ExecuteJobList = Annotated[list[ExecuteJob], Field(title='ExecuteJobList')]
+
+
 class ExtendKeyMatch(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -2284,6 +2383,17 @@ class NewTrack(BaseModel):
     )
     name: Annotated[str, Field(min_length=1)]
     role: StemRole
+
+
+class PlanExecuteResponse(BaseModel):
+    """
+    The answer of `POST /v1/plans/{planId}/execute` (06 §5): one interactive generation job per generate step of the chosen variants. `variant` is the index into the stored plan, so the client can attach each job's partials to the right candidate commit.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    jobs: ExecuteJobList
 
 
 class PlannerUiContext(BaseModel):
@@ -3114,7 +3224,7 @@ class GenerateInpaintParams(BaseModel):
 
 class GenerateStep(BaseModel):
     """
-    A generation job (09). Not offered in v1.
+    A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, descriptors, seed) except `key`, which the model reads from the summary (06 §3).
     """
 
     model_config = ConfigDict(
@@ -3424,7 +3534,7 @@ class SeparationResult(BaseModel):
 
 class SmoothStep(BaseModel):
     """
-    Seam smoothing tools compiled client-side (03 §8.2). Not offered in v1.
+    Seam smoothing tools compiled client-side (03 §8.2).
     """
 
     model_config = ConfigDict(
@@ -3839,7 +3949,7 @@ class AnalysisApplyOp(BaseModel):
 
 class ApplyGeneratedStep(BaseModel):
     """
-    Turns a generation job's output into clip ops (06 §3). Not offered in v1.
+    Turns a generation job's output into clip ops (06 §3). Every generate step needs one in the same variant, naming it with `from`.
     """
 
     model_config = ConfigDict(
@@ -4114,7 +4224,7 @@ class Commit(BaseModel):
 
 class EditPlan(BaseModel):
     """
-    A plan the planner offers as 1–3 variants (06 §3). v1 only executes `ops` steps; the other kinds are part of the contract for WP-2.7.
+    A plan the planner offers as 1–3 variants (06 §3). Ops steps apply instantly; a variant with a `generate` step becomes interactive jobs when the client executes the plan (06 §5).
     """
 
     model_config = ConfigDict(
@@ -4191,6 +4301,8 @@ ROOT_TYPES: tuple[str, ...] = (
     "MacroCatalog",
     "Op",
     "OpBatch",
+    "PlanExecuteRequest",
+    "PlanExecuteResponse",
     "PlanRequest",
     "PreviewResult",
     "Project",

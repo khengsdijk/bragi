@@ -48,6 +48,7 @@ import {
   type Expectations,
   evaluateExpectations,
   overReaches,
+  reachesOutsideRegion,
 } from "./expectations.js";
 
 /** The repository root, resolved from this file in source and in a copied build. */
@@ -366,7 +367,14 @@ export async function runBench(options: BenchOptions = {}): Promise<BenchSummary
     }
   }
 
-  if (options.record === true) saveRecordings(recorded, config.models.fast, startedAt);
+  if (options.record === true) {
+    saveRecordings(
+      recorded,
+      config.models.fast,
+      startedAt,
+      allCases.map((benchCase) => benchCase.id),
+    );
+  }
 
   const summary: BenchSummary = {
     model: config.models.fast,
@@ -601,7 +609,10 @@ function findOverReach(
     try {
       const { before, after } = dryRunVariant(variant, request, model);
       const diff = diffDocuments(before, after);
-      if (overReaches(diff, variant, request.region)) {
+      if (
+        overReaches(diff, variant, request.region) ||
+        reachesOutsideRegion(variant, request.region)
+      ) {
         reasons.push(`variant ${index + 1} "${variant.label}" reaches outside the region`);
       }
     } catch (failure) {
@@ -752,6 +763,7 @@ function parseExpectations(value: unknown, where: string): Expectations {
       case "noticeContains":
       case "forbiddenText":
       case "containsText":
+      case "generationCapabilities":
         expectations[key] = stringList(raw, `${where}.${key}`);
         break;
       case "insideRegion":
@@ -759,6 +771,10 @@ function parseExpectations(value: unknown, where: string): Expectations {
       case "asksClarification":
       case "scopeSong":
       case "interpretationExcludesDropped":
+      case "requiresGeneration":
+      case "forbidsGeneration":
+      case "atMostOneGenerativeVariant":
+      case "generationInsideRegion":
         if (typeof raw !== "boolean") throw new Error(`${where}.${key}: boolean needed`);
         expectations[key] = raw;
         break;
@@ -817,14 +833,27 @@ function loadRecordings(path = RECORDINGS_PATH): Recordings {
   return raw as unknown as Recordings;
 }
 
-/** Writes the recordings, merging with cases this run did not cover. */
+/**
+ * Writes the recordings, merging with cases this run did not cover.
+ *
+ * @param recorded replies by case id
+ * @param model the model that produced them
+ * @param recordedAt the run's start
+ * @param caseIds the cases that exist now; a renamed or removed case's replies are dropped, so the
+ *   file cannot accumulate entries nothing selects
+ */
 function saveRecordings(
   recorded: Map<string, RecordedReply[]>,
   model: string,
   recordedAt: string,
+  caseIds: readonly string[],
 ): void {
   const existing = loadRecordings();
-  const cases = { ...existing.cases };
+  const known = new Set(caseIds);
+  const cases: Record<string, { replies: RecordedReply[] }> = {};
+  for (const [id, entry] of Object.entries(existing.cases)) {
+    if (known.has(id)) cases[id] = entry;
+  }
   for (const [id, replies] of recorded) cases[id] = { replies };
   const document: Recordings = { version: 1, model, recordedAt, cases };
   mkdirSync(dirname(RECORDINGS_PATH), { recursive: true });

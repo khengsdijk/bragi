@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlanExecuteRequest",
+  "description": "The body of `POST /v1/plans/{planId}/execute` (06 §5): which variants to run, and the context audio the client rendered and uploaded for every generate step. The plan itself is stored server-side from `POST /v1/plans`, so the client never posts it back. `contexts` is keyed by the generate step's `id`; a `generate.extend` step needs `context`, `generate.inpaint` and `generate.transition` need `before` and `after` (09 §2.1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contexts"],
+  "properties": {
+    "variants": {
+      "description": "Indexes into the stored plan's `variants` (0-based). Omitted means every variant that has a generate step.",
+      "$ref": "#/$defs/ExecuteVariantList"
+    },
+    "contexts": { "$ref": "#/$defs/ExecuteContextMap" }
+  },
+  "$defs": {
+    "ExecuteVariantList": {
+      "type": "array",
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/ExecuteVariantIndex" }
+    },
+    "ExecuteVariantIndex": {
+      "description": "0-based index into the plan's `variants`; the plan's own length is the upper bound, so an out-of-range index is a 400 that names it.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "ExecuteContextMap": {
+      "description": "Rendered context assets per generate step id.",
+      "type": "object",
+      "propertyNames": { "type": "string", "minLength": 1, "maxLength": 64 },
+      "additionalProperties": { "$ref": "#/$defs/ExecuteContext" }
+    },
+    "ExecuteContext": {
+      "description": "The assets one generate step was rendered with. Only the keys its capability declares are accepted.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "description": "The single rendered context of `generate.extend` (inputs.assets.context).",
+          "$ref": "../song/common.schema.json#/$defs/AssetHash"
+        },
+        "before": {
+          "description": "The outgoing side of a two-sided capability (inputs.assets.before).",
+          "$ref": "../song/common.schema.json#/$defs/AssetHash"
+        },
+        "after": {
+          "description": "The incoming side of a two-sided capability (inputs.assets.after).",
+          "$ref": "../song/common.schema.json#/$defs/AssetHash"
+        }
+      }
+    }
+  }
+}

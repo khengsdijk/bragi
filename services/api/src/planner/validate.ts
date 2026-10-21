@@ -3,9 +3,11 @@
  *
  * The model's reply is data: JSON Schema first, then a dry run of every ops step through
  * `bragi-model` on a fresh handle, then region discipline over the diff between the document
- * before and after the dry run. In v1 a non-`ops` step is rejected because no generation
- * capability is offered yet. Invalid variants are dropped when at least one valid variant remains;
- * the planner's one repair round handles the rest.
+ * before and after the dry run. Generation steps are checked against their capability's schema,
+ * their `ContextSpec` (inside the song, on whole bars, not on a locked section) and the placement
+ * they feed; the server fills the parts of `params.context` the song already knows
+ * (`generation.ts`). Invalid variants are dropped when at least one valid variant remains; the
+ * planner's one repair round handles the rest.
  *
  * Region discipline is computed from the **document diff**, not from the ops alone: the diff knows
  * which tracks and section spans actually changed, including track-level fx chains (which have no
@@ -24,6 +26,18 @@ import {
   validateProject,
 } from "@bragi/schemas";
 
+import { type CreditsConfig, creditsConfig } from "../jobs/credits.js";
+import {
+  estimatePlan,
+  extendScopeErrors,
+  type GenerationInput,
+  generationRegionErrors,
+  generationStep,
+  hasGeneration,
+  type PlanEstimate,
+  placementErrors,
+  smoothErrors,
+} from "./generation.js";
 import { opShapeErrors } from "./opErrors.js";
 import { blockedNamesIn } from "./policy.js";
 
@@ -47,12 +61,14 @@ export interface PlanValidation {
   ok: boolean;
   /** Human-readable reasons, suitable for the repair round. */
   errors: string[];
-  /** The variants that passed, in the model's order. */
+  /** The variants that passed, in the model's order, with their generation context filled. */
   variants: PlanVariant[];
   /** Variants that were dropped because another variant survived. */
   dropped: DroppedVariant[];
   /** Set when a generation prompt named a blocked artist or title (10 §7). */
   policyViolation?: string;
+  /** What the surviving variants cost and how long they take (06 §3); zero when none survive. */
+  estimate: PlanEstimate;
 }
 
 /** Options for {@link validateRawPlan}. */
@@ -63,6 +79,13 @@ export interface ValidateOptions {
   songWideIntent: boolean;
   /** Artist/title names from the pre-pass, blocked in generation prompts. */
   blockedNames: readonly string[];
+  /**
+   * The most credits the user can spend on this plan: the remaining daily allowance and
+   * `preferences.maxCredits`, whichever is lower (06 §5). Absent means unlimited.
+   */
+  maxCredits?: number | undefined;
+  /** The credit table, so the estimate is the price the execute route will charge. */
+  credits?: CreditsConfig;
 }
 
 /** A tag span in absolute ticks. */
@@ -90,6 +113,13 @@ export async function validateRawPlan(
   raw: unknown,
   options: ValidateOptions,
 ): Promise<PlanValidation> {
+  const empty: PlanValidation = {
+    ok: false,
+    errors: [],
+    variants: [],
+    dropped: [],
+    estimate: { estimatedCredits: 0, estimatedSeconds: 0 },
+  };
   // The tool schema is `EditPlan` minus the server-owned fields (06 §4), so validate the reply
   // with those fields filled in. The values are overwritten in the final plan either way.
   const candidate =
@@ -101,6 +131,12 @@ export async function validateRawPlan(
           estimatedSeconds: 0,
         }
       : raw;
+  // The plan is data: a generation prompt that names an artist is refused before anything else is
+  // looked at, so a malformed step cannot hide the policy violation (10 §7).
+  const violation = rawPolicyViolation(candidate, options.blockedNames);
+  if (violation !== undefined) {
+    return { ...empty, errors: [violation], policyViolation: violation };
+  }
   // Ops are checked one schema at a time first: the plan-level `Op` union would otherwise report
   // every branch's missing properties at once (opErrors.ts). The plan check that follows then only
   // needs to report envelope problems.
@@ -108,31 +144,56 @@ export async function validateRawPlan(
   const planValid = validateEditPlan(candidate);
   if (!planValid || shapes.errors.length > 0) {
     const envelope = planValid ? [] : validationErrors(validateEditPlan.errors, shapes.paths);
-    return {
-      ok: false,
-      errors: [...shapes.errors, ...envelope].slice(0, 12),
-      variants: [],
-      dropped: [],
-    };
+    return { ...empty, errors: [...shapes.errors, ...envelope].slice(0, 12) };
   }
   const plan = candidate;
   const kept: PlanVariant[] = [];
   const dropped: DroppedVariant[] = [];
   const errors: string[] = [];
+  const generationInput: GenerationInput = {
+    doc: options.request.doc,
+    ...(options.request.region === undefined ? {} : { region: options.request.region }),
+    ...(options.request.sectionFeatures === undefined
+      ? {}
+      : { features: options.request.sectionFeatures }),
+  };
+
+  // At most one variant may generate (06 §4 rule 1, system prompt v4). A plan that offers three
+  // generative ideas is three model calls the user did not ask for; the ops-only variants are the
+  // cheap ones and are always allowed. Step ids are plan-wide because execute keys the rendered
+  // context by step id (06 §5).
+  const generative = plan.variants.filter(hasGeneration);
+  const stepIds = new Map<string, number>();
+  for (const variant of plan.variants) {
+    for (const step of variant.steps) {
+      if (step.kind === "generate") stepIds.set(step.id, (stepIds.get(step.id) ?? 0) + 1);
+    }
+  }
+  const duplicates = [...stepIds].filter(([, count]) => count > 1).map(([id]) => id);
+  const planErrors = [
+    ...(generative.length > 1
+      ? [
+          `${generative.length} variants generate audio; at most one variant per plan may use a generate step.`,
+        ]
+      : []),
+    ...(duplicates.length === 0
+      ? []
+      : [
+          `the generate step id "${duplicates[0]}" is used twice in the plan; ids must be unique across variants.`,
+        ]),
+  ];
 
   for (const variant of plan.variants) {
-    const problems = inspectVariant(variant, options);
+    const problems = inspectVariant(variant, options, generationInput);
     if (problems.policyViolation !== undefined) {
       return {
-        ok: false,
+        ...empty,
         errors: [problems.policyViolation],
-        variants: [],
-        dropped: [],
         policyViolation: problems.policyViolation,
       };
     }
-    if (problems.errors.length === 0) {
-      kept.push(variant);
+    if (problems.errors.length === 0 && planErrors.length === 0) {
+      kept.push(problems.variant ?? variant);
     } else {
       errors.push(...problems.errors.map((error) => `Variant "${variant.label}": ${error}`));
       dropped.push({ label: variant.label, reason: problems.errors.join(" ") });
@@ -141,32 +202,41 @@ export async function validateRawPlan(
 
   if (kept.length === 0) {
     if (plan.variants.length === 0 && plan.clarification !== undefined) {
-      return { ok: true, errors: [], variants: [], dropped: [] };
+      return { ...empty, ok: true };
     }
     if (plan.variants.length === 0) {
-      return {
-        ok: false,
-        errors: ["The plan has no variants and no clarification."],
-        variants: [],
-        dropped: [],
-      };
+      return { ...empty, errors: ["The plan has no variants and no clarification."] };
     }
-    return { ok: false, errors, variants: [], dropped };
+    return { ...empty, errors: [...planErrors, ...errors], dropped };
   }
 
-  return { ok: true, errors, variants: kept, dropped };
+  const credits = options.credits ?? creditsConfig();
+  const estimate = estimatePlan(kept, credits);
+  if (options.maxCredits !== undefined && estimate.estimatedCredits > options.maxCredits) {
+    return {
+      ...empty,
+      errors: [
+        `That plan needs ${estimate.estimatedCredits} credits, but only ${options.maxCredits} are available today.`,
+      ],
+      dropped,
+    };
+  }
+
+  return { ok: true, errors, variants: kept, dropped, estimate };
 }
 
-/** Validates one variant, returning its region, lock, dry-run and structural problems. */
+/** Validates one variant, returning its step, region, lock, dry-run and structural problems. */
 function inspectVariant(
   variant: PlanVariant,
   options: ValidateOptions,
-): { errors: string[]; policyViolation?: string } {
+  input: GenerationInput,
+): { errors: string[]; variant?: PlanVariant; policyViolation?: string } {
   const errors: string[] = [];
-  const ops: PlanStep[] = variant.steps;
+  const steps: PlanStep[] = [];
+  const generated = new Map<string, PlanStep & { kind: "generate" }>();
+  const placed = new Set<string>();
 
-  for (const step of ops) {
-    if (step.kind === "ops") continue;
+  for (const [index, step] of variant.steps.entries()) {
     if (step.kind === "generate") {
       const prompt = step.params.prompt;
       if (typeof prompt === "string") {
@@ -178,17 +248,53 @@ function inspectVariant(
           };
         }
       }
+      if (generated.has(step.id)) {
+        errors.push(`step ${index + 1} reuses the generate step id "${step.id}".`);
+      }
+      const checked = generationStep(step, input);
+      errors.push(...checked.errors);
+      generated.set(step.id, checked.step);
+      steps.push(checked.step);
+      continue;
     }
-    errors.push(
-      `A ${step.kind} step is not available in v1; this build offers ops-only plans. Use { "kind": "ops", "ops": [...] }.`,
-    );
+    if (step.kind === "apply_generated") {
+      const source = generated.get(step.from);
+      if (source === undefined) {
+        errors.push(
+          `step ${index + 1} takes its audio from "${step.from}", which is not an earlier generate step.`,
+        );
+      } else {
+        errors.push(...placementErrors(step, source, options.request.doc));
+        placed.add(source.id);
+      }
+      steps.push(step);
+      continue;
+    }
+    if (step.kind === "smooth") {
+      errors.push(...smoothErrors(step, options.request.doc));
+      steps.push(step);
+      continue;
+    }
+    steps.push(step);
   }
-  if (errors.length > 0) return { errors };
+
+  for (const id of generated.keys()) {
+    if (!placed.has(id)) {
+      errors.push(
+        `generate step "${id}" is never placed: add an apply_generated step with from "${id}".`,
+      );
+    }
+  }
+
+  const normalised: PlanVariant = { ...variant, steps: stepList(steps) };
+  errors.push(...extendScopeErrors(normalised));
+  errors.push(...generationRegionErrors(normalised, options.request.region));
+  if (errors.length > 0) return { errors, variant: normalised };
 
   let before: Project;
   let after: Project;
   try {
-    ({ before, after } = dryRunVariant(variant, options.request, options.model));
+    ({ before, after } = dryRunVariant(normalised, options.request, options.model));
   } catch (error) {
     return {
       errors: [
@@ -196,13 +302,27 @@ function inspectVariant(
           error instanceof Error ? error.message : String(error)
         }`,
       ],
+      variant: normalised,
     };
   }
 
   const diff = diffDocuments(before, after);
   return {
-    errors: regionErrors(diff, variant, options.request, options.songWideIntent),
+    errors: regionErrors(diff, normalised, options.request, options.songWideIntent),
+    variant: normalised,
   };
+}
+
+/**
+ * The validated steps as the schema's non-empty list.
+ *
+ * A variant always has at least one step and inspection maps one to one, so this can only fail
+ * on a programming error.
+ */
+function stepList(steps: PlanStep[]): PlanVariant["steps"] {
+  const [first, ...rest] = steps;
+  if (first === undefined) throw new Error("a variant lost all of its steps in validation");
+  return [first, ...rest];
 }
 
 /** Applies a variant's ops to a fresh handle and returns the canonical before/after documents. */
@@ -222,6 +342,9 @@ export function dryRunVariant(
     // serialiser; comparing the request's JS object with the model's output would report field
     // order and default normalisation as edits.
     const before = parseDocument(model.documentJson(handle));
+    // A variant made only of generation steps changes the document when its audio is placed,
+    // which is the client's job; there is nothing to dry-run.
+    if (ops.length === 0) return { before, after: before };
     const batch = {
       id: "bat_planner",
       author: { kind: "system", reason: "planner dry run" },
@@ -235,6 +358,34 @@ export function dryRunVariant(
   } finally {
     model.freeDoc(handle);
   }
+}
+
+/**
+ * The first artist or song name any generation prompt names, before validation (10 §7).
+ *
+ * Every prompt is checked here, even in a plan that would fail its schema: the content policy is
+ * not a repair-round detail.
+ */
+function rawPolicyViolation(raw: unknown, blockedNames: readonly string[]): string | undefined {
+  if (!isRecord(raw) || !Array.isArray(raw.variants)) return undefined;
+  for (const variant of raw.variants) {
+    if (!isRecord(variant) || !Array.isArray(variant.steps)) continue;
+    for (const step of variant.steps) {
+      if (!isRecord(step) || step.kind !== "generate") continue;
+      const prompt = isRecord(step.params) ? step.params.prompt : undefined;
+      if (typeof prompt !== "string") continue;
+      const names = blockedNamesIn(prompt, blockedNames);
+      if (names.length > 0) {
+        return `The plan named "${names[0]}" in a generation prompt; artist and song names are not allowed (10 §7).`;
+      }
+    }
+  }
+  return undefined;
+}
+
+/** A plain object, not an array or null. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Parses and validates one document coming out of the model. */

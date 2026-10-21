@@ -9,6 +9,7 @@
 import type { Project, Region, SectionFeatures } from "@bragi/schemas";
 
 import { type CapabilityCatalogue, catalogueText } from "./catalogue.js";
+import { generationShapesText } from "./generation.js";
 import { PlannerUnavailableError } from "./openrouter.js";
 import { opShapesText } from "./opSchemas.js";
 import { loadModelWasm } from "./wasm.js";
@@ -101,10 +102,12 @@ export function buildUserMessage(input: {
 }): string {
   const features = sectionFeaturesText(input.sectionFeatures);
   return [
-    "CAPABILITIES (IDs and ranges; no generation in v1)",
+    "CAPABILITIES (IDs, ranges and prices)",
     catalogueText(input.catalogue),
     "",
     opShapesText(),
+    "",
+    generationShapesText(),
     "",
     "SONG AND ANALYSIS",
     input.summary.trim(),

@@ -33,6 +33,8 @@ describe("config/credits.toml", () => {
     const config = creditsConfig();
     expect(config.windowSec).toBe(30);
     expect(config.capabilities["generate.extend"]).toEqual({ per30s: 2 });
+    expect(config.capabilities["generate.inpaint"]).toEqual({ per30s: 2 });
+    expect(config.capabilities["generate.transition"]).toEqual({ perCandidate: 1 });
     expect(config.capabilities["generate.text2music"]).toEqual({ flat: 10 });
     expect(config.multiUserDailyCredits).toBeGreaterThan(0);
   });
@@ -45,7 +47,7 @@ describe("config/credits.toml", () => {
         capabilities: { "generate.extend": { per30s: 2, flat: 1 } },
         daily: { multi_user_credits: 50 },
       }),
-    ).toThrow(/exactly one of per30s or flat/);
+    ).toThrow(/exactly one of per30s, per_candidate or flat/);
   });
 });
 
@@ -84,6 +86,30 @@ describe("the extend credit formula", () => {
     const flat = { ...EXTEND, bars: 64, n: 4 };
     expect(creditCharge("generate.text2music", flat, config).credits).toBe(10);
     expect(creditCharge("analysis.separation", flat, config).credits).toBe(0);
+  });
+
+  it("prices an inpaint on its gap, not on its contexts", () => {
+    const config = creditsConfig();
+    const inpaint = { ...EXTEND, bars: undefined, gapBars: 4, overlapBars: 1, n: 3 };
+    // 4 bars at 120 BPM in 4/4 is 8 s: one started window per candidate.
+    expect(creditCharge("generate.inpaint", inpaint, config)).toEqual({
+      credits: 6,
+      tier: "preview",
+    });
+    // 32 bars is 64 s: three windows per candidate.
+    expect(
+      creditCharge("generate.inpaint", { ...inpaint, gapBars: 32, n: 1 }, config).credits,
+    ).toBe(6);
+  });
+
+  it("prices a transition per candidate, independent of its length", () => {
+    const config = creditsConfig();
+    const transition = { ...EXTEND, bars: undefined, lengthBars: 4, n: 3 };
+    expect(creditCharge("generate.transition", transition, config)).toEqual({
+      credits: 3,
+      tier: "preview",
+    });
+    expect(creditCharge("generate.transition", { ...transition, n: 1 }, config).credits).toBe(1);
   });
 
   it("does not outrageously price malformed params (they never reach here)", () => {
