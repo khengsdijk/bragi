@@ -20,7 +20,7 @@
 //! | `transport(cmd, value)` | main thread, drained in the worklet |
 //! | `state_words()` | AudioWorklet, written into the SharedArrayBuffer |
 //! | `render(start, frames, block)` | offline render in a worker |
-//! | `export_frame(jobJson)` | WAV/FLAC mixdown or stems, one binary export frame |
+//! | `export_frame(jobJson)` | WAV/FLAC mixdown, stems or context, one binary export frame |
 //! | `peaks(hash)` | waveform pyramids for the canvas |
 //!
 //! `process` uses `wasm-bindgen`'s `&mut [f32]` conversion, which copies into and
@@ -282,9 +282,10 @@ impl EngineWasm {
         render(self.engine.plan(), &self.pcm, &options).samples
     }
 
-    /// Runs a `mixdown` or `stems` render job (03 §9) and returns one export
-    /// frame (`ExportResult::to_frame`) holding the encoded WAV/FLAC files.
-    /// `job_json` is the host's `RenderJob`.
+    /// Runs a `mixdown`, `stems` or `context` render job (03 §9) and returns
+    /// one export frame (`ExportResult::to_frame`) holding the encoded files.
+    /// `job_json` is the host's `RenderJob`; `context` is the 32-bit float
+    /// `context.wav` of WP-2.7.
     ///
     /// The same encoders run on the desktop, so a WASM export is byte-identical
     /// to a native one (the conformance harness asserts it).

@@ -13,13 +13,17 @@ mod common;
 use bragi_engine::decode::decode_bytes;
 use bragi_engine::export::md5::Md5;
 use bragi_engine::export::{
-    AudioFormat, ExportError, ExportMeta, ExportOptions, StemSelection, encode_flac, encode_wav,
-    export_mixdown, export_stems, run_job,
+    AudioFormat, CONTEXT_FILE_NAME, ExportError, ExportMeta, ExportOptions, StemSelection,
+    encode_flac, encode_wav, export_context, export_mixdown, export_stems, run_job,
 };
 use bragi_engine::offline::null_level_dbfs;
 use bragi_engine::pcm::{MemoryPcm, PcmBuffer};
-use bragi_engine::plan::compile;
-use common::{assets, clip_none, hash, lane, project, section, track_with};
+use bragi_engine::plan::{RenderPlan, compile, tick_to_sample};
+use bragi_model::TempoCtx;
+use bragi_model::generated::{TempoCurve, TempoPoint, TickRange};
+use common::{
+    assets, clip_none, fx_instance, hash, lane, pcm as memory_pcm, project, section, track_with,
+};
 use serde_json::json;
 
 const FRAMES: usize = 144_000; // 3 s at 48 kHz = 6 beats at 120 bpm = 5760 ticks
@@ -62,7 +66,7 @@ fn working_asset(frames: usize, seed: u64, amplitude: f32) -> PcmBuffer {
     decoded.into_pcm_buffer()
 }
 
-fn one_clip_project(buffer_frames: usize) -> bragi_engine::RenderPlan {
+fn one_clip_project(buffer_frames: usize) -> RenderPlan {
     let h = hash('a');
     let doc = project(
         vec![track_with("trk_01", 0.0, 0.0, false, false)],
@@ -239,7 +243,7 @@ fn metadata_survives_in_both_containers() {
     }
 }
 
-fn three_track_plan() -> (bragi_engine::RenderPlan, MemoryPcm) {
+fn three_track_plan() -> (RenderPlan, MemoryPcm) {
     let (ha, hb, hc) = (hash('a'), hash('b'), hash('c'));
     let frames = 96_000usize;
     let doc = project(
@@ -396,6 +400,302 @@ fn run_job_reads_the_host_json() {
         json!({ "kind": "mixdown", "format": { "container": "wav", "bits": 24 },
                 "normalize": { "lufs": -14, "truePeakDb": -1 } }),
         json!({ "kind": "mixdown", "format": { "container": "flac", "bits": 32 } }),
+    ] {
+        assert!(run_job(&plan, &pcm, &bad).is_err(), "{bad}");
+    }
+}
+
+fn context_plan(
+    tempo: Vec<TempoPoint>,
+    length_ticks: u64,
+    frames: usize,
+) -> (RenderPlan, MemoryPcm) {
+    let h = hash('a');
+    let mut doc = project(
+        vec![track_with("trk_01", 0.0, 0.0, false, false)],
+        vec![section(
+            "sec_a",
+            length_ticks,
+            json!({ "trk_01": lane(vec![clip_none("clp_a", &h, 0, frames as u64, 0)]) }),
+        )],
+    );
+    doc.arrangement.timebase.tempo_map.0 = tempo;
+    let plan = compile(&doc, &assets(&h, frames as u64), 48_000, 1).unwrap();
+    let mut pcm = MemoryPcm::new();
+    pcm.insert(h, PcmBuffer::new(synthetic(frames, 7, 0.3), 2, 48_000));
+    (plan, pcm)
+}
+
+/// WP-2.7: a context render is the exact tick range, converted through the
+/// tempo map and cut to the sample.
+#[test]
+fn context_cuts_the_range_exactly_through_the_tempo_map() {
+    let cases = [
+        // 120 bpm throughout: 3 s, 144 000 frames, range 0.75..2.25 s.
+        (
+            vec![TempoPoint {
+                tick: 0,
+                bpm: 120.0,
+                curve: TempoCurve::Step,
+            }],
+            5760u64,
+            144_000usize,
+        ),
+        // 120 bpm for 2880 ticks, then 60 bpm: 1.5 s + 1.5 s = 3 s.
+        (
+            vec![
+                TempoPoint {
+                    tick: 0,
+                    bpm: 120.0,
+                    curve: TempoCurve::Step,
+                },
+                TempoPoint {
+                    tick: 2880,
+                    bpm: 60.0,
+                    curve: TempoCurve::Step,
+                },
+            ],
+            4320u64,
+            144_000usize,
+        ),
+    ];
+    for (tempo, length_ticks, frames) in cases {
+        let (plan, pcm) = context_plan(tempo, length_ticks, frames);
+        let range = TickRange {
+            start_tick: 1440,
+            end_tick: 4320.min(length_ticks as i64),
+        };
+        let file = export_context(&plan, &pcm, &range, &StemSelection::All).unwrap();
+        assert_eq!(file.name, CONTEXT_FILE_NAME);
+
+        let tempo = TempoCtx::new(&plan.tempo_points, plan.ppq);
+        let start = tick_to_sample(&tempo, 48_000, range.start_tick);
+        let end = tick_to_sample(&tempo, 48_000, range.end_tick);
+        assert_eq!(file.frames as i64, end - start);
+
+        let whole = decode(
+            &export_mixdown(
+                &plan,
+                &pcm,
+                &ExportOptions::new(AudioFormat::Wav { bits: 32 }, ExportMeta::bare()),
+            )
+            .unwrap(),
+            "wav",
+        );
+        let cut = decode(&file, "wav");
+        let level = null_level_dbfs(&cut, &whole[start as usize * 2..end as usize * 2]);
+        println!("context cut at {start}..{end}: {level} dBFS");
+        assert!(level <= -130.0, "context cut nulls at {level} dBFS");
+    }
+}
+
+/// An explicit track list renders those tracks only: it equals the sum of the
+/// tracks rendered one by one, keeps mute, and ignores solo.
+#[test]
+fn context_track_subset_sums_and_respects_mute() {
+    let (plan, pcm) = three_track_plan();
+    let range = TickRange {
+        start_tick: 0,
+        end_tick: 3840,
+    };
+    let render = |plan: &RenderPlan, tracks: &[&str]| {
+        let selection = StemSelection::Tracks(tracks.iter().map(|id| (*id).to_string()).collect());
+        decode(
+            &export_context(plan, &pcm, &range, &selection).unwrap(),
+            "wav",
+        )
+    };
+
+    // trk_02 is muted in the document, so "all" and the two audible tracks agree.
+    let all = decode(
+        &export_context(&plan, &pcm, &range, &StemSelection::All).unwrap(),
+        "wav",
+    );
+    let audible = render(&plan, &["trk_01", "trk_03"]);
+    assert!(null_level_dbfs(&all, &audible) <= -130.0);
+
+    let first = render(&plan, &["trk_01"]);
+    let second = render(&plan, &["trk_03"]);
+    let sum: Vec<f32> = first.iter().zip(&second).map(|(a, b)| a + b).collect();
+    let level = null_level_dbfs(&sum, &audible);
+    println!("context subset sum: {level} dBFS");
+    assert!(level <= -120.0, "subset sum nulls at {level} dBFS");
+
+    // A muted track stays silent even when it is named explicitly.
+    let muted = render(&plan, &["trk_02"]);
+    assert!(muted.iter().all(|sample| *sample == 0.0));
+
+    // Solo is an audition state: naming trk_01 renders it even when trk_02 is soloed.
+    let mut soloed = plan.clone();
+    for track in &mut soloed.tracks {
+        if track.id.as_str() == "trk_02" {
+            track.solo = true;
+            track.mute = false;
+        }
+    }
+    let named = render(&soloed, &["trk_01"]);
+    assert!(
+        named.iter().any(|sample| sample.abs() > 0.01),
+        "solo must not silence an explicit track list"
+    );
+    assert!(null_level_dbfs(&named, &first) <= -130.0);
+}
+
+/// The fx tail is included where the effect rings inside the range, and the
+/// range is cut at its last sample: nothing outside it is rendered.
+#[test]
+fn context_includes_the_fx_tail_inside_the_range_only() {
+    let h = hash('a');
+    let mut track = track_with("trk_01", 0.0, 0.0, false, false);
+    track["fx"] = json!([fx_instance(
+        "fx_delay",
+        "delay",
+        &[
+            ("timeBeats", 0.25),
+            ("feedback", 0.5),
+            ("tone", 0.5),
+            ("pingPong", 0.0),
+            ("mix", 0.5),
+        ],
+        false,
+    )]);
+    let frames = 38_400usize;
+    let mut impulse = vec![0.0f32; frames * 2];
+    impulse[0] = 0.5;
+    impulse[1] = 0.5;
+    let doc = project(
+        vec![track],
+        vec![section(
+            "sec_a",
+            3840,
+            json!({ "trk_01": lane(vec![clip_none("clp_a", &h, 0, frames as u64, 0)]) }),
+        )],
+    );
+    let plan = compile(&doc, &assets(&h, frames as u64), 48_000, 1).unwrap();
+    let pcm = memory_pcm(&h, PcmBuffer::new(impulse, 2, 48_000));
+
+    let first = decode(
+        &export_context(
+            &plan,
+            &pcm,
+            &TickRange {
+                start_tick: 0,
+                end_tick: 1920,
+            },
+            &StemSelection::All,
+        )
+        .unwrap(),
+        "wav",
+    );
+    // Exactly one second, and the delay's first echo (0.125 s) is present.
+    assert_eq!(first.len(), 48_000 * 2);
+    assert!(
+        first
+            .iter()
+            .skip(4_800 * 2)
+            .any(|sample| sample.abs() > 1e-3)
+    );
+
+    // The next second starts after the dry hit but still carries echoes.
+    let second = decode(
+        &export_context(
+            &plan,
+            &pcm,
+            &TickRange {
+                start_tick: 1920,
+                end_tick: 3840,
+            },
+            &StemSelection::All,
+        )
+        .unwrap(),
+        "wav",
+    );
+    assert_eq!(second.len(), 48_000 * 2);
+    assert!(second.iter().any(|sample| *sample != 0.0));
+}
+
+#[test]
+fn context_rejects_bad_ranges_and_tracks() {
+    let (plan, pcm) = three_track_plan();
+    let render = |range: TickRange, selection: StemSelection| {
+        export_context(&plan, &pcm, &range, &selection)
+    };
+    for range in [
+        TickRange {
+            start_tick: 960,
+            end_tick: 960,
+        },
+        TickRange {
+            start_tick: 1920,
+            end_tick: 960,
+        },
+    ] {
+        assert!(
+            matches!(
+                render(range, StemSelection::All),
+                Err(ExportError::EmptyRange { .. })
+            ),
+            "empty or inverted range"
+        );
+    }
+    for range in [
+        TickRange {
+            start_tick: -1,
+            end_tick: 960,
+        },
+        TickRange {
+            start_tick: 0,
+            end_tick: 3841,
+        },
+    ] {
+        assert!(matches!(
+            render(range, StemSelection::All),
+            Err(ExportError::RangeOutsideSong { .. })
+        ));
+    }
+    assert!(matches!(
+        render(
+            TickRange {
+                start_tick: 0,
+                end_tick: 960
+            },
+            StemSelection::Tracks(vec![])
+        ),
+        Err(ExportError::EmptyTrackList)
+    ));
+    assert!(matches!(
+        render(
+            TickRange {
+                start_tick: 0,
+                end_tick: 960
+            },
+            StemSelection::Tracks(vec!["trk_99".into()])
+        ),
+        Err(ExportError::UnknownTrack(_))
+    ));
+}
+
+#[test]
+fn run_job_runs_a_context_render() {
+    let (plan, pcm) = three_track_plan();
+    let context = run_job(
+        &plan,
+        &pcm,
+        &json!({ "kind": "context",
+                 "range": { "startTick": 0, "endTick": 960 },
+                 "tracks": ["trk_01"] }),
+    )
+    .unwrap();
+    assert_eq!(context.files.len(), 1);
+    assert_eq!(context.files[0].name, "context.wav");
+    assert_eq!(context.files[0].frames, 24_000);
+
+    for bad in [
+        json!({ "kind": "context", "tracks": "all" }),
+        json!({ "kind": "context", "range": {} }),
+        json!({ "kind": "context", "range": { "startTick": 960, "endTick": 960 } }),
+        json!({ "kind": "context", "range": { "startTick": 0, "endTick": 960 },
+                "tracks": [] }),
     ] {
         assert!(run_job(&plan, &pcm, &bad).is_err(), "{bad}");
     }

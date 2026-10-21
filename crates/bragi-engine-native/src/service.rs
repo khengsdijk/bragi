@@ -601,10 +601,11 @@ impl EngineService {
         })
     }
 
-    /// Encodes a `mixdown` or `stems` job (03 §9) to WAV or FLAC files.
+    /// Encodes a `mixdown`, `stems` or `context` job (03 §9) to files.
     ///
-    /// Stems render per track on the rayon pool. The job is the host's
-    /// `RenderJob` JSON; see [`bragi_engine::export::run_job`].
+    /// Stems render per track on the rayon pool; `context` is the 32-bit float
+    /// `context.wav` of WP-2.7. The job is the host's `RenderJob` JSON; see
+    /// [`bragi_engine::export::run_job`].
     ///
     /// # Errors
     /// [`ServiceError::NoDocument`] and [`ServiceError::Export`].
@@ -1084,8 +1085,19 @@ mod tests {
         let frame = stems.to_frame();
         assert_eq!(&frame[0..4], b"BXPT");
 
+        // WP-2.7: one second of the song is half of it; 32-bit float WAV.
+        let context = service
+            .export(&serde_json::json!({
+                "kind": "context",
+                "range": { "startTick": 0, "endTick": 960 },
+                "tracks": "all"
+            }))
+            .unwrap();
+        assert_eq!(context.files.len(), 1);
+        assert_eq!(context.files[0].name, "context.wav");
+        assert_eq!(context.files[0].frames, 24_000);
         assert!(matches!(
-            service.export(&serde_json::json!({ "kind": "context" })),
+            service.export(&serde_json::json!({ "kind": "cache", "sectionId": "sec_a" })),
             Err(ServiceError::Export(_))
         ));
     }

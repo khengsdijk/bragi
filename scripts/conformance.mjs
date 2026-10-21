@@ -290,6 +290,12 @@ const EXPORT_JOBS = [
     name: "stems-wav24",
     job: { kind: "stems", tracks: "all", format: { container: "wav", bits: 24 } },
   },
+  // WP-2.7: a non-zero start exercises the tick -> sample conversion and the
+  // rendered pre-roll; the file is always 32-bit float `context.wav`.
+  {
+    name: "context-wav32",
+    job: { kind: "context", range: { startTick: 480, endTick: 960 }, tracks: "all" },
+  },
 ];
 
 /**

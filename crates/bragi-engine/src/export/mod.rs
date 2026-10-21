@@ -9,6 +9,8 @@
 //! * Formats: WAV 16/24-bit integer and 32-bit float; FLAC 16/24-bit. MP3 and
 //!   loudness normalisation are not part of v1 and are rejected with a typed
 //!   error.
+//! * `context` (WP-2.7) is a 48 kHz 32-bit float WAV of one tick range, for
+//!   generation conditioning; [`export_context`] cuts it sample-exactly.
 //! * Determinism: no dither unless a seed is supplied (`ditherSeed`), and the
 //!   engine never reads the clock, so equal jobs give equal bytes.
 //! * Stems keep the master gain but bypass the safety limiter, so they sum to
@@ -61,9 +63,28 @@ pub enum ExportError {
     /// The audio would not fit a RIFF container (4 GiB).
     #[error("the render is too large for a WAV file; use FLAC")]
     TooLarge,
-    /// A stem was requested for a track that is not in the project.
+    /// A stem or a context render was requested for a track that is not in the project.
     #[error("unknown track: {0}")]
     UnknownTrack(String),
+    /// A context render was asked for no tracks at all.
+    #[error("the track list is empty")]
+    EmptyTrackList,
+    /// A context range is empty or inverted (`end <= start`).
+    #[error("empty or inverted tick range: start {start_tick}, end {end_tick}")]
+    EmptyRange {
+        /// Range start in ticks.
+        start_tick: i64,
+        /// Range end in ticks.
+        end_tick: i64,
+    },
+    /// A context range does not lie inside the song.
+    #[error("tick range {start_tick}..{end_tick} is outside the song")]
+    RangeOutsideSong {
+        /// Range start in ticks.
+        start_tick: i64,
+        /// Range end in ticks.
+        end_tick: i64,
+    },
     /// The job kind is not exportable here.
     #[error("unsupported render job: {0}")]
     UnsupportedJob(String),
@@ -406,6 +427,125 @@ pub fn export_stems<P: PcmSource + Sync + ?Sized>(
     results.into_iter().collect()
 }
 
+/// The file name of a context render (`specs/03-audio-engine.md` §9).
+pub const CONTEXT_FILE_NAME: &str = "context.wav";
+
+/// The context format: 48 kHz, 32-bit float stereo WAV, one file.
+pub const CONTEXT_FORMAT: AudioFormat = AudioFormat::Wav { bits: 32 };
+
+/// Renders exactly one tick range of the mix, for generation conditioning.
+///
+/// The range is converted through the plan's tempo map and rendered at the
+/// engine rate (48 kHz); the file is always 32-bit float WAV named `context.wav`
+/// (`specs/03-audio-engine.md` §9, WP-2.7). The master chain (gain, fx and the
+/// safety limiter) applies in every case. With [`StemSelection::All`] the mix is
+/// the document as auditioned, so mute **and** solo are honoured; with an
+/// explicit list only those tracks are rendered, mute still applies and solo is
+/// ignored so the list means what it says.
+///
+/// The render starts at the range's first sample and stops after its last, so
+/// an fx tail is only included where the effect was excited inside the range;
+/// nothing before or after the range is rendered.
+///
+/// # Errors
+/// [`ExportError::EmptyRange`] (`end <= start`),
+/// [`ExportError::RangeOutsideSong`] (negative start or an end past the song),
+/// [`ExportError::EmptyTrackList`], [`ExportError::UnknownTrack`], plus any
+/// encoder error.
+pub fn export_context<P: PcmSource + ?Sized>(
+    plan: &RenderPlan,
+    pcm: &P,
+    range: &bragi_model::generated::TickRange,
+    selection: &StemSelection,
+) -> Result<ExportFile, ExportError> {
+    if range.end_tick <= range.start_tick {
+        return Err(ExportError::EmptyRange {
+            start_tick: range.start_tick,
+            end_tick: range.end_tick,
+        });
+    }
+
+    let wanted: Vec<usize> = match selection {
+        StemSelection::All => (0..plan.tracks.len()).collect(),
+        StemSelection::Tracks(ids) => {
+            if ids.is_empty() {
+                return Err(ExportError::EmptyTrackList);
+            }
+            for id in ids {
+                if !plan.tracks.iter().any(|track| track.id.as_str() == id) {
+                    return Err(ExportError::UnknownTrack(id.clone()));
+                }
+            }
+            plan.tracks
+                .iter()
+                .enumerate()
+                .filter(|(_, track)| ids.iter().any(|id| id == track.id.as_str()))
+                .map(|(index, _)| index)
+                .collect()
+        }
+    };
+
+    // Tick -> sample is the tempo map's job; the plan carries it so the same
+    // conversion runs on both hosts (03 §9).
+    let tempo = bragi_model::TempoCtx::new(&plan.tempo_points, plan.ppq);
+    let start = crate::plan::tick_to_sample(&tempo, plan.sample_rate, range.start_tick);
+    let end = crate::plan::tick_to_sample(&tempo, plan.sample_rate, range.end_tick);
+    if start < 0 || end > plan.length_samples as i64 {
+        return Err(ExportError::RangeOutsideSong {
+            start_tick: range.start_tick,
+            end_tick: range.end_tick,
+        });
+    }
+    let frames = (end - start) as u64;
+    if frames == 0 {
+        return Err(ExportError::EmptyRange {
+            start_tick: range.start_tick,
+            end_tick: range.end_tick,
+        });
+    }
+
+    let explicit = matches!(selection, StemSelection::Tracks(_));
+    let mut context = plan.clone();
+    context.tracks = wanted
+        .into_iter()
+        .map(|index| {
+            let mut track = plan.tracks[index].clone();
+            // Mute is part of the track as written; solo is an audition state,
+            // so an explicit list ignores it (03 §9).
+            if explicit {
+                track.solo = false;
+            }
+            track
+        })
+        .collect();
+
+    // Effects are stateful: a reverb or delay excited before the range rings
+    // into it. Render that much extra, then drop it, so the result equals the
+    // same slice of a full mixdown and still ends exactly on the range's last
+    // sample (no tail is appended past it).
+    let pre_roll = {
+        let prepared = crate::render::PreparedPlan::new(
+            std::sync::Arc::new(context.clone()),
+            crate::plan::quality_for(true),
+            crate::offline::OFFLINE_BLOCK,
+        );
+        (prepared.max_tail_frames() as u64).min(start as u64)
+    };
+    let rendered = render(
+        &context,
+        &PcmRef(pcm),
+        &OfflineOptions::range(start as u64 - pre_roll, frames + pre_roll),
+    );
+    let skip = (pre_roll as usize * 2).min(rendered.samples.len());
+    let samples = &rendered.samples[skip..];
+    let bytes = encode(samples, CONTEXT_FORMAT, &ExportMeta::bare(), None)?;
+    Ok(ExportFile {
+        name: CONTEXT_FILE_NAME.to_string(),
+        bytes,
+        frames: (samples.len() / 2) as u64,
+    })
+}
+
 /// Adapts `&P` (possibly unsized) to the sized `&dyn PcmSource` the renderer takes.
 struct PcmRef<'a, P: ?Sized>(&'a P);
 
@@ -506,16 +646,18 @@ impl ExportResult {
     }
 }
 
-/// Runs a `mixdown` or `stems` render job given as the host JSON
+/// Runs a `mixdown`, `stems` or `context` render job given as the host JSON
 /// (`packages/platform` `RenderJob`), so both hosts share one parser.
 ///
-/// Recognised fields: `kind`, `format`, `startSample`, `frames`, `tracks`
-/// (`"all"` or an array of track IDs), `meta` ([`ExportMeta`]) and
-/// `ditherSeed`.
+/// Recognised fields: `kind`, `format`, `startSample`, `frames`, `range`
+/// (`{ startTick, endTick }`, `context` only), `tracks` (`"all"` or an array
+/// of track IDs), `meta` ([`ExportMeta`]) and `ditherSeed`. A `context` job
+/// takes its format from [`CONTEXT_FORMAT`].
 ///
 /// # Errors
-/// [`ExportError::UnsupportedJob`] for `context`/`cache`/unknown kinds,
-/// [`ExportError::BadJob`] for unreadable fields, plus encoder errors.
+/// [`ExportError::UnsupportedJob`] for `cache`/unknown kinds,
+/// [`ExportError::BadJob`] for unreadable fields, plus the errors of
+/// [`export_context`] and the encoders.
 pub fn run_job<P: PcmSource + Sync + ?Sized>(
     plan: &RenderPlan,
     pcm: &P,
@@ -525,6 +667,17 @@ pub fn run_job<P: PcmSource + Sync + ?Sized>(
         .get("kind")
         .and_then(serde_json::Value::as_str)
         .unwrap_or("");
+    if kind == "context" {
+        let range: bragi_model::generated::TickRange = match job.get("range") {
+            Some(value) if !value.is_null() => serde_json::from_value(value.clone())
+                .map_err(|error| ExportError::BadJob(format!("range: {error}")))?,
+            _ => return Err(ExportError::BadJob("context needs a tick range".into())),
+        };
+        let selection = parse_track_selection(job)?;
+        return Ok(ExportResult {
+            files: vec![export_context(plan, pcm, &range, &selection)?],
+        });
+    }
     if job.get("range").is_some_and(|range| !range.is_null()) && job.get("startSample").is_none() {
         return Err(ExportError::BadJob(
             "a tick range must be converted to startSample/frames by the caller; the tempo map lives in bragi-model"
@@ -560,25 +713,28 @@ pub fn run_job<P: PcmSource + Sync + ?Sized>(
     let files = if kind == "mixdown" {
         vec![export_mixdown(plan, pcm, &options)?]
     } else {
-        let selection = match job.get("tracks") {
-            None | Some(serde_json::Value::Null) => StemSelection::All,
-            Some(serde_json::Value::String(all)) if all == "all" => StemSelection::All,
-            Some(serde_json::Value::Array(ids)) => StemSelection::Tracks(
-                ids.iter()
-                    .map(|id| {
-                        id.as_str()
-                            .map(str::to_string)
-                            .ok_or_else(|| ExportError::BadJob("tracks must be strings".into()))
-                    })
-                    .collect::<Result<_, _>>()?,
-            ),
-            Some(other) => {
-                return Err(ExportError::BadJob(format!("tracks: {other}")));
-            }
-        };
+        let selection = parse_track_selection(job)?;
         export_stems(plan, pcm, &selection, &options)?
     };
     Ok(ExportResult { files })
+}
+
+/// Reads the `tracks` field: `"all"`, an array of track IDs, or absent (all).
+fn parse_track_selection(job: &serde_json::Value) -> Result<StemSelection, ExportError> {
+    match job.get("tracks") {
+        None | Some(serde_json::Value::Null) => Ok(StemSelection::All),
+        Some(serde_json::Value::String(all)) if all == "all" => Ok(StemSelection::All),
+        Some(serde_json::Value::Array(ids)) => Ok(StemSelection::Tracks(
+            ids.iter()
+                .map(|id| {
+                    id.as_str()
+                        .map(str::to_string)
+                        .ok_or_else(|| ExportError::BadJob("tracks must be strings".into()))
+                })
+                .collect::<Result<_, _>>()?,
+        )),
+        Some(other) => Err(ExportError::BadJob(format!("tracks: {other}"))),
+    }
 }
 
 #[cfg(test)]
