@@ -1,6 +1,6 @@
 # 09 — AI Generation
 
-Status: Draft v0.4 · Code: `services/workers/generate/` · Schemas: `packages/schemas/jobs/capabilities/`
+Status: Draft v0.5 · Code: `services/workers/generate/` · Schemas: `packages/schemas/jobs/capabilities/`
 
 Generation in Bragi is **always in service of editing**. Every generated piece of audio lands in the song model as clips with provenance, gets analysed and separated like any other source, and can be edited, auditioned and undone.
 
@@ -89,10 +89,13 @@ The routing table (`config/generation_routes.yaml`) maps `(capability, tier)` �
 5. Backward extension (intro): context = the first 30 s, generated audio is placed before.
 
 ### 4.3 `generate.inpaint`
+
 The context includes both sides (up to 15 s each). The backend uses native infill/repaint if it supports it. Otherwise it falls back to extend-forward from the left context, plus a seam search on both boundaries (more failures, so more candidates are needed).
 
+Placement: the processed audio fills the **gap range** as one source whose placement carries `range` and `srcStartSamples` (02 §6.4). `fill_placement` emits one clip per section the gap crosses, on the `generated` track; `startOffsetSamples` (negative when the processed audio starts inside the left overlap) is skipped at the clip head and `endOffsetSamples` (positive when it runs into the right context) is trimmed, so the gap is covered exactly. A gap that spans a section boundary is supported: the clips share one continuous source window. When separation of the fill arrives, `analysis.apply` maps the stems into the gap range only and removes the mix-only clip. The request is `{ gapRange, candidate, startOffsetSamples, endOffsetSamples, crossfadeTicks, batchId, label, createdAt }` (camelCase JSON; `candidate` is the same block extend takes), exposed as `fillPlacement`.
+
 ### 4.4 `generate.transition`
-Used for "✨ Smooth with AI" after section moves ([07 §4.1](07-song-canvas.md)). The output becomes a `Transition { kind: "generated", asset, lengthTicks }` on the section ([02 §3.5](02-song-model.md)), so the engine plays it as an overlay across the boundary with crossfades.
+Used for "✨ Smooth with AI" after section moves ([07 §4.1](07-song-canvas.md)). The output becomes a `Transition { kind: "generated", asset, lengthTicks }` on the section ([02 §3.5](02-song-model.md)), so the engine plays it as an overlay across the boundary with crossfades ([03 §5.5](03-audio-engine.md)). `transition_placement` commits it as one batch: `source.add` (provenance, placement-owned, **no lane clip**) and `section.set_transition` with the working asset and `lengthTicks`. The first section has no boundary before it and is rejected. The request is `{ sectionId, candidate, lengthTicks, batchId, label, createdAt }`, exposed as `transitionPlacement`.
 
 ### 4.5 Long-form mode and the song blueprint
 For songs longer than one model call (up to **10 minutes**):
@@ -150,7 +153,7 @@ If fewer than the requested number of candidates pass, the worker regenerates (u
 
 ## 8. Provenance and labelling
 
-- Every generated clip carries `Provenance { kind: "generation", model, modelVersion, prompt, jobId }`.
+- Every generated clip carries `Provenance { kind: "generation", model, modelVersion, prompt, jobId }`. A generated transition has no clip: its `Source` carries the provenance, and the section's `transitionIn.asset` is the working asset it refers to.
 - Exports embed metadata: `Generated/edited with Bragi`, and for generated parts, `AI-generated content` in the ID3 `COMM`/Vorbis comment and BWF `bext` description.
 - **Audio watermarking** of generated segments (e.g. an open-source neural watermark like AudioSeal) is planned for Phase 4 and evaluated for audibility first.
 

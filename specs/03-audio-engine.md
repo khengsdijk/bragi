@@ -1,6 +1,6 @@
 # 03 — Audio Engine
 
-Status: Draft v0.9 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
+Status: Draft v0.10 · Crates: `bragi-dsp`, `bragi-engine`, `bragi-engine-wasm`, `bragi-engine-native`
 
 ## 1. Responsibilities
 
@@ -176,9 +176,9 @@ The planner joins section *i* to the previous one at its absolute start sample *
   after warp and ratio — plans no fade at all. The segments' windows, maps, fades and gains are
   untouched, so an unedited song is bit-identical to a plan built without boundaries.
 - **Discontinuous** — anything else, including a side that is silent — plans a centred equal-power
-  crossfade. `L` is 5 ms (`BOUNDARY_FADE_MS`) for `cut`, `transitionIn.lengthTicks` converted at
-  *B*'s tempo for `crossfade`, and the same for `generated` (with a plan warning until WP-2.7
-  renders the bridging asset). `L` is clamped to half of either neighbouring section.
+  crossfade. `L` is 5 ms (`BOUNDARY_FADE_MS`) for `cut`, and `transitionIn.lengthTicks` converted at
+  *B*'s tempo for `crossfade` and for `generated` (with an asset or without). `L` is clamped to
+  half of either neighbouring section.
 
 The fade is centred on *B*: the outgoing segment gains `post_roll = L/2` when an incoming segment
 is present and its source handle exists, and fades out with `cos(xπ/2)` over
@@ -193,6 +193,34 @@ renders. The boundary gain multiplies with the clip's own fades and is applied p
 `Segment::fade_gain`, from the absolute sample alone, so a seek into a crossfade is sample-accurate
 and (on the direct path) identical to playing through it. `PlanOptions::section_fades` turns the
 whole step off; it exists for tests that compare the two renders.
+
+**Generated transitions (WP-2.8).** A section whose `transitionIn` is
+`{ kind: "generated", asset, lengthTicks }` keeps exactly that crossfade underneath and adds the
+asset as a **track-free overlay** centred on *B*:
+
+- The overlay plays over `[B − L/2, B + L/2]` — the same `L`, with the same half-section clamp —
+  and is mixed into the master bus after the tracks and before the master chain, so it is heard
+  even when every track is silent at the join. It is metered with the master, not per track, and it
+  is not part of a stem export (§9).
+- The asset's whole window is fitted linearly to that span (`srcMap` 0 → duration), so its first
+  and last samples land on the window's edges; a sub-percent tempo drift left by 09 §6 shows up as
+  that ratio and is time-stretched like any clip.
+- It fades with `sin(xπ/2)` over its **first quarter** and out over its **last quarter**, and holds
+  unity over the middle half. `plan::overlay_gain(center, L, sample)` is the same envelope. The
+  quarter fades keep the overlay's edges at zero, so the overlay adds no step at `B ± L/2`; the
+  boundary crossfade underneath still owns the join if the overlay is absent.
+- The overlay is **additive** on top of the crossfade, as WP-2.8 specifies: a generated piece is
+  gated against both sides, but it is not subtracted from the sections. For uncorrelated material
+  that lifts the level inside the window by up to +3 dB (measured +2.4 dB RMS on the WP-2.8
+  fixture); the safety limiter catches peaks. Ducking the crossfade under the overlay
+  (`× √(1 − g²)`, which would hold the power constant) is the follow-up if the owner hears a swell.
+- A missing `asset`, or an asset that is not in the index, plans no overlay, keeps the crossfade
+  placeholder and reports a plan warning. A `generated` transition cannot exist on the first
+  section, which has no boundary.
+
+The overlay lives in `RenderPlan::overlays` as ordinary `Segment`s, so the renderer's segment
+runtime, pre-roll and stretch paths are the same on live, offline and `context` renders; it allocates
+nothing in `process`.
 
 ## 6. DSP catalogue (`bragi-dsp`)
 
@@ -335,7 +363,7 @@ type AudioFormat = { container: "wav"; bits: 16 | 24 | 32 } | { container: "flac
 - **`context` (WP-2.7):** one 48 kHz, 32-bit float stereo WAV named `context.wav`, for generation conditioning. `range` is in ticks and the engine converts it through the plan's tempo map to a sample-exact `[startSample, endSample)` cut; `tracks: "all"` is every track and an explicit list only those tracks; mute applies and solo is ignored in both (solo is a listening state and must not shrink the conditioning context), and the master chain incl. the safety limiter applies in both cases. Effects are stateful, so the renderer runs the effect tail's worth of pre-roll before the range and drops it: a reverb/delay tail excited before the window is present inside it, and the file still ends exactly on the range's last sample (no tail is appended). Typed errors: empty/inverted range, range outside the song, unknown track, empty track list. The bar-snapping helper `bragi_model::bar_aligned_context_range` turns "≈ 30 s" into the nearest bar line (at least one bar, clamped to the song) using the tempo map and time signatures.
 - Encoding lives in `bragi_engine::export` (platform-free), so WASM and native emit the same files. Dither is TPDF (xorshift64\*), applied to 16/24-bit output only when `ditherSeed` is given. A `range` in ticks on a `mixdown`/`stems` job must be converted by the caller to `startSample`/`frames` (the tempo map is `bragi-model`'s); the host rejects an unconverted range instead of exporting the whole song. A `context` job is the exception: it takes a tick range and converts it from the plan's own tempo map, because generation always speaks bars.
 - **Naming and metadata:** the mixdown is `<title>.<ext>`; a stem is `<NN>-<track name>.<ext>` with `NN` the track's 1-based document position. Names keep letters, digits, space, `_` and `-`. Metadata (title, BPM and key in the comment, the stem's track name, the caller's creation date, encoder `Bragi <version>`) goes into WAV `LIST/INFO` and FLAC Vorbis comments. The engine never reads the clock.
-- **Stems** are rendered per track with mute/solo ignored (a stem is the track as written), master gain kept, and the safety limiter bypassed, so stems sum to the mixdown whenever the mixdown limiter is not engaged. The mixdown keeps the safety limiter (the user cannot remove it), which means a mixdown only nulls against an asset that peaks below -0.3 dBFS (Q38). Native stems render in parallel on a rayon pool (`parallel` feature of `bragi-engine`, enabled by `bragi-engine-native`); WASM renders them sequentially. Output is identical either way.
+- **Stems** are rendered per track with mute/solo ignored (a stem is the track as written), master gain kept, and the safety limiter bypassed, so stems sum to the mixdown whenever the mixdown limiter is not engaged. A generated transition overlay belongs to the master bus, not to a track, so a stem export leaves it out while a mixdown and a `context` render include it (§5.5). The mixdown keeps the safety limiter (the user cannot remove it), which means a mixdown only nulls against an asset that peaks below -0.3 dBFS (Q38). Native stems render in parallel on a rayon pool (`parallel` feature of `bragi-engine`, enabled by `bragi-engine-native`); WASM renders them sequentially. Output is identical either way.
 - **FLAC** is written by an in-repo encoder (fixed predictors 0-4, partitioned Rice, stereo decorrelation, MD5 in STREAMINFO, 4096-sample blocks; a remainder under 16 samples switches the stream to variable block size because decoders reject a shorter last block).
 - **Wire format:** hosts return the files as one binary *export frame* (`"BXPT" | u32 LE jsonLen | json | file bytes…`, `ExportResult::to_frame`, read by `decodeExportFrame`), so Tauri never serialises megabytes of audio as a JSON array.
 - **Export bundle ("Open in your DAW")**: a zip containing stems aligned to bar 1 (24-bit WAV), `tempo_and_markers.mid` (tempo map + section markers), `chords.mid` (if harmony analysis is present), and a `README.txt` listing BPM, key and section times. A native Ableton `.als` export is post-v1.
@@ -355,6 +383,6 @@ type AudioFormat = { container: "wav"; bits: 16 | 24 | 32 } | { container: "flac
 - **Golden renders:** `fixtures/projects/*.json` + `fixtures/audio/*` (self-made). Offline render output is compared with `insta`-stored hashes and a **null test** (residual ≤ −90 dBFS) against golden WAVs.
 - **Parity:** the same fixtures rendered via WASM (in Node with a WASM runtime) and native must null to ≤ −90 dBFS.
 - **Real-time safety:** a custom allocator in debug builds panics if the audio thread allocates (`assert_no_alloc`).
-- **Section boundaries:** `crates/bragi-engine/tests/boundaries.rs` renders a reordered 55 Hz fixture and asserts the §5.5 discontinuity metric (07 §10 check 4: no boundary step more than −40 dBFS above the signal's own maximum step), the equal-power RMS through a 1-beat crossfade, handle vs no-handle fades, sample-accurate seeking into a crossfade, a bit-identical contiguous song and a section move during playback.
+- **Section boundaries:** `crates/bragi-engine/tests/boundaries.rs` renders a reordered 55 Hz fixture and asserts the §5.5 discontinuity metric (07 §10 check 4: no boundary step more than −40 dBFS above the signal's own maximum step), the equal-power RMS through a 1-beat crossfade, handle vs no-handle fades, sample-accurate seeking into a crossfade, a bit-identical contiguous song and a section move during playback. The same file covers generated transitions: the overlay is centred on the boundary, changes the render only inside its window, adds no step at its edges, falls back to the placeholder when its asset is missing, and appears in a `context` render. `fixtures/projects/engine-conformance-g-transition.json` is the WASM-vs-native pair for the overlay path.
 - **Stress:** 24 tracks × 4 fx × 10 minutes with no underruns at 128 frames (browser, mid-range laptop) or 256 frames (desktop).
 - **Fuzz:** random op sequences → apply → plan → render 1 s. No panics, no NaNs or Infs in output.

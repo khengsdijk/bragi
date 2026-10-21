@@ -1,6 +1,6 @@
 # 02 — Song Model & Versioning
 
-Status: Draft v0.6 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
+Status: Draft v0.7 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
 
 This is the **architectural heart** of Bragi. Every feature (canvas, AI edits, generation, fusion, export) reads and writes this model, and nothing else. If a feature can't be expressed as operations on this model, the model is extended here first (with an ADR).
 
@@ -81,7 +81,13 @@ interface Source {
   channels: 1 | 2;
   label: string;              // e.g. original filename or "Generated: dreamy outro"
   provenance?: Provenance;
-  placement?: { sectionId: SectionId };  // set when the source is placed, not analysis-laid-out (§6.4)
+  placement?: SourcePlacement;  // set when the source is placed, not analysis-laid-out (§6.4)
+}
+
+interface SourcePlacement {
+  sectionId: SectionId;         // the section the placement is anchored to
+  range?: { startTick: number; endTick: number };  // a fill's gap, relative to that section
+  srcStartSamples?: number;     // the source sample that plays at range.startTick (required with range)
 }
 
 interface AssetMeta {          // stored in DB/cache, not in the document
@@ -169,7 +175,9 @@ interface Transition {
 ```
 The **absolute start tick** of section *i* is `Σ lengthTicks of sections[0..i)`. It is never stored.
 
-**Section boundaries.** The engine joins section *i* to the previous one at its absolute start sample *B*. It leaves the boundary alone when, for a track, the last clip reaching *B* and the first clip starting at *B* are the same asset at the same source position (within one source sample, after warp and ratio): an unedited song therefore renders exactly as before. Every other pair is **discontinuous** — including one that is silent on either side — and gets a centred equal-power crossfade of length `L` at *B*: 5 ms for `cut`, `transitionIn.lengthTicks` at *B*'s tempo for `crossfade` (clamped to half of either neighbouring section), and the same for `generated` until the bridging asset lands (WP-2.7). Each side continues `L/2` from its source handle when the asset has material there and there is something to crossfade with; otherwise it fades over its own half (`[B − L/2, B]` for the outgoing side, `[B, B + L/2]` for the incoming one). The boundary gain is separate from — and multiplies with — the clip's own `fadeInTicks`/`fadeOutTicks`. The precise law is in [03 §5.5](03-audio-engine.md).
+**Section boundaries.** The engine joins section *i* to the previous one at its absolute start sample *B*. It leaves the boundary alone when, for a track, the last clip reaching *B* and the first clip starting at *B* are the same asset at the same source position (within one source sample, after warp and ratio): an unedited song therefore renders exactly as before. Every other pair is **discontinuous** — including one that is silent on either side — and gets a centred equal-power crossfade of length `L` at *B*: 5 ms for `cut`, `transitionIn.lengthTicks` at *B*'s tempo for `crossfade` (clamped to half of either neighbouring section), and the same for `generated` until the bridging asset lands. Each side continues `L/2` from its source handle when the asset has material there and there is something to crossfade with; otherwise it fades over its own half (`[B − L/2, B]` for the outgoing side, `[B, B + L/2]` for the incoming one). The boundary gain is separate from — and multiplies with — the clip's own `fadeInTicks`/`fadeOutTicks`. The precise law is in [03 §5.5](03-audio-engine.md).
+
+A **generated transition with an asset** does not change that crossfade: the engine also plays the asset as a **track-free overlay centred on *B*** for the same `L`, fading in over its first quarter and out over its last quarter, mixed into the master bus before the master chain ([03 §5.5](03-audio-engine.md)). The audio is fitted linearly to `[B − L/2, B + L/2]`; the crossfade underneath keeps the join playable if the overlay is absent or the asset is missing from the index, in which case the plan warns and renders the placeholder.
 
 ### 3.6 Clip
 ```ts
@@ -261,7 +269,7 @@ A batch is atomic: it applies fully or not at all.
 |---|---|---|
 | `project.set_meta` | title?, tags?, description?, color?, suggestedSections? | An empty `suggestedSections` clears the analysis suggestions (02 §6.3) |
 | `analysis.apply` | sourceId, stage, blob, effects[] | System op. Records an analysis stage and reconciles the document with it: creates the full-mix track and section, sets the tempo map, splits the arrangement into analysed sections, creates stem tracks and fills lanes. Deterministic and order-independent. See §6. |
-| `source.add` | source, index? | Adds a source (upload, generation, recording, imported stem). A generated source placed by a feature (an accepted extend) carries `placement { sectionId }`, which makes it placement-owned: `analysis.apply` maps its stems into that section instead of laying out a baseline block (§6.4). |
+| `source.add` | source, index? | Adds a source (upload, generation, recording, imported stem). A generated source placed by a feature carries a `placement` that makes it placement-owned: `analysis.apply` maps its stems into that span instead of laying out a baseline block (§6.4). An extend names a section, a fill adds `range` + `srcStartSamples` for its gap, and a generated transition names the section it bridges and has no lane clip. |
 | `track.add` | track, index? | |
 | `track.remove` | trackId | Also removes its lanes and clears every `sidechainSource` that pointed at it |
 | `track.update` | trackId, patch (name, color, gainDb, pan, mute, solo, hidden) | |
@@ -276,7 +284,7 @@ A batch is atomic: it applies fully or not at all.
 | `section.split` | sectionId, atTick (relative), newId | |
 | `section.merge` | sectionIdA, sectionIdB | Must be adjacent |
 | `section.update` | sectionId, patch (kind, label, energyTarget, locked) | |
-| `section.set_transition` | sectionId, transition | |
+| `section.set_transition` | sectionId, transition | `generated` with an `asset` is a bridging piece the engine plays over the boundary (03 §5.5) |
 | `clip.add` | sectionId, trackId, clip | |
 | `clip.update` | clipId, patch | Move, trim, gain, fades, pitch, warp |
 | `clip.remove` | clipId | |
@@ -392,13 +400,17 @@ The op records `status[stage] = "done"`, `blobs[stage] = blob` and the merged `e
 
 `analysis.apply` is applied as a new commit on top of HEAD, like any other op. It is a **system** op, so invariant 6 (AI may not modify locked sections) does not reject it; a locked section is a user edit, though, so it routes the block down the edited path above.
 
-### 6.4 Placed sources (generated extends)
+### 6.4 Placed sources (generated extends, fills and transitions)
 
-A source whose `placement` names a section is **placement-owned**: `build` ignores it, so analysing it never appends a second end-to-end block, never re-times the song and never creates its own full-mix/full-song sections. A generated extend is placed by the `extend_placement` helper (09 §4.2) as one batch — `source.add`, the section, the clip and, only when missing, a `generated` track — and that batch is the candidate commit.
+A source whose `placement` names a section is **placement-owned**: `build` ignores it, so analysing it never appends a second end-to-end block, never re-times the song and never creates its own full-mix/full-song sections. Three features place sources:
 
-`analysis.apply` records a placed source's stages like any other source, then reconciles the **one** placement section from the recorded effect set. A `separation` effect maps every stem role and the residual onto the first track with that role, or onto a new deterministic `trk_…stem:<role>` track, with one deterministic `clp_ derive:<sectionId>:<trackId>` clip per (section, track). Once the stems are mapped, the source's `generated`-role clip and lane (and a generated track this source owns and left empty) are removed; with no `separation` effect — separation failed — the generated lane stays and the song is still playable. The mapping depends only on the recorded effects and the placement, so stage arrival order cannot change it and re-delivery is idempotent.
+- **Extend** (`extend_placement`, 09 §4.2): one batch with `source.add`, the new section, its clip and, only when missing, a `generated` track. The placement is `{ sectionId }` and owns the whole section. That batch is the candidate commit.
+- **Fill** (`fill_placement`, 09 §4.3): the source is placed in a **gap range**. The placement is `{ sectionId, range, srcStartSamples }`: `range` is the gap in ticks **relative to the anchored section's start** and may run past that section into the following ones, and `srcStartSamples` is the candidate sample that plays at the gap start (the left overlap the gate crossfaded is skipped). The batch adds one clip per section the gap crosses, on the `generated` track, with the candidate's source window continuing across the join; a clip never bleeds into the next section (§3.5). There is no section insert and no `generated` track when one exists already.
+- **Transition** (`transition_placement`, 09 §4.4): `source.add` with `{ sectionId }` and **no lane clip**, plus `section.set_transition` to `generated` with the working asset and `lengthTicks`. The engine plays the asset over the boundary (03 §5.5), so the source owns no lane audio at all.
 
-A placement never dangles: `section.remove` clears a placement that names the removed section and `section.merge` re-points a placement on B to A; validation rejects a placement whose section does not exist.
+`analysis.apply` records a placed source's stages like any other source, then reconciles the **placement span** from the recorded effect set. A `separation` effect maps every stem role and the residual onto the first track with that role, or onto a new deterministic `trk_ derive:placed:stem:<role>` track, with one deterministic clip per (section, track) in the span: `clp_ derive:<sectionId>:<trackId>` for a whole-section placement, `clp_ derive:<sourceId>:fill:<sectionId>:<trackId>` for a ranged one so two fills inside one section keep both. A stem track created this way has no `origin`, because several placed sources may map onto it; its ID derives from the role alone, so the mapping does not depend on which source's analysis arrives first. Once the stems are mapped, the source's `generated`-role clip and lane (and a `generated` track a placement created and left empty) are removed; with no `separation` effect — separation failed — the generated lane stays and the song is still playable. A placement with no lane audio (a transition) maps nothing and creates no tracks. The mapping depends only on the recorded effects and the placement, so stage arrival order cannot change it and re-delivery is idempotent.
+
+A placement never dangles: `section.remove` clears a placement that names the removed section, `section.merge` re-points a placement on B to A and shifts a ranged placement by A's length, and validation rejects a placement whose section does not exist, whose range is empty or outside the song, or that has a range without `srcStartSamples` (and `srcStartSamples` without a range). A ranged placement is anchored in its section, so edits before that section do not move it; removing or resizing a section *inside* the range is not re-anchored (the same class of approximation as master automation, §5.3).
 
 ```ts
 type AnalysisEffect =
@@ -455,6 +467,9 @@ pub fn apply_with(doc: &Project, batch: &OpBatch, assets: &AssetIndex, commits: 
 pub trait CommitDocs { fn get(&self, id: &CommitId) -> Option<&Project>; }  // `region.adopt` sources; `NoCommits` is empty
 pub fn diff(prev: &Project, next: &Project) -> EngineDelta;          // consumed by bragi-engine
 pub fn resolve_region(doc: &Project, region: &Region, assets: &AssetIndex) -> ResolvedRegion;
+pub fn extend_placement(doc: &Project, req: &ExtendPlacementRequest) -> Result<OpBatch, PlacementError>;
+pub fn fill_placement(doc: &Project, req: &FillPlacementRequest) -> Result<OpBatch, PlacementError>;
+pub fn transition_placement(doc: &Project, req: &TransitionPlacementRequest) -> Result<OpBatch, PlacementError>;
 pub fn section_spans(doc: &Project) -> Vec<SectionSpan>;             // absolute ticks per section
 pub fn ticks_to_seconds(doc: &Project, ticks: i64) -> f64;
 pub fn seconds_to_ticks(doc: &Project, secs: f64) -> i64;
@@ -462,7 +477,7 @@ pub fn summarize_for_llm(doc: &Project, focus: &SummaryFocus) -> Result<String, 
 pub fn migrate(raw: serde_json::Value) -> Result<Project, MigrateError>;
 pub fn canonical_json(doc: &Project) -> String;                      // stable key order, for hashing
 ```
-`AssetIndex` is the `AssetHash → AssetMeta` map the invariants need, because clip ranges are in samples and the asset's length lives outside the document (02 §3.2). `apply_with` is `apply` with the `CommitDocs` documents that `region.adopt` reads (02 §5.4); `apply` passes `NoCommits`, so an unknown commit id is an `unknown_commit` error. `ValidationError` is the structured `{ opIndex, code, message }` of 02 §4.3; `ApplyError` is either one of those (the op itself was bad) or a list of them (the batch left the document invalid). `SectionSpan` and `ResolvedRegion` are owned return shapes; `EngineDelta` (defined in `crates/bragi-model/src/diff.rs`) reports `timebaseChanged`, `metaChanged`, source/track/section adds–removes–updates, `masterChanged`, and `requiresFullResync` for a structural change the engine must rebuild its render plan for. `summarize_for_llm` (06 §2) returns the planner's compact, escaped data block as a `String`; the analyses it needs travel inside the document (`analyses[].summary` and `analyses[].effects`), so no separate bundle is passed. `SummaryFocus` is `{ region?, selectedTrackIds?, selectedSectionIds? }`, all defaulted, which is exactly the JSON the WASM wrapper receives. `migrate` (there are no v0 documents yet) is the remaining entry point.
+`AssetIndex` is the `AssetHash → AssetMeta` map the invariants need, because clip ranges are in samples and the asset's length lives outside the document (02 §3.2). `apply_with` is `apply` with the `CommitDocs` documents that `region.adopt` reads (02 §5.4); `apply` passes `NoCommits`, so an unknown commit id is an `unknown_commit` error. `ValidationError` is the structured `{ opIndex, code, message }` of 02 §4.3; `ApplyError` is either one of those (the op itself was bad) or a list of them (the batch left the document invalid). `SectionSpan` and `ResolvedRegion` are owned return shapes; `EngineDelta` (defined in `crates/bragi-model/src/diff.rs`) reports `timebaseChanged`, `metaChanged`, source/track/section adds–removes–updates, `masterChanged`, and `requiresFullResync` for a structural change the engine must rebuild its render plan for. `summarize_for_llm` (06 §2) returns the planner's compact, escaped data block as a `String`; the analyses it needs travel inside the document (`analyses[].summary` and `analyses[].effects`), so no separate bundle is passed. `SummaryFocus` is `{ region?, selectedTrackIds?, selectedSectionIds? }`, all defaulted, which is exactly the JSON the WASM wrapper receives. `migrate` (there are no v0 documents yet) is the remaining entry point. The three placement helpers are pure functions of the document and their request (09 §4.2–4.4): they return the batch the caller commits and never change the document. model-wasm exposes them as `extendPlacement`, `fillPlacement` and `transitionPlacement`.
 
 The WASM wrapper passes documents as JSON strings or `Uint8Array` (MessagePack). Hot paths (`section_spans`, `ticks_to_seconds`) must not re-serialize the whole document. The WASM module keeps a handle-based cache: `load(doc) -> DocHandle`, and later calls take the handle.
 
