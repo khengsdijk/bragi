@@ -14,6 +14,28 @@ The Beat This! loader (`bragi_analysis.trackers.beat_this`) refuses any checkpoi
 differs from the pin and reads it with `torch.load(weights_only=True)`. Set
 `BRAGI_BEAT_THIS_CHECKPOINT` to the file; the worker `Dockerfile` does so for the `WITH_ML=1` build.
 
+## Generation (WP-2.7)
+
+ACE-Step 1.5 runs as its own process with its own uv environment, not as a worker dependency
+(`specs/09-generation.md` §3). `scripts/ace-step-setup.sh` pins the code and downloads the weights
+into the main checkout's `.bragi/models/ace-step` (git-ignored, 9.4 GB); the API server reads them
+through `.bragi/ace-step/checkpoints`, a symlink created by the same script. The spike used the
+turbo DiT through the `repaint` task for `generate.extend` (M2 Pro / PyTorch MPS; see
+[WP-2.7 A1](../../docs/wp/2.7.md)). The 5 Hz LM is downloaded but disabled for repaint; it is for
+`text2music`/`complete` later.
+
+| Component | Task | Version / checkpoint | SHA-256 | Size |
+|---|---|---|---|---|
+| `acestep-v15-turbo` (DiT) | audio generation / repaint | `ace-step` 1.5.0, git `ca1e85fe9430179831e6bc6be790c332190a3866`, `acestep-v15-turbo/model.safetensors` | `3f6e0797fad420a39bd33979eb6e840e30989e34a3794e843d23b60ec6e422d7` | 4.5 GB |
+| `vae` | latent encode/decode at 48 kHz | same commit, `vae/diffusion_pytorch_model.safetensors` | `da17edb604c40deaf09e9b24974e590d1ca83a374070e5d0884cfa4bed9a99b0` | 322 MB |
+| `Qwen3-Embedding-0.6B` | text conditioning | same commit, `Qwen3-Embedding-0.6B/model.safetensors` | `0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd` | 1.1 GB |
+| `acestep-5Hz-lm-1.7B` | LM planner (not used by repaint) | same commit, `acestep-5Hz-lm-1.7B/model.safetensors` | `f161689da73e5ecefa28ff780d51c2d92a00f056d021d7933c779ed5c6cd7db8` | 3.5 GB |
+
+Source: code <https://github.com/ACE-Step/ACE-Step-1.5>; weights
+<https://huggingface.co/ACE-Step/Ace-Step1.5>. Verified 2026-10-21 on macOS arm64 / MPS. The worker
+talks to it over HTTP (`services/workers/generate/src/bragi_generate/backends/ace_step_api.py`) and
+never imports torch or loads these files itself.
+
 ## Hosted model (no weights in the repo) — WP-1.7
 
 | Name | Task | Version | SHA-256 | Source | Verified |
