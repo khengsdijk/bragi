@@ -11,7 +11,8 @@
  *   accepted -> the gap's stems map onto the song's tracks -> undo restores the exact document -> axe.
  *
  * Same gate and stack as `planner-flow.spec.ts` (`BRAGI_E2E_STACK=1`, single-user `dev:backend`,
- * `BRAGI_GENERATION_BACKEND=fake`).
+ * `BRAGI_GENERATION_BACKEND=fake`). The job's seed is fixed (7), so a repeated run is a worker
+ * result-cache hit (only `job.completed`, no partials); `E2E_SEED=<n>` forces a fresh generation.
  */
 import AxeBuilder from "@axe-core/playwright";
 import type { Page, Route } from "@playwright/test";
@@ -113,7 +114,7 @@ function planFor(request: PlanRequestLike): PreparedPlan {
       timeSignature: [signature.numerator, signature.denominator],
       key: keyOf(doc),
       descriptors: (doc.meta.tags ?? []).slice(0, 6),
-      seed: 7,
+      seed: Number(process.env.E2E_SEED ?? 7),
     },
   };
   const body = {
