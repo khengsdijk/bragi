@@ -11,6 +11,7 @@ import { join } from "node:path";
 
 import { test as base, type Page } from "@playwright/test";
 
+import { muteContext } from "./mute-audio.js";
 import { resetAppStorage } from "./reset-storage.js";
 
 export const VIEWPORT = { width: 1280, height: 900 } as const;
@@ -33,6 +34,7 @@ export const test = base.extend<Fixtures>({
     if (project.startsWith("webkit")) {
       const profile = mkdtempSync(join(tmpdir(), `bragi-webkit-${project}-`));
       const context = await playwright.webkit.launchPersistentContext(profile, contextOptions);
+      await muteContext(context);
       const page = context.pages()[0] ?? (await context.newPage());
       try {
         await resetAppStorage(page);
@@ -45,6 +47,7 @@ export const test = base.extend<Fixtures>({
       return;
     }
     const context = await browser.newContext(contextOptions);
+    await muteContext(context);
     const page = await context.newPage();
     page.on("pageerror", (error) => console.log(`[pageerror] ${error.message}`));
     try {
