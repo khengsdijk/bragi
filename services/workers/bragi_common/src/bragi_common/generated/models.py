@@ -1226,17 +1226,6 @@ class SourceKind(StrEnum):
     imported_stem = 'imported_stem'
 
 
-class SourcePlacement(BaseModel):
-    """
-    Where a placed source lives in the arrangement. `analysis.apply` does not build a baseline block for such a source; it maps the source's stems into this section (02 §6).
-    """
-
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    sectionId: SectionId
-
-
 class StemActivityResultSchemaVersion(IntEnum):
     """
     Blob schema version (01 §7).
@@ -2574,56 +2563,32 @@ type SidechainSourcePatch = Annotated[
 ]
 
 
-class Source(BaseModel):
+class SourcePlacement(BaseModel):
     """
-    An original input: an upload, a generation, a recording or an imported stem (02 §3.2).
+    Where a placed source lives in the arrangement. `analysis.apply` does not build a baseline block for such a source; it maps the source's stems into this span (02 §6). Without `range` the placement owns the whole section (an extend); with it, the placement owns only that span (a fill), which may cross into the following sections.
     """
 
     model_config = ConfigDict(
         extra='forbid',
     )
-    id: SourceId
-    kind: SourceKind
-    originalAsset: Annotated[
-        AssetHash,
+    sectionId: Annotated[
+        SectionId,
         Field(
-            description='The exact bytes the user provided (or that were generated).'
+            description='The section the placement is anchored to. A `range` starts inside it.'
         ),
     ]
-    workingAsset: Annotated[
-        AssetHash, Field(description='The 48 kHz 24-bit FLAC produced by ingest.')
-    ]
-    durationSamples: Annotated[
-        int,
-        Field(description='Length of the working asset in samples at 48 kHz.', ge=0),
-    ]
-    channels: ChannelCount
-    label: Annotated[
-        str,
-        Field(description='E.g. the original filename, or "Generated: dreamy outro".'),
-    ]
-    provenance: Provenance | None = None
-    placement: Annotated[
-        SourcePlacement | None,
+    range: Annotated[
+        TickRange | None,
         Field(
-            description="Set when the source is placed by the user or a generation, not laid out by `analysis.apply`: the section whose lanes hold this source's audio (02 §3.2, §6)."
+            description="A gap range in ticks, relative to the anchored section's start; `endTick` may lie past that section's length (02 §6.4). Absent = the whole section."
         ),
     ] = None
-
-
-class SourceAddOp(BaseModel):
-    """
-    `source.add` (02 §4.2). Add a source to the document. A generated source that is placed in the arrangement carries a `placement` naming the section its audio lives in; `analysis.apply` maps that source's stems into the section instead of building a baseline block for it (02 §6).
-    """
-
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    op: SourceAddOpOp
-    source: Source
-    index: Annotated[
+    srcStartSamples: Annotated[
         int | None,
-        Field(description='Position in sources; appended when absent.', ge=0),
+        Field(
+            description='The source sample that plays at `range.startTick`: a fill skips the left overlap before the gap. Required with `range` (02 §6.4).',
+            ge=0,
+        ),
     ] = None
 
 
@@ -3468,6 +3433,59 @@ class SmoothStep(BaseModel):
     kind: SmoothStepKind
     region: Region
     tools: SmoothToolList
+
+
+class Source(BaseModel):
+    """
+    An original input: an upload, a generation, a recording or an imported stem (02 §3.2).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: SourceId
+    kind: SourceKind
+    originalAsset: Annotated[
+        AssetHash,
+        Field(
+            description='The exact bytes the user provided (or that were generated).'
+        ),
+    ]
+    workingAsset: Annotated[
+        AssetHash, Field(description='The 48 kHz 24-bit FLAC produced by ingest.')
+    ]
+    durationSamples: Annotated[
+        int,
+        Field(description='Length of the working asset in samples at 48 kHz.', ge=0),
+    ]
+    channels: ChannelCount
+    label: Annotated[
+        str,
+        Field(description='E.g. the original filename, or "Generated: dreamy outro".'),
+    ]
+    provenance: Provenance | None = None
+    placement: Annotated[
+        SourcePlacement | None,
+        Field(
+            description="Set when the source is placed by the user or a generation, not laid out by `analysis.apply`: the section whose lanes hold this source's audio (02 §3.2, §6)."
+        ),
+    ] = None
+
+
+class SourceAddOp(BaseModel):
+    """
+    `source.add` (02 §4.2). Add a source to the document. A generated source that is placed in the arrangement carries a `placement` naming the section its audio lives in; `analysis.apply` maps that source's stems into the section instead of building a baseline block for it (02 §6).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    op: SourceAddOpOp
+    source: Source
+    index: Annotated[
+        int | None,
+        Field(description='Position in sources; appended when absent.', ge=0),
+    ] = None
 
 
 class TempoEffect(BaseModel):

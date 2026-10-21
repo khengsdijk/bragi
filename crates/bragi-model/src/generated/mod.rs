@@ -11269,12 +11269,22 @@ impl ::std::convert::TryFrom<::std::string::String> for SourceKind {
         value.parse()
     }
 }
-///Where a placed source lives in the arrangement. `analysis.apply` does not build a baseline block for such a source; it maps the source's stems into this section (02 §6).
+///Where a placed source lives in the arrangement. `analysis.apply` does not build a baseline block for such a source; it maps the source's stems into this span (02 §6). Without `range` the placement owns the whole section (an extend); with it, the placement owns only that span (a fill), which may cross into the following sections.
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct SourcePlacement {
+    ///A gap range in ticks, relative to the anchored section's start; `endTick` may lie past that section's length (02 §6.4). Absent = the whole section.
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub range: ::std::option::Option<TickRange>,
+    ///The section the placement is anchored to. A `range` starts inside it.
     #[serde(rename = "sectionId")]
     pub section_id: SectionId,
+    ///The source sample that plays at `range.startTick`: a fill skips the left overlap before the gap. Required with `range` (02 §6.4).
+    #[serde(
+        rename = "srcStartSamples",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub src_start_samples: ::std::option::Option<u64>,
 }
 ///`StemActivity`
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]

@@ -2300,7 +2300,7 @@ export const PLAN_TOOL_SCHEMA: Record<string, unknown> = {
     },
     "SourcePlacement": {
       "title": "SourcePlacement",
-      "description": "Where a placed source lives in the arrangement. `analysis.apply` does not build a baseline block for such a source; it maps the source's stems into this section (02 §6).",
+      "description": "Where a placed source lives in the arrangement. `analysis.apply` does not build a baseline block for such a source; it maps the source's stems into this span (02 §6). Without `range` the placement owns the whole section (an extend); with it, the placement owns only that span (a fill), which may cross into the following sections.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -2308,7 +2308,17 @@ export const PLAN_TOOL_SCHEMA: Record<string, unknown> = {
       ],
       "properties": {
         "sectionId": {
+          "description": "The section the placement is anchored to. A `range` starts inside it.",
           "$ref": "#/$defs/SectionId"
+        },
+        "range": {
+          "description": "A gap range in ticks, relative to the anchored section's start; `endTick` may lie past that section's length (02 §6.4). Absent = the whole section.",
+          "$ref": "#/$defs/TickRange"
+        },
+        "srcStartSamples": {
+          "description": "The source sample that plays at `range.startTick`: a fill skips the left overlap before the gap. Required with `range` (02 §6.4).",
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
