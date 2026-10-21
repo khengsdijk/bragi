@@ -8,12 +8,23 @@ gates of 09 §6 run against something musically coherent instead of a tone burst
 Everything is generated from the seed: the same seed gives bit-identical audio, and
 a different seed only changes velocities, the progression rotation and a little pad
 detune. No audio file is ever committed (13 §1.7).
+
+Two continuations, picked by ``mode`` (or ``BRAGI_FAKE_GENERATION``):
+
+- ``loop`` (default): repeats the context's own last bars. On a real song the
+  synthetic pattern's beat does not line up with the music, so the gates reject most
+  of it; a loop of the context keeps its tempo, key and phase, so the live e2e gets
+  passing candidates on any song. The seed picks how many bars loop (2, 4 or 8) and
+  a small gain, so candidates differ.
+- ``synth``: the drum/bass/pad pattern above, for tests on synthetic contexts.
 """
 
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Callable
+from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -208,6 +219,36 @@ def synthesize(
     return Audio(np.ascontiguousarray(np.clip(out, -1.0, 1.0)), rate)
 
 
+#: Bars a seeded loop repeats, picked by ``seed % 3``.
+_LOOP_BARS: tuple[int, ...] = (2, 4, 8)
+
+
+def loop_context(req: GenRequest, seed: int) -> Audio:
+    """Continues the context by repeating its last bars (``loop`` mode).
+
+    A forward candidate starts one overlap before the context end, so its head is the
+    context's own tail; a backward one ends one overlap after the context start. The
+    loop length and a gain within ±0.5 dB come from the seed.
+    """
+    context = req.context
+    rate = context.sample_rate
+    total = max(1, round(req.total_duration_sec * rate))
+    overlap = min(round(req.overlap_sec * rate), context.frames)
+    bar = max(1, round(req.bar_sec * rate))
+    loop = min(bar * _LOOP_BARS[seed % len(_LOOP_BARS)], context.frames)
+    samples = context.samples
+    if req.direction == "backward":
+        samples = samples[::-1]
+    head = samples[context.frames - overlap :]
+    cycle = samples[context.frames - loop :]
+    repeats = -(-(total - overlap) // loop) if total > overlap else 0
+    body = np.concatenate([head, *([cycle] * repeats)])[:total]
+    if req.direction == "backward":
+        body = body[::-1]
+    gain = 10.0 ** (((seed % 11) - 5) / 10.0 / 20.0)
+    return Audio(np.ascontiguousarray(body * np.float32(gain), dtype=np.float32), rate)
+
+
 class FakeBackend:
     """The no-model backend for tests and the live e2e."""
 
@@ -218,6 +259,13 @@ class FakeBackend:
     supports_audio_context = True
     supports_lyrics = False
     supports_preview_tier = True
+
+    def __init__(self, mode: Literal["loop", "synth"] | None = None) -> None:
+        """Picks the continuation: ``mode``, else ``BRAGI_FAKE_GENERATION``, else ``loop``."""
+        chosen = mode or os.environ.get("BRAGI_FAKE_GENERATION", "loop")
+        if chosen not in ("loop", "synth"):
+            raise ValueError(f"BRAGI_FAKE_GENERATION must be loop or synth, got {chosen!r}")
+        self.mode: Literal["loop", "synth"] = "synth" if chosen == "synth" else "loop"
 
     def generate(
         self,
@@ -241,6 +289,10 @@ class FakeBackend:
         target_db = rms_db(req.context)
         for index in range(n):
             seed = (req.seed + index) & 0xFFFFFFFF
+            if self.mode == "loop" and req.context.frames > 0:
+                outputs.append(self._output(loop_context(req, seed), seed, started))
+                on_progress((index + 1) / n)
+                continue
             audio = synthesize(
                 req.bpm,
                 req.time_signature,
@@ -260,24 +312,22 @@ class FakeBackend:
                 if peak > 0.0:
                     gain = min(gain, 0.95 / peak)
                 audio = scale(audio, min(gain, 8.0))
-            outputs.append(
-                GenOutput(
-                    audio=audio,
-                    seed=seed,
-                    model=self.name,
-                    model_version=self.version,
-                    timings=GenTimings(
-                        generate_sec=time.perf_counter() - started,
-                        download_sec=0.0,
-                        total_sec=time.perf_counter() - started,
-                    ),
-                )
-            )
+            outputs.append(self._output(audio, seed, started))
             on_progress((index + 1) / n)
         return outputs
+
+    def _output(self, audio: Audio, seed: int, started: float) -> GenOutput:
+        elapsed = time.perf_counter() - started
+        return GenOutput(
+            audio=audio,
+            seed=seed,
+            model=self.name,
+            model_version=self.version,
+            timings=GenTimings(generate_sec=elapsed, download_sec=0.0, total_sec=elapsed),
+        )
 
     def warmup(self) -> None:
         """No-op: there is no model to load (09 §5's ping is cheap)."""
 
 
-__all__ = ["FakeBackend", "midi_to_hz", "synthesize"]
+__all__ = ["FakeBackend", "loop_context", "midi_to_hz", "synthesize"]

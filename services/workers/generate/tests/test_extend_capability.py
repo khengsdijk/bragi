@@ -139,7 +139,7 @@ def test_cancellation_stops_before_the_next_candidate(monkeypatch: pytest.Monkey
 
 
 def test_the_real_gates_pass_on_a_fake_continuation(monkeypatch: pytest.MonkeyPatch) -> None:
-    use_backend(monkeypatch, FakeBackend())
+    use_backend(monkeypatch, FakeBackend("synth"))
     ctx = FakeContext(context_bytes(12.0))
     document = params(bars=4, overlap_bars=2, n=3)
     document["context"] = {
