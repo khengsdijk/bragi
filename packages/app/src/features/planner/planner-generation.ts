@@ -49,7 +49,7 @@ import {
   extendCandidateBatch,
 } from "../generation/state/extend-candidates.js";
 import { applyGeneratedAnalysis } from "../generation/state/generated-analysis.js";
-import type { GenerationAudition } from "../generation/state/generation-session.js";
+import { candidateEntry, type GenerationAudition } from "../generation/state/generation-session.js";
 import { ticksPerBarAt, totalTicks } from "../generation/state/musical-context.js";
 import { geometryFor } from "../generation/state/session-geometry.js";
 import type { History } from "../history/state/history.js";
@@ -523,18 +523,18 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
     if (message.t === "job.partial") {
       const job = jobs.get(message.jobId);
       if (job === undefined) return;
-      const asset = message.outputs?.assets?.candidate_0;
-      const blob = message.outputs?.blobs?.candidate_0;
+      const asset = candidateEntry(message.outputs?.assets);
+      const blob = candidateEntry(message.outputs?.blobs);
       if (asset === undefined || blob === undefined) return;
       partials = partials
         .then(async () => {
-          const json = await downloadJson(blob);
+          const json = await downloadJson(blob.hash);
           if (passedResult(json)) {
-            await publish(job, asset, json, false);
+            await publish(job, asset.hash, json, false);
             return;
           }
           // A rejected preview is only published when the job ends without a passing one.
-          job.lastRejected = { assetHash: asset, json };
+          job.lastRejected = { assetHash: asset.hash, json };
         })
         .catch((error: unknown) => {
           console.warn("could not add a planner generation candidate", error);
@@ -578,9 +578,9 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
   async function handleHqPartial(
     message: Extract<RealtimeMessage, { t: "job.partial" }>,
   ): Promise<void> {
-    const asset = message.outputs?.assets?.candidate_0;
+    const asset = candidateEntry(message.outputs?.assets);
     if (asset === undefined) return;
-    await ensureAsset(asset);
+    await ensureAsset(asset.hash);
     deps.onAnnounce?.(t("generation.extend.live.hqReady"));
   }
 
