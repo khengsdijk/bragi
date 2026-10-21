@@ -406,9 +406,10 @@ describe("the extend flow", () => {
     expect(h.songStore.store.getState().doc?.arrangement.sections).toHaveLength(h.originalSections);
 
     // Accept idea 2: HEAD moves, analysis is queued and the HQ re-render is submitted.
+    const ideaTwo = h.audition.store.getState().group?.candidates.find((entry) => entry.slot === 2);
     expect(h.audition.select(2)).toBe(true);
     await h.audition.accept();
-    expect(h.history.store.getState().head).toBe(candidateCommits[1]?.id);
+    expect(h.history.store.getState().head).toBe(ideaTwo?.id);
     await vi.waitFor(() => {
       expect(h.analysed).toEqual([{ hash: second.assetHash, profile: "standard" }]);
       expect(h.submits).toHaveLength(2);

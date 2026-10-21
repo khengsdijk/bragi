@@ -197,6 +197,8 @@ interface Session {
   jobId: string | null;
   hqJobId: string | null;
   accepted: string | null;
+  /** True once the group is closed (accepted, discarded or the canvas went away). */
+  closed: boolean;
   readonly candidates: Map<string, CandidateRecord>;
   /** Candidate indices already placed; a re-delivered partial must not add a second commit. */
   readonly published: Set<number>;
@@ -212,6 +214,8 @@ export function createExtendFlow(deps: ExtendFlowDependencies): ExtendFlow {
   const appliedStages = new Set<string>();
   let session: Session | null = null;
   let disposeJobSubscription: (() => void) | null = null;
+  /** Partials are placed one at a time, so their commits keep the order they were published in. */
+  let partials: Promise<void> = Promise.resolve();
   let cancelled = false;
   let warmupStatus: WarmupStatus = "idle";
 
@@ -298,7 +302,7 @@ export function createExtendFlow(deps: ExtendFlowDependencies): ExtendFlow {
     event: Extract<RealtimeMessage, { t: "job.partial" }>,
   ): Promise<void> {
     // An accepted job is over for the bar; a late partial must not add a candidate on new HEAD.
-    if (current.accepted !== null || cancelled) return;
+    if (current.accepted !== null || current.closed || cancelled) return;
     const asset = candidateEntry(event.outputs?.assets);
     const blob = candidateEntry(event.outputs?.blobs);
     if (asset === undefined || blob === undefined) return;
@@ -371,10 +375,12 @@ export function createExtendFlow(deps: ExtendFlowDependencies): ExtendFlow {
       return;
     }
     if (message.t === "job.partial" && message.jobId === current.jobId) {
-      void handlePartial(current, message).catch((error: unknown) => {
-        console.warn("could not add an extend candidate", error);
-        fail(extendErrorMessage(error));
-      });
+      partials = partials
+        .then(() => handlePartial(current, message))
+        .catch((error: unknown) => {
+          console.warn("could not add an extend candidate", error);
+          fail(extendErrorMessage(error));
+        });
       return;
     }
     if (message.t === "job.completed" && message.jobId === current.jobId) {
@@ -603,11 +609,15 @@ export function createExtendFlow(deps: ExtendFlowDependencies): ExtendFlow {
           jobId: accepted.jobId,
           hqJobId: null,
           accepted: null,
+          closed: false,
           candidates: new Map(),
           published: new Set(),
         };
+        const previous = session;
+        if (previous !== null) previous.closed = true;
         session = current;
         appliedStages.clear();
+        partials = Promise.resolve();
         set({ phase: "generating", jobId: accepted.jobId, pct: 0, candidates: 0 });
         disposeJobSubscription?.();
         disposeJobSubscription = deps.realtime.on(onMessage);
@@ -645,6 +655,7 @@ export function createExtendFlow(deps: ExtendFlowDependencies): ExtendFlow {
       const record = current.candidates.get(candidateId);
       if (record === undefined) return;
       current.accepted = candidateId;
+      current.closed = true;
       set({ phase: "accepted" });
       void queueAnalysis(record);
       void submitHq(current, record);
@@ -653,6 +664,7 @@ export function createExtendFlow(deps: ExtendFlowDependencies): ExtendFlow {
       const current = session;
       if (current === null || current.group !== group) return;
       cancelled = true;
+      current.closed = true;
       if (current.jobId !== null && current.accepted === null) {
         void deps.api.cancelJob(current.jobId).catch((error: unknown) => {
           console.warn("could not cancel the extend job", error);
@@ -670,6 +682,7 @@ export function createExtendFlow(deps: ExtendFlowDependencies): ExtendFlow {
     },
     dispose() {
       const current = session;
+      if (current !== null) current.closed = true;
       if (current !== null && current.jobId !== null && current.accepted === null && !cancelled) {
         void deps.api.cancelJob(current.jobId).catch(() => undefined);
       }
