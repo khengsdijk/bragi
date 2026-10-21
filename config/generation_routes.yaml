@@ -7,3 +7,9 @@ routes:
   generate.extend:
     preview: ace_step
     hq: ace_step
+  generate.inpaint:
+    preview: ace_step
+    hq: ace_step
+  generate.transition:
+    preview: ace_step
+    hq: ace_step
