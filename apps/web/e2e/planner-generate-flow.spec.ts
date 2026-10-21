@@ -13,12 +13,20 @@
  * Same gate and stack as `planner-flow.spec.ts` (`BRAGI_E2E_STACK=1`, single-user `dev:backend`,
  * `BRAGI_GENERATION_BACKEND=fake`). The job's seed is fixed (7), so a repeated run is a worker
  * result-cache hit (only `job.completed`, no partials); `E2E_SEED=<n>` forces a fresh generation.
+ *
+ * A second mode runs against the **real** planner: `BRAGI_E2E_LIVE_PLANNER=1` skips the faked
+ * `POST /v1/plans`, so the app's own requests reach the live API (`POST /v1/plans` then
+ * `POST /v1/plans/{id}/execute`, which submits real jobs on the fake generation backend). It needs
+ * `OPENROUTER_API_KEY` on the backend and spends planner credits. The test reads the plan from the
+ * response, fails with the labels and step kinds when the planner returned no generative variant
+ * (a planner-quality result the reviewer records, not a crash), and logs the interpretation, the
+ * labels, the step kinds and the time to the generated candidate. Each mode skips the other.
  */
 import AxeBuilder from "@axe-core/playwright";
-import type { Page, Route } from "@playwright/test";
+import type { Locator, Page, Route } from "@playwright/test";
 
 import { expect, test } from "./app-page.js";
-import { ribbonPoint, withHooks } from "./song-helpers.js";
+import { type ProjectLike, ribbonPoint, withHooks } from "./song-helpers.js";
 import {
   audioOutputRenders,
   barLengths,
@@ -35,6 +43,35 @@ import {
 test.skip(!STACK, SKIP_REASON);
 
 const PLAN_ID = "pln_e2egenerate0000000000000";
+const LIVE_PLANNER = process.env.BRAGI_E2E_LIVE_PLANNER === "1";
+const LIVE_SKIP_REASON =
+  "needs the real planner: set BRAGI_E2E_LIVE_PLANNER=1 with OPENROUTER_API_KEY on the backend (spends planner credits)";
+const FAKED_SKIP_REASON =
+  "runs the faked planner: unset BRAGI_E2E_LIVE_PLANNER to run it against the live API";
+
+/** The plan's shape as far as the live mode reads it (06 §3). */
+interface PlanResponseLike {
+  planId: string;
+  interpretation: string;
+  variants: PlanVariantLike[];
+}
+
+interface PlanVariantLike {
+  label: string;
+  steps: PlanStepLike[];
+}
+
+interface PlanStepLike {
+  kind: string;
+  id?: string;
+  capability?: string;
+  from?: string;
+  placement?: {
+    region: { startTick: number; endTick: number; tracks: string[] | "all" };
+    trackId?: string;
+    mode?: string;
+  };
+}
 
 interface RawDoc {
   id: string;
@@ -197,6 +234,68 @@ async function lasso(page: Page, trackId: string): Promise<void> {
   await page.mouse.up();
 }
 
+/** Selects a candidate by slot, accepts it, and waits for the history head to carry its label. */
+async function acceptCandidate(
+  page: Page,
+  ideas: Locator,
+  slot: number,
+  label: string,
+): Promise<void> {
+  await page.locator("body").click({ position: { x: 2, y: 2 } });
+  await page.keyboard.press(String(slot));
+  await page.waitForTimeout(300);
+  await ideas.getByRole("button", { name: /Accept/ }).click();
+  await expect(ideas).toBeHidden();
+  await expect.poll(async () => (await historyView(page)).headLabel).toBe(label);
+}
+
+/** Undoes back to the commit the run started from and checks the document is byte-for-byte it. */
+async function undoTo(
+  page: Page,
+  before: ProjectLike | null,
+  beforeHead: string | null,
+  mod: string,
+): Promise<void> {
+  await page.locator("body").click({ position: { x: 1, y: 1 } });
+  for (let step = 0; step < 12; step += 1) {
+    const head = await historyView(page).then((history) => history.head);
+    if (head === beforeHead) break;
+    await page.keyboard.press(`${mod}+z`);
+    await page.waitForTimeout(400);
+  }
+  await expect.poll(() => hookDoc(page), { timeout: 30_000 }).toEqual(before);
+}
+
+/**
+ * Whether the placed fill's own separation maps stems into `gap` on `trackId` (02 §6.4). `null`
+ * while the gap has no section yet, so `expect.poll` keeps waiting.
+ */
+function gapFilled(
+  page: Page,
+  gap: { startTick: number; endTick: number },
+  trackId: string,
+): () => Promise<{ onTrack: boolean; generated: boolean } | null> {
+  return async () => {
+    const doc = await hookDoc(page);
+    if (doc === null) return null;
+    let tick = 0;
+    let section: ProjectLike["arrangement"]["sections"][number] | undefined;
+    for (const candidate of doc.arrangement.sections) {
+      if (tick + candidate.lengthTicks > gap.startTick && tick < gap.endTick) {
+        section = candidate;
+        break;
+      }
+      tick += candidate.lengthTicks;
+    }
+    if (section === undefined) return null;
+    const roles = new Map(doc.tracks.map((entry) => [entry.id, entry.role]));
+    const lanes = Object.entries(section.lanes ?? {}).filter(([, lane]) => lane.clips.length > 0);
+    const onTrack = lanes.some(([laneTrack]) => laneTrack === trackId);
+    const generated = lanes.some(([laneTrack]) => roles.get(laneTrack) === "generated");
+    return { onTrack, generated };
+  };
+}
+
 /**
  * Fakes the planner's two routes. `execute` submits a real job with the app's uploaded contexts, so
  * the generated candidate comes from the worker exactly as in production.
@@ -286,6 +385,7 @@ test.describe("a planner plan with a generative variant", () => {
   test("lasso, prompt, ops-only ideas and a generated fill, accept, undo (M2 demo 4)", async ({
     appPage,
   }, testInfo) => {
+    test.skip(LIVE_PLANNER, LIVE_SKIP_REASON);
     const errors: string[] = [];
     appPage.on("pageerror", (event) => errors.push(event.message));
     const mod = process.platform === "darwin" ? "Meta" : "Control";
@@ -361,51 +461,21 @@ test.describe("a planner plan with a generative variant", () => {
         null,
     );
     if (slot === null) throw new Error("the generated idea has no slot");
-    await appPage.locator("body").click({ position: { x: 2, y: 2 } });
-    await appPage.keyboard.press(String(slot));
-    await appPage.waitForTimeout(300);
-    await ideas.getByRole("button", { name: /Accept/ }).click();
-    await expect(ideas).toBeHidden();
-    await expect.poll(async () => (await historyView(appPage)).headLabel).toBe("Generated fill");
+    await acceptCandidate(appPage, ideas, slot, "Generated fill");
     console.log(
       `[planner-generate] ${testInfo.project.name}: accepted the generated fill in slot ${slot}`,
     );
 
     // The fill's own separation maps stems into the gap on the song's tracks.
-    const gapFilled = async () => {
-      const doc = await hookDoc(appPage);
-      if (doc === null) return null;
-      let tick = 0;
-      let section:
-        | NonNullable<Awaited<ReturnType<typeof hookDoc>>>["arrangement"]["sections"][number]
-        | undefined;
-      for (const candidate of doc.arrangement.sections) {
-        if (tick + candidate.lengthTicks > prepared.gap.startTick && tick < prepared.gap.endTick) {
-          section = candidate;
-          break;
-        }
-        tick += candidate.lengthTicks;
-      }
-      if (section === undefined) return null;
-      const roles = new Map(doc.tracks.map((entry) => [entry.id, entry.role]));
-      const lanes = Object.entries(section.lanes ?? {}).filter(([, lane]) => lane.clips.length > 0);
-      const onTrack = lanes.some(([trackId]) => trackId === prepared.trackId);
-      const generated = lanes.some(([trackId]) => roles.get(trackId) === "generated");
-      return { onTrack, generated };
-    };
     await expect
-      .poll(gapFilled, { timeout: 240_000, intervals: [1_000] })
+      .poll(gapFilled(appPage, prepared.gap, prepared.trackId), {
+        timeout: 240_000,
+        intervals: [1_000],
+      })
       .toEqual({ onTrack: true, generated: false });
 
     // Undo returns to the document before the plan exactly.
-    await appPage.locator("body").click({ position: { x: 1, y: 1 } });
-    for (let step = 0; step < 12; step += 1) {
-      const head = await historyView(appPage).then((history) => history.head);
-      if (head === beforeHead) break;
-      await appPage.keyboard.press(`${mod}+z`);
-      await appPage.waitForTimeout(400);
-    }
-    await expect.poll(() => hookDoc(appPage), { timeout: 30_000 }).toEqual(before);
+    await undoTo(appPage, before, beforeHead, mod);
 
     expect(
       await withHooks(appPage, (hooks) => hooks.controller.store.getState().error),
@@ -415,5 +485,173 @@ test.describe("a planner plan with a generative variant", () => {
     console.log(
       `[planner-generate] ${testInfo.project.name}: gap on ${prepared.trackId}, ${bars.sec.toFixed(2)} s bars`,
     );
+  });
+
+  test("a live planner plan with a generative variant (M2 demo 4, real planner)", async ({
+    appPage,
+  }, testInfo) => {
+    test.skip(!LIVE_PLANNER, FAKED_SKIP_REASON);
+    const errors: string[] = [];
+    appPage.on("pageerror", (event) => errors.push(event.message));
+    const mod = process.platform === "darwin" ? "Meta" : "Control";
+
+    const audio = await audioOutputRenders(appPage);
+    if (!audio) {
+      testInfo.annotations.push({
+        type: "audio",
+        description: "this machine's audio output does not render: playback was not checked",
+      });
+    }
+    await openAnalysedSong(appPage);
+    const before = await hookDoc(appPage);
+    if (before === null) throw new Error("no document after analysis");
+    const track = stemTracks(before)[0];
+    if (track === undefined) throw new Error("no visible stem");
+    const beforeHead = (await historyView(appPage)).head;
+
+    await withHooks(appPage, (hooks) => {
+      hooks.canvas?.fit();
+      hooks.canvas?.renderNow();
+    });
+    await lasso(appPage, track.id);
+    const prompt = appPage.getByTestId("prompt-bar");
+    await expect(prompt).toBeVisible();
+    await expect(prompt.getByRole("group", { name: "Suggestions" })).toBeVisible();
+    expect(seriousOrCritical(await new AxeBuilder({ page: appPage }).analyze())).toEqual([]);
+
+    // The app posts the real plan request; read the plan and the lasso it answered about.
+    const planResponse = appPage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/v1/plans" &&
+        response.status() === 200,
+      { timeout: 180_000 },
+    );
+    await prompt
+      .getByRole("textbox", { name: "What should change?" })
+      .fill("replace these bars with a new drum fill");
+    const entered = Date.now();
+    await appPage.keyboard.press("Enter");
+    const response = await planResponse;
+    const plan = (await response.json()) as PlanResponseLike;
+    const planRequest = response.request().postDataJSON() as PlanRequestLike;
+    console.log(
+      `[planner-generate] live: interpretation="${plan.interpretation}" variants=${JSON.stringify(
+        plan.variants.map((variant) => ({
+          label: variant.label,
+          steps: variant.steps.map((step) => step.kind),
+        })),
+      )}`,
+    );
+
+    const ideas = appPage.getByTestId("audition-bar");
+    await expect(ideas).toBeVisible({ timeout: 60_000 });
+    await expect
+      .poll(() => withHooks(appPage, (hooks) => hooks.plannerGeneration?.group() ?? null), {
+        timeout: 60_000,
+      })
+      .toBe(plan.planId);
+
+    // A plan without a generative idea is a planner-quality result, not a test bug: name the
+    // labels and step kinds so the reviewer can record exactly what came back.
+    const generative = plan.variants.find((variant) =>
+      variant.steps.some((step) => step.kind === "generate"),
+    );
+    if (generative === undefined) {
+      const described = plan.variants
+        .map(
+          (variant) => `"${variant.label}" [${variant.steps.map((step) => step.kind).join(", ")}]`,
+        )
+        .join("; ");
+      throw new Error(
+        `the live planner returned no variant with a generate step for "replace these bars with a new drum fill": ${described}`,
+      );
+    }
+    const generateStep = generative.steps.find((step) => step.kind === "generate");
+    const applyStep = generative.steps.find((step) => step.kind === "apply_generated");
+
+    // The ops-only variants are instant (06 §5 step 3); the generative one is queued.
+    for (const variant of plan.variants) {
+      if (variant.steps.some((step) => step.kind === "generate")) continue;
+      await expect(ideas.getByRole("button", { name: variant.label })).toBeVisible();
+    }
+
+    // The generated idea streams in as a candidate, from the real job.
+    await expect
+      .poll(
+        () =>
+          withHooks(appPage, (hooks) =>
+            (hooks.audition?.store.getState().group?.candidates ?? []).map(
+              (candidate: { label: string }) => candidate.label,
+            ),
+          ),
+        { timeout: 300_000, intervals: [1_000] },
+      )
+      .toContain(generative.label);
+    console.log(
+      `[planner-generate] live: "${generative.label}" arrived ${((Date.now() - entered) / 1000).toFixed(1)} s after Enter`,
+    );
+
+    const slot = await withHooks(
+      appPage,
+      (hooks) =>
+        hooks.audition?.store
+          .getState()
+          .group?.candidates.find((candidate) => candidate.label === generative.label)?.slot ??
+        null,
+    );
+    if (slot === null) throw new Error("the generated idea has no slot");
+    await acceptCandidate(appPage, ideas, slot, generative.label);
+    console.log(
+      `[planner-generate] live: accepted "${generative.label}" in slot ${slot} (${generateStep?.capability ?? "?"})`,
+    );
+
+    // The gap's stems map onto the song's tracks only when the plan inpainting the lasso; the
+    // model may choose an extend or a transition instead, so the check follows the placement.
+    const placementRegion = applyStep?.placement?.region;
+    const lassoRegion = planRequest.region;
+    const lassoTrack =
+      lassoRegion !== undefined && Array.isArray(lassoRegion.tracks)
+        ? lassoRegion.tracks[0]
+        : undefined;
+    const checkTrack =
+      placementRegion !== undefined && Array.isArray(placementRegion.tracks)
+        ? (placementRegion.tracks[0] ?? applyStep?.placement?.trackId ?? lassoTrack)
+        : (applyStep?.placement?.trackId ?? lassoTrack);
+    const inpaintsLasso =
+      generateStep?.capability === "generate.inpaint" &&
+      lassoRegion !== undefined &&
+      placementRegion !== undefined &&
+      placementRegion.startTick >= lassoRegion.startTick &&
+      placementRegion.endTick <= lassoRegion.endTick;
+    if (inpaintsLasso && placementRegion !== undefined && checkTrack !== undefined) {
+      await expect
+        .poll(gapFilled(appPage, placementRegion, checkTrack), {
+          timeout: 240_000,
+          intervals: [1_000],
+        })
+        .toEqual({ onTrack: true, generated: false });
+    } else {
+      console.log(
+        `[planner-generate] live: skipped the gap's stems check (capability ${
+          generateStep?.capability ?? "none"
+        }, placement ${
+          placementRegion === undefined
+            ? "none"
+            : `${placementRegion.startTick}-${placementRegion.endTick}`
+        } vs lasso ${
+          lassoRegion === undefined ? "none" : `${lassoRegion.startTick}-${lassoRegion.endTick}`
+        })`,
+      );
+    }
+
+    // Undo returns to the document before the plan exactly.
+    await undoTo(appPage, before, beforeHead, mod);
+
+    expect(
+      await withHooks(appPage, (hooks) => hooks.controller.store.getState().error),
+      "the engine stayed healthy",
+    ).toBeNull();
+    expect(errors).toEqual([]);
   });
 });
