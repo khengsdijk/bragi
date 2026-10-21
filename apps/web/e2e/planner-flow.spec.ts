@@ -166,9 +166,11 @@ test.describe("the planner on a real song", () => {
     await expect(appPage.getByTestId("planner-target")).not.toBeEmpty();
     await expect(prompt.getByRole("group", { name: "Suggestions" })).toBeVisible();
     await expect(
-      prompt.getByRole("button", {
-        name: /Half-time|More lo-fi|More reverb|Warmer|Brighter|More space|More punch|Quieter|Remove/,
-      }).first(),
+      prompt
+        .getByRole("button", {
+          name: /Half-time|More lo-fi|More reverb|Warmer|Brighter|More space|More punch|Quieter|Remove/,
+        })
+        .first(),
     ).toBeVisible();
     expect(
       await withHooks(appPage, (hooks) => hooks.canvas?.getLassoRegion() ?? null),
