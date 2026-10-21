@@ -16,15 +16,21 @@ result = postprocess(candidate, context, request)
 if result.passed:
     place(result.processed, at=result.splice_offset_samples)
 ```
+
+Two-sided capabilities (``generate.inpaint``, ``generate.transition``) use
+``postprocess_fill(candidate, before, after, request)``, which runs the same steps and
+returns a :class:`FillGateResult` with a score and an offset for each seam.
 """
 
 from __future__ import annotations
 
 from bragi_generate.postprocess.config import GateConfig, default_path
-from bragi_generate.postprocess.pipeline import postprocess
+from bragi_generate.postprocess.pipeline import postprocess, postprocess_fill
 from bragi_generate.postprocess.types import (
     NOTE_NAMES,
     Audio,
+    FillGateRequest,
+    FillGateResult,
     GateRequest,
     GateResult,
     KeyMatch,
@@ -36,6 +42,8 @@ from bragi_generate.postprocess.types import (
 __all__ = [
     "NOTE_NAMES",
     "Audio",
+    "FillGateRequest",
+    "FillGateResult",
     "GateConfig",
     "GateRequest",
     "GateResult",
@@ -45,4 +53,5 @@ __all__ = [
     "StepVerdict",
     "default_path",
     "postprocess",
+    "postprocess_fill",
 ]

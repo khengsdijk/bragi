@@ -9,6 +9,7 @@ sub-algorithm needs its own rate.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal
@@ -146,6 +147,85 @@ class GateRequest:
 
 
 @dataclass(frozen=True)
+class FillGateRequest:
+    """The grid of a two-sided request (09 §4.3-4.4, §6).
+
+    A fill is gated at two seams, so it needs the lead as well as the gap: the
+    generated span starts ``lead_bars`` before the join between the two contexts
+    and ``gap_bars`` separate the contexts (0 for a transition). The seam steps
+    themselves run on :attr:`grid`, a normal forward :class:`GateRequest` for the
+    left side; the right side uses the same grid with the roles swapped.
+    """
+
+    bpm: float
+    time_signature: tuple[int, int]
+    key: KeySpec
+    gap_bars: int
+    lead_bars: float
+    overlap_bars: int = 1
+
+    def __post_init__(self) -> None:
+        """Rejects a request that cannot describe a span with two contexts."""
+        if self.bpm <= 0.0:
+            raise ValueError(f"bpm must be positive, got {self.bpm}")
+        if self.time_signature[0] < 1 or self.time_signature[1] < 1:
+            raise ValueError(f"time signature must be positive, got {self.time_signature}")
+        if self.gap_bars < 0 or self.lead_bars < 0.0:
+            raise ValueError("gap_bars and lead_bars must be >= 0")
+        if self.gap_bars + 2.0 * self.lead_bars <= 0.0:
+            raise ValueError("gap_bars and lead_bars cannot both be zero")
+        if self.overlap_bars < 1:
+            raise ValueError(f"overlap_bars must be >= 1, got {self.overlap_bars}")
+
+    @property
+    def beats_per_bar(self) -> int:
+        """Beats in a bar as counted by the requested meter."""
+        return self.time_signature[0]
+
+    @property
+    def beat_sec(self) -> float:
+        """Length of one beat."""
+        return 60.0 / self.bpm
+
+    @property
+    def bar_sec(self) -> float:
+        """Length of one bar."""
+        return self.beat_sec * self.beats_per_bar
+
+    @property
+    def middle_bars(self) -> float:
+        """Bars between the two overlaps."""
+        return self.gap_bars + 2.0 * self.lead_bars
+
+    @property
+    def gap_sec(self) -> float:
+        """Length of the missing audio between the contexts."""
+        return self.bar_sec * self.gap_bars
+
+    @property
+    def lead_sec(self) -> float:
+        """How far the generated middle starts before the join."""
+        return self.bar_sec * self.lead_bars
+
+    @property
+    def overlap_sec(self) -> float:
+        """Length of the splicing overlap on each side."""
+        return self.bar_sec * self.overlap_bars
+
+    @property
+    def grid(self) -> GateRequest:
+        """The same grid as an extend-style request, for the seven gate steps."""
+        return GateRequest(
+            bpm=self.bpm,
+            time_signature=self.time_signature,
+            key=self.key,
+            bars=max(1, math.ceil(self.middle_bars)),
+            overlap_bars=self.overlap_bars,
+            direction="forward",
+        )
+
+
+@dataclass(frozen=True)
 class StepVerdict:
     """One gate's outcome and its metrics."""
 
@@ -200,6 +280,41 @@ class GateResult:
     #: starts inside the overlap, i.e. before the context end (forward).
     splice_offset_samples: int
     direction: Direction
+
+    def verdict(self, step: str) -> StepVerdict:
+        """The verdict for one step name."""
+        for verdict in self.steps:
+            if verdict.step == step:
+                return verdict
+        raise KeyError(step)
+
+
+@dataclass(frozen=True)
+class FillGateResult:
+    """A two-sided candidate's gates: both seams, their offsets and their scores.
+
+    ``processed`` is the generated span trimmed at both splices, with a fade-in of
+    the gate's crossfade length at the head and a fade-out of the same length at
+    the tail. ``start_offset_samples`` is where it starts relative to the gap
+    start (the join between the contexts; negative is inside the before overlap)
+    and ``end_offset_samples`` where it ends relative to the gap end (positive is
+    inside the after overlap). Both are in the aligned timeline the gates score,
+    the same frame ``GenerateExtendResult.spliceOffsetSamples`` uses.
+    """
+
+    processed: Audio
+    passed: bool
+    steps: tuple[StepVerdict, ...]
+    quality_warning: bool
+    #: 03 §8.2 seam score of the start splice, ``inf`` when it could not be scored.
+    seam_score: float
+    #: The same at the end splice, against ``after``.
+    end_seam_score: float
+    tempo_error: float
+    key_match: KeyMatch | None
+    match_eq: MatchEq | None
+    start_offset_samples: int
+    end_offset_samples: int
 
     def verdict(self, step: str) -> StepVerdict:
         """The verdict for one step name."""
