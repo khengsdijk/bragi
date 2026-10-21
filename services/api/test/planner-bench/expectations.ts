@@ -10,7 +10,7 @@
  * and a structural op is song-wide. That is deliberately conservative on the same side as the
  * validator (06 §7), so a check cannot pass by ignoring an op the dry run would reject.
  */
-import type { EditPlan, PlanVariant, Project, Region } from "@bragi/schemas";
+import type { EditPlan, PlanStep, PlanVariant, Project, Region } from "@bragi/schemas";
 
 /** One case's structural expectations. Every field is optional and defaults to "no check". */
 export interface Expectations {
@@ -43,6 +43,26 @@ export interface Expectations {
   containsText?: string[];
   /** The interpretation does not name a variant that validation dropped. */
   interpretationExcludesDropped?: boolean;
+  /** At least one variant has a generate step (06 §3). */
+  requiresGeneration?: boolean;
+  /** No variant has a generate step: the request must be answered with ops (system prompt rule 1). */
+  forbidsGeneration?: boolean;
+  /** At most one variant may generate (system prompt rule 2). */
+  atMostOneGenerativeVariant?: boolean;
+  /** Every generate step's capability is one of these. */
+  generationCapabilities?: string[];
+  /** A generative variant without `scope: "song"` generates inside the request's region. */
+  generationInsideRegion?: boolean;
+}
+
+/** One generate (or placement/smooth) step, in terms the checks understand. */
+export interface GenerationTarget {
+  readonly id: string;
+  readonly capability: string;
+  /** `generate` for the step itself, `apply_generated` for the placement that lands it. */
+  readonly kind: "generate" | "apply_generated";
+  readonly tracks: string[] | "all";
+  readonly spans: Span[];
 }
 
 /** A tick span. */
@@ -52,7 +72,14 @@ export interface Span {
 }
 
 /** One lever family, used by {@link Expectations.distinctLeverTypes}. */
-export type LeverType = "fx" | "automation" | "mixer" | "clip" | "arrangement" | "song";
+export type LeverType =
+  | "fx"
+  | "automation"
+  | "mixer"
+  | "clip"
+  | "arrangement"
+  | "song"
+  | "generation";
 
 /** What one variant targets, in terms the checks understand. */
 export interface VariantTargets {
@@ -66,6 +93,8 @@ export interface VariantTargets {
   automationTargets: string[];
   /** Fx IDs added or updated on a track/master chain (the levers that act for the whole song). */
   songFxIds: Set<string>;
+  /** The variant's generate steps and the spans they need (06 §3). */
+  generation: GenerationTarget[];
 }
 
 /** The result of one check. */
@@ -263,8 +292,107 @@ export function evaluateExpectations(input: EvaluationInput): Evaluation {
           : "variant-agnostic",
     );
   }
+  if (expectations.requiresGeneration !== undefined) {
+    const generative = plan.variants.filter(hasGeneration);
+    check(
+      "requiresGeneration",
+      generative.length > 0 === expectations.requiresGeneration,
+      generative.length > 0 ? `${generative.length} generative variant(s)` : "ops-only",
+    );
+  }
+  if (expectations.forbidsGeneration === true) {
+    const used = plan.variants.filter((variant) => hasGeneration(variant)).map((v) => v.label);
+    check(
+      "forbidsGeneration",
+      used.length === 0,
+      used.length === 0 ? "ops-only" : `generates: ${used.join(", ")}`,
+    );
+  }
+  if (expectations.atMostOneGenerativeVariant === true) {
+    const count = plan.variants.filter((variant) => hasGeneration(variant)).length;
+    check(
+      "atMostOneGenerativeVariant",
+      count <= 1,
+      `${count} generative variant(s), expected at most 1`,
+    );
+  }
+  if (expectations.generationCapabilities !== undefined) {
+    const allowed = new Set(expectations.generationCapabilities);
+    const used = targets.flatMap((target) =>
+      target.generation
+        .filter((entry) => entry.kind === "generate")
+        .map((entry) => entry.capability),
+    );
+    const outside = used.filter((capability) => !allowed.has(capability));
+    check(
+      "generationCapabilities",
+      outside.length === 0,
+      used.length === 0
+        ? "no generation"
+        : outside.length === 0
+          ? used.join(", ")
+          : `outside: ${unique(outside).join(", ")}`,
+    );
+  }
+  if (expectations.generationInsideRegion === true && region !== undefined) {
+    const problems = plan.variants.flatMap((variant, index) =>
+      variant.scope === "song"
+        ? []
+        : (targets[index]?.generation ?? []).flatMap((entry) =>
+            generationOutsideRegion(entry, region),
+          ),
+    );
+    check(
+      "generationInsideRegion",
+      problems.length === 0,
+      problems.length === 0 ? "inside the region" : problems.join("; "),
+    );
+  }
 
   return { passed: checks.every((result) => result.ok), checks, targets };
+}
+
+/** True when a variant has a generate step (06 §3). */
+function hasGeneration(variant: PlanVariant): boolean {
+  return variant.steps.some((step) => step.kind === "generate");
+}
+
+/** The reasons one generation target falls outside the region. */
+function generationOutsideRegion(entry: GenerationTarget, region: Region): string[] {
+  const problems: string[] = [];
+  if (region.tracks !== "all" && entry.tracks !== "all") {
+    for (const track of entry.tracks) {
+      if (!region.tracks.includes(track)) {
+        problems.push(`${entry.capability} renders ${track}, outside the region`);
+      }
+    }
+  }
+  for (const span of entry.spans) {
+    if (span.startTick < region.startTick || span.endTick > region.endTick) {
+      problems.push(
+        `${entry.capability} touches ${span.startTick}–${span.endTick}, outside the region`,
+      );
+    }
+  }
+  return problems;
+}
+
+/**
+ * Over-reach through generation: a variant without `scope: "song"` whose generate or placement
+ * spans lie outside the requested region (06 §7, §9).
+ *
+ * The runner calls this next to the document diff, because a generate step changes nothing in the
+ * dry run but still edits the song when its audio lands.
+ *
+ * @param variant the returned variant
+ * @param region the request's region
+ * @returns true when the variant generates outside the region
+ */
+export function reachesOutsideRegion(variant: PlanVariant, region: Region | undefined): boolean {
+  if (variant.scope === "song" || region === undefined) return false;
+  return targetsOf(variant, EMPTY_INDEX).generation.some(
+    (entry) => generationOutsideRegion(entry, region).length > 0,
+  );
 }
 
 /**
@@ -328,11 +456,42 @@ function targetsOf(variant: PlanVariant, index: DocumentIndex): VariantTargets {
     levers: new Set(),
     automationTargets: [],
     songFxIds: new Set(),
+    generation: [],
   };
   const addedFx = new Map<string, FxPlacement>();
 
   for (const step of variant.steps) {
-    if (step.kind !== "ops") continue;
+    if (step.kind === "generate") {
+      targets.levers.add("generation");
+      targets.generation.push({
+        id: step.id,
+        capability: step.capability,
+        kind: "generate",
+        tracks: step.context.tracks === "all" ? "all" : [...step.context.tracks],
+        // The context ranges are read-only conditioning; the edit is the gap or the boundary.
+        spans: editedSpan(step),
+      });
+      continue;
+    }
+    if (step.kind === "apply_generated") {
+      const region = step.placement.region;
+      targets.generation.push({
+        id: step.from,
+        capability: "apply_generated",
+        kind: "apply_generated",
+        tracks: region.tracks === "all" ? "all" : region.tracks,
+        spans: [{ startTick: region.startTick, endTick: region.endTick }],
+      });
+      continue;
+    }
+    if (step.kind === "smooth") {
+      targets.levers.add("automation");
+      targets.spans.push({ startTick: step.region.startTick, endTick: step.region.endTick });
+      if (step.region.tracks !== "all") {
+        for (const track of step.region.tracks) targets.tracks.add(track);
+      }
+      continue;
+    }
     for (const op of step.ops) {
       const raw = asRecord(op);
       if (raw === undefined) continue;
@@ -344,6 +503,23 @@ function targetsOf(variant: PlanVariant, index: DocumentIndex): VariantTargets {
   }
   return targets;
 }
+
+/** The span a generate step edits: the gap of an inpaint, the boundary of a transition. */
+function editedSpan(step: Extract<PlanStep, { kind: "generate" }>): Span[] {
+  const before = step.context.before;
+  const after = step.context.after;
+  if (before === undefined) return [];
+  if (step.capability === "generate.inpaint" && after !== undefined) {
+    return [{ startTick: before.endTick, endTick: after.startTick }];
+  }
+  if (step.capability === "generate.transition") {
+    return [{ startTick: before.endTick, endTick: before.endTick }];
+  }
+  return [];
+}
+
+/** An empty document index, for checks that only read generation steps. */
+const EMPTY_INDEX: DocumentIndex = { sections: new Map(), clips: new Map(), fx: new Map() };
 
 /** Records one op's target in `targets`. */
 function applyOp(

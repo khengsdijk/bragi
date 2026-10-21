@@ -48,6 +48,7 @@ import {
   type Expectations,
   evaluateExpectations,
   overReaches,
+  reachesOutsideRegion,
 } from "./expectations.js";
 
 /** The repository root, resolved from this file in source and in a copied build. */
@@ -601,7 +602,10 @@ function findOverReach(
     try {
       const { before, after } = dryRunVariant(variant, request, model);
       const diff = diffDocuments(before, after);
-      if (overReaches(diff, variant, request.region)) {
+      if (
+        overReaches(diff, variant, request.region) ||
+        reachesOutsideRegion(variant, request.region)
+      ) {
         reasons.push(`variant ${index + 1} "${variant.label}" reaches outside the region`);
       }
     } catch (failure) {
@@ -752,6 +756,7 @@ function parseExpectations(value: unknown, where: string): Expectations {
       case "noticeContains":
       case "forbiddenText":
       case "containsText":
+      case "generationCapabilities":
         expectations[key] = stringList(raw, `${where}.${key}`);
         break;
       case "insideRegion":
@@ -759,6 +764,10 @@ function parseExpectations(value: unknown, where: string): Expectations {
       case "asksClarification":
       case "scopeSong":
       case "interpretationExcludesDropped":
+      case "requiresGeneration":
+      case "forbidsGeneration":
+      case "atMostOneGenerativeVariant":
+      case "generationInsideRegion":
         if (typeof raw !== "boolean") throw new Error(`${where}.${key}: boolean needed`);
         expectations[key] = raw;
         break;

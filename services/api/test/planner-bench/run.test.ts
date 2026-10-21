@@ -12,8 +12,13 @@ import {
   selectCases,
 } from "./run.js";
 
-/** The three cases recorded for the offline smoke test. */
-const SMOKE_CASES = ["arr-remove-section", "mix-mute-texture", "policy-jackson"];
+/** The cases recorded for the offline smoke test, including one generative plan (06 §5). */
+const SMOKE_CASES = [
+  "arr-duplicate-section",
+  "mix-mute-texture",
+  "policy-jackson",
+  "gen-fill-intro-gap",
+];
 
 describe("bench cases and fixtures", () => {
   it("loads a fixture that passes the document schema", () => {
@@ -120,7 +125,7 @@ describe("bench metrics", () => {
 });
 
 describe("offline dry run", () => {
-  it("replays three recorded cases without a key or network", async () => {
+  it("replays recorded cases, generative included, without a key or network", async () => {
     const summary = await runBench({
       dry: true,
       cases: SMOKE_CASES.join(","),
