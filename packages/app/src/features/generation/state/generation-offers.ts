@@ -6,7 +6,8 @@
  *
  * The offers are derived from the history commit that produced them, not from a timer: the chip is
  * there exactly while that commit is HEAD, so an undo brings it back and an accept or a new edit
- * takes it away. Nothing here changes the document.
+ * takes it away. Consecutive erase commits over the same bars are merged into one fill offer, so
+ * erasing two stems with two strokes fills both (07 §4.8). Nothing here changes the document.
  */
 
 import type { OpBatch, Project, Region } from "@bragi/schemas";
@@ -34,12 +35,91 @@ export interface GenerationOffersState {
 
 export interface GenerationOffers {
   readonly store: StoreApi<GenerationOffersState>;
-  /** Recomputes both offers from the batch that produced HEAD (or `null`). */
-  consider(batch: OpBatch | null, doc: Project | null): void;
+  /**
+   * Recomputes both offers from HEAD's batch and, for the fill, the ancestor chain that may belong
+   * to the same erase: HEAD first, parents after. An empty list means no commit.
+   */
+  consider(batches: readonly OpBatch[], doc: Project | null): void;
   clear(): void;
 }
 
+/** How many commits a merged Fill gap offer looks back through, HEAD included (07 §4.8). */
+export const FILL_MERGE_COMMITS = 8;
+
 const EMPTY: GenerationOffersState = { fill: null, smooth: [] };
+
+/** A cleared span whose tracks are still a set, while ancestors are folded in. */
+interface MergedClear {
+  startTick: number;
+  endTick: number;
+  allTracks: boolean;
+  trackIds: Set<string>;
+}
+
+/** The regions a batch clears, or `null` when the batch does anything else. */
+function onlyClears(batch: OpBatch): Region[] | null {
+  const regions: Region[] = [];
+  for (const op of batch.ops) {
+    if (op.op !== "region.clear") return null;
+    regions.push(op.region);
+  }
+  return regions.length === 0 ? null : regions;
+}
+
+/** Whether a cleared span overlaps the merged one or shares an edge with it. */
+function touches(merged: MergedClear, region: Region): boolean {
+  return region.endTick >= merged.startTick && merged.endTick >= region.startTick;
+}
+
+function absorb(merged: MergedClear, region: Region): void {
+  merged.startTick = Math.min(merged.startTick, region.startTick);
+  merged.endTick = Math.max(merged.endTick, region.endTick);
+  if (region.tracks === "all") {
+    merged.allTracks = true;
+    return;
+  }
+  for (const id of region.tracks) merged.trackIds.add(id);
+}
+
+/** The merged span as a region: document track order, so the label reads consistently. */
+function mergedRegion(doc: Project, merged: MergedClear): Region {
+  if (merged.allTracks) {
+    return { startTick: merged.startTick, endTick: merged.endTick, tracks: "all" };
+  }
+  const known = doc.tracks
+    .filter((track) => merged.trackIds.has(track.id))
+    .map((track) => track.id);
+  const unknown = [...merged.trackIds].filter((id) => !known.includes(id));
+  return { startTick: merged.startTick, endTick: merged.endTick, tracks: [...known, ...unknown] };
+}
+
+/**
+ * HEAD's clears merged with the erase commits directly behind it. An ancestor joins while it is a
+ * user edit of only `region.clear` ops whose range touches the span so far; anything else ends the
+ * chain, so a move, a trim or an unrelated edit in between leaves only the latest stroke.
+ */
+function mergedClear(doc: Project, batches: readonly OpBatch[]): Region | null {
+  const chain = batches.slice(0, FILL_MERGE_COMMITS);
+  const head = chain[0];
+  if (head === undefined) return null;
+  const headClears = head.ops.flatMap((op) => (op.op === "region.clear" ? [op.region] : []));
+  const first = headClears[0];
+  if (first === undefined) return null;
+  const merged: MergedClear = {
+    startTick: first.startTick,
+    endTick: first.endTick,
+    allTracks: false,
+    trackIds: new Set(),
+  };
+  for (const region of headClears) absorb(merged, region);
+  for (const batch of chain.slice(1)) {
+    const clears = onlyClears(batch);
+    if (clears === null || batch.author.kind !== "user") break;
+    if (!clears.some((region) => touches(merged, region))) break;
+    for (const region of clears) absorb(merged, region);
+  }
+  return mergedRegion(doc, merged);
+}
 
 /** The track names of a cleared region, as the label's subject. */
 function trackNames(doc: Project, region: Region): string[] {
@@ -82,18 +162,16 @@ export function createGenerationOffers(): GenerationOffers {
 
   return {
     store,
-    consider(batch, doc) {
-      if (batch === null || doc === null) {
+    consider(batches, doc) {
+      const head = batches[0];
+      if (head === undefined || doc === null) {
         store.setState(EMPTY);
         return;
       }
-      const cleared = batch.ops.find((op) => op.op === "region.clear");
+      const cleared = mergedClear(doc, batches);
       store.setState({
-        fill:
-          cleared === undefined
-            ? null
-            : { region: cleared.region, label: fillLabel(doc, cleared.region) },
-        smooth: smoothTargets(batch, doc),
+        fill: cleared === null ? null : { region: cleared, label: fillLabel(doc, cleared) },
+        smooth: smoothTargets(head, doc),
       });
     },
     clear() {

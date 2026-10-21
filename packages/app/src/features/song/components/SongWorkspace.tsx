@@ -19,6 +19,7 @@ import type {
   Viewport,
   ZoomLevel,
 } from "@bragi/render-canvas";
+import type { OpBatch } from "@bragi/schemas";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
@@ -57,7 +58,10 @@ import {
   type WarmupStatus,
 } from "../../generation/state/extend-flow.js";
 import { createFillGapFlow, type FillGapFlow } from "../../generation/state/fill-flow.js";
-import { createGenerationOffers } from "../../generation/state/generation-offers.js";
+import {
+  createGenerationOffers,
+  FILL_MERGE_COMMITS,
+} from "../../generation/state/generation-offers.js";
 import { EMPTY_GENERATION_STORE } from "../../generation/state/generation-session.js";
 import { createSmoothFlow, type SmoothFlow } from "../../generation/state/smooth-flow.js";
 import { HistoryPanel } from "../../history/components/HistoryPanel.js";
@@ -403,12 +407,20 @@ export function SongWorkspace(props: SongWorkspaceProps) {
   const [canvasTick, setCanvasTick] = useState(0);
   useEffect(() => {
     if (history !== undefined) {
-      const commit =
-        historyHead === null ? null : (history.store.getState().commits.get(historyHead) ?? null);
-      offers.consider(commit?.batch ?? null, doc);
+      const commits = history.store.getState().commits;
+      const batches: OpBatch[] = [];
+      let id = historyHead;
+      while (id !== null && batches.length < FILL_MERGE_COMMITS) {
+        const commit = commits.get(id);
+        if (commit === undefined) break;
+        batches.push(commit.batch);
+        id = commit.parent;
+      }
+      offers.consider(batches, doc);
       return;
     }
-    offers.consider(lastCommit?.batch ?? null, doc);
+    const batch = lastCommit?.batch ?? null;
+    offers.consider(batch === null ? [] : [batch], doc);
   }, [doc, history, historyHead, lastCommit, offers]);
 
   /** The canvas box of a time span and its tracks, for the chips (07 §9 DOM overlays). */
