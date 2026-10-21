@@ -15,7 +15,7 @@ import { classify } from "./classify.js";
 import { loadPlannerConfig, type PlannerConfig } from "./config.js";
 import { buildUserMessage, createWasmSummarizer, type Summarizer } from "./context.js";
 import { explain } from "./explain.js";
-import { parseModelJson } from "./json.js";
+import { normalizePlanEnvelope, parseModelJson } from "./json.js";
 import {
   type ChatMessage,
   type LlmReply,
@@ -184,7 +184,7 @@ function parsePlan(reply: LlmReply): ParsedPlan {
   for (const candidate of [reply.toolArguments, reply.text]) {
     if (candidate === undefined || candidate.trim() === "") continue;
     try {
-      return { ok: true, value: parseModelJson(candidate) };
+      return { ok: true, value: normalizePlanEnvelope(parseModelJson(candidate)) };
     } catch {
       // try the next representation
     }

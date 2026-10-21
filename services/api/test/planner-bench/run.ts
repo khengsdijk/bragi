@@ -25,6 +25,7 @@ import {
   type PlannerTier,
 } from "../../src/planner/config.js";
 import { createWasmSummarizer } from "../../src/planner/context.js";
+import { normalizePlanEnvelope } from "../../src/planner/json.js";
 import {
   type LlmReply,
   type LlmUsage,
@@ -549,7 +550,7 @@ async function diagnose(
   if (last === undefined) return [];
   let raw: unknown;
   try {
-    raw = JSON.parse(last.reply.toolArguments ?? last.reply.text);
+    raw = normalizePlanEnvelope(JSON.parse(last.reply.toolArguments ?? last.reply.text));
   } catch {
     return ["the reply was not JSON"];
   }
@@ -578,7 +579,7 @@ function droppedLabels(calls: readonly CallRecord[], plan: EditPlan): string[] {
   if (last === undefined) return [];
   let raw: unknown;
   try {
-    raw = JSON.parse(last.reply.toolArguments ?? last.reply.text);
+    raw = normalizePlanEnvelope(JSON.parse(last.reply.toolArguments ?? last.reply.text));
   } catch {
     return [];
   }
