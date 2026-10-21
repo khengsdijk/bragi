@@ -1,6 +1,6 @@
 # 05 — Backend, Jobs & Sync
 
-Status: Draft v0.4 · Code: `services/api`, `services/workers` · Infra: `infra/`
+Status: Draft v0.5 · Code: `services/api`, `services/workers` · Infra: `infra/`
 
 ## 1. Services
 
@@ -62,7 +62,7 @@ Client → server:
 Server → client:
 ```json
 { "t": "job.progress",  "jobId": "job_…", "stage": "separation", "pct": 0.42, "etaSec": 18 }
-{ "t": "job.partial",   "jobId": "job_…", "index": 1, "output": { "asset": "sha256:…", "kind": "preview" } }
+{ "t": "job.partial",   "jobId": "job_…", "index": 0, "outputs": { "assets": { "candidate_0": "sha256:…" }, "blobs": { "candidate_0": "sha256:…" } } }
 { "t": "job.completed", "jobId": "job_…", "outputs": {...} }
 { "t": "job.failed",    "jobId": "job_…", "code": "MODEL_ERROR", "retryable": true }
 { "t": "analysis.partial", "assetHash": "sha256:…", "stage": "rhythm", "blob": "sha256:…" }
@@ -71,6 +71,8 @@ Server → client:
 The client reconnects with exponential backoff and re-subscribes. After reconnecting it calls `GET /jobs/{id}` to fetch any missed final states.
 
 > **Note (WP-0.7):** the `JobEvent` envelope (§4.2) carries neither the stage nor a partial index, so the gateway fills `stage` from the job's capability (`analysis.rhythm` → `rhythm`) and numbers `partial` messages itself, per job.
+>
+> **Note (WP-2.7):** a `partial` also carries the worker's `JobOutputs` verbatim as `outputs` (`assets` and `blobs` by name, e.g. `candidate_0`), so a capability that streams several results needs no gateway-side naming. A client compiled before WP-2.7 reads the older `{ "index", "output": { "asset", "kind" } }` form; both are accepted.
 
 ## 4. Jobs & events (NATS JetStream)
 
