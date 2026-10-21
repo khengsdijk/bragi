@@ -49,7 +49,7 @@ export function ExtendHandle({ flow, warmup, open, onOpenChange }: ExtendHandleP
         open={isOpen}
         onOpenChange={(next) => onOpenChange(next ? direction : null)}
         label={label}
-        side={direction === "forward" ? "top" : "top"}
+        side="top"
         align={direction === "forward" ? "end" : "start"}
         trigger={
           <Button
