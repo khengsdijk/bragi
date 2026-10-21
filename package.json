@@ -43,7 +43,8 @@
     "test:conformance": "node scripts/conformance.mjs",
     "eval:analysis": "uv run --directory services/workers python -m bragi_analysis.evaluation --synthetic",
     "eval:analysis:ml": "uv run --directory services/workers --extra ml python -m bragi_analysis.evaluation --synthetic",
-    "bench:planner": "node scripts/not-yet.mjs bench:planner 2.6 'Planner benchmark (costs API credits)'"
+    "bench:planner": "node scripts/not-yet.mjs bench:planner 2.6 'Planner benchmark (costs API credits)'",
+    "bench:generate": "uv run --directory services/workers python -m bragi_generate.bench"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

@@ -308,7 +308,7 @@ With unedited stems, `Σ stems + residual ≈ mix`. When the user changes stems,
 | Tool | Function |
 |---|---|
 | `equal_power_crossfade(a, b, len)` | Standard crossfades, with phase-aware alignment: cross-correlation search ±10 ms to pick the least-cancelling offset |
-| `loudness_match(clip, context)` | Matches short-term LUFS of a clip's first and last 2 s to the surrounding context, applying a gain ramp |
+| `loudness_match(clip, context)` | Matches short-term LUFS of a clip's first and last 2 s to the context on each side that has one (one side for an extend, both for an inpaint), applying a gain ramp capped at −1 dBFS peak |
 | `spectral_match(clip, context)` | Computes 31-band average spectra and creates a `match_eq` fx so the clip's spectral tilt matches the context (limited to ±6 dB per band) |
 | `beat_align(clip, grid)` | Snaps the clip's detected onsets to the beat grid via warp anchors (max ±30 ms adjustment) |
 | `seam_score(render, seamPos)` | Objective measure for auto-selecting candidates: spectral flux jump, loudness jump and onset regularity across a seam. Lower is better. |

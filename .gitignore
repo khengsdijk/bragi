@@ -50,3 +50,5 @@ reports/
 .DS_Store
 Thumbs.db
 .bragi/
+# Bench reports and kept audio (docs/wp/2.7.md F1, WP-2.6 planner bench).
+bench-results/
