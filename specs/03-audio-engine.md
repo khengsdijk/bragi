@@ -313,6 +313,12 @@ With unedited stems, `Σ stems + residual ≈ mix`. When the user changes stems,
 | `beat_align(clip, grid)` | Snaps the clip's detected onsets to the beat grid via warp anchors (max ±30 ms adjustment) |
 | `seam_score(render, seamPos)` | Objective measure for auto-selecting candidates: spectral flux jump, loudness jump and onset regularity across a seam. Lower is better. |
 
+The toolkit is implemented **in the generation worker, in Python**
+(`services/workers/generate/src/bragi_generate/postprocess/`, WP-2.7), because the only v1 caller is
+the offline gate pass over a generated candidate and it reuses the analysis worker's chroma, key,
+loudness and onset DSP; a Rust port can use it as the reference when section moves need it on the
+audio thread.
+
 ## 9. Offline render and export
 
 ```ts
