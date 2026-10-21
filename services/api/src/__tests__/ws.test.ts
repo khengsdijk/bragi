@@ -139,6 +139,7 @@ describe("toClientMessages", () => {
         jobId: "job_01ABC",
         index: 2,
         output: { asset: "sha256:cc", kind: "preview" },
+        outputs: { blobs: { preview: "sha256:cc" } },
       },
     ]);
     expect(
@@ -151,6 +152,22 @@ describe("toClientMessages", () => {
         0,
       ),
     ).toEqual([{ t: "job.failed", jobId: "job_01ABC", code: "MODEL_ERROR", retryable: true }]);
+  });
+
+  it("keeps the candidate asset and blob in a generate.extend partial", () => {
+    const outputs = {
+      assets: { candidate_0: "sha256:dd" },
+      blobs: { candidate_0: "sha256:ee" },
+    };
+    expect(toClientMessages(event({ type: "partial", outputs }), "generate.extend", 1)).toEqual([
+      {
+        t: "job.partial",
+        jobId: "job_01ABC",
+        index: 1,
+        output: { asset: "sha256:dd", kind: "candidate_0" },
+        outputs,
+      },
+    ]);
   });
 
   it("drops started and a partial with no outputs", () => {

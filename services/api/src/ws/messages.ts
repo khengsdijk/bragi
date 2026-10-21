@@ -8,7 +8,14 @@ import type { JobEvent } from "@bragi/schemas";
 /** A message the server sends to an authenticated client (05 §3). */
 export type ServerMessage =
   | { t: "job.progress"; jobId: string; stage: string; pct: number; etaSec?: number }
-  | { t: "job.partial"; jobId: string; index: number; output: { asset: string; kind: string } }
+  | {
+      t: "job.partial";
+      jobId: string;
+      index: number;
+      output: { asset: string; kind: string };
+      /** The worker's partial outputs verbatim (05 §3, 09 §5): `candidate_0` asset + blob. */
+      outputs: { assets?: Record<string, string>; blobs?: Record<string, string> };
+    }
   | { t: "job.completed"; jobId: string; outputs: unknown }
   | { t: "job.failed"; jobId: string; code: string; retryable: boolean }
   | { t: "analysis.partial"; assetHash: string; stage: string; blob: string }
@@ -147,7 +154,15 @@ export function toClientMessages(
       const output = firstOutput(event.outputs);
       return output === undefined
         ? []
-        : [{ t: "job.partial", jobId: event.jobId, index: partialIndex, output }];
+        : [
+            {
+              t: "job.partial",
+              jobId: event.jobId,
+              index: partialIndex,
+              output,
+              outputs: event.outputs ?? {},
+            },
+          ];
     }
     case "completed":
       return [{ t: "job.completed", jobId: event.jobId, outputs: event.outputs ?? {} }];

@@ -8,9 +8,10 @@
  * Three things it owns beyond the DAG:
  *
  * - **Ownership.** Every hash a worker produced (a stem, the working asset, a
- *   result blob) is recorded in `assets` and `user_assets (role = 'derived')`,
- *   so `GET /assets/{hash}/url` and an `asset:<hash>` subscription work for the
- *   client that asked for the analysis (finding 3).
+ *   result blob, a generation candidate and its gate result) is recorded in
+ *   `assets` and `user_assets (role = 'derived')` as soon as an event carries it —
+ *   `partial` included, so a candidate is downloadable while the rest still
+ *   generate (finding 3, 05 §3, 09 §5).
  * - **Fan-out.** A finished stage publishes `analysis.partial` on
  *   `events.asset.<uploadHash>` (and `analysis.failed` on failure), which the
  *   gateway forwards to `asset:<uploadHash>` subscribers (finding 2).
@@ -59,14 +60,22 @@ export async function applyJobEvent(deps: JobDeps, event: JobEvent): Promise<voi
   await updateJob(deps.pool, event);
 
   const job = await loadJob(deps.pool, event.jobId);
-  const stage = job === undefined ? undefined : analysisStageOf(job.capability);
-  if (job === undefined || stage === undefined) return;
+  if (job === undefined) return;
+
+  // Every job's outputs belong to the user who asked for it, whether it is an
+  // analysis stage or a `generate.extend` candidate, and whether the event is a
+  // partial or the final result (09 §5).
+  if (event.type === "completed" || event.type === "partial") {
+    await recordOutputs(deps.pool, job.user_id, event.outputs);
+  }
+
+  const stage = analysisStageOf(job.capability);
+  if (stage === undefined) return;
   const assetHash = job.params?.assetHash;
   if (typeof assetHash !== "string") return;
   const userId = job.user_id;
 
   if (event.type === "completed") {
-    await recordOutputs(deps.pool, userId, event.outputs);
     const blob = resultBlob(stage, event.outputs);
     await deps.pool.query(
       `UPDATE analyses SET status = 'done', blob_hash = COALESCE($3, blob_hash), updated_at = now()

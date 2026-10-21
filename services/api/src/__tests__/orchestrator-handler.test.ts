@@ -138,6 +138,30 @@ describe("applyJobEvent (findings 2 and 3)", () => {
     expect(nc.published).toEqual([]);
   });
 
+  it("records the outputs of a generate.extend partial for the job's user", async () => {
+    const pool = new FakePool();
+    pool.job = { capability: "generate.extend", user_id: "usr_1", params: {} };
+    const nc = new FakeNats();
+
+    await applyJobEvent(
+      deps(pool, nc),
+      completed({
+        type: "partial",
+        outputs: {
+          assets: { candidate_0: "sha256:dd" },
+          blobs: { candidate_0: "sha256:ee" },
+        },
+      }),
+    );
+
+    const derived = pool.queries
+      .filter((query) => query.sql.includes("INSERT INTO user_assets"))
+      .map((query) => (query.params as string[])[1]);
+    expect(new Set(derived)).toEqual(new Set(["sha256:dd", "sha256:ee"]));
+    expect(pool.queries.some((query) => query.sql.includes("FROM analyses"))).toBe(false);
+    expect(nc.published).toEqual([]);
+  });
+
   it("does not resubmit a stage that is already queued when another stage completes", async () => {
     const pool = new FakePool();
     pool.job = {
