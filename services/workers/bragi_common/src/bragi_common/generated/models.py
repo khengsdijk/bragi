@@ -960,6 +960,10 @@ class SeparationResultSchemaVersion(IntEnum):
     integer_1 = 1
 
 
+class SourceAddOpOp(StrEnum):
+    source_add = 'source.add'
+
+
 type SourceId = Annotated[
     str,
     Field(
@@ -975,6 +979,17 @@ class SourceKind(StrEnum):
     generated = 'generated'
     recorded = 'recorded'
     imported_stem = 'imported_stem'
+
+
+class SourcePlacement(BaseModel):
+    """
+    Where a placed source lives in the arrangement. `analysis.apply` does not build a baseline block for such a source; it maps the source's stems into this section (02 §6).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    sectionId: SectionId
 
 
 class StemActivityResultSchemaVersion(IntEnum):
@@ -2069,6 +2084,28 @@ class Source(BaseModel):
         Field(description='E.g. the original filename, or "Generated: dreamy outro".'),
     ]
     provenance: Provenance | None = None
+    placement: Annotated[
+        SourcePlacement | None,
+        Field(
+            description="Set when the source is placed by the user or a generation, not laid out by `analysis.apply`: the section whose lanes hold this source's audio (02 §3.2, §6)."
+        ),
+    ] = None
+
+
+class SourceAddOp(BaseModel):
+    """
+    `source.add` (02 §4.2). Add a source to the document. A generated source that is placed in the arrangement carries a `placement` naming the section its audio lives in; `analysis.apply` maps that source's stems into the section instead of building a baseline block for it (02 §6).
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    op: SourceAddOpOp
+    source: Source
+    index: Annotated[
+        int | None,
+        Field(description='Position in sources; appended when absent.', ge=0),
+    ] = None
 
 
 class StemActivity(BaseModel):
@@ -3170,7 +3207,7 @@ class SectionInsertOp(BaseModel):
 
 
 type Op = Annotated[
-    ProjectSetMetaOp | AnalysisApplyOp | TrackAddOp | TrackRemoveOp | TrackUpdateOp | FxAddOp | FxRemoveOp | FxReorderOp | FxUpdateOp | SectionDuplicateOp | SectionInsertOp | SectionMergeOp | SectionMoveOp | SectionRemoveOp | SectionResizeOp | SectionSetTransitionOp | SectionSplitOp | SectionUpdateOp | ClipAddOp | ClipRemoveOp | ClipReplaceOp | ClipSplitOp | ClipUpdateOp | AutomationClearOp | AutomationSetOp | TempoSetOp | KeyTransposeOp | RegionAdoptOp | RegionClearOp,
+    ProjectSetMetaOp | AnalysisApplyOp | SourceAddOp | TrackAddOp | TrackRemoveOp | TrackUpdateOp | FxAddOp | FxRemoveOp | FxReorderOp | FxUpdateOp | SectionDuplicateOp | SectionInsertOp | SectionMergeOp | SectionMoveOp | SectionRemoveOp | SectionResizeOp | SectionSetTransitionOp | SectionSplitOp | SectionUpdateOp | ClipAddOp | ClipRemoveOp | ClipReplaceOp | ClipSplitOp | ClipUpdateOp | AutomationClearOp | AutomationSetOp | TempoSetOp | KeyTransposeOp | RegionAdoptOp | RegionClearOp,
     Field(
         description='One concrete edit operation (02 §4). Every op is an object whose `op` field names it; the rest is its payload (02 §4.2).',
         title='Op',
@@ -3293,6 +3330,7 @@ ROOT_TYPES: tuple[str, ...] = (
     "SectionUpdateOp",
     "SeparationResult",
     "Source",
+    "SourceAddOp",
     "StemActivityResult",
     "StemEnergyResult",
     "StructureResult",

@@ -51,6 +51,14 @@ export function docCount(): number;
 export function documentJson(handle: number): string;
 
 /**
+ * Builds the op batch that places one accepted extend candidate (09 §4.2).
+ *
+ * The request is JSON (`ExtendPlacementRequest`); the batch is JSON (`OpBatch`). The handle's
+ * document is not changed: the caller commits the batch, so placement is undoable (02 §7).
+ */
+export function extendPlacement(handle: number, request_json: string): string;
+
+/**
  * Drops a handle. Returns whether it existed.
  */
 export function freeDoc(handle: number): boolean;
@@ -100,6 +108,7 @@ export interface InitOutput {
     readonly diffDocs: (a: number, b: number) => [number, number, number, number];
     readonly docCount: () => number;
     readonly documentJson: (a: number) => [number, number, number, number];
+    readonly extendPlacement: (a: number, b: number, c: number) => [number, number, number, number];
     readonly freeDoc: (a: number) => number;
     readonly loadProject: (a: number, b: number) => [number, number, number];
     readonly resolveRegion: (a: number, b: number, c: number) => [number, number, number, number];

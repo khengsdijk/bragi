@@ -32,6 +32,7 @@ pub mod error;
 pub mod generated;
 mod ids;
 mod patch;
+pub mod placement;
 pub mod region;
 pub mod spans;
 pub mod time;
@@ -44,6 +45,9 @@ pub use clipmath::{clip_end_local, local_at_src_sample, src_sample_at_local};
 pub use commits::{CommitDocs, NoCommits};
 pub use diff::{EngineDelta, diff};
 pub use error::{ApplyError, ValidationCode, ValidationError};
+pub use placement::{
+    ExtendCandidate, ExtendDirection, ExtendPlacementRequest, PlacementError, extend_placement,
+};
 pub use region::{RegionSlice, ResolvedRegion, resolve_region};
 pub use spans::{SectionSpan, section_spans};
 pub use time::{

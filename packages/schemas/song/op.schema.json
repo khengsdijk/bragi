@@ -10,6 +10,9 @@
       "$ref": "ops/analysis.apply.schema.json"
     },
     {
+      "$ref": "ops/source.add.schema.json"
+    },
+    {
       "$ref": "ops/track.add.schema.json"
     },
     {

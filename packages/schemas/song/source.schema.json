@@ -34,12 +34,25 @@
       "description": "E.g. the original filename, or \"Generated: dreamy outro\".",
       "type": "string"
     },
-    "provenance": { "$ref": "common.schema.json#/$defs/Provenance" }
+    "provenance": { "$ref": "common.schema.json#/$defs/Provenance" },
+    "placement": {
+      "description": "Set when the source is placed by the user or a generation, not laid out by `analysis.apply`: the section whose lanes hold this source's audio (02 §3.2, §6).",
+      "$ref": "#/$defs/SourcePlacement"
+    }
   },
   "$defs": {
     "SourceKind": {
       "type": "string",
       "enum": ["upload", "generated", "recorded", "imported_stem"]
+    },
+    "SourcePlacement": {
+      "description": "Where a placed source lives in the arrangement. `analysis.apply` does not build a baseline block for such a source; it maps the source's stems into this section (02 §6).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionId"],
+      "properties": {
+        "sectionId": { "$ref": "common.schema.json#/$defs/SectionId" }
+      }
     }
   }
 }

@@ -5,5 +5,8 @@
   "workingAsset": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
   "durationSamples": 11520000,
   "channels": 2,
-  "label": "midnight_drive.mp3"
+  "label": "midnight_drive.mp3",
+  "placement": {
+    "sectionId": "sec_01"
+  }
 }

@@ -9,6 +9,7 @@ export const commitId: (a: number, b: number, c: number, d: number, e: number, f
 export const diffDocs: (a: number, b: number) => [number, number, number, number];
 export const docCount: () => number;
 export const documentJson: (a: number) => [number, number, number, number];
+export const extendPlacement: (a: number, b: number, c: number) => [number, number, number, number];
 export const freeDoc: (a: number) => number;
 export const loadProject: (a: number, b: number) => [number, number, number];
 export const resolveRegion: (a: number, b: number, c: number) => [number, number, number, number];

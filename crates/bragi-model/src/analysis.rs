@@ -101,6 +101,12 @@ pub(crate) fn apply_analysis_apply(
         apply_meta_effects(doc, &op.effects.0);
     }
 
+    // A placed source (a generated extend) is not part of the analysis-owned baseline: its audio
+    // lives in one section, and its stems are mapped into that section's lanes (02 §6).
+    if source.placement.is_some() {
+        reconcile_placed_source(doc, &source, &next_effects, assets, op_index)?;
+    }
+
     doc.analyses = AnalysisRefMap(next_analyses);
     Ok(())
 }
@@ -523,7 +529,8 @@ fn build_baseline(
 ) -> Baseline {
     let mut timebase = doc.arrangement.timebase.clone();
     for source in &doc.sources {
-        if !has_ingest(analyses, &source.id) {
+        // A placed source does not own the song's tempo; its audio is already in the song's grid.
+        if source.placement.is_some() || !has_ingest(analyses, &source.id) {
             continue;
         }
         if let Some(tempo) = tempo_effect(recorded_effects(analyses, &source.id)) {
@@ -542,7 +549,7 @@ fn build_baseline(
     let mut offset = 0_i64;
 
     for source in &doc.sources {
-        if !has_ingest(analyses, &source.id) {
+        if source.placement.is_some() || !has_ingest(analyses, &source.id) {
             continue;
         }
         let effects = recorded_effects(analyses, &source.id);
@@ -799,7 +806,7 @@ fn section_labels(boundaries: &[Boundary]) -> Vec<String> {
         .collect()
 }
 
-fn kind_label(kind: SectionKind) -> &'static str {
+pub(crate) fn kind_label(kind: SectionKind) -> &'static str {
     match kind {
         SectionKind::Intro => "Intro",
         SectionKind::Verse => "Verse",
@@ -817,7 +824,190 @@ fn kind_label(kind: SectionKind) -> &'static str {
     }
 }
 
-fn role_name(role: &StemRole) -> &'static str {
+/// Reconciles the one section of a placed source with its recorded separation effect (02 §6).
+///
+/// A placed source is not laid out by the baseline: its audio lives in the section the placement
+/// names. When a `separation` effect has been recorded, every stem role and the residual are
+/// mapped onto the first track with that role (or a new deterministic track), as one deterministic
+/// clip per track. The generated mix-only lane is removed in the same step; when separation has not
+/// reported (it failed), nothing is removed and the generated clip keeps the song playable.
+fn reconcile_placed_source(
+    doc: &mut Project,
+    source: &Source,
+    effects: &[AnalysisEffect],
+    assets: &AssetIndex,
+    op_index: usize,
+) -> Result<(), ApplyError> {
+    let Some(placement) = &source.placement else {
+        return Ok(());
+    };
+    let Some(separation) = separation_effect(effects) else {
+        return Ok(());
+    };
+    let Some((section_index, section_start, section_length)) =
+        placed_section(doc, &placement.section_id)
+    else {
+        return Err(invalid(
+            op_index,
+            ValidationCode::MissingTarget,
+            format!(
+                "source {} is placed in section {} which does not exist",
+                source.id, placement.section_id
+            ),
+        ));
+    };
+
+    let timebase = doc.arrangement.timebase.clone();
+    let ppq = *timebase.ppq;
+    let mut grid = BarGrid::new(&timebase.time_signatures, ppq);
+    grid.extend_past(section_start + section_length);
+    let bar_starts = grid.starts.clone();
+    let tempo = TempoCtx::new(&timebase.tempo_map.0, ppq);
+    let plan = ClipPlan {
+        assets,
+        bar_starts: &bar_starts,
+        base_seconds: tempo.ticks_to_seconds(section_start),
+        grid: true,
+        source_duration: source.duration_samples,
+        tempo: &tempo,
+    };
+    let generated_at = source.provenance.as_ref().map_or_else(
+        || doc.meta.created_at.clone(),
+        |provenance| provenance.created_at.clone(),
+    );
+    let stem_provenance = provenance(ProvenanceKind::Separation, &generated_at);
+
+    let mut assets_by_role: Vec<(StemRole, AssetHash)> = separation
+        .stems
+        .0
+        .iter()
+        .map(|stem| (stem.role, stem.asset.clone()))
+        .collect();
+    // The residual is what makes the extended part reconstruct its own mix; map it too.
+    assets_by_role.push((StemRole::Residual, separation.residual.clone()));
+    // The effect list is a set, so the role order must not depend on the worker's order.
+    assets_by_role.sort_by_key(|(role, _)| role.to_string());
+
+    for (role, asset) in &assets_by_role {
+        let track_id = match doc.tracks.iter().find(|track| track.role == *role) {
+            Some(track) => track.id.clone(),
+            None => {
+                let Some(id) = track_id(derived_id(
+                    "trk_",
+                    source.id.as_str(),
+                    &format!("stem:{role}"),
+                )) else {
+                    return Err(effect_error(op_index, "cannot derive a stem track id"));
+                };
+                doc.tracks.push(track_for_role(source, *role, id.clone()));
+                id
+            }
+        };
+        if let Some(clip) = plan.clip(
+            &placement.section_id,
+            &track_id,
+            asset,
+            0,
+            section_length,
+            section_start,
+            &stem_provenance,
+        ) {
+            upsert_clip(doc, section_index, &track_id, clip);
+        }
+    }
+
+    remove_generated_lane(doc, source);
+    Ok(())
+}
+
+/// The placement section's index, absolute start and length.
+fn placed_section(doc: &Project, id: &SectionId) -> Option<(usize, i64, i64)> {
+    let index = doc.arrangement.sections.iter().position(|s| s.id == *id)?;
+    let start = crate::spans::section_spans(doc)
+        .get(index)
+        .map(|span| span.start_tick)?;
+    let length = i64::try_from(doc.arrangement.sections[index].length_ticks.get()).ok()?;
+    Some((index, start, length))
+}
+
+fn upsert_clip(doc: &mut Project, section_index: usize, track_id: &TrackId, clip: Clip) {
+    let section = &mut doc.arrangement.sections[section_index];
+    let lane = section
+        .lanes
+        .0
+        .entry(track_id.clone())
+        .or_insert_with(|| Lane {
+            clips: Vec::new(),
+            automation: AutomationList(Vec::new()),
+        });
+    lane.clips.retain(|current| current.id != clip.id);
+    lane.clips.push(clip);
+    // One clip per mapped track, but keep the order stable if that ever changes.
+    lane.clips
+        .sort_by(|left, right| (left.start, &left.id).cmp(&(right.start, &right.id)));
+}
+
+fn track_for_role(source: &Source, role: StemRole, id: TrackId) -> Track {
+    Track {
+        color: role_color(role),
+        fx: FxChain(Vec::new()),
+        gain_db: 0.0,
+        hidden: role == StemRole::Residual,
+        id,
+        mute: false,
+        name: role_name(&role).to_owned(),
+        origin: Some(TrackOrigin {
+            source_id: source.id.clone(),
+            stem: Some(role),
+        }),
+        pan: 0.0,
+        role,
+        solo: false,
+    }
+}
+
+/// Removes this source's generated mix clip and its now-empty lane; the track goes too when this
+/// source owns it and nothing is left in it (09 §9 check 2).
+fn remove_generated_lane(doc: &mut Project, source: &Source) {
+    let generated: Vec<TrackId> = doc
+        .tracks
+        .iter()
+        .filter(|track| track.role == StemRole::Generated)
+        .map(|track| track.id.clone())
+        .collect();
+    for track_id in &generated {
+        for section in &mut doc.arrangement.sections {
+            if let Some(lane) = section.lanes.0.get_mut(track_id) {
+                lane.clips.retain(|clip| {
+                    clip.asset != source.working_asset && clip.asset != source.original_asset
+                });
+                if lane.clips.is_empty() && lane.automation.0.is_empty() {
+                    section.lanes.0.remove(track_id);
+                }
+            }
+        }
+    }
+    let empty: Vec<TrackId> =
+        doc.tracks
+            .iter()
+            .filter(|track| {
+                track.role == StemRole::Generated
+                    && track
+                        .origin
+                        .as_ref()
+                        .is_some_and(|origin| origin.source_id == source.id)
+                    && doc.arrangement.sections.iter().all(|section| {
+                        section.lanes.0.get(&track.id).is_none_or(|lane| {
+                            lane.clips.is_empty() && lane.automation.0.is_empty()
+                        })
+                    })
+            })
+            .map(|track| track.id.clone())
+            .collect();
+    doc.tracks.retain(|track| !empty.contains(&track.id));
+}
+
+pub(crate) fn role_name(role: &StemRole) -> &'static str {
     match role {
         StemRole::Vocals => "Vocals",
         StemRole::Drums => "Drums",
@@ -1223,7 +1413,7 @@ fn nonzero(value: i64) -> std::num::NonZeroU64 {
 }
 
 /// Role colours from `packages/design/tokens.json` (dark theme).
-fn role_color(role: StemRole) -> HexColor {
+pub(crate) fn role_color(role: StemRole) -> HexColor {
     let hex = match role {
         StemRole::Vocals => "#FB766A",
         StemRole::Drums => "#FFAB46",

@@ -1,0 +1,23 @@
+{
+  "op": "source.add",
+  "source": {
+    "id": "src_01JAB4W2C3D4E5F6G7H8J9KMNP",
+    "kind": "generated",
+    "originalAsset": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "workingAsset": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+    "durationSamples": 1152000,
+    "channels": 2,
+    "label": "Generated: dreamy outro",
+    "provenance": {
+      "kind": "generation",
+      "jobId": "job_01JAB4X2C3D4E5F6G7H8J9KMNP",
+      "model": "ace-step",
+      "modelVersion": "1.5.0",
+      "prompt": "dreamy outro, synthwave",
+      "createdAt": "2026-10-18T12:00:00Z"
+    },
+    "placement": {
+      "sectionId": "sec_01"
+    }
+  }
+}

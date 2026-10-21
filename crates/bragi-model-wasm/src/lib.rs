@@ -14,12 +14,13 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
 use bragi_model::generated::{AssetHash, AssetMeta, CommitId, OpBatch, Project, Region};
+use bragi_model::placement::ExtendPlacementRequest;
 use bragi_model::{AssetIndex, diff as model_diff, section_spans as model_spans};
 use bragi_model::{
     apply as model_apply, apply_with as model_apply_with, canonical_json as model_canonical_json,
-    commit_id as model_commit_id, resolve_region as model_resolve_region,
-    seconds_to_ticks as model_seconds_to_ticks, ticks_to_seconds as model_ticks_to_seconds,
-    validate as model_validate,
+    commit_id as model_commit_id, extend_placement as model_extend_placement,
+    resolve_region as model_resolve_region, seconds_to_ticks as model_seconds_to_ticks,
+    ticks_to_seconds as model_ticks_to_seconds, validate as model_validate,
 };
 use wasm_bindgen::prelude::*;
 
@@ -190,6 +191,25 @@ pub fn canonical_json(handle: u32) -> Result<String, String> {
             .get(&handle)
             .ok_or_else(|| format!("unknown handle {handle}"))?;
         Ok(model_canonical_json(&doc.project))
+    })
+}
+
+/// Builds the op batch that places one accepted extend candidate (09 §4.2).
+///
+/// The request is JSON (`ExtendPlacementRequest`); the batch is JSON (`OpBatch`). The handle's
+/// document is not changed: the caller commits the batch, so placement is undoable (02 §7).
+#[wasm_bindgen(js_name = extendPlacement)]
+pub fn extend_placement(handle: u32, request_json: &str) -> Result<String, String> {
+    let request: ExtendPlacementRequest =
+        serde_json::from_str(request_json).map_err(|error| error.to_string())?;
+    DOCS.with(|docs| {
+        let docs = docs.borrow();
+        let doc = docs
+            .get(&handle)
+            .ok_or_else(|| format!("unknown handle {handle}"))?;
+        let batch =
+            model_extend_placement(&doc.project, &request).map_err(|error| error.to_string())?;
+        serde_json::to_string(&batch).map_err(|error| error.to_string())
     })
 }
 

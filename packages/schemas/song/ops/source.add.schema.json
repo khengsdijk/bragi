@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SourceAddOp",
+  "description": "`source.add` (02 §4.2). Add a source to the document. A generated source that is placed in the arrangement carries a `placement` naming the section its audio lives in; `analysis.apply` maps that source's stems into the section instead of building a baseline block for it (02 §6).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["op", "source"],
+  "properties": {
+    "op": {
+      "type": "string",
+      "enum": ["source.add"]
+    },
+    "source": {
+      "$ref": "../source.schema.json"
+    },
+    "index": {
+      "description": "Position in sources; appended when absent.",
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

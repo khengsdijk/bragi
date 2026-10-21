@@ -24,8 +24,8 @@ use crate::generated::{
     LaneMap, Op, OpBatch, Project, ProjectSetMetaOp, Region, RegionAdoptOp, RegionClearOp,
     RegionTracks, SectionDuplicateOp, SectionId, SectionInsertOp, SectionInstance, SectionMergeOp,
     SectionMoveOp, SectionPatch, SectionRemoveOp, SectionResizeMode, SectionResizeOp,
-    SectionSetTransitionOp, SectionSplitOp, SectionUpdateOp, SidechainSourcePatch, TempoSetOp,
-    Track, TrackAddOp, TrackId, TrackPatch, TrackRemoveOp, TrackUpdateOp, Transition,
+    SectionSetTransitionOp, SectionSplitOp, SectionUpdateOp, SidechainSourcePatch, SourceAddOp,
+    TempoSetOp, Track, TrackAddOp, TrackId, TrackPatch, TrackRemoveOp, TrackUpdateOp, Transition,
     TransitionKind, TransposeScope, Warp, WarpStretch, WarpStretchMode,
 };
 use crate::region::resolve_region;
@@ -164,6 +164,7 @@ fn apply_op(
         Op::AnalysisApplyOp(payload) => {
             crate::analysis::apply_analysis_apply(doc, payload, assets, op_index)
         }
+        Op::SourceAddOp(payload) => apply_source_add(doc, payload, op_index),
     }
 }
 
@@ -190,6 +191,33 @@ fn apply_set_meta(doc: &mut Project, op: &ProjectSetMetaOp) -> Result<(), ApplyE
             Some(suggestions.clone())
         };
     }
+    Ok(())
+}
+
+// --- sources -----------------------------------------------------------------------------------
+
+/// Inserts a source, appended or at `index` (02 §3.2, §4.2).
+fn apply_source_add(
+    doc: &mut Project,
+    op: &SourceAddOp,
+    op_index: usize,
+) -> Result<(), ApplyError> {
+    if doc.sources.iter().any(|source| source.id == op.source.id) {
+        return Err(invalid(
+            op_index,
+            ValidationCode::DuplicateId,
+            format!("source {} already exists", op.source.id),
+        ));
+    }
+    let index = op.index.map_or(doc.sources.len(), |index| index as usize);
+    if index > doc.sources.len() {
+        return Err(invalid(
+            op_index,
+            ValidationCode::IndexOutOfRange,
+            format!("source index {index} is past the end"),
+        ));
+    }
+    doc.sources.insert(index, op.source.clone());
     Ok(())
 }
 
@@ -713,6 +741,16 @@ fn apply_section_remove(
         ));
     };
     doc.arrangement.sections.remove(index);
+    // A placement that named the removed section no longer has audio to map (02 §6).
+    for source in &mut doc.sources {
+        if source
+            .placement
+            .as_ref()
+            .is_some_and(|placement| placement.section_id == op.section_id)
+        {
+            source.placement = None;
+        }
+    }
     Ok(())
 }
 
@@ -1239,6 +1277,7 @@ fn apply_section_merge(
         ));
     }
     let b_section = doc.arrangement.sections.remove(b);
+    let removed_id = b_section.id.clone();
     let offset = i64::try_from(doc.arrangement.sections[a].length_ticks.get()).unwrap_or(i64::MAX);
     let merged_length = doc.arrangement.sections[a]
         .length_ticks
@@ -1263,6 +1302,18 @@ fn apply_section_merge(
     }
     if let Ok(length) = std::num::NonZeroU64::try_from(merged_length) {
         section_a.length_ticks = length;
+    }
+    // A placement on B now lives in the merged section A (02 §6).
+    for source in &mut doc.sources {
+        if source
+            .placement
+            .as_ref()
+            .is_some_and(|placement| placement.section_id == removed_id)
+        {
+            source.placement = Some(crate::generated::SourcePlacement {
+                section_id: op.section_id_a.clone(),
+            });
+        }
     }
     Ok(())
 }

@@ -46,6 +46,7 @@ pub const MAX_PAN: f64 = 1.0;
 pub fn validate(doc: &Project, assets: &AssetIndex) -> Result<(), Vec<ValidationError>> {
     let mut errors = Vec::new();
     let tracks = check_ids(doc, &mut errors);
+    check_sources(doc, &mut errors);
     check_lanes(doc, &tracks, &mut errors);
     check_tempo_map(&doc.arrangement.timebase.tempo_map.0, &mut errors);
     check_numeric_bounds(doc, &mut errors);
@@ -126,6 +127,38 @@ fn check_unique_fx(
             ValidationCode::DuplicateId,
             format!("duplicate fx {id}"),
         );
+    }
+}
+
+/// Checks invariant 7 for sources and that a `Source.placement` names an existing section (02 §3.2,
+/// §6).
+fn check_sources(doc: &Project, errors: &mut Vec<ValidationError>) {
+    let mut ids = BTreeSet::new();
+    for source in &doc.sources {
+        let id = source.id.to_string();
+        if !ids.insert(id.clone()) {
+            push(
+                errors,
+                ValidationCode::DuplicateId,
+                format!("duplicate source {id}"),
+            );
+        }
+        if let Some(placement) = &source.placement
+            && !doc
+                .arrangement
+                .sections
+                .iter()
+                .any(|section| section.id == placement.section_id)
+        {
+            push(
+                errors,
+                ValidationCode::MissingTarget,
+                format!(
+                    "source {} is placed in section {} which does not exist",
+                    source.id, placement.section_id
+                ),
+            );
+        }
     }
 }
 

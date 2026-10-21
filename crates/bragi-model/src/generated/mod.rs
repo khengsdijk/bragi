@@ -5948,6 +5948,7 @@ impl ::std::convert::From<::std::vec::Vec<f64>> for NumberSeries {
 pub enum Op {
     ProjectSetMetaOp(ProjectSetMetaOp),
     AnalysisApplyOp(AnalysisApplyOp),
+    SourceAddOp(SourceAddOp),
     TrackAddOp(TrackAddOp),
     TrackRemoveOp(TrackRemoveOp),
     TrackUpdateOp(TrackUpdateOp),
@@ -5984,6 +5985,11 @@ impl ::std::convert::From<ProjectSetMetaOp> for Op {
 impl ::std::convert::From<AnalysisApplyOp> for Op {
     fn from(value: AnalysisApplyOp) -> Self {
         Self::AnalysisApplyOp(value)
+    }
+}
+impl ::std::convert::From<SourceAddOp> for Op {
+    fn from(value: SourceAddOp) -> Self {
+        Self::SourceAddOp(value)
     }
 }
 impl ::std::convert::From<TrackAddOp> for Op {
@@ -8169,11 +8175,71 @@ pub struct Source {
     ///The exact bytes the user provided (or that were generated).
     #[serde(rename = "originalAsset")]
     pub original_asset: AssetHash,
+    ///Set when the source is placed by the user or a generation, not laid out by `analysis.apply`: the section whose lanes hold this source's audio (02 §3.2, §6).
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub placement: ::std::option::Option<SourcePlacement>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub provenance: ::std::option::Option<Provenance>,
     ///The 48 kHz 24-bit FLAC produced by ingest.
     #[serde(rename = "workingAsset")]
     pub working_asset: AssetHash,
+}
+///`source.add` (02 §4.2). Add a source to the document. A generated source that is placed in the arrangement carries a `placement` naming the section its audio lives in; `analysis.apply` maps that source's stems into the section instead of building a baseline block for it (02 §6).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct SourceAddOp {
+    ///Position in sources; appended when absent.
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub index: ::std::option::Option<u64>,
+    pub op: SourceAddOpOp,
+    pub source: Source,
+}
+///`SourceAddOpOp`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum SourceAddOpOp {
+    #[serde(rename = "source.add")]
+    SourceAdd,
+}
+impl ::std::fmt::Display for SourceAddOpOp {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::SourceAdd => f.write_str("source.add"),
+        }
+    }
+}
+impl ::std::str::FromStr for SourceAddOpOp {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "source.add" => Ok(Self::SourceAdd),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for SourceAddOpOp {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for SourceAddOpOp {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
 }
 ///Source ID: `src_` + ULID (02 §2.1).
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -8287,6 +8353,13 @@ impl ::std::convert::TryFrom<::std::string::String> for SourceKind {
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
+}
+///Where a placed source lives in the arrangement. `analysis.apply` does not build a baseline block for such a source; it maps the source's stems into this section (02 §6).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct SourcePlacement {
+    #[serde(rename = "sectionId")]
+    pub section_id: SectionId,
 }
 ///`StemActivity`
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
@@ -10149,6 +10222,7 @@ pub const ROOT_TYPES: &[&str] = &[
     "SectionUpdateOp",
     "SeparationResult",
     "Source",
+    "SourceAddOp",
     "StemActivityResult",
     "StemEnergyResult",
     "StructureResult",

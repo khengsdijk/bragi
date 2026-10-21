@@ -262,6 +262,7 @@ export type SystemAuthorKind = "system";
 export type Op =
   | ProjectSetMetaOp
   | AnalysisApplyOp
+  | SourceAddOp
   | TrackAddOp
   | TrackRemoveOp
   | TrackUpdateOp
@@ -295,6 +296,12 @@ export type ProjectSetMetaOpOp = "project.set_meta";
  */
 export type HexColor = string;
 export type SectionSuggestionList = SectionSuggestion[];
+export type SourceAddOpOp = "source.add";
+export type SourceKind = "upload" | "generated" | "recorded" | "imported_stem";
+/**
+ * Channel count of an asset or source: mono or stereo. Ingest duplicates mono and downmixes more than two channels (04 §3.1).
+ */
+export type ChannelCount = 1 | 2;
 export type TrackAddOpOp = "track.add";
 export type TrackRemoveOpOp = "track.remove";
 export type TrackUpdateOpOp = "track.update";
@@ -443,11 +450,6 @@ export type PreviewResultSchemaVersion = 1;
  * Document schema version. Additive changes bump the minor version of the schema, removals and renames need `migrate` (02 §9).
  */
 export type ProjectSchemaVersion = 1;
-export type SourceKind = "upload" | "generated" | "recorded" | "imported_stem";
-/**
- * Channel count of an asset or source: mono or stereo. Ingest duplicates mono and downmixes more than two channels (04 §3.1).
- */
-export type ChannelCount = 1 | 2;
 /**
  * Blob schema version (01 §7).
  */
@@ -1001,6 +1003,43 @@ export interface SectionSuggestion {
   label: string;
   confidence?: number;
   repeatGroup?: string;
+}
+/**
+ * `source.add` (02 §4.2). Add a source to the document. A generated source that is placed in the arrangement carries a `placement` naming the section its audio lives in; `analysis.apply` maps that source's stems into the section instead of building a baseline block for it (02 §6).
+ */
+export interface SourceAddOp {
+  op: SourceAddOpOp;
+  source: Source;
+  /**
+   * Position in sources; appended when absent.
+   */
+  index?: number;
+}
+/**
+ * An original input: an upload, a generation, a recording or an imported stem (02 §3.2).
+ */
+export interface Source {
+  id: SourceId;
+  kind: SourceKind;
+  originalAsset: AssetHash;
+  workingAsset: AssetHash;
+  /**
+   * Length of the working asset in samples at 48 kHz.
+   */
+  durationSamples: number;
+  channels: ChannelCount;
+  /**
+   * E.g. the original filename, or "Generated: dreamy outro".
+   */
+  label: string;
+  provenance?: Provenance;
+  placement?: SourcePlacement;
+}
+/**
+ * Where a placed source lives in the arrangement. `analysis.apply` does not build a baseline block for such a source; it maps the source's stems into this section (02 §6).
+ */
+export interface SourcePlacement {
+  sectionId: SectionId;
 }
 /**
  * `track.add` (02 §4.2). Add a track, at index or appended.
@@ -1651,25 +1690,6 @@ export interface ProjectMeta {
   description?: string;
   color?: HexColor;
   suggestedSections?: SectionSuggestionList;
-}
-/**
- * An original input: an upload, a generation, a recording or an imported stem (02 §3.2).
- */
-export interface Source {
-  id: SourceId;
-  kind: SourceKind;
-  originalAsset: AssetHash;
-  workingAsset: AssetHash;
-  /**
-   * Length of the working asset in samples at 48 kHz.
-   */
-  durationSamples: number;
-  channels: ChannelCount;
-  /**
-   * E.g. the original filename, or "Generated: dreamy outro".
-   */
-  label: string;
-  provenance?: Provenance;
 }
 /**
  * Per-source analysis results, keyed by SourceId (02 §3.1).

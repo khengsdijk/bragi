@@ -2592,6 +2592,9 @@
           "$ref": "#/$defs/AnalysisApplyOp"
         },
         {
+          "$ref": "#/$defs/SourceAddOp"
+        },
+        {
           "$ref": "#/$defs/TrackAddOp"
         },
         {
@@ -3925,8 +3928,42 @@
         },
         "provenance": {
           "$ref": "#/$defs/Provenance"
+        },
+        "placement": {
+          "description": "Set when the source is placed by the user or a generation, not laid out by `analysis.apply`: the section whose lanes hold this source's audio (02 §3.2, §6).",
+          "$ref": "#/$defs/SourcePlacement"
         }
       }
+    },
+    "SourceAddOp": {
+      "title": "SourceAddOp",
+      "description": "`source.add` (02 §4.2). Add a source to the document. A generated source that is placed in the arrangement carries a `placement` naming the section its audio lives in; `analysis.apply` maps that source's stems into the section instead of building a baseline block for it (02 §6).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "op",
+        "source"
+      ],
+      "properties": {
+        "op": {
+          "$ref": "#/$defs/SourceAddOpOp"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "index": {
+          "description": "Position in sources; appended when absent.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "SourceAddOpOp": {
+      "title": "SourceAddOpOp",
+      "type": "string",
+      "enum": [
+        "source.add"
+      ]
     },
     "SourceId": {
       "title": "SourceId",
@@ -3943,6 +3980,20 @@
         "recorded",
         "imported_stem"
       ]
+    },
+    "SourcePlacement": {
+      "title": "SourcePlacement",
+      "description": "Where a placed source lives in the arrangement. `analysis.apply` does not build a baseline block for such a source; it maps the source's stems into this section (02 §6).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sectionId"
+      ],
+      "properties": {
+        "sectionId": {
+          "$ref": "#/$defs/SectionId"
+        }
+      }
     },
     "StemActivity": {
       "title": "StemActivity",
