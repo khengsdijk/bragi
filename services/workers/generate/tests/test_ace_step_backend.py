@@ -14,7 +14,7 @@ import pytest
 from extend_support import key
 
 from bragi_generate.audio import decode, encode_wav, rms
-from bragi_generate.backend import Direction, GenRequest
+from bragi_generate.backend import Direction, FillRequest, GenRequest
 from bragi_generate.backends.ace_step import (
     AceStepBackend,
     AceStepConfig,
@@ -270,3 +270,70 @@ def test_config_reads_the_checked_in_file(monkeypatch: pytest.MonkeyPatch) -> No
 def test_the_url_environment_variable_wins(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BRAGI_ACE_STEP_URL", "http://10.0.0.5:9001")
     assert AceStepConfig.load().base_url == "http://10.0.0.5:9001"
+
+
+def render_fill(payload: dict[str, Any]) -> bytes:
+    """ACE's middle-span repaint: a tone inside, the source preserved outside, at -6 dB."""
+    source = decode(Path(payload["src_audio_path"]).read_bytes())
+    start = round(float(payload["repainting_start"]) * RATE)
+    end = round(float(payload["repainting_end"]) * RATE)
+    middle = sine((end - start) / RATE).samples
+    out = np.concatenate([source.samples[:start], middle, source.samples[end:]])
+    return encode_wav(Audio(np.ascontiguousarray(out * np.float32(0.5)), RATE))
+
+
+def fill_request(
+    *, gap_bars: int = 2, lead_bars: float = 0.0, overlap_bars: int = 1
+) -> FillRequest:
+    return FillRequest(
+        capability="generate.inpaint",
+        before=synthesize(120.0, (4, 4), key(), start_sec=0.0, duration_sec=8.0, seed=99),
+        after=synthesize(120.0, (4, 4), key(), start_sec=20.0, duration_sec=8.0, seed=100),
+        bpm=120.0,
+        time_signature=(4, 4),
+        key=key(),
+        gap_bars=gap_bars,
+        lead_bars=lead_bars,
+        overlap_bars=overlap_bars,
+        descriptors=("warm analog synths",),
+        seed=1234,
+        prompt="fill it",
+    )
+
+
+def test_a_fill_repaints_the_middle_of_before_plus_gap_plus_after() -> None:
+    req = fill_request(gap_bars=2, overlap_bars=1)
+    sources: list[Audio] = []
+
+    def render(payload: dict[str, Any]) -> bytes:
+        sources.append(decode(Path(payload["src_audio_path"]).read_bytes()))
+        return render_fill(payload)
+
+    with FakeAceStep(render) as fake:
+        outputs = backend(fake).generate_fill(req, "preview", 1, lambda _pct: None)
+
+    payload = fake.payloads[0]
+    # Source: 8 s before + 4 s gap + 8 s after; span: 2 s overlap + 4 s gap + 2 s.
+    source = sources[0]
+    assert source.duration_sec == pytest.approx(20.0, abs=0.001)
+    assert payload["repainting_start"] == 6.0
+    assert payload["repainting_end"] == 14.0
+    assert payload["bpm"] == 120 and payload["key_scale"] == "Am"
+    assert "fill it" in str(payload["prompt"])
+    assert rms(source.trimmed(8 * RATE, 12 * RATE)) < 0.001
+
+    output = outputs[0]
+    assert output.audio.duration_sec == pytest.approx(8.0, abs=0.001)  # 2 + 4 + 2 s
+    assert rms(output.audio) == pytest.approx(0.2 / np.sqrt(2.0), abs=0.005)
+
+
+def test_a_transition_fill_centres_the_span_on_the_join() -> None:
+    req = fill_request(gap_bars=0, lead_bars=1.0, overlap_bars=1)
+    with FakeAceStep(render_fill) as fake:
+        outputs = backend(fake).generate_fill(req, "preview", 1, lambda _pct: None)
+
+    payload = fake.payloads[0]
+    # 8 s before, join at 8 s: the span starts one bar (2 s) + one overlap before.
+    assert payload["repainting_start"] == 4.0
+    assert payload["repainting_end"] == 12.0
+    assert outputs[0].audio.duration_sec == pytest.approx(8.0, abs=0.001)

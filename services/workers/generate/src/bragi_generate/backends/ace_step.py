@@ -10,6 +10,12 @@ capability's musical request and its ``repaint`` task. Two mappings matter:
   then repaint ``[0, new + overlap]``. ACE-Step preserves everything after the
   span, so the original song is untouched and the generated intro ends with a
   re-created overlap for the splice search.
+* **A fill** (WP-2.8: inpaint and transition) is the middle-span form: the source is
+  ``before + gap + after`` (the gap is silence for an inpaint and empty for a
+  transition), and ``[span_start, span_end]`` covers the span plus one overlap on
+  each side. ACE-Step's waveform splice keeps everything outside the span, so the
+  candidate is the span only and both of its ends re-create their context
+  (``acestep/core/generation/handler/repaint_waveform_splice.py``).
 
 ACE normalises its whole output to -1 dBFS in the HTTP path and gains the
 preserved context accordingly (A1 measured 0.89 to 1.78). The candidate is divided by
@@ -31,11 +37,10 @@ from typing import Final
 import numpy as np
 
 from bragi_generate.audio import decode, encode_wav, rms, scale
-from bragi_generate.backend import GenOutput, GenRequest, GenTimings, Tier
+from bragi_generate.backend import FillRequest, GenOutput, GenRequest, GenTimings, Tier
 from bragi_generate.backends.ace_step_api import (
     DEFAULT_BASE_URL,
     AceStepClient,
-    ExtendOutput,
     RepaintRequest,
 )
 from bragi_generate.postprocess.types import NOTE_NAMES, Audio, KeySpec
@@ -136,7 +141,7 @@ def ace_key(key: KeySpec) -> str:
     return NOTE_NAMES[key.tonic_pc] + ("m" if key.mode == "minor" else "")
 
 
-def caption_for(req: GenRequest, *, limit: int = 500) -> str:
+def caption_for(req: GenRequest | FillRequest, *, limit: int = 500) -> str:
     """The text conditioning: descriptors, then the user's prompt.
 
     The planner/API rewrite artist names into descriptors before a job exists
@@ -172,7 +177,7 @@ class AceStepBackend:
 
     name = MODEL_NAME
     version = MODEL_VERSION
-    capabilities = frozenset({"generate.extend"})
+    capabilities = frozenset({"generate.extend", "generate.inpaint", "generate.transition"})
     max_duration_sec = 600.0
     supports_audio_context = True
     supports_lyrics = True
@@ -204,14 +209,7 @@ class AceStepBackend:
         on_progress: Callable[[float], None],
     ) -> list[GenOutput]:
         """Runs ``n`` seeded repaints and returns their trimmed candidates."""
-        if "generate.extend" not in self.capabilities:
-            raise ValueError(f"{self.name} does not implement generate.extend")
-        if tier not in ("preview", "hq"):
-            raise ValueError(f"unknown tier {tier!r}")
-        if n < 1:
-            raise ValueError(f"n must be >= 1, got {n}")
-        if req.context.sample_rate != 48_000:
-            raise ValueError(f"ACE-Step speaks 48 kHz, got {req.context.sample_rate}")
+        self._check("generate.extend", req.context, tier, n)
 
         steps = self._config.steps_for(tier)
         started = time.perf_counter()
@@ -236,6 +234,55 @@ class AceStepBackend:
                 )
                 on_progress((index + 1) / n)
         return outputs
+
+    def generate_fill(
+        self,
+        req: FillRequest,
+        tier: Tier,
+        n: int,
+        on_progress: Callable[[float], None],
+    ) -> list[GenOutput]:
+        """Runs ``n`` seeded middle-span repaints for an inpaint or a transition."""
+        if req.capability not in self.capabilities:
+            raise ValueError(f"{self.name} does not implement {req.capability}")
+        self._check(req.capability, req.before, tier, n)
+        if req.after.sample_rate != req.before.sample_rate:
+            raise ValueError("the two contexts must share a sample rate")
+
+        steps = self._config.steps_for(tier)
+        started = time.perf_counter()
+        outputs: list[GenOutput] = []
+        with tempfile.TemporaryDirectory(prefix="bragi-ace-") as directory:
+            scratch = Path(directory)
+            for index in range(n):
+                seed = (req.seed + index) & 0xFFFFFFFF
+                candidate, download_sec = self._one_fill(req, scratch, index, seed, steps)
+                outputs.append(
+                    GenOutput(
+                        audio=candidate,
+                        seed=seed,
+                        model=self.name,
+                        model_version=self.version,
+                        timings=GenTimings(
+                            generate_sec=time.perf_counter() - started,
+                            download_sec=download_sec,
+                            total_sec=time.perf_counter() - started,
+                        ),
+                    )
+                )
+                on_progress((index + 1) / n)
+        return outputs
+
+    def _check(self, capability: str, context: Audio, tier: Tier, n: int) -> None:
+        """The guards both generation calls share."""
+        if capability not in self.capabilities:
+            raise ValueError(f"{self.name} does not implement {capability}")
+        if tier not in ("preview", "hq"):
+            raise ValueError(f"unknown tier {tier!r}")
+        if n < 1:
+            raise ValueError(f"n must be >= 1, got {n}")
+        if context.sample_rate != 48_000:
+            raise ValueError(f"ACE-Step speaks 48 kHz, got {context.sample_rate}")
 
     def warmup(self) -> None:
         """Loads the DiT, VAE and text encoder through ``POST /v1/init`` (09 §5).
@@ -270,6 +317,85 @@ class AceStepBackend:
             span_start = 0
             span_end = round((req.new_duration_sec + req.overlap_sec) * rate)
 
+        returned, download_sec = self._repaint(
+            source, span_start, span_end, req, scratch, index, seed, steps
+        )
+        if req.direction == "forward":
+            candidate = returned.trimmed(span_start)
+            preserved_out = returned.trimmed(0, span_start)
+            preserved_in = source.trimmed(0, span_start)
+        else:
+            candidate = returned.trimmed(0, span_end)
+            preserved_out = returned.trimmed(span_end)
+            preserved_in = source.trimmed(span_end)
+        gain = _gain_against(preserved_out, preserved_in)
+        candidate = scale(candidate, 1.0 / gain)
+        return _fit(candidate, round(req.total_duration_sec * returned.sample_rate)), download_sec
+
+    def _one_fill(
+        self,
+        req: FillRequest,
+        scratch: Path,
+        index: int,
+        seed: int,
+        steps: int,
+    ) -> tuple[Audio, float]:
+        """One two-sided candidate: repaint the middle of ``before + gap + after``.
+
+        The span starts ``lead + overlap`` before the join and ends ``lead +
+        overlap`` after it, so ACE-Step sees the left context, the gap (silence for
+        an inpaint, the original audio for a transition) and the right context, and
+        preserves everything outside the span sample for sample (A1/A2's explicit
+        ``repainting_start``/``repainting_end``). The returned timeline is the whole
+        source; the candidate is the span only.
+        """
+        rate = req.before.sample_rate
+        overlap = round(req.overlap_sec * rate)
+        lead = round(req.lead_sec * rate)
+        gap = round(req.gap_sec * rate)
+        if req.before.frames < lead + overlap:
+            raise ValueError("the before context is shorter than the lead plus the overlap")
+        if req.after.frames < lead + overlap:
+            raise ValueError("the after context is shorter than the lead plus the overlap")
+        silence = np.zeros((gap, req.before.samples.shape[1]), dtype=np.float32)
+        source = Audio(
+            np.ascontiguousarray(np.concatenate([req.before.samples, silence, req.after.samples])),
+            rate,
+        )
+        span_start = req.before.frames - lead - overlap
+        span_end = req.before.frames + gap + lead + overlap
+
+        returned, download_sec = self._repaint(
+            source, span_start, span_end, req, scratch, index, seed, steps
+        )
+        candidate = returned.trimmed(span_start, span_end)
+        if span_start > 0:
+            preserved_out = returned.trimmed(0, span_start)
+            preserved_in = source.trimmed(0, span_start)
+        else:
+            preserved_out = returned.trimmed(span_end)
+            preserved_in = source.trimmed(span_end)
+        gain = _gain_against(preserved_out, preserved_in)
+        candidate = scale(candidate, 1.0 / gain)
+        return _fit(candidate, round(req.total_duration_sec * returned.sample_rate)), download_sec
+
+    def _repaint(
+        self,
+        source: Audio,
+        span_start: int,
+        span_end: int,
+        req: GenRequest | FillRequest,
+        scratch: Path,
+        index: int,
+        seed: int,
+        steps: int,
+    ) -> tuple[Audio, float]:
+        """Write ``source``, repaint ``[span_start, span_end]`` and return the timeline.
+
+        ``download_sec`` is the time spent polling and downloading, not the model
+        call, so it can sit next to ``generate_sec`` in :class:`GenTimings`.
+        """
+        rate = source.sample_rate
         source_path = scratch / f"source-{index}.wav"
         source_path.write_bytes(encode_wav(source))
         request = RepaintRequest(
@@ -295,31 +421,10 @@ class AceStepBackend:
             timeout_sec=self._config.timeout_sec,
         )
         download_sec = time.perf_counter() - downloaded
-        return self._candidate(req, source, result, span_start, span_end), download_sec
-
-    def _candidate(
-        self,
-        req: GenRequest,
-        source: Audio,
-        result: ExtendOutput,
-        span_start: int,
-        span_end: int,
-    ) -> Audio:
-        """Trim the returned timeline and undo ACE's output normalisation."""
         returned = decode(result.audio)
-        if returned.sample_rate != req.context.sample_rate:
-            raise ValueError(f"ACE-Step returned {returned.sample_rate} Hz, expected 48 kHz")
-        if req.direction == "forward":
-            candidate = returned.trimmed(span_start)
-            preserved_out = returned.trimmed(0, span_start)
-            preserved_in = source.trimmed(0, span_start)
-        else:
-            candidate = returned.trimmed(0, span_end)
-            preserved_out = returned.trimmed(span_end)
-            preserved_in = source.trimmed(span_end)
-        gain = _gain_against(preserved_out, preserved_in)
-        candidate = scale(candidate, 1.0 / gain)
-        return _fit(candidate, round(req.total_duration_sec * returned.sample_rate))
+        if returned.sample_rate != rate:
+            raise ValueError(f"ACE-Step returned {returned.sample_rate} Hz, expected {rate} Hz")
+        return returned, download_sec
 
 
 __all__ = [

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Mapping
 from typing import Any
 
 import numpy as np
@@ -19,9 +19,15 @@ from bragi_common.generated.models import (
     JobRequestSchemaVersion,
 )
 from bragi_generate.audio import encode_wav
-from bragi_generate.backend import GenOutput, GenRequest, GenTimings, Tier
+from bragi_generate.backend import FillRequest, GenOutput, GenRequest, GenTimings, Tier
 from bragi_generate.backends.fake import synthesize
-from bragi_generate.postprocess import Audio, GateResult, KeySpec, StepVerdict
+from bragi_generate.postprocess import (
+    Audio,
+    FillGateResult,
+    GateResult,
+    KeySpec,
+    StepVerdict,
+)
 
 SAMPLE_RATE = 48_000
 CONTEXT_HASH = "sha256:" + "c" * 64
@@ -94,10 +100,20 @@ def make_job(params_document: dict[str, object]) -> JobRequest:
 
 
 class FakeContext:
-    """A ``JobContext`` stand-in that records every side effect."""
+    """A ``JobContext`` stand-in that records every side effect.
 
-    def __init__(self, data: bytes, *, cancel_after: int | None = None) -> None:
-        self._data = data
+    ``data`` is extend's single context (served under ``CONTEXT_HASH``) or a map of
+    the job's declared asset hashes to their payloads, as a fill's ``before`` and
+    ``after`` are.
+    """
+
+    def __init__(
+        self,
+        data: bytes | Mapping[str, bytes],
+        *,
+        cancel_after: int | None = None,
+    ) -> None:
+        self._payloads = {CONTEXT_HASH: data} if isinstance(data, bytes) else dict(data)
         self._cancel_after = cancel_after
         self._polls = 0
         self.uploads: dict[str, bytes] = {}
@@ -114,8 +130,7 @@ class FakeContext:
         return self._cancel_after is not None and self._polls > self._cancel_after
 
     async def download(self, content_hash: str) -> bytes:
-        assert content_hash == CONTEXT_HASH
-        return self._data
+        return self._payloads[content_hash]
 
     async def upload(self, data: bytes, mime: str | None = None) -> str:
         del mime
@@ -199,4 +214,154 @@ def gate(candidate: Audio, *, passed: bool, seam: float = 0.2) -> GateResult:
         match_eq=None,
         splice_offset_samples=-256,
         direction="forward",
+    )
+
+
+def asset_hash(payload: bytes) -> str:
+    """The content address the job declares for an input payload."""
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+
+def inpaint_params(
+    *,
+    gap_bars: int = 1,
+    overlap_bars: int = 1,
+    n: int = 1,
+    seed: int = 1234,
+) -> dict[str, object]:
+    """One valid ``generate.inpaint`` params document."""
+    return {
+        "context": {
+            "bpm": 120,
+            "timeSignature": [4, 4],
+            "key": {"tonic": "A", "mode": "minor"},
+            "descriptors": ["warm analog synths"],
+            "seed": seed,
+        },
+        "gapBars": gap_bars,
+        "overlapBars": overlap_bars,
+        "tier": "preview",
+        "n": n,
+    }
+
+
+def transition_params(
+    *,
+    length_bars: int = 2,
+    n: int = 1,
+    seed: int = 1234,
+) -> dict[str, object]:
+    """One valid ``generate.transition`` params document."""
+    return {
+        "context": {
+            "bpm": 120,
+            "timeSignature": [4, 4],
+            "key": {"tonic": "A", "mode": "minor"},
+            "descriptors": ["warm analog synths"],
+            "seed": seed,
+        },
+        "lengthBars": length_bars,
+        "tier": "preview",
+        "n": n,
+    }
+
+
+def make_fill_job(
+    capability: str,
+    params_document: dict[str, object],
+    before: bytes | None = None,
+    after: bytes | None = None,
+) -> JobRequest:
+    """A two-sided job with both rendered contexts as its inputs."""
+    before = before if before is not None else context_bytes()
+    after = after if after is not None else context_bytes()
+    return JobRequest(
+        schemaVersion=JobRequestSchemaVersion.integer_1,
+        jobId="job_01FILL",
+        capability=capability,
+        priority=JobPriority.interactive,
+        userId="user_01",
+        inputs=JobInputs(
+            assets={"before": asset_hash(before), "after": asset_hash(after)},
+            params=FreeformParams.model_validate(params_document),
+        ),
+        idempotencyKey="fill-key",
+        attempt=0,
+        deadline="2026-10-21T00:00:00.000Z",
+        traceparent="00-11111111111111111111111111111111-2222222222222222-01",
+        createdAt="2026-10-21T00:00:00.000Z",
+    )
+
+
+class StubFillBackend:
+    """A backend that returns one silent two-sided candidate per call."""
+
+    name = "fake"
+    version = "1"
+    capabilities = frozenset({"generate.inpaint", "generate.transition"})
+    max_duration_sec = 600.0
+    supports_audio_context = True
+    supports_lyrics = False
+    supports_preview_tier = True
+
+    def __init__(self) -> None:
+        self.seeds: list[int] = []
+        self.seen: list[FillRequest] = []
+        self.warms = 0
+
+    def warmup(self) -> None:
+        self.warms += 1
+
+    def generate_fill(
+        self,
+        req: FillRequest,
+        tier: Tier,
+        n: int,
+        on_progress: Callable[[float], None],
+    ) -> list[GenOutput]:
+        del tier
+        assert n == 1
+        self.seeds.append(req.seed)
+        self.seen.append(req)
+        frames = round(req.total_duration_sec * SAMPLE_RATE)
+        audio = Audio(np.zeros((frames, 2), dtype=np.float32), SAMPLE_RATE)
+        on_progress(1.0)
+        return [
+            GenOutput(
+                audio=audio,
+                seed=req.seed,
+                model=self.name,
+                model_version=self.version,
+                timings=GenTimings(generate_sec=0.01, download_sec=0.0, total_sec=0.01),
+            )
+        ]
+
+
+def fill_gate(
+    candidate: Audio,
+    *,
+    passed: bool,
+    seam: float = 0.2,
+    end_seam: float = 0.3,
+) -> FillGateResult:
+    """A one-step two-sided gate result that mirrors the real pipeline's shape."""
+    return FillGateResult(
+        processed=candidate,
+        passed=passed,
+        steps=(
+            StepVerdict(
+                "sanity",
+                passed,
+                {"peak": 0.5},
+                None if passed else "silent",
+            ),
+        ),
+        quality_warning=not passed,
+        seam_score=seam,
+        end_seam_score=end_seam,
+        tempo_error=0.01,
+        key_match=None,
+        match_eq=None,
+        start_offset_samples=-256,
+        end_offset_samples=512,
     )

@@ -30,7 +30,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from bragi_generate.audio import rms, rms_db, scale
-from bragi_generate.backend import GenOutput, GenRequest, GenTimings, Tier
+from bragi_generate.backend import FillRequest, GenOutput, GenRequest, GenTimings, Tier
+from bragi_generate.postprocess.seam import crossfade
 from bragi_generate.postprocess.types import Audio, KeySpec
 
 #: Semitone offsets of a four-bar progression, from the tonic.
@@ -249,12 +250,56 @@ def loop_context(req: GenRequest, seed: int) -> Audio:
     return Audio(np.ascontiguousarray(body * np.float32(gain), dtype=np.float32), rate)
 
 
+def fill_contexts(req: FillRequest, seed: int) -> Audio:
+    """Fills the span by looping the left context and blending into the right one.
+
+    The candidate is the left context's own last bars repeated across the span, then
+    an equal-power crossfade over the gate's crossfade length into the right
+    context's head. Its first and last ``overlap_bars`` therefore re-create the
+    audio around the span exactly, so both splice gates see a real continuation;
+    the loop length and a gain within ±0.5 dB come from the seed (like
+    :func:`loop_context`).
+    """
+    rate = req.before.sample_rate
+    bar = max(1, round(req.bar_sec * rate))
+    overlap = min(round(req.overlap_sec * rate), req.before.frames, req.after.frames)
+    lead = round(req.lead_sec * rate)
+    gap = round(req.gap_sec * rate)
+    middle = gap + 2 * lead
+    total = overlap + middle + overlap
+    if req.before.frames < lead + overlap or req.after.frames < lead + overlap:
+        raise ValueError("each context must hold the lead plus the overlap")
+    # The same one-beat, 500 ms-capped crossfade the gates score (03 §8.2).
+    fade = max(1, min(round(min(req.beat_sec, 0.5) * rate), overlap))
+
+    left = req.before.trimmed(0, req.before.frames - lead)
+    right = req.after.trimmed(lead)
+    head = left.samples[-overlap:]
+    tail = right.samples[:overlap]
+    loop = min(bar * _LOOP_BARS[seed % len(_LOOP_BARS)], left.frames)
+    cycle = left.samples[-loop:]
+    # ``fade`` extra samples are the loop's own continuation, crossfaded onto the
+    # right context's head at the end of the span.
+    repeats = -(-(middle + fade) // loop)
+    body = np.concatenate([cycle] * repeats)[: middle + fade]
+
+    out = np.zeros((total, head.shape[1]), dtype=np.float32)
+    out[:overlap] = head
+    out[overlap : overlap + middle] = body[:middle]
+    out[overlap + middle : overlap + middle + fade] = crossfade(
+        body[middle : middle + fade], tail, fade
+    )
+    out[overlap + middle + fade :] = tail[fade:overlap]
+    gain = 10.0 ** (((seed % 11) - 5) / 10.0 / 20.0)
+    return Audio(np.ascontiguousarray(out * np.float32(gain), dtype=np.float32), rate)
+
+
 class FakeBackend:
     """The no-model backend for tests and the live e2e."""
 
     name = "fake"
     version = "1"
-    capabilities = frozenset({"generate.extend"})
+    capabilities = frozenset({"generate.extend", "generate.inpaint", "generate.transition"})
     max_duration_sec = 600.0
     supports_audio_context = True
     supports_lyrics = False
@@ -316,6 +361,46 @@ class FakeBackend:
             on_progress((index + 1) / n)
         return outputs
 
+    def generate_fill(
+        self,
+        req: FillRequest,
+        tier: Tier,
+        n: int,
+        on_progress: Callable[[float], None],
+    ) -> list[GenOutput]:
+        """Fills ``n`` seeded spans between the two contexts."""
+        if tier not in ("preview", "hq"):
+            raise ValueError(f"unknown tier {tier!r}")
+        if n < 1:
+            raise ValueError(f"n must be >= 1, got {n}")
+        started = time.perf_counter()
+        outputs: list[GenOutput] = []
+        target_db = rms_db(req.before)
+        for index in range(n):
+            seed = (req.seed + index) & 0xFFFFFFFF
+            if self.mode == "loop":
+                audio = fill_contexts(req, seed)
+            else:
+                audio = synthesize(
+                    req.bpm,
+                    req.time_signature,
+                    req.key,
+                    start_sec=-(req.overlap_sec + req.lead_sec),
+                    duration_sec=req.total_duration_sec,
+                    seed=seed,
+                    sample_rate=req.before.sample_rate,
+                )
+                level = rms(audio)
+                if level > 0.0 and np.isfinite(target_db):
+                    gain = 10.0 ** ((target_db - rms_db(audio)) / 20.0)
+                    peak = float(np.max(np.abs(audio.samples)))
+                    if peak > 0.0:
+                        gain = min(gain, 0.95 / peak)
+                    audio = scale(audio, min(gain, 8.0))
+            outputs.append(self._output(audio, seed, started))
+            on_progress((index + 1) / n)
+        return outputs
+
     def _output(self, audio: Audio, seed: int, started: float) -> GenOutput:
         elapsed = time.perf_counter() - started
         return GenOutput(
@@ -330,4 +415,4 @@ class FakeBackend:
         """No-op: there is no model to load (09 §5's ping is cheap)."""
 
 
-__all__ = ["FakeBackend", "loop_context", "midi_to_hz", "synthesize"]
+__all__ = ["FakeBackend", "fill_contexts", "loop_context", "midi_to_hz", "synthesize"]
