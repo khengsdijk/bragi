@@ -386,10 +386,45 @@ export type CatalogNumberParamType = "number";
 export type CatalogTrackIdParamType = "trackId";
 export type CatalogNumberListParamType = "number[]";
 /**
+ * [numerator, denominator], e.g. [4, 4].
+ *
+ * @minItems 2
+ * @maxItems 2
+ */
+export type TimeSignature = [number, number];
+export type KeyMode = "major" | "minor";
+export type ChordAtBeatList = ChordAtBeat[];
+export type DescriptorList = string[];
+/**
+ * `forward` continues the song at its end; `backward` generates an intro before its start (09 §4.2 step 5).
+ */
+export type ExtendDirection = "forward" | "backward";
+/**
+ * Latency tier (09 §5): `preview` streams fast candidates, `hq` is the background re-render.
+ */
+export type ExtendTier = "preview" | "hq";
+/**
+ * Blob schema version (01 §7).
+ */
+export type GenerateExtendResultSchemaVersion = 1;
+/**
+ * How the candidate's detected key relates to the requested one (09 §6 step 3).
+ */
+export type ExtendKeyRelation = "same" | "relative" | "shifted" | "off";
+/**
+ * One gain in dB per band of the `match_eq` fx (03 §8.2).
+ */
+export type ExtendMatchEqBands = number[];
+/**
+ * The seven gate verdicts of 09 §6, in order; short-circuited steps are skipped.
+ *
+ * @minItems 1
+ */
+export type ExtendStepList = [ExtendStep, ...ExtendStep[]];
+/**
  * Blob schema version (01 §7).
  */
 export type HarmonyResultSchemaVersion = 1;
-export type KeyMode = "major" | "minor";
 export type KeyChangeList = KeyChange[];
 /**
  * Per-section derived progressions; `index` matches the structure stage's section index.
@@ -1407,6 +1442,153 @@ export interface CatalogTrackIdParam {
  */
 export interface CatalogNumberListParam {
   type: CatalogNumberListParamType;
+}
+/**
+ * Params of `generate.extend` (specs/09-generation.md §4.2): continue the song forward, or generate an intro backward. The rendered context audio is the job's `inputs.assets.context`; the backend requests `bars + overlapBars` bars so the gate pass can splice inside the overlap.
+ */
+export interface GenerateExtendParams {
+  context: MusicalContext;
+  /**
+   * Bars of new audio, not counting the overlap.
+   */
+  bars: number;
+  /**
+   * Bars of rendered context the model may re-create for the splice search (09 §4.2 step 2).
+   */
+  overlapBars?: number;
+  direction: ExtendDirection;
+  /**
+   * Optional user prompt. The planner/API rewrites artist names into descriptors before this point (specs/10-fusion.md §7).
+   */
+  prompt?: string;
+  tier: ExtendTier;
+  /**
+   * Candidates to generate (09 §5).
+   */
+  n: number;
+}
+/**
+ * The musical facts every generation request carries (09 §2.1). Context audio is a job input asset (inputs.assets.context), not a param, because it is content-addressed and streamed like any other input.
+ */
+export interface MusicalContext {
+  /**
+   * Tempo of the song the generated audio must continue.
+   */
+  bpm: number;
+  timeSignature: TimeSignature;
+  key: MusicalKey;
+  chords?: ChordAtBeatList;
+  sectionKind?: SectionKind;
+  /**
+   * Target energy in 0..1; 0 is the quietest, 1 the loudest.
+   */
+  energy?: number;
+  descriptors: DescriptorList;
+  /**
+   * Deterministic seed. Backends may derive one seed per candidate from it.
+   */
+  seed: number;
+}
+export interface MusicalKey {
+  /**
+   * Note name, e.g. "F#" or "Bb".
+   */
+  tonic: string;
+  mode: KeyMode;
+}
+export interface ChordAtBeat {
+  /**
+   * Beats relative to the start of the target span.
+   */
+  startBeat: number;
+  /**
+   * Display symbol, e.g. "Am7".
+   */
+  symbol: string;
+}
+/**
+ * One `generate.extend` candidate's result blob (specs/09-generation.md §6): every gate's verdict, the metrics the eval dashboard tracks, and what placement needs. The candidate audio is the sibling asset in the same `JobOutputs` entry. The blob is uploaded as `blobs.candidate_<index>` and published with the candidate's asset on the streaming `partial` event (09 §5).
+ */
+export interface GenerateExtendResult {
+  schemaVersion: GenerateExtendResultSchemaVersion;
+  /**
+   * Candidate index within the job, in the order partials were published.
+   */
+  index: number;
+  asset: AssetHash;
+  /**
+   * The seed the backend actually used, echoed for regeneration and HQ re-render.
+   */
+  seed: number;
+  /**
+   * Backend model name, e.g. "ace-step".
+   */
+  model: string;
+  /**
+   * Backend model version, e.g. "1.5.0".
+   */
+  modelVersion: string;
+  /**
+   * Every non-skipped gate passed. A rejected candidate can still be returned, with qualityWarning (09 §6).
+   */
+  passed: boolean;
+  /**
+   * Set when no candidate passed: the UI shows "This one might not blend perfectly" (09 §6).
+   */
+  qualityWarning: boolean;
+  /**
+   * 03 §8.2 seam score of the final render, lower is better. null when the gates could not score the candidate; JSON has no Infinity.
+   */
+  seamScore: number | null;
+  /**
+   * Relative tempo error before warping, 0..1 (0 when it could not be measured).
+   */
+  tempoError: number;
+  keyMatch?: ExtendKeyMatch;
+  matchEq?: ExtendMatchEq;
+  /**
+   * Where the processed audio starts relative to the context edge being extended: the context end for forward, the context start for backward. Negative means it starts inside the overlap (09 §6, 03 §8.2).
+   */
+  spliceOffsetSamples: number;
+  direction: ExtendDirection;
+  steps: ExtendStepList;
+}
+export interface ExtendKeyMatch {
+  detected: MusicalKey;
+  confidence: Confidence;
+  relation: ExtendKeyRelation;
+  /**
+   * Semitones the key gate shifted the candidate by (0, +-1).
+   */
+  shiftSemitones: number;
+}
+export interface ExtendMatchEq {
+  bands: ExtendMatchEqBands;
+  /**
+   * Wet amount of the spectral match, 0..1.
+   */
+  amount: number;
+}
+export interface ExtendStep {
+  /**
+   * Gate name: sanity, tempo, key, beat_align, splice, match or final_seam.
+   */
+  step: string;
+  passed: boolean;
+  /**
+   * True for a step after a short circuit.
+   */
+  skipped: boolean;
+  /**
+   * Why a gate failed, e.g. "silent" or "tempo error above the gate".
+   */
+  reason?: string;
+  /**
+   * The gate's own numbers. Deliberately open: each gate owns its metric names (config/generation_gates.toml).
+   */
+  metrics: {
+    [k: string]: unknown;
+  };
 }
 /**
  * The `harmony` stage result: key, key changes, chords and per-section progressions (specs/04-analysis-pipeline.md §5.3).

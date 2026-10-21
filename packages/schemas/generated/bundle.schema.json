@@ -792,6 +792,33 @@
         }
       }
     },
+    "ChordAtBeat": {
+      "title": "ChordAtBeat",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startBeat",
+        "symbol"
+      ],
+      "properties": {
+        "startBeat": {
+          "description": "Beats relative to the start of the target span.",
+          "type": "number"
+        },
+        "symbol": {
+          "description": "Display symbol, e.g. \"Am7\".",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ChordAtBeatList": {
+      "title": "ChordAtBeatList",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ChordAtBeat"
+      }
+    },
     "Clip": {
       "title": "Clip",
       "description": "A window onto an asset, placed in a lane (02 §3.6). The clip's end tick is derived from its warp.",
@@ -1263,6 +1290,14 @@
         1
       ]
     },
+    "DescriptorList": {
+      "title": "DescriptorList",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
     "DrumComponent": {
       "title": "DrumComponent",
       "description": "A drum sub-stem produced by the deep `drum_split` stage (04 §7).",
@@ -1458,6 +1493,135 @@
         "BUDGET_EXCEEDED",
         "COMMIT_PARENT_MISSING",
         "INTERNAL"
+      ]
+    },
+    "ExtendDirection": {
+      "title": "ExtendDirection",
+      "description": "`forward` continues the song at its end; `backward` generates an intro before its start (09 §4.2 step 5).",
+      "type": "string",
+      "enum": [
+        "forward",
+        "backward"
+      ]
+    },
+    "ExtendKeyMatch": {
+      "title": "ExtendKeyMatch",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "detected",
+        "confidence",
+        "relation",
+        "shiftSemitones"
+      ],
+      "properties": {
+        "detected": {
+          "$ref": "#/$defs/MusicalKey"
+        },
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "relation": {
+          "$ref": "#/$defs/ExtendKeyRelation"
+        },
+        "shiftSemitones": {
+          "description": "Semitones the key gate shifted the candidate by (0, +-1).",
+          "type": "integer",
+          "minimum": -12,
+          "maximum": 12
+        }
+      }
+    },
+    "ExtendKeyRelation": {
+      "title": "ExtendKeyRelation",
+      "description": "How the candidate's detected key relates to the requested one (09 §6 step 3).",
+      "type": "string",
+      "enum": [
+        "same",
+        "relative",
+        "shifted",
+        "off"
+      ]
+    },
+    "ExtendMatchEq": {
+      "title": "ExtendMatchEq",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bands",
+        "amount"
+      ],
+      "properties": {
+        "bands": {
+          "$ref": "#/$defs/ExtendMatchEqBands"
+        },
+        "amount": {
+          "description": "Wet amount of the spectral match, 0..1.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "ExtendMatchEqBands": {
+      "title": "ExtendMatchEqBands",
+      "description": "One gain in dB per band of the `match_eq` fx (03 §8.2).",
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "ExtendStep": {
+      "title": "ExtendStep",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "step",
+        "passed",
+        "metrics",
+        "skipped"
+      ],
+      "properties": {
+        "step": {
+          "description": "Gate name: sanity, tempo, key, beat_align, splice, match or final_seam.",
+          "type": "string",
+          "minLength": 1
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "skipped": {
+          "description": "True for a step after a short circuit.",
+          "type": "boolean"
+        },
+        "reason": {
+          "description": "Why a gate failed, e.g. \"silent\" or \"tempo error above the gate\".",
+          "type": "string",
+          "minLength": 1
+        },
+        "metrics": {
+          "description": "The gate's own numbers. Deliberately open: each gate owns its metric names (config/generation_gates.toml).",
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "ExtendStepList": {
+      "title": "ExtendStepList",
+      "description": "The seven gate verdicts of 09 §6, in order; short-circuited steps are skipped.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/ExtendStep"
+      }
+    },
+    "ExtendTier": {
+      "title": "ExtendTier",
+      "description": "Latency tier (09 §5): `preview` streams fast candidates, `hq` is the background re-render.",
+      "type": "string",
+      "enum": [
+        "preview",
+        "hq"
       ]
     },
     "FadeCurve": {
@@ -1723,6 +1887,148 @@
       "type": "string",
       "enum": [
         "fx.update"
+      ]
+    },
+    "GenerateExtendParams": {
+      "title": "GenerateExtendParams",
+      "description": "Params of `generate.extend` (specs/09-generation.md §4.2): continue the song forward, or generate an intro backward. The rendered context audio is the job's `inputs.assets.context`; the backend requests `bars + overlapBars` bars so the gate pass can splice inside the overlap.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context",
+        "bars",
+        "direction",
+        "tier",
+        "n"
+      ],
+      "properties": {
+        "context": {
+          "$ref": "#/$defs/MusicalContext"
+        },
+        "bars": {
+          "description": "Bars of new audio, not counting the overlap.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "overlapBars": {
+          "description": "Bars of rendered context the model may re-create for the splice search (09 §4.2 step 2).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "default": 2
+        },
+        "direction": {
+          "$ref": "#/$defs/ExtendDirection"
+        },
+        "prompt": {
+          "description": "Optional user prompt. The planner/API rewrites artist names into descriptors before this point (specs/10-fusion.md §7).",
+          "type": "string",
+          "maxLength": 1000
+        },
+        "tier": {
+          "$ref": "#/$defs/ExtendTier"
+        },
+        "n": {
+          "description": "Candidates to generate (09 §5).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        }
+      }
+    },
+    "GenerateExtendResult": {
+      "title": "GenerateExtendResult",
+      "description": "One `generate.extend` candidate's result blob (specs/09-generation.md §6): every gate's verdict, the metrics the eval dashboard tracks, and what placement needs. The candidate audio is the sibling asset in the same `JobOutputs` entry. The blob is uploaded as `blobs.candidate_<index>` and published with the candidate's asset on the streaming `partial` event (09 §5).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "index",
+        "asset",
+        "seed",
+        "model",
+        "modelVersion",
+        "passed",
+        "qualityWarning",
+        "seamScore",
+        "tempoError",
+        "spliceOffsetSamples",
+        "direction",
+        "steps"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/GenerateExtendResultSchemaVersion"
+        },
+        "index": {
+          "description": "Candidate index within the job, in the order partials were published.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "asset": {
+          "description": "The processed candidate audio (48 kHz, 24-bit FLAC).",
+          "$ref": "#/$defs/AssetHash"
+        },
+        "seed": {
+          "description": "The seed the backend actually used, echoed for regeneration and HQ re-render.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "model": {
+          "description": "Backend model name, e.g. \"ace-step\".",
+          "type": "string",
+          "minLength": 1
+        },
+        "modelVersion": {
+          "description": "Backend model version, e.g. \"1.5.0\".",
+          "type": "string",
+          "minLength": 1
+        },
+        "passed": {
+          "description": "Every non-skipped gate passed. A rejected candidate can still be returned, with qualityWarning (09 §6).",
+          "type": "boolean"
+        },
+        "qualityWarning": {
+          "description": "Set when no candidate passed: the UI shows \"This one might not blend perfectly\" (09 §6).",
+          "type": "boolean"
+        },
+        "seamScore": {
+          "description": "03 §8.2 seam score of the final render, lower is better. null when the gates could not score the candidate; JSON has no Infinity.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "tempoError": {
+          "description": "Relative tempo error before warping, 0..1 (0 when it could not be measured).",
+          "type": "number",
+          "minimum": 0
+        },
+        "keyMatch": {
+          "$ref": "#/$defs/ExtendKeyMatch"
+        },
+        "matchEq": {
+          "$ref": "#/$defs/ExtendMatchEq"
+        },
+        "spliceOffsetSamples": {
+          "description": "Where the processed audio starts relative to the context edge being extended: the context end for forward, the context start for backward. Negative means it starts inside the overlap (09 §6, 03 §8.2).",
+          "type": "integer"
+        },
+        "direction": {
+          "$ref": "#/$defs/ExtendDirection"
+        },
+        "steps": {
+          "$ref": "#/$defs/ExtendStepList"
+        }
+      }
+    },
+    "GenerateExtendResultSchemaVersion": {
+      "title": "GenerateExtendResultSchemaVersion",
+      "description": "Blob schema version (01 §7).",
+      "type": "integer",
+      "enum": [
+        1
       ]
     },
     "HarmonyResult": {
@@ -2527,6 +2833,75 @@
       "enum": [
         "master"
       ]
+    },
+    "MusicalContext": {
+      "title": "MusicalContext",
+      "description": "The musical facts every generation request carries (09 §2.1). Context audio is a job input asset (inputs.assets.context), not a param, because it is content-addressed and streamed like any other input.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bpm",
+        "timeSignature",
+        "key",
+        "descriptors",
+        "seed"
+      ],
+      "properties": {
+        "bpm": {
+          "description": "Tempo of the song the generated audio must continue.",
+          "type": "number",
+          "minimum": 1,
+          "maximum": 400
+        },
+        "timeSignature": {
+          "$ref": "#/$defs/TimeSignature"
+        },
+        "key": {
+          "$ref": "#/$defs/MusicalKey"
+        },
+        "chords": {
+          "description": "Chord symbols for the target span, relative to its start (09 §2.1).",
+          "$ref": "#/$defs/ChordAtBeatList"
+        },
+        "sectionKind": {
+          "$ref": "#/$defs/SectionKind"
+        },
+        "energy": {
+          "description": "Target energy in 0..1; 0 is the quietest, 1 the loudest.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "descriptors": {
+          "description": "Style descriptors from tags and the user's prompt. Never artist names (specs/10-fusion.md §7).",
+          "$ref": "#/$defs/DescriptorList"
+        },
+        "seed": {
+          "description": "Deterministic seed. Backends may derive one seed per candidate from it.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      }
+    },
+    "MusicalKey": {
+      "title": "MusicalKey",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tonic",
+        "mode"
+      ],
+      "properties": {
+        "tonic": {
+          "description": "Note name, e.g. \"F#\" or \"Bb\".",
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "$ref": "#/$defs/KeyMode"
+        }
+      }
     },
     "NamedAssetMap": {
       "title": "NamedAssetMap",
@@ -4569,6 +4944,17 @@
         16,
         32
       ]
+    },
+    "TimeSignature": {
+      "title": "TimeSignature",
+      "description": "[numerator, denominator], e.g. [4, 4].",
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "minItems": 2,
+      "maxItems": 2
     },
     "TimeSignatureList": {
       "title": "TimeSignatureList",

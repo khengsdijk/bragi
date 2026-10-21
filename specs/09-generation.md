@@ -1,6 +1,6 @@
 # 09 — AI Generation
 
-Status: Draft v0.2 · Code: `services/workers/generate/` · Schemas: `packages/schemas/jobs/capabilities/`
+Status: Draft v0.3 · Code: `services/workers/generate/` · Schemas: `packages/schemas/jobs/capabilities/`
 
 Generation in Bragi is **always in service of editing**. Every generated piece of audio lands in the song model as clips with provenance, gets analysed and separated like any other source, and can be edited, auditioned and undone.
 
@@ -38,10 +38,13 @@ interface MusicalContext {
   chords?: { startBeat: number; symbol: string }[];       // for the target span, beats relative to span start
   sectionKind?: SectionKind; energy?: number;             // 0..1 target
   descriptors: string[];                                  // from tags + user prompt, NO artist names
-  contextAudio?: { before?: AssetHash; after?: AssetHash; stems?: Record<StemRole, AssetHash> };  // rendered by engine "context" job
   seed: number;
 }
 ```
+The rendered conditioning audio is **not** in the params: it is a content-addressed job
+input (`inputs.assets.context`, and `inputs.assets.context_after` where a capability needs
+two sides), so it streams and caches like every other input. The schemas live in
+`packages/schemas/jobs/capabilities/` (`MusicalContext` is shared in `common.schema.json`).
 
 ## 3. Model candidates (to be confirmed in ADR-0004)
 
@@ -66,7 +69,7 @@ class GenerationBackend(Protocol):
     def generate(self, req: GenRequest, tier: Literal["preview", "hq"], n: int,
                  on_progress: Callable[[float], None]) -> list[GenOutput]: ...
 ```
-The routing table (`config/generation_routes.yaml`) maps `(capability, tier)` → backend, so models can be swapped without code changes.
+The routing table (`config/generation_routes.yaml`) maps `(capability, tier)` → backend, so models can be swapped without code changes. `BRAGI_GENERATION_BACKEND=fake` forces one backend for every route; the tests and the live e2e use it to run without a model. Tier → step counts and the server address live in `config/generation_backends.toml`.
 
 ## 4. Capability behaviour
 

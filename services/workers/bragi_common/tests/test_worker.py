@@ -2,20 +2,27 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import cast
 
 from nats.aio.msg import Msg
 
+from bragi_common.cancel import CancelToken
+from bragi_common.context import JobContext
 from bragi_common.errors import JobFailure
 from bragi_common.generated.models import (
     FreeformParams,
     JobEventType,
     JobInputs,
+    JobMetrics,
+    JobOutputs,
     JobPriority,
     JobRequest,
     JobRequestSchemaVersion,
 )
+from bragi_common.progress import ProgressReporter
 from bragi_common.protocol import params_of
+from bragi_common.s3 import ObjectStore
 from bragi_common.worker import _error_code, _event, _num_delivered, _retryable
 
 TRACEPARENT = "00-11111111111111111111111111111111-2222222222222222-01"
@@ -51,6 +58,40 @@ def test_event_only_carries_the_fields_that_are_set() -> None:
         "pct": 0.5,
     }
     assert _event(job, JobEventType.started).type is JobEventType.started
+
+
+def test_completed_carries_the_metrics_a_capability_records() -> None:
+    job = make_job()
+    metrics = JobMetrics(
+        gpuSeconds=12.5, model="ace-step", modelVersion="1.5.0", worker="bragi-generate:ace_step"
+    )
+    event = _event(job, JobEventType.completed, metrics=metrics)
+    assert event.model_dump(exclude_none=True)["metrics"] == {
+        "gpuSeconds": 12.5,
+        "model": "ace-step",
+        "modelVersion": "1.5.0",
+        "worker": "bragi-generate:ace_step",
+    }
+
+
+def test_the_context_records_metrics_for_the_completed_event() -> None:
+    async def no_partial(_outputs: JobOutputs) -> None:
+        return None
+
+    context = JobContext(
+        job=make_job(),
+        store=cast(ObjectStore, object()),
+        reporter=cast(ProgressReporter, object()),
+        cancel=cast(CancelToken, object()),
+        scratch=Path(),
+        publish_partial=no_partial,
+    )
+    metrics = JobMetrics(
+        gpuSeconds=1.0, model="fake", modelVersion="1", worker="bragi-generate:fake"
+    )
+    assert context.metrics is None
+    context.record_metrics(metrics)
+    assert context.metrics == metrics
 
 
 def test_error_code_reads_a_domain_code_and_falls_back() -> None:

@@ -9,6 +9,13 @@ dependencies = [
   "bragi-analysis",
   "numpy>=2.0",
   "scipy>=1.14",
+  # Context and candidate IO (WAV/FLAC) in the generation worker. Both are already
+  # runtime dependencies of bragi-analysis; naming them here makes the direct import
+  # explicit instead of relying on a transitive pin.
+  "soundfile>=0.13",
+  # Backend routing (config/generation_routes.yaml, 09 §3.1) and the capability
+  # registry. Already in the workspace lock (bragi-analysis uses it too).
+  "pyyaml>=6.0",
 ]
 
 [build-system]

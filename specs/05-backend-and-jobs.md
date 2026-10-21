@@ -107,7 +107,9 @@ Both carry `schemaVersion: 1` because they travel on their own ([01 §7](01-arch
 2. Check the **result cache** (`job_results` by `idempotencyKey`). On a hit, publish `completed` immediately.
 3. Download inputs from S3 to local scratch (verifying hashes).
 4. Run. Publish `progress` at most 2×/s and `partial` outputs when available. Send JetStream in-progress acks every 10 s.
-5. Upload outputs (content-addressed), publish `completed`, and ack.
+5. Upload outputs (content-addressed), publish `completed`, and ack. A capability may record
+   `JobMetrics` through its context (`JobContext.record_metrics`); the worker attaches them to the
+   `completed` event's `metrics` field (§4.2).
 6. On exception: publish `failed{retryable}`. A NAK with delay is a retry. The orchestrator owns the retry count.
 
 Workers are stateless, run one job per GPU at a time (configurable), and handle SIGTERM gracefully (finish or NAK within 30 s).

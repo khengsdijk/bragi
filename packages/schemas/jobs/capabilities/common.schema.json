@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Shared conditioning types of the generation capabilities (specs/09-generation.md §2.1). A container file: the types here become properties of a capability's params root.",
+  "$defs": {
+    "MusicalContext": {
+      "description": "The musical facts every generation request carries (09 §2.1). Context audio is a job input asset (inputs.assets.context), not a param, because it is content-addressed and streamed like any other input.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bpm", "timeSignature", "key", "descriptors", "seed"],
+      "properties": {
+        "bpm": {
+          "description": "Tempo of the song the generated audio must continue.",
+          "type": "number",
+          "minimum": 1,
+          "maximum": 400
+        },
+        "timeSignature": {
+          "$ref": "#/$defs/TimeSignature"
+        },
+        "key": {
+          "$ref": "#/$defs/MusicalKey"
+        },
+        "chords": {
+          "description": "Chord symbols for the target span, relative to its start (09 §2.1).",
+          "$ref": "#/$defs/ChordAtBeatList"
+        },
+        "sectionKind": {
+          "$ref": "../../song/common.schema.json#/$defs/SectionKind"
+        },
+        "energy": {
+          "description": "Target energy in 0..1; 0 is the quietest, 1 the loudest.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "descriptors": {
+          "description": "Style descriptors from tags and the user's prompt. Never artist names (specs/10-fusion.md §7).",
+          "$ref": "#/$defs/DescriptorList"
+        },
+        "seed": {
+          "description": "Deterministic seed. Backends may derive one seed per candidate from it.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      }
+    },
+    "TimeSignature": {
+      "description": "[numerator, denominator], e.g. [4, 4].",
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1 },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "MusicalKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tonic", "mode"],
+      "properties": {
+        "tonic": {
+          "description": "Note name, e.g. \"F#\" or \"Bb\".",
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": { "$ref": "../../analysis/common.schema.json#/$defs/KeyMode" }
+      }
+    },
+    "ChordAtBeatList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ChordAtBeat" }
+    },
+    "ChordAtBeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startBeat", "symbol"],
+      "properties": {
+        "startBeat": {
+          "description": "Beats relative to the start of the target span.",
+          "type": "number"
+        },
+        "symbol": {
+          "description": "Display symbol, e.g. \"Am7\".",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "DescriptorList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

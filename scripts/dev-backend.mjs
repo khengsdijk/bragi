@@ -5,8 +5,8 @@
  *   1. ensures the docker compose infrastructure is up (Postgres, MinIO, NATS,
  *      Mailpit; only what is not already listening, never stops or removes a container),
  *   2. builds `services/api` if `dist/` is missing,
- *   3. runs the API HTTP server, the orchestrator and the Python analysis worker
- *      (every capability in `services/workers`), each with a prefixed log,
+ *   3. runs the API HTTP server, the orchestrator and the Python workers (analysis
+ *      with every capability, and generation) each with a prefixed log,
  *   4. shuts everything down on Ctrl-C / SIGTERM, or when any process exits.
  *
  * Separation needs the `models` group and the pinned weights. Fetch them once
@@ -55,7 +55,7 @@ function loadLocalEnv() {
 }
 
 /** @type {Record<string, number>} */
-const COLOURS = { api: 36, orchestrator: 35, worker: 33 };
+const COLOURS = { api: 36, orchestrator: 35, worker: 33, generate: 32 };
 
 /**
  * Spawns a child whose stdout/stderr lines are prefixed with its name.
@@ -183,6 +183,14 @@ async function main() {
       ["run", "--directory", WORKERS_DIR, "--group", "models", "python", "-m", "bragi_analysis"],
       { cwd: ROOT, env: workerEnv },
     ),
+    // Generation needs no local weights: the quality gates are CPU and the model is
+    // ACE-Step's own process (scripts/ace-step-serve.sh, 09 §3). Without it the job
+    // fails at the HTTP call; `BRAGI_GENERATION_BACKEND=fake` runs end to end without
+    // a model, and `BRAGI_ACE_STEP_URL` points at another host.
+    run("generate", "uv", ["run", "--directory", WORKERS_DIR, "python", "-m", "bragi_generate"], {
+      cwd: ROOT,
+      env: workerEnv,
+    }),
   ];
 
   let stopping = false;

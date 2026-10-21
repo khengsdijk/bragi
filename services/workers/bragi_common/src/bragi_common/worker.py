@@ -36,6 +36,7 @@ from bragi_common.generated.models import (
     JobEvent,
     JobEventSchemaVersion,
     JobEventType,
+    JobMetrics,
     JobOutputs,
     JobRequest,
 )
@@ -249,7 +250,9 @@ class Worker:
                 await message.nak()
         else:
             await self._cache.put(job.idempotencyKey, outputs)
-            await self._publish(job, _event(job, JobEventType.completed, outputs=outputs))
+            await self._publish(
+                job, _event(job, JobEventType.completed, outputs=outputs, metrics=context.metrics)
+            )
             await message.ack()
 
     def _progress_sender(self, job: JobRequest) -> ProgressSender:
@@ -290,6 +293,7 @@ def _event(
     etaSec: float | None = None,  # noqa: N803 - the envelope's own field name
     outputs: JobOutputs | None = None,
     error: JobError | None = None,
+    metrics: JobMetrics | None = None,
 ) -> JobEvent:
     return JobEvent(
         schemaVersion=JobEventSchemaVersion.integer_1,
@@ -299,6 +303,7 @@ def _event(
         etaSec=etaSec,
         outputs=outputs,
         error=error,
+        metrics=metrics,
     )
 
 

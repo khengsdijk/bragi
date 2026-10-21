@@ -1,0 +1,14 @@
+{
+  "context": {
+    "bpm": 120,
+    "timeSignature": [4, 4],
+    "key": { "tonic": "A", "mode": "minor" },
+    "descriptors": ["warm analog synths", "steady four-on-the-floor"],
+    "seed": 1234
+  },
+  "bars": 15,
+  "overlapBars": 2,
+  "direction": "forward",
+  "tier": "preview",
+  "n": 3
+}

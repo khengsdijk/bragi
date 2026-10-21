@@ -1720,6 +1720,86 @@ pub struct Chord {
     ///Display symbol, e.g. "F#m7".
     pub symbol: ChordSymbol,
 }
+///`ChordAtBeat`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ChordAtBeat {
+    ///Beats relative to the start of the target span.
+    #[serde(rename = "startBeat")]
+    pub start_beat: f64,
+    ///Display symbol, e.g. "Am7".
+    pub symbol: ChordAtBeatSymbol,
+}
+///`ChordAtBeatList`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct ChordAtBeatList(pub ::std::vec::Vec<ChordAtBeat>);
+impl ::std::ops::Deref for ChordAtBeatList {
+    type Target = ::std::vec::Vec<ChordAtBeat>;
+    fn deref(&self) -> &::std::vec::Vec<ChordAtBeat> {
+        &self.0
+    }
+}
+impl ::std::convert::From<ChordAtBeatList> for ::std::vec::Vec<ChordAtBeat> {
+    fn from(value: ChordAtBeatList) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<ChordAtBeat>> for ChordAtBeatList {
+    fn from(value: ::std::vec::Vec<ChordAtBeat>) -> Self {
+        Self(value)
+    }
+}
+///Display symbol, e.g. "Am7".
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ChordAtBeatSymbol(::std::string::String);
+impl ::std::ops::Deref for ChordAtBeatSymbol {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ChordAtBeatSymbol> for ::std::string::String {
+    fn from(value: ChordAtBeatSymbol) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ChordAtBeatSymbol {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ChordAtBeatSymbol {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ChordAtBeatSymbol {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ChordAtBeatSymbol {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
 ///Slash bass note, when it differs from the root.
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[serde(transparent)]
@@ -2935,6 +3015,76 @@ impl<'de> ::serde::Deserialize<'de> for DescriptionResultWhatMakesItWorksItem {
             })
     }
 }
+///`DescriptorList`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct DescriptorList(pub ::std::vec::Vec<DescriptorListItem>);
+impl ::std::ops::Deref for DescriptorList {
+    type Target = ::std::vec::Vec<DescriptorListItem>;
+    fn deref(&self) -> &::std::vec::Vec<DescriptorListItem> {
+        &self.0
+    }
+}
+impl ::std::convert::From<DescriptorList> for ::std::vec::Vec<DescriptorListItem> {
+    fn from(value: DescriptorList) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<DescriptorListItem>> for DescriptorList {
+    fn from(value: ::std::vec::Vec<DescriptorListItem>) -> Self {
+        Self(value)
+    }
+}
+///`DescriptorListItem`
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DescriptorListItem(::std::string::String);
+impl ::std::ops::Deref for DescriptorListItem {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DescriptorListItem> for ::std::string::String {
+    fn from(value: DescriptorListItem) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DescriptorListItem {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DescriptorListItem {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DescriptorListItem {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DescriptorListItem {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
 ///A drum sub-stem produced by the deep `drum_split` stage (04 §7).
 #[derive(
     ::serde::Deserialize,
@@ -3507,6 +3657,341 @@ impl ::std::convert::TryFrom<&str> for ErrorCode {
     }
 }
 impl ::std::convert::TryFrom<::std::string::String> for ErrorCode {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`forward` continues the song at its end; `backward` generates an intro before its start (09 §4.2 step 5).
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ExtendDirection {
+    #[serde(rename = "forward")]
+    Forward,
+    #[serde(rename = "backward")]
+    Backward,
+}
+impl ::std::fmt::Display for ExtendDirection {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Forward => f.write_str("forward"),
+            Self::Backward => f.write_str("backward"),
+        }
+    }
+}
+impl ::std::str::FromStr for ExtendDirection {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "forward" => Ok(Self::Forward),
+            "backward" => Ok(Self::Backward),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExtendDirection {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ExtendDirection {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`ExtendKeyMatch`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ExtendKeyMatch {
+    pub confidence: Confidence,
+    pub detected: MusicalKey,
+    pub relation: ExtendKeyRelation,
+    ///Semitones the key gate shifted the candidate by (0, +-1).
+    #[serde(rename = "shiftSemitones")]
+    pub shift_semitones: i64,
+}
+///How the candidate's detected key relates to the requested one (09 §6 step 3).
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ExtendKeyRelation {
+    #[serde(rename = "same")]
+    Same,
+    #[serde(rename = "relative")]
+    Relative,
+    #[serde(rename = "shifted")]
+    Shifted,
+    #[serde(rename = "off")]
+    Off,
+}
+impl ::std::fmt::Display for ExtendKeyRelation {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Same => f.write_str("same"),
+            Self::Relative => f.write_str("relative"),
+            Self::Shifted => f.write_str("shifted"),
+            Self::Off => f.write_str("off"),
+        }
+    }
+}
+impl ::std::str::FromStr for ExtendKeyRelation {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "same" => Ok(Self::Same),
+            "relative" => Ok(Self::Relative),
+            "shifted" => Ok(Self::Shifted),
+            "off" => Ok(Self::Off),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExtendKeyRelation {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ExtendKeyRelation {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`ExtendMatchEq`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ExtendMatchEq {
+    ///Wet amount of the spectral match, 0..1.
+    pub amount: f64,
+    pub bands: ExtendMatchEqBands,
+}
+///One gain in dB per band of the `match_eq` fx (03 §8.2).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct ExtendMatchEqBands(pub ::std::vec::Vec<f64>);
+impl ::std::ops::Deref for ExtendMatchEqBands {
+    type Target = ::std::vec::Vec<f64>;
+    fn deref(&self) -> &::std::vec::Vec<f64> {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExtendMatchEqBands> for ::std::vec::Vec<f64> {
+    fn from(value: ExtendMatchEqBands) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<f64>> for ExtendMatchEqBands {
+    fn from(value: ::std::vec::Vec<f64>) -> Self {
+        Self(value)
+    }
+}
+///`ExtendStep`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ExtendStep {
+    ///The gate's own numbers. Deliberately open: each gate owns its metric names (config/generation_gates.toml).
+    pub metrics: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
+    pub passed: bool,
+    ///Why a gate failed, e.g. "silent" or "tempo error above the gate".
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub reason: ::std::option::Option<ExtendStepReason>,
+    ///True for a step after a short circuit.
+    pub skipped: bool,
+    ///Gate name: sanity, tempo, key, beat_align, splice, match or final_seam.
+    pub step: ExtendStepStep,
+}
+///The seven gate verdicts of 09 §6, in order; short-circuited steps are skipped.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct ExtendStepList(pub ::std::vec::Vec<ExtendStep>);
+impl ::std::ops::Deref for ExtendStepList {
+    type Target = ::std::vec::Vec<ExtendStep>;
+    fn deref(&self) -> &::std::vec::Vec<ExtendStep> {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExtendStepList> for ::std::vec::Vec<ExtendStep> {
+    fn from(value: ExtendStepList) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<ExtendStep>> for ExtendStepList {
+    fn from(value: ::std::vec::Vec<ExtendStep>) -> Self {
+        Self(value)
+    }
+}
+///Why a gate failed, e.g. "silent" or "tempo error above the gate".
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ExtendStepReason(::std::string::String);
+impl ::std::ops::Deref for ExtendStepReason {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExtendStepReason> for ::std::string::String {
+    fn from(value: ExtendStepReason) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ExtendStepReason {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExtendStepReason {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ExtendStepReason {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ExtendStepReason {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///Gate name: sanity, tempo, key, beat_align, splice, match or final_seam.
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ExtendStepStep(::std::string::String);
+impl ::std::ops::Deref for ExtendStepStep {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExtendStepStep> for ::std::string::String {
+    fn from(value: ExtendStepStep) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ExtendStepStep {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExtendStepStep {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ExtendStepStep {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ExtendStepStep {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///Latency tier (09 §5): `preview` streams fast candidates, `hq` is the background re-render.
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ExtendTier {
+    #[serde(rename = "preview")]
+    Preview,
+    #[serde(rename = "hq")]
+    Hq,
+}
+impl ::std::fmt::Display for ExtendTier {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Preview => f.write_str("preview"),
+            Self::Hq => f.write_str("hq"),
+        }
+    }
+}
+impl ::std::str::FromStr for ExtendTier {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "preview" => Ok(Self::Preview),
+            "hq" => Ok(Self::Hq),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExtendTier {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ExtendTier {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
@@ -4097,6 +4582,258 @@ impl ::std::convert::TryFrom<::std::string::String> for FxUpdateOpOp {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
+    }
+}
+///Params of `generate.extend` (specs/09-generation.md §4.2): continue the song forward, or generate an intro backward. The rendered context audio is the job's `inputs.assets.context`; the backend requests `bars + overlapBars` bars so the gate pass can splice inside the overlap.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateExtendParams {
+    ///Bars of new audio, not counting the overlap.
+    pub bars: ::std::num::NonZeroU64,
+    pub context: MusicalContext,
+    pub direction: ExtendDirection,
+    ///Candidates to generate (09 §5).
+    pub n: ::std::num::NonZeroU64,
+    ///Bars of rendered context the model may re-create for the splice search (09 §4.2 step 2).
+    #[serde(
+        rename = "overlapBars",
+        default = "defaults::default_nzu64::<::std::num::NonZeroU64, 2>"
+    )]
+    pub overlap_bars: ::std::num::NonZeroU64,
+    ///Optional user prompt. The planner/API rewrites artist names into descriptors before this point (specs/10-fusion.md §7).
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub prompt: ::std::option::Option<GenerateExtendParamsPrompt>,
+    pub tier: ExtendTier,
+}
+///Optional user prompt. The planner/API rewrites artist names into descriptors before this point (specs/10-fusion.md §7).
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct GenerateExtendParamsPrompt(::std::string::String);
+impl ::std::ops::Deref for GenerateExtendParamsPrompt {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<GenerateExtendParamsPrompt> for ::std::string::String {
+    fn from(value: GenerateExtendParamsPrompt) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for GenerateExtendParamsPrompt {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 1000usize {
+            return Err("longer than 1000 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for GenerateExtendParamsPrompt {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for GenerateExtendParamsPrompt {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for GenerateExtendParamsPrompt {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///One `generate.extend` candidate's result blob (specs/09-generation.md §6): every gate's verdict, the metrics the eval dashboard tracks, and what placement needs. The candidate audio is the sibling asset in the same `JobOutputs` entry. The blob is uploaded as `blobs.candidate_<index>` and published with the candidate's asset on the streaming `partial` event (09 §5).
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateExtendResult {
+    ///The processed candidate audio (48 kHz, 24-bit FLAC).
+    pub asset: AssetHash,
+    pub direction: ExtendDirection,
+    ///Candidate index within the job, in the order partials were published.
+    pub index: u64,
+    #[serde(
+        rename = "keyMatch",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub key_match: ::std::option::Option<ExtendKeyMatch>,
+    #[serde(
+        rename = "matchEq",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub match_eq: ::std::option::Option<ExtendMatchEq>,
+    ///Backend model name, e.g. "ace-step".
+    pub model: GenerateExtendResultModel,
+    ///Backend model version, e.g. "1.5.0".
+    #[serde(rename = "modelVersion")]
+    pub model_version: GenerateExtendResultModelVersion,
+    ///Every non-skipped gate passed. A rejected candidate can still be returned, with qualityWarning (09 §6).
+    pub passed: bool,
+    ///Set when no candidate passed: the UI shows "This one might not blend perfectly" (09 §6).
+    #[serde(rename = "qualityWarning")]
+    pub quality_warning: bool,
+    #[serde(rename = "schemaVersion")]
+    pub schema_version: GenerateExtendResultSchemaVersion,
+    ///03 §8.2 seam score of the final render, lower is better. null when the gates could not score the candidate; JSON has no Infinity.
+    #[serde(
+        rename = "seamScore",
+        deserialize_with = "::std::option::Option::deserialize"
+    )]
+    pub seam_score: ::std::option::Option<f64>,
+    ///The seed the backend actually used, echoed for regeneration and HQ re-render.
+    pub seed: u64,
+    ///Where the processed audio starts relative to the context edge being extended: the context end for forward, the context start for backward. Negative means it starts inside the overlap (09 §6, 03 §8.2).
+    #[serde(rename = "spliceOffsetSamples")]
+    pub splice_offset_samples: i64,
+    pub steps: ExtendStepList,
+    ///Relative tempo error before warping, 0..1 (0 when it could not be measured).
+    #[serde(rename = "tempoError")]
+    pub tempo_error: f64,
+}
+///Backend model name, e.g. "ace-step".
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct GenerateExtendResultModel(::std::string::String);
+impl ::std::ops::Deref for GenerateExtendResultModel {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<GenerateExtendResultModel> for ::std::string::String {
+    fn from(value: GenerateExtendResultModel) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for GenerateExtendResultModel {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for GenerateExtendResultModel {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for GenerateExtendResultModel {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for GenerateExtendResultModel {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///Backend model version, e.g. "1.5.0".
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct GenerateExtendResultModelVersion(::std::string::String);
+impl ::std::ops::Deref for GenerateExtendResultModelVersion {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<GenerateExtendResultModelVersion> for ::std::string::String {
+    fn from(value: GenerateExtendResultModelVersion) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for GenerateExtendResultModelVersion {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for GenerateExtendResultModelVersion {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for GenerateExtendResultModelVersion {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for GenerateExtendResultModelVersion {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///Blob schema version (01 §7).
+#[derive(::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct GenerateExtendResultSchemaVersion(i64);
+impl ::std::ops::Deref for GenerateExtendResultSchemaVersion {
+    type Target = i64;
+    fn deref(&self) -> &i64 {
+        &self.0
+    }
+}
+impl ::std::convert::From<GenerateExtendResultSchemaVersion> for i64 {
+    fn from(value: GenerateExtendResultSchemaVersion) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::TryFrom<i64> for GenerateExtendResultSchemaVersion {
+    type Error = self::error::ConversionError;
+    fn try_from(value: i64) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if ![1_i64].contains(&value) {
+            Err("invalid value".into())
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for GenerateExtendResultSchemaVersion {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        Self::try_from(<i64>::deserialize(deserializer)?)
+            .map_err(|e| <D::Error as ::serde::de::Error>::custom(e.to_string()))
     }
 }
 ///The `harmony` stage result: key, key changes, chords and per-section progressions (specs/04-analysis-pipeline.md §5.3).
@@ -5864,6 +6601,89 @@ impl ::std::convert::TryFrom<::std::string::String> for MasterFxScopeKind {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
+    }
+}
+///The musical facts every generation request carries (09 §2.1). Context audio is a job input asset (inputs.assets.context), not a param, because it is content-addressed and streamed like any other input.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct MusicalContext {
+    ///Tempo of the song the generated audio must continue.
+    pub bpm: f64,
+    ///Chord symbols for the target span, relative to its start (09 §2.1).
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub chords: ::std::option::Option<ChordAtBeatList>,
+    ///Style descriptors from tags and the user's prompt. Never artist names (specs/10-fusion.md §7).
+    pub descriptors: DescriptorList,
+    ///Target energy in 0..1; 0 is the quietest, 1 the loudest.
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub energy: ::std::option::Option<f64>,
+    pub key: MusicalKey,
+    #[serde(
+        rename = "sectionKind",
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub section_kind: ::std::option::Option<SectionKind>,
+    ///Deterministic seed. Backends may derive one seed per candidate from it.
+    pub seed: u32,
+    #[serde(rename = "timeSignature")]
+    pub time_signature: TimeSignature,
+}
+///`MusicalKey`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct MusicalKey {
+    pub mode: KeyMode,
+    ///Note name, e.g. "F#" or "Bb".
+    pub tonic: MusicalKeyTonic,
+}
+///Note name, e.g. "F#" or "Bb".
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct MusicalKeyTonic(::std::string::String);
+impl ::std::ops::Deref for MusicalKeyTonic {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<MusicalKeyTonic> for ::std::string::String {
+    fn from(value: MusicalKeyTonic) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for MusicalKeyTonic {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for MusicalKeyTonic {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for MusicalKeyTonic {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for MusicalKeyTonic {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
     }
 }
 ///Content-addressed inputs by role or name, e.g. { "mix": "sha256:…" }.
@@ -9237,6 +10057,26 @@ impl<'de> ::serde::Deserialize<'de> for TimeSigDenominator {
             .map_err(|e| <D::Error as ::serde::de::Error>::custom(e.to_string()))
     }
 }
+///[numerator, denominator], e.g. [4, 4].
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct TimeSignature(pub [::std::num::NonZeroU64; 2usize]);
+impl ::std::ops::Deref for TimeSignature {
+    type Target = [::std::num::NonZeroU64; 2usize];
+    fn deref(&self) -> &[::std::num::NonZeroU64; 2usize] {
+        &self.0
+    }
+}
+impl ::std::convert::From<TimeSignature> for [::std::num::NonZeroU64; 2usize] {
+    fn from(value: TimeSignature) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<[::std::num::NonZeroU64; 2usize]> for TimeSignature {
+    fn from(value: [::std::num::NonZeroU64; 2usize]) -> Self {
+        Self(value)
+    }
+}
 ///At least one time signature, ordered by bar; a bar keeps the last signature that starts at or before it (02 §2.2).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(transparent)]
@@ -10134,6 +10974,16 @@ pub struct Word {
     pub start_sec: f64,
     pub text: ::std::string::String,
 }
+/// Generation of default values for serde.
+pub mod defaults {
+    pub(super) fn default_nzu64<T, const V: u64>() -> T
+    where
+        T: ::std::convert::TryFrom<::std::num::NonZeroU64>,
+        <T as ::std::convert::TryFrom<::std::num::NonZeroU64>>::Error: ::std::fmt::Debug,
+    {
+        T::try_from(::std::num::NonZeroU64::try_from(V).unwrap()).unwrap()
+    }
+}
 /// Error types.
 pub mod error {
     /// Error from a `TryFrom` or `FromStr` implementation.
@@ -10191,6 +11041,8 @@ pub const ROOT_TYPES: &[&str] = &[
     "FxRemoveOp",
     "FxReorderOp",
     "FxUpdateOp",
+    "GenerateExtendParams",
+    "GenerateExtendResult",
     "HarmonyResult",
     "IngestResult",
     "JobEvent",

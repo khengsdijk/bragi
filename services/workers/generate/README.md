@@ -15,5 +15,7 @@ Two rules carry over into every capability here:
   real people, artist names become descriptors, and generated audio is watermarked where the
   backend supports it.
 
-**Status:** scaffold plus the quality gates (WP-2.7 B). Backends and `generate.extend` land with
-WP-2.7 A.
+**Status:** quality gates and `generate.extend` (WP-2.7 A2 + B): the fake and ACE-Step
+backends, the routing table, the extend capability and its worker entrypoint
+(`python -m bragi_generate`). The other capabilities of 09 §2 are registered but not
+implemented yet.

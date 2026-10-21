@@ -80,8 +80,11 @@ def time_stretch(samples: F32, factor: float, sample_rate: int) -> F32:
             if high <= low:
                 position = max(0, min(ideal, padded.shape[0] - frame))
             else:
+                # The continuation of the previous frame starts one synthesis hop
+                # after its analysis position; every candidate window must start at
+                # the *same* offset for the correlation to mean anything.
                 target = padded[previous + hop : previous + frame]
-                search = padded[low + hop : high + frame]
+                search = padded[low : high + frame - hop]
                 scores = np.correlate(search, target, mode="valid")
                 position = low + int(np.argmax(scores))
         start = index * hop
