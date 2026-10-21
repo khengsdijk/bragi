@@ -26,6 +26,16 @@ export function applyBatchWith(handle: number, batch_json: string, commit_handle
 export function assetAdd(handle: number, assets_json: string): void;
 
 /**
+ * A bar-aligned context range of about `seconds` seconds at one song edge, as JSON
+ * (`{ startTick, endTick }`).
+ *
+ * `edge` is `"start"` (an intro) or `"end"` (a continuation). Generation always speaks bars, so
+ * the UI asks the model for the bar lines instead of doing the arithmetic in TypeScript
+ * (`specs/03-audio-engine.md` §9, `specs/09-generation.md` §4.2).
+ */
+export function barAlignedContextRange(handle: number, edge: string, seconds: number): string;
+
+/**
  * The canonical JSON of the handle's document.
  */
 export function canonicalJson(handle: number): string;
@@ -103,6 +113,7 @@ export interface InitOutput {
     readonly applyBatch: (a: number, b: number, c: number) => [number, number, number, number];
     readonly applyBatchWith: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly assetAdd: (a: number, b: number, c: number) => [number, number];
+    readonly barAlignedContextRange: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly canonicalJson: (a: number) => [number, number, number, number];
     readonly commitId: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly diffDocs: (a: number, b: number) => [number, number, number, number];

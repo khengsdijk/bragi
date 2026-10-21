@@ -81,6 +81,39 @@ export function assetAdd(handle, assets_json) {
 }
 
 /**
+ * A bar-aligned context range of about `seconds` seconds at one song edge, as JSON
+ * (`{ startTick, endTick }`).
+ *
+ * `edge` is `"start"` (an intro) or `"end"` (a continuation). Generation always speaks bars, so
+ * the UI asks the model for the bar lines instead of doing the arithmetic in TypeScript
+ * (`specs/03-audio-engine.md` §9, `specs/09-generation.md` §4.2).
+ * @param {number} handle
+ * @param {string} edge
+ * @param {number} seconds
+ * @returns {string}
+ */
+export function barAlignedContextRange(handle, edge, seconds) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(edge, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.barAlignedContextRange(handle, ptr0, len0, seconds);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * The canonical JSON of the handle's document.
  * @param {number} handle
  * @returns {string}

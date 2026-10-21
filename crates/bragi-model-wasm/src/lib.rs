@@ -17,7 +17,8 @@ use bragi_model::generated::{AssetHash, AssetMeta, CommitId, OpBatch, Project, R
 use bragi_model::placement::ExtendPlacementRequest;
 use bragi_model::{AssetIndex, diff as model_diff, section_spans as model_spans};
 use bragi_model::{
-    apply as model_apply, apply_with as model_apply_with, canonical_json as model_canonical_json,
+    ContextEdge, apply as model_apply, apply_with as model_apply_with,
+    bar_aligned_context_range as model_context_range, canonical_json as model_canonical_json,
     commit_id as model_commit_id, extend_placement as model_extend_placement,
     resolve_region as model_resolve_region, seconds_to_ticks as model_seconds_to_ticks,
     ticks_to_seconds as model_ticks_to_seconds, validate as model_validate,
@@ -210,6 +211,29 @@ pub fn extend_placement(handle: u32, request_json: &str) -> Result<String, Strin
         let batch =
             model_extend_placement(&doc.project, &request).map_err(|error| error.to_string())?;
         serde_json::to_string(&batch).map_err(|error| error.to_string())
+    })
+}
+
+/// A bar-aligned context range of about `seconds` seconds at one song edge, as JSON
+/// (`{ startTick, endTick }`).
+///
+/// `edge` is `"start"` (an intro) or `"end"` (a continuation). Generation always speaks bars, so
+/// the UI asks the model for the bar lines instead of doing the arithmetic in TypeScript
+/// (`specs/03-audio-engine.md` §9, `specs/09-generation.md` §4.2).
+#[wasm_bindgen(js_name = barAlignedContextRange)]
+pub fn bar_aligned_context_range(handle: u32, edge: &str, seconds: f64) -> Result<String, String> {
+    let edge = match edge {
+        "start" => ContextEdge::Start,
+        "end" => ContextEdge::End,
+        other => return Err(format!("unknown context edge {other:?}")),
+    };
+    DOCS.with(|docs| {
+        let docs = docs.borrow();
+        let doc = docs
+            .get(&handle)
+            .ok_or_else(|| format!("unknown handle {handle}"))?;
+        let range = model_context_range(&doc.project, edge, seconds);
+        serde_json::to_string(&range).map_err(|error| error.to_string())
     })
 }
 
