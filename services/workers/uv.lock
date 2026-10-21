@@ -335,14 +335,18 @@ source = { editable = "generate" }
 dependencies = [
     { name = "bragi-analysis" },
     { name = "numpy" },
+    { name = "pyyaml" },
     { name = "scipy" },
+    { name = "soundfile" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "bragi-analysis", editable = "analysis" },
     { name = "numpy", specifier = ">=2.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "scipy", specifier = ">=1.14" },
+    { name = "soundfile", specifier = ">=0.13" },
 ]
 
 [[package]]

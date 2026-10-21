@@ -1,0 +1,9 @@
+# Generation backend routing (specs/09-generation.md §3.1): (capability, tier) -> backend name.
+#
+# The names resolve against bragi_generate.routing.BACKENDS; a model can be swapped here
+# without touching the capability code. `BRAGI_GENERATION_BACKEND=fake` overrides every
+# entry, which is how the tests and the live e2e run without a model (specs/09 §3.1).
+routes:
+  generate.extend:
+    preview: ace_step
+    hq: ace_step

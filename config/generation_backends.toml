@@ -1,0 +1,15 @@
+# Backend settings for generated audio (specs/09-generation.md §3.1, §5).
+# Read by bragi_generate.backends.ace_step with the stdlib tomllib. Every value has
+# the same default in AceStepConfig, so the file is reviewable configuration, not a
+# hard requirement. The engine (MLX vs PyTorch/MPS) is chosen when the ACE-Step
+# server starts: BRAGI_ACE_STEP_ENGINE=mlx|pytorch (scripts/ace-step-serve.sh).
+
+[ace_step]
+# The address scripts/ace-step-serve.sh binds to; override with BRAGI_ACE_STEP_URL.
+base_url = "http://127.0.0.1:8001"
+# 09 §5: preview is the fast tier, HQ the background re-render. Turbo recommends 8.
+preview_steps = 4
+hq_steps = 8
+# A 30 s extend takes ~30 s on the M2 Pro, so the poll timeout is generous.
+poll_interval_sec = 1.0
+timeout_sec = 600.0

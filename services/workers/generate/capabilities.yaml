@@ -1,0 +1,64 @@
+# The generation capability registry (specs/09-generation.md §2), exported to the
+# planner's catalogue (06 §2). `implemented` is false until the capability's module,
+# schema and route exist; only `generate.extend` is implemented in WP-2.7.
+capabilities:
+  generate.extend:
+    implemented: true
+    purpose: Continue the song forward, or generate an intro backward.
+    inputs: [context audio, bars, direction, "prompt?"]
+    output: audio (bars + overlapBars)
+    credits: 2
+  generate.inpaint:
+    implemented: false
+    purpose: Fill a gap.
+    inputs: [context before, context after, gap bars, "prompt?"]
+    output: audio (gap + overlaps)
+    credits: 2
+  generate.variation:
+    implemented: false
+    purpose: Regenerate a section with changes.
+    inputs: [section audio, strength, prompt, energy delta]
+    output: audio (section length)
+    credits: 2
+  generate.transition:
+    implemented: false
+    purpose: Bridge two sections smoothly.
+    inputs: [end of A, start of B, length]
+    output: audio
+    credits: 1
+  generate.stem:
+    implemented: false
+    purpose: Add or replace one instrument part.
+    inputs: [conditioning stems, role, prompt, bars, chords]
+    output: stem audio
+    credits: 2
+  generate.text2music:
+    implemented: false
+    purpose: New song or section from a description.
+    inputs: [prompt, duration, BPM, key, "blueprint?", "lyrics?"]
+    output: full-mix audio
+    credits: 10
+  generate.fx:
+    implemented: false
+    purpose: Risers, impacts, sweeps, ambience, shimmer.
+    inputs: [prompt, length, BPM]
+    output: audio
+    credits: 1
+  transform.timbre:
+    implemented: false
+    purpose: Swap an instrument, keeping the performance.
+    inputs: [stem audio, target instrument]
+    output: stem audio
+    credits: 2
+  transform.style:
+    implemented: false
+    purpose: Re-style a section or song, keeping melody and structure.
+    inputs: [audio, style descriptors, strength]
+    output: audio
+    credits: 3
+  transform.stem_resynth:
+    implemented: false
+    purpose: Clean a separated stem of artifacts.
+    inputs: [stem audio, role]
+    output: stem audio
+    credits: 2
