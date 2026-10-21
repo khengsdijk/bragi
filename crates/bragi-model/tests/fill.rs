@@ -447,6 +447,14 @@ fn fill_rejects_unusable_requests() {
         fill_placement(&doc, &no_audio).unwrap_err(),
         PlacementError::NoAudio
     );
+
+    // An asset shorter than "left overlap + gap" cannot cover the gap even though it has samples.
+    let mut too_short = crossing_request("src_fill");
+    too_short.candidate.duration_samples = 100_000;
+    assert_eq!(
+        fill_placement(&doc, &too_short).unwrap_err(),
+        PlacementError::NoAudio
+    );
 }
 
 #[test]

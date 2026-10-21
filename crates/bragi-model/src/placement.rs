@@ -494,10 +494,8 @@ pub fn fill_placement(
     // The processed audio starts `-start_offset` samples before the gap; the clip skips that head.
     let skip = request.start_offset_samples.unsigned_abs();
     let src_start = skip.min(request.candidate.duration_samples);
-    let src_end = src_start
-        .saturating_add(gap_samples)
-        .min(request.candidate.duration_samples);
-    if src_start >= src_end {
+    let src_end = src_start.saturating_add(gap_samples);
+    if src_start >= src_end || src_end > request.candidate.duration_samples {
         return Err(PlacementError::NoAudio);
     }
 
