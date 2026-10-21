@@ -61,3 +61,26 @@ export interface CandidateSource {
    */
   readonly warning?: (candidateId: string) => string | undefined;
 }
+
+/**
+ * One source over several flows (extend, fill gap, smooth with AI): each flow only emits for its
+ * own group, so forwarding every subscription is enough. Warnings are looked up in the source that
+ * emitted the candidate.
+ */
+export function mergeCandidateSources(sources: readonly CandidateSource[]): CandidateSource {
+  return {
+    subscribe(group, listener) {
+      const unsubscribe = sources.map((source) => source.subscribe(group, listener));
+      return () => {
+        for (const stop of unsubscribe) stop();
+      };
+    },
+    warning(candidateId) {
+      for (const source of sources) {
+        const warning = source.warning?.(candidateId);
+        if (warning !== undefined) return warning;
+      }
+      return undefined;
+    },
+  };
+}
