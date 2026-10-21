@@ -438,10 +438,10 @@ pub const CONTEXT_FORMAT: AudioFormat = AudioFormat::Wav { bits: 32 };
 /// The range is converted through the plan's tempo map and rendered at the
 /// engine rate (48 kHz); the file is always 32-bit float WAV named `context.wav`
 /// (`specs/03-audio-engine.md` §9, WP-2.7). The master chain (gain, fx and the
-/// safety limiter) applies in every case. With [`StemSelection::All`] the mix is
-/// the document as auditioned, so mute **and** solo are honoured; with an
-/// explicit list only those tracks are rendered, mute still applies and solo is
-/// ignored so the list means what it says.
+/// safety limiter) applies in every case. [`StemSelection::All`] is every
+/// track, an explicit list only those tracks; mute applies in both, and solo is
+/// ignored in both: it is a listening state, and a soloed part must not shrink
+/// the context the model is conditioned on.
 ///
 /// The render starts at the range's first sample and stops after its last, so
 /// an fx tail is only included where the effect was excited inside the range;
@@ -504,17 +504,14 @@ pub fn export_context<P: PcmSource + ?Sized>(
         });
     }
 
-    let explicit = matches!(selection, StemSelection::Tracks(_));
     let mut context = plan.clone();
     context.tracks = wanted
         .into_iter()
         .map(|index| {
             let mut track = plan.tracks[index].clone();
-            // Mute is part of the track as written; solo is an audition state,
-            // so an explicit list ignores it (03 §9).
-            if explicit {
-                track.solo = false;
-            }
+            // Mute is part of the track as written; solo is a listening state,
+            // so the context ignores it (03 §9).
+            track.solo = false;
             track
         })
         .collect();

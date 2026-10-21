@@ -490,7 +490,7 @@ fn context_cuts_the_range_exactly_through_the_tempo_map() {
 }
 
 /// An explicit track list renders those tracks only: it equals the sum of the
-/// tracks rendered one by one, keeps mute, and ignores solo.
+/// tracks rendered one by one, keeps mute, and ignores solo (as does "all").
 #[test]
 fn context_track_subset_sums_and_respects_mute() {
     let (plan, pcm) = three_track_plan();
@@ -539,6 +539,14 @@ fn context_track_subset_sums_and_respects_mute() {
         "solo must not silence an explicit track list"
     );
     assert!(null_level_dbfs(&named, &first) <= -130.0);
+
+    // "all" ignores solo too: the soloed trk_02 does not silence the others.
+    let all_soloed = decode(
+        &export_context(&soloed, &pcm, &range, &StemSelection::All).unwrap(),
+        "wav",
+    );
+    let every = render(&soloed, &["trk_01", "trk_02", "trk_03"]);
+    assert!(null_level_dbfs(&all_soloed, &every) <= -130.0);
 }
 
 /// The fx tail is included where the effect rings inside the range, and the

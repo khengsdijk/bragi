@@ -134,8 +134,8 @@ export type RenderJob =
   | {
       /**
        * Generation conditioning (WP-2.7): exactly this tick range of the mix,
-       * 48 kHz 32-bit float stereo WAV named `context.wav`. An explicit track
-       * list ignores solo. Prefer `renderContext` for the app-facing call.
+       * 48 kHz 32-bit float stereo WAV named `context.wav`. Mute applies, solo
+       * is ignored. Prefer `renderContext` for the app-facing call.
        */
       readonly kind: "context";
       readonly range: { readonly startTick: number; readonly endTick: number };
