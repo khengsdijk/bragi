@@ -13,8 +13,11 @@ import type { WebSocket } from "@fastify/websocket";
 import type { Subscription } from "nats";
 
 import type { AppContext } from "../app.js";
+import { EVENTS_STREAM } from "../nats/client.js";
+import { recordOutputs } from "../orchestrator/handler.js";
 import {
   analysisMessages,
+  jobReplayMessages,
   replayMessages,
   type ServerMessage,
   toClientMessages,
@@ -31,6 +34,7 @@ interface ClientMessage {
 export class WsGateway {
   private readonly topicsBySocket = new Map<WebSocket, Set<string>>();
   private readonly capabilityByJob = new Map<string, string>();
+  private readonly ownerByJob = new Map<string, string>();
   private readonly partialCounters = new Map<string, number>();
   private subscription: Subscription | undefined;
 
@@ -110,12 +114,25 @@ export class WsGateway {
   }
 
   /**
-   * Replays the finished analysis stages to a late subscriber (finding 6, Q25).
-   * Only `asset:` topics have a snapshot to replay; a `job:` or `project:` topic
-   * only ever hears new events, and the client fetches missed state over REST
-   * (05 §3).
+   * Replays what a late subscriber missed (finding 6, Q25): the finished analysis stages of an
+   * `asset:` topic from Postgres, and a `job:` topic's events from the `EVENTS` stream (24 h).
+   * A live event can arrive while a replay is sent, so clients dedupe partials by candidate.
+   * A `project:` topic only ever hears new events (05 §3).
    */
   private async replay(socket: WebSocket, topic: string): Promise<void> {
+    if (topic.startsWith("job:")) {
+      const jobId = topic.slice("job:".length);
+      const payloads = await this.storedJobEvents(jobId);
+      if (payloads.length === 0) return;
+      const capability = await this.capabilityFor(jobId);
+      for (const payload of payloads) {
+        if (validateJobEvent(payload)) await this.ownOutputs(payload as JobEvent);
+      }
+      for (const message of jobReplayMessages(payloads, capability)) {
+        socket.send(JSON.stringify(message));
+      }
+      return;
+    }
     if (!topic.startsWith("asset:")) return;
     const assetHash = topic.slice("asset:".length);
     const { rows } = await this.ctx.pool.query<{
@@ -126,6 +143,31 @@ export class WsGateway {
     }>("SELECT stage, status, blob_hash, error FROM analyses WHERE asset_hash = $1", [assetHash]);
     for (const message of replayMessages(assetHash, rows)) {
       socket.send(JSON.stringify(message));
+    }
+  }
+
+  /** The job's events still in the `EVENTS` stream, oldest first; none when the stream is gone. */
+  private async storedJobEvents(jobId: string): Promise<unknown[]> {
+    try {
+      const consumer = await this.ctx.nc
+        .jetstream()
+        .consumers.get(EVENTS_STREAM, { filterSubjects: [`events.job.${jobId}`] });
+      // Checked first: a fetch on an empty subject would wait for its expiry.
+      const pending = (await consumer.info()).num_pending;
+      if (pending === 0) return [];
+      const payloads: unknown[] = [];
+      const batch = await consumer.fetch({ max_messages: pending, expires: 2_000 });
+      for await (const message of batch) {
+        try {
+          payloads.push(JSON.parse(decoder.decode(message.data)));
+        } catch {
+          // skip a payload that is not JSON
+        }
+        if (payloads.length >= pending) break;
+      }
+      return payloads;
+    } catch {
+      return [];
     }
   }
 
@@ -157,13 +199,28 @@ export class WsGateway {
   private async capabilityFor(jobId: string): Promise<string> {
     const cached = this.capabilityByJob.get(jobId);
     if (cached !== undefined) return cached;
-    const { rows } = await this.ctx.pool.query<{ capability: string }>(
-      "SELECT capability FROM jobs WHERE id = $1",
+    const { rows } = await this.ctx.pool.query<{ capability: string; user_id: string }>(
+      "SELECT capability, user_id FROM jobs WHERE id = $1",
       [jobId],
     );
     const capability = rows[0]?.capability ?? "";
     this.capabilityByJob.set(jobId, capability);
+    if (rows[0] !== undefined) this.ownerByJob.set(jobId, rows[0].user_id);
     return capability;
+  }
+
+  /**
+   * Records a job event's outputs for the job's user before the client hears of them. The
+   * orchestrator does the same, but it consumes the event in parallel: a client that asks for a
+   * partial's URL the moment it arrives would otherwise race it and get a 404 (09 §5).
+   */
+  private async ownOutputs(event: JobEvent): Promise<void> {
+    if (event.type !== "partial" && event.type !== "completed") return;
+    if (event.outputs === undefined) return;
+    await this.capabilityFor(event.jobId);
+    const owner = this.ownerByJob.get(event.jobId);
+    if (owner === undefined) return;
+    await recordOutputs(this.ctx.pool, owner, event.outputs);
   }
 
   private async dispatch(subject: string, data: Uint8Array): Promise<void> {
@@ -190,6 +247,7 @@ export class WsGateway {
       if (!validateJobEvent(payload)) return [];
       const event = payload as JobEvent;
       const capability = await this.capabilityFor(event.jobId);
+      await this.ownOutputs(event);
       const prior = this.partialCounters.get(event.jobId) ?? 0;
       const index = event.type === "partial" ? prior + 1 : prior;
       if (event.type === "partial") this.partialCounters.set(event.jobId, index);

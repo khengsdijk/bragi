@@ -3,7 +3,7 @@
  * messages of specs/05 §3. Keeping it free of sockets and databases is what
  * makes it unit-testable (`__tests__/ws.test.ts`).
  */
-import type { JobEvent } from "@bragi/schemas";
+import { type JobEvent, validateJobEvent } from "@bragi/schemas";
 
 /** A message the server sends to an authenticated client (05 §3). */
 export type ServerMessage =
@@ -180,4 +180,25 @@ export function toClientMessages(
     default:
       return [];
   }
+}
+
+/**
+ * The client messages for a job's stored events, oldest first, for a late subscriber (Q25 for
+ * jobs). A fast job (the fake generator finishes in milliseconds) publishes its partials before
+ * the client's `sub` arrives; replaying them from the `EVENTS` stream closes that gap. Payloads
+ * that are not valid job events are skipped; partial indexes count from 1 as live ones do.
+ */
+export function jobReplayMessages(
+  payloads: readonly unknown[],
+  capability: string,
+): ServerMessage[] {
+  const messages: ServerMessage[] = [];
+  let partials = 0;
+  for (const payload of payloads) {
+    if (!validateJobEvent(payload)) continue;
+    const event = payload as JobEvent;
+    if (event.type === "partial") partials += 1;
+    messages.push(...toClientMessages(event, capability, partials));
+  }
+  return messages;
 }

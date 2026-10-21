@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   analysisMessages,
   firstOutput,
+  jobReplayMessages,
   replayMessages,
   stageOf,
   toClientMessages,
@@ -173,5 +174,41 @@ describe("toClientMessages", () => {
   it("drops started and a partial with no outputs", () => {
     expect(toClientMessages(event({ type: "started" }), "echo", 0)).toEqual([]);
     expect(toClientMessages(event({ type: "partial" }), "echo", 0)).toEqual([]);
+  });
+});
+
+describe("jobReplayMessages (Q25 for jobs)", () => {
+  const hash = (char: string) => `sha256:${char.repeat(64)}`;
+  const partial = (index: number, char: string) =>
+    event({
+      type: "partial",
+      outputs: {
+        assets: { [`candidate_${index}`]: hash(char) },
+        blobs: { [`candidate_${index}`]: hash(String.fromCharCode(char.charCodeAt(0) + 1)) },
+      },
+    });
+
+  it("replays a finished job's stream in order, counting partials from 1", () => {
+    const stored = [
+      event({ type: "started" }),
+      partial(0, "a"),
+      event({ type: "progress", pct: 0.5 }),
+      partial(1, "c"),
+      event({ type: "completed", outputs: { assets: { candidate_0: hash("a") } } }),
+    ];
+    const live = [
+      ...toClientMessages(stored[1] as JobEvent, "generate.extend", 1),
+      ...toClientMessages(stored[2] as JobEvent, "generate.extend", 1),
+      ...toClientMessages(stored[3] as JobEvent, "generate.extend", 2),
+    ];
+    const replayed = jobReplayMessages(stored, "generate.extend");
+    expect(replayed.filter((message) => message.t === "job.partial")).toEqual(
+      live.filter((message) => message.t === "job.partial"),
+    );
+    expect(replayed.at(-1)?.t).toBe("job.completed");
+  });
+
+  it("skips payloads that are not job events", () => {
+    expect(jobReplayMessages([{ nope: true }, "x", null], "generate.extend")).toEqual([]);
   });
 });
