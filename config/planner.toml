@@ -4,9 +4,10 @@
 # change them here or override each tier with BRAGI_PLANNER_MODEL_FAST / _SMART / _EXPLAIN.
 #
 # `fast`    short prompts that map to mix/fx edits (no generation verbs, region ≤ 1 track).
-# `smart`   everything else. The cheap default is a placeholder so WP-2.6 runs end to end; the
-#           owner should pick a stronger tool-calling model here (OpenRouter's model list shows
-#           which support tool calling).
+# `smart`   everything else.
+#
+# DeepSeek V4.1 Flash on every tier is the owner's choice (2026-10-21). The WP-2.6 bench numbers for
+# it and the alternatives are in docs/wp/2.6.md "Bench results".
 # `explain` "Explain this" answers, which only need JSON output rather than tool calling.
 [models]
 fast = "deepseek/deepseek-v4.1-flash"
