@@ -8,7 +8,7 @@ import type * as Types from "./types.js";
 import * as validators from "./ajv-validators.js";
 
 /** Every root schema type in `generated/bundle.schema.json`, sorted. */
-export const ROOT_TYPES = ["AnalysisApplyOp", "AnalysisRef", "ApiError", "Arrangement", "AssetMeta", "AuthModeResponse", "Automation", "AutomationClearOp", "AutomationSetOp", "Clip", "ClipAddOp", "ClipRemoveOp", "ClipReplaceOp", "ClipSplitOp", "ClipUpdateOp", "Commit", "DescriptionResult", "DrumSplitResult", "EmbeddingResult", "FxAddOp", "FxCatalog", "FxInstance", "FxRemoveOp", "FxReorderOp", "FxUpdateOp", "GenerateExtendParams", "GenerateExtendResult", "HarmonyResult", "IngestResult", "JobEvent", "JobRequest", "KeyTransposeOp", "LoudnessEnergyResult", "LyricsResult", "MacroCatalog", "Op", "OpBatch", "PreviewResult", "Project", "ProjectSetMetaOp", "Refs", "Region", "RegionAdoptOp", "RegionClearOp", "RhythmResult", "SectionDuplicateOp", "SectionInsertOp", "SectionInstance", "SectionMergeOp", "SectionMoveOp", "SectionRemoveOp", "SectionResizeOp", "SectionSetTransitionOp", "SectionSplitOp", "SectionSummary", "SectionUpdateOp", "SeparationResult", "Source", "SourceAddOp", "StemActivityResult", "StemEnergyResult", "StructureResult", "TagResult", "TempoSetOp", "Track", "TrackAddOp", "TrackRemoveOp", "TrackUpdateOp", "TranscribeResult"] as const;
+export const ROOT_TYPES = ["AnalysisApplyOp", "AnalysisRef", "ApiError", "Arrangement", "AssetMeta", "AuthModeResponse", "Automation", "AutomationClearOp", "AutomationSetOp", "Clip", "ClipAddOp", "ClipRemoveOp", "ClipReplaceOp", "ClipSplitOp", "ClipUpdateOp", "Commit", "DescriptionResult", "DrumSplitResult", "EmbeddingResult", "FxAddOp", "FxCatalog", "FxInstance", "FxRemoveOp", "FxReorderOp", "FxUpdateOp", "GenerateExtendParams", "GenerateExtendResult", "GenerateWarmupParams", "HarmonyResult", "IngestResult", "JobEvent", "JobRequest", "KeyTransposeOp", "LoudnessEnergyResult", "LyricsResult", "MacroCatalog", "Op", "OpBatch", "PreviewResult", "Project", "ProjectSetMetaOp", "Refs", "Region", "RegionAdoptOp", "RegionClearOp", "RhythmResult", "SectionDuplicateOp", "SectionInsertOp", "SectionInstance", "SectionMergeOp", "SectionMoveOp", "SectionRemoveOp", "SectionResizeOp", "SectionSetTransitionOp", "SectionSplitOp", "SectionSummary", "SectionUpdateOp", "SeparationResult", "Source", "SourceAddOp", "StemActivityResult", "StemEnergyResult", "StructureResult", "TagResult", "TempoSetOp", "Track", "TrackAddOp", "TrackRemoveOp", "TrackUpdateOp", "TranscribeResult"] as const;
 
 /** A root schema type in `generated/bundle.schema.json`. */
 export type RootType = (typeof ROOT_TYPES)[number];
@@ -93,6 +93,9 @@ export const validateGenerateExtendParams: ValidateFunction<Types.GenerateExtend
 
 /** Validates a `GenerateExtendResult` (see `packages/schemas/song|analysis|jobs|api`). */
 export const validateGenerateExtendResult: ValidateFunction<Types.GenerateExtendResult> = validators.GenerateExtendResult as ValidateFunction<Types.GenerateExtendResult>;
+
+/** Validates a `GenerateWarmupParams` (see `packages/schemas/song|analysis|jobs|api`). */
+export const validateGenerateWarmupParams: ValidateFunction<Types.GenerateWarmupParams> = validators.GenerateWarmupParams as ValidateFunction<Types.GenerateWarmupParams>;
 
 /** Validates a `HarmonyResult` (see `packages/schemas/song|analysis|jobs|api`). */
 export const validateHarmonyResult: ValidateFunction<Types.HarmonyResult> = validators.HarmonyResult as ValidateFunction<Types.HarmonyResult>;

@@ -132,6 +132,7 @@ export type ErrorCode =
   | "CONFLICT"
   | "RATE_LIMITED"
   | "QUOTA_EXCEEDED"
+  | "INSUFFICIENT_CREDITS"
   | "PAYLOAD_TOO_LARGE"
   | "UNSUPPORTED_MEDIA_TYPE"
   | "ASSET_TOO_LONG"
@@ -141,6 +142,7 @@ export type ErrorCode =
   | "MODEL_ERROR"
   | "UPSTREAM_UNAVAILABLE"
   | "BUDGET_EXCEEDED"
+  | "GENERATION_BUSY"
   | "COMMIT_PARENT_MISSING"
   | "INTERNAL";
 /**
@@ -1461,6 +1463,10 @@ export interface GenerateExtendParams {
    * Optional user prompt. The planner/API rewrites artist names into descriptors before this point (specs/10-fusion.md §7).
    */
   prompt?: string;
+  /**
+   * Optional base seed that overrides `context.seed`. An HQ re-render of an accepted candidate sends that candidate's `seed` with `tier: "hq"` and `n: 1`, so the background render starts from the same seed (09 §5).
+   */
+  seed?: number;
   tier: ExtendTier;
   /**
    * Candidates to generate (09 §5).
@@ -1590,6 +1596,10 @@ export interface ExtendStep {
     [k: string]: unknown;
   };
 }
+/**
+ * Params of `generate.warmup` (specs/09-generation.md §5): a cheap ping that asks the generation worker to load the model the first interactive extend will use. It has no parameters; the route and the tier come from the generation routing table.
+ */
+export interface GenerateWarmupParams {}
 /**
  * The `harmony` stage result: key, key changes, chords and per-section progressions (specs/04-analysis-pipeline.md §5.3).
  */

@@ -1,0 +1,51 @@
+# Credit costs (specs/05-backend-and-jobs.md §9, specs/09-generation.md §2).
+#
+# The API reads this file at boot (BRAGI_CREDITS_CONFIG overrides the path); a
+# missing or malformed file fails the process instead of charging 0 by accident.
+# A capability is charged per job:
+#
+#   per30s  -> per candidate (n), per started window_sec of requested output audio
+#   flat    -> once per job, independent of length and candidate count
+#
+# Analysis profiles are free for now (quick = 0, standard = 1 in 05 §9; the
+# analysis route does not charge yet), so only generation capabilities appear here.
+# Preview and HQ renders are charged at the same rate (09 §5).
+
+window_sec = 30
+
+[capabilities."generate.extend"]
+# 09 §2: 2 credits per 30 s of new audio. 15 bars at 120 BPM in 4/4 is 30 s = 2
+# credits per candidate, so the default n = 3 previews cost 6.
+per30s = 2
+
+[capabilities."generate.inpaint"]
+per30s = 2
+
+[capabilities."generate.variation"]
+per30s = 2
+
+[capabilities."generate.transition"]
+flat = 1
+
+[capabilities."generate.stem"]
+per30s = 2
+
+[capabilities."generate.text2music"]
+flat = 10
+
+[capabilities."generate.fx"]
+flat = 1
+
+[capabilities."transform.timbre"]
+per30s = 2
+
+[capabilities."transform.style"]
+per30s = 3
+
+[capabilities."transform.stem_resynth"]
+per30s = 2
+
+[daily]
+# Fallback daily allowance when BRAGI_DAILY_CREDITS is unset, for multi-user mode
+# only: single-user mode is unlimited but every job is still recorded (05 §9).
+multi_user_credits = 50

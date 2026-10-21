@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GenerateWarmupParams",
+  "description": "Params of `generate.warmup` (specs/09-generation.md §5): a cheap ping that asks the generation worker to load the model the first interactive extend will use. It has no parameters; the route and the tier come from the generation routing table.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

@@ -26,6 +26,12 @@
       "type": "string",
       "maxLength": 1000
     },
+    "seed": {
+      "description": "Optional base seed that overrides `context.seed`. An HQ re-render of an accepted candidate sends that candidate's `seed` with `tier: \"hq\"` and `n: 1`, so the background render starts from the same seed (09 §5).",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
     "tier": { "$ref": "#/$defs/ExtendTier" },
     "n": {
       "description": "Candidates to generate (09 §5).",

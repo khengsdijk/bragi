@@ -377,6 +377,7 @@ class ErrorCode(StrEnum):
     CONFLICT = 'CONFLICT'
     RATE_LIMITED = 'RATE_LIMITED'
     QUOTA_EXCEEDED = 'QUOTA_EXCEEDED'
+    INSUFFICIENT_CREDITS = 'INSUFFICIENT_CREDITS'
     PAYLOAD_TOO_LARGE = 'PAYLOAD_TOO_LARGE'
     UNSUPPORTED_MEDIA_TYPE = 'UNSUPPORTED_MEDIA_TYPE'
     ASSET_TOO_LONG = 'ASSET_TOO_LONG'
@@ -386,6 +387,7 @@ class ErrorCode(StrEnum):
     MODEL_ERROR = 'MODEL_ERROR'
     UPSTREAM_UNAVAILABLE = 'UPSTREAM_UNAVAILABLE'
     BUDGET_EXCEEDED = 'BUDGET_EXCEEDED'
+    GENERATION_BUSY = 'GENERATION_BUSY'
     COMMIT_PARENT_MISSING = 'COMMIT_PARENT_MISSING'
     INTERNAL = 'INTERNAL'
 
@@ -566,6 +568,16 @@ class GenerateExtendResultSchemaVersion(IntEnum):
     """
 
     integer_1 = 1
+
+
+class GenerateWarmupParams(BaseModel):
+    """
+    Params of `generate.warmup` (specs/09-generation.md §5): a cheap ping that asks the generation worker to load the model the first interactive extend will use. It has no parameters; the route and the tier come from the generation routing table.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
 
 
 class HarmonyResultSchemaVersion(IntEnum):
@@ -2849,6 +2861,14 @@ class GenerateExtendParams(BaseModel):
             max_length=1000,
         ),
     ] = None
+    seed: Annotated[
+        int | None,
+        Field(
+            description='Optional base seed that overrides `context.seed`. An HQ re-render of an accepted candidate sends that candidate\'s `seed` with `tier: "hq"` and `n: 1`, so the background render starts from the same seed (09 §5).',
+            ge=0,
+            le=4294967295,
+        ),
+    ] = None
     tier: ExtendTier
     n: Annotated[int, Field(description='Candidates to generate (09 §5).', ge=1, le=4)]
 
@@ -3621,6 +3641,7 @@ ROOT_TYPES: tuple[str, ...] = (
     "FxUpdateOp",
     "GenerateExtendParams",
     "GenerateExtendResult",
+    "GenerateWarmupParams",
     "HarmonyResult",
     "IngestResult",
     "JobEvent",

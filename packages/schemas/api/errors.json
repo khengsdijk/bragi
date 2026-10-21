@@ -35,7 +35,12 @@
     {
       "code": "QUOTA_EXCEEDED",
       "http": 429,
-      "description": "The user is out of credits for this capability (05 §9)."
+      "description": "The user is out of credits for this capability (05 §9). Superseded for generation submits by INSUFFICIENT_CREDITS, which says how much is missing; kept because clients switch on it."
+    },
+    {
+      "code": "INSUFFICIENT_CREDITS",
+      "http": 402,
+      "description": "The job's estimated credits do not fit the user's remaining daily allowance (05 §9). `details` carries `required`, `used` and `allowance`."
     },
     {
       "code": "PAYLOAD_TOO_LARGE",
@@ -80,7 +85,12 @@
     {
       "code": "BUDGET_EXCEEDED",
       "http": 503,
-      "description": "The global daily GPU-seconds cap is hit: background jobs pause, interactive jobs get \"busy\" (05 §9)."
+      "description": "The global daily GPU-seconds cap is hit: background jobs pause, interactive jobs get \"busy\" (05 §9). Superseded for generation submits by GENERATION_BUSY."
+    },
+    {
+      "code": "GENERATION_BUSY",
+      "http": 503,
+      "description": "The environment's daily GPU-seconds budget is spent: interactive generation is refused with this code and background jobs are not enqueued (05 §9)."
     },
     {
       "code": "COMMIT_PARENT_MISSING",

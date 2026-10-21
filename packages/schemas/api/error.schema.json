@@ -34,6 +34,7 @@
         "CONFLICT",
         "RATE_LIMITED",
         "QUOTA_EXCEEDED",
+        "INSUFFICIENT_CREDITS",
         "PAYLOAD_TOO_LARGE",
         "UNSUPPORTED_MEDIA_TYPE",
         "ASSET_TOO_LONG",
@@ -43,6 +44,7 @@
         "MODEL_ERROR",
         "UPSTREAM_UNAVAILABLE",
         "BUDGET_EXCEEDED",
+        "GENERATION_BUSY",
         "COMMIT_PARENT_MISSING",
         "INTERNAL"
       ]

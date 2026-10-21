@@ -1482,6 +1482,7 @@
         "CONFLICT",
         "RATE_LIMITED",
         "QUOTA_EXCEEDED",
+        "INSUFFICIENT_CREDITS",
         "PAYLOAD_TOO_LARGE",
         "UNSUPPORTED_MEDIA_TYPE",
         "ASSET_TOO_LONG",
@@ -1491,6 +1492,7 @@
         "MODEL_ERROR",
         "UPSTREAM_UNAVAILABLE",
         "BUDGET_EXCEEDED",
+        "GENERATION_BUSY",
         "COMMIT_PARENT_MISSING",
         "INTERNAL"
       ]
@@ -1926,6 +1928,12 @@
           "type": "string",
           "maxLength": 1000
         },
+        "seed": {
+          "description": "Optional base seed that overrides `context.seed`. An HQ re-render of an accepted candidate sends that candidate's `seed` with `tier: \"hq\"` and `n: 1`, so the background render starts from the same seed (09 §5).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
         "tier": {
           "$ref": "#/$defs/ExtendTier"
         },
@@ -2030,6 +2038,13 @@
       "enum": [
         1
       ]
+    },
+    "GenerateWarmupParams": {
+      "title": "GenerateWarmupParams",
+      "description": "Params of `generate.warmup` (specs/09-generation.md §5): a cheap ping that asks the generation worker to load the model the first interactive extend will use. It has no parameters; the route and the tier come from the generation routing table.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
     },
     "HarmonyResult": {
       "title": "HarmonyResult",

@@ -3577,6 +3577,8 @@ pub enum ErrorCode {
     RateLimited,
     #[serde(rename = "QUOTA_EXCEEDED")]
     QuotaExceeded,
+    #[serde(rename = "INSUFFICIENT_CREDITS")]
+    InsufficientCredits,
     #[serde(rename = "PAYLOAD_TOO_LARGE")]
     PayloadTooLarge,
     #[serde(rename = "UNSUPPORTED_MEDIA_TYPE")]
@@ -3595,6 +3597,8 @@ pub enum ErrorCode {
     UpstreamUnavailable,
     #[serde(rename = "BUDGET_EXCEEDED")]
     BudgetExceeded,
+    #[serde(rename = "GENERATION_BUSY")]
+    GenerationBusy,
     #[serde(rename = "COMMIT_PARENT_MISSING")]
     CommitParentMissing,
     #[serde(rename = "INTERNAL")]
@@ -3610,6 +3614,7 @@ impl ::std::fmt::Display for ErrorCode {
             Self::Conflict => f.write_str("CONFLICT"),
             Self::RateLimited => f.write_str("RATE_LIMITED"),
             Self::QuotaExceeded => f.write_str("QUOTA_EXCEEDED"),
+            Self::InsufficientCredits => f.write_str("INSUFFICIENT_CREDITS"),
             Self::PayloadTooLarge => f.write_str("PAYLOAD_TOO_LARGE"),
             Self::UnsupportedMediaType => f.write_str("UNSUPPORTED_MEDIA_TYPE"),
             Self::AssetTooLong => f.write_str("ASSET_TOO_LONG"),
@@ -3619,6 +3624,7 @@ impl ::std::fmt::Display for ErrorCode {
             Self::ModelError => f.write_str("MODEL_ERROR"),
             Self::UpstreamUnavailable => f.write_str("UPSTREAM_UNAVAILABLE"),
             Self::BudgetExceeded => f.write_str("BUDGET_EXCEEDED"),
+            Self::GenerationBusy => f.write_str("GENERATION_BUSY"),
             Self::CommitParentMissing => f.write_str("COMMIT_PARENT_MISSING"),
             Self::Internal => f.write_str("INTERNAL"),
         }
@@ -3635,6 +3641,7 @@ impl ::std::str::FromStr for ErrorCode {
             "CONFLICT" => Ok(Self::Conflict),
             "RATE_LIMITED" => Ok(Self::RateLimited),
             "QUOTA_EXCEEDED" => Ok(Self::QuotaExceeded),
+            "INSUFFICIENT_CREDITS" => Ok(Self::InsufficientCredits),
             "PAYLOAD_TOO_LARGE" => Ok(Self::PayloadTooLarge),
             "UNSUPPORTED_MEDIA_TYPE" => Ok(Self::UnsupportedMediaType),
             "ASSET_TOO_LONG" => Ok(Self::AssetTooLong),
@@ -3644,6 +3651,7 @@ impl ::std::str::FromStr for ErrorCode {
             "MODEL_ERROR" => Ok(Self::ModelError),
             "UPSTREAM_UNAVAILABLE" => Ok(Self::UpstreamUnavailable),
             "BUDGET_EXCEEDED" => Ok(Self::BudgetExceeded),
+            "GENERATION_BUSY" => Ok(Self::GenerationBusy),
             "COMMIT_PARENT_MISSING" => Ok(Self::CommitParentMissing),
             "INTERNAL" => Ok(Self::Internal),
             _ => Err("invalid value".into()),
@@ -4603,6 +4611,9 @@ pub struct GenerateExtendParams {
     ///Optional user prompt. The planner/API rewrites artist names into descriptors before this point (specs/10-fusion.md §7).
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub prompt: ::std::option::Option<GenerateExtendParamsPrompt>,
+    ///Optional base seed that overrides `context.seed`. An HQ re-render of an accepted candidate sends that candidate's `seed` with `tier: "hq"` and `n: 1`, so the background render starts from the same seed (09 §5).
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub seed: ::std::option::Option<u32>,
     pub tier: ExtendTier,
 }
 ///Optional user prompt. The planner/API rewrites artist names into descriptors before this point (specs/10-fusion.md §7).
@@ -4836,6 +4847,10 @@ impl<'de> ::serde::Deserialize<'de> for GenerateExtendResultSchemaVersion {
             .map_err(|e| <D::Error as ::serde::de::Error>::custom(e.to_string()))
     }
 }
+///Params of `generate.warmup` (specs/09-generation.md §5): a cheap ping that asks the generation worker to load the model the first interactive extend will use. It has no parameters; the route and the tier come from the generation routing table.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, Default)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateWarmupParams {}
 ///The `harmony` stage result: key, key changes, chords and per-section progressions (specs/04-analysis-pipeline.md §5.3).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
@@ -11043,6 +11058,7 @@ pub const ROOT_TYPES: &[&str] = &[
     "FxUpdateOp",
     "GenerateExtendParams",
     "GenerateExtendResult",
+    "GenerateWarmupParams",
     "HarmonyResult",
     "IngestResult",
     "JobEvent",

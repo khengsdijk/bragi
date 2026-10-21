@@ -65,6 +65,23 @@ export const configSchema = z.object({
   githubClientSecret: z.string().default(""),
 
   /**
+   * Generation (05 §9, 09 §5). `generateWorkers` says whether a generation worker
+   * is running against this environment: `pnpm dev:backend` sets it because it
+   * starts one, and compose leaves it off because it has no generation pool. It is
+   * what makes `POST /v1/generations/warmup` answer `disabled`.
+   */
+  generateWorkers: booleanish.default(false),
+  /** Global daily GPU-seconds cap, summed from completed jobs; unset = no cap (05 §9). */
+  gpuSecondsPerDay: z.coerce.number().positive().optional(),
+  /**
+   * Daily credit allowance per user. Unset means unlimited in single-user mode and
+   * `config/credits.toml`'s `[daily].multi_user_credits` in multi-user mode (05 §9).
+   */
+  dailyCredits: z.coerce.number().int().positive().optional(),
+  /** `config/credits.toml`; empty means "find it above this file" (`jobs/credits.ts`). */
+  creditsConfig: z.string().default(""),
+
+  /**
    * Origins the API answers CORS for (comma-separated, 05 §8, finding 9). The
    * web app is same-origin through the Vite proxy, so this mainly serves the
    * desktop webview (`tauri://localhost`) and a direct dev-server origin.
@@ -125,6 +142,10 @@ const ENV_KEYS: Record<keyof ConfigInput, string> = {
   authSecret: "AUTH_SECRET",
   githubClientId: "GITHUB_CLIENT_ID",
   githubClientSecret: "GITHUB_CLIENT_SECRET",
+  generateWorkers: "BRAGI_GENERATE_WORKERS",
+  gpuSecondsPerDay: "BRAGI_GPU_SECONDS_PER_DAY",
+  dailyCredits: "BRAGI_DAILY_CREDITS",
+  creditsConfig: "BRAGI_CREDITS_CONFIG",
   corsOrigins: "CORS_ORIGINS",
   otelEnabled: "OTEL_ENABLED",
   otelEndpoint: "OTEL_EXPORTER_OTLP_ENDPOINT",
