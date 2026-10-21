@@ -24,6 +24,7 @@ import {
   validateProject,
 } from "@bragi/schemas";
 
+import { opShapeErrors } from "./opErrors.js";
 import { blockedNamesIn } from "./policy.js";
 
 /** The slice of the model-wasm handle API the dry run needs. */
@@ -100,10 +101,16 @@ export async function validateRawPlan(
           estimatedSeconds: 0,
         }
       : raw;
-  if (!validateEditPlan(candidate)) {
+  // Ops are checked one schema at a time first: the plan-level `Op` union would otherwise report
+  // every branch's missing properties at once (opErrors.ts). The plan check that follows then only
+  // needs to report envelope problems.
+  const shapes = opShapeErrors(candidate);
+  const planValid = validateEditPlan(candidate);
+  if (!planValid || shapes.errors.length > 0) {
+    const envelope = planValid ? [] : validationErrors(validateEditPlan.errors, shapes.paths);
     return {
       ok: false,
-      errors: validationErrors(validateEditPlan.errors),
+      errors: [...shapes.errors, ...envelope].slice(0, 12),
       variants: [],
       dropped: [],
     };
@@ -470,11 +477,16 @@ export function regionInsideSong(project: Project, region: Region): string[] {
 /** Turns Ajv errors into short, plain strings for the repair round. */
 function validationErrors(
   errors: { instancePath?: string; message?: string }[] | null | undefined,
+  opPaths: ReadonlySet<string> = new Set(),
 ): string[] {
-  if (errors === null || errors === undefined || errors.length === 0) {
+  const kept = (errors ?? []).filter((error) => {
+    const path = error.instancePath ?? "";
+    return ![...opPaths].some((op) => path === op || path.startsWith(`${op}/`));
+  });
+  if (kept.length === 0) {
     return ["The reply was not a valid EditPlan."];
   }
-  return errors
+  return kept
     .slice(0, 12)
     .map(
       (error) =>

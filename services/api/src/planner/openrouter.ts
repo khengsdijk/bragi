@@ -12,9 +12,8 @@
  * - **explain**: a JSON-schema `response_format` (ADR-0012 §4), degrading to `json_object` and then
  *   to no format when a model rejects the stronger level with HTTP 400.
  */
-import { PLAN_TOOL_SCHEMA } from "@bragi/schemas";
-
 import type { ReasoningLevel } from "./config.js";
+import { plannerToolSchema } from "./toolSchema.js";
 
 /** The environment variable holding the OpenRouter key. */
 export const API_KEY_ENV = "OPENROUTER_API_KEY";
@@ -136,7 +135,7 @@ export function planToolDefinition(): Record<string, unknown> {
       name: PLAN_TOOL_NAME,
       description:
         "Propose 1–3 ops-only edit-plan variants for the user's request, as a single JSON object.",
-      parameters: PLAN_TOOL_SCHEMA,
+      parameters: plannerToolSchema(),
     },
   };
 }

@@ -1,0 +1,30 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`op shapes > puts one generated line per op and the time-limited pattern in the block 1`] = `
+"OP SHAPES (generated; use exactly these keys; trk_1, sec_1, clp_1 and fx_1 are placeholders; a new fx id must match ^fx_[0-9A-Za-z]{1,64}$ (no "_" after the prefix)):
+  track.update {"op":"track.update","trackId":"trk_1","patch":{"name":"text","color":"#aaaaaa","gainDb":0,"pan":0,"mute":false,"solo":false,"hidden":false}}
+  fx.add {"op":"fx.add","scope":{"kind":"track","trackId":"trk_1"},"fx":{"id":"fx_1","type":"eq3","params":{},"bypass":false}}
+  fx.remove {"op":"fx.remove","fxId":"fx_1"}
+  fx.reorder {"op":"fx.reorder","fxId":"fx_1","newIndex":0}
+  fx.update {"op":"fx.update","fxId":"fx_1","paramsPatch":{}}
+  section.duplicate {"op":"section.duplicate","sectionId":"sec_1","toIndex":0,"newId":"sec_2"}
+  section.merge {"op":"section.merge","sectionIdA":"sec_1","sectionIdB":"sec_2"}
+  section.move {"op":"section.move","sectionId":"sec_1","toIndex":0}
+  section.remove {"op":"section.remove","sectionId":"sec_1","closeGap":true}
+  section.resize {"op":"section.resize","sectionId":"sec_1","lengthTicks":15360,"mode":"trim"}
+  section.set_transition {"op":"section.set_transition","sectionId":"sec_1","transition":{"kind":"cut","lengthTicks":0}}
+  section.split {"op":"section.split","sectionId":"sec_1","atTick":7680,"newId":"sec_2"}
+  section.update {"op":"section.update","sectionId":"sec_1","patch":{"kind":"intro","label":"text","energyTarget":[{"tick":0,"value":0}],"locked":false}}
+  clip.remove {"op":"clip.remove","clipId":"clp_1"}
+  clip.split {"op":"clip.split","clipId":"clp_1","atTick":7680,"newId":"clp_2"}
+  clip.update {"op":"clip.update","clipId":"clp_1","patch":{"srcStart":0,"srcEnd":7680,"start":0,"warp":{"mode":"none"},"gainDb":0,"pitchSemitones":0,"fadeInTicks":0,"fadeOutTicks":0,"fadeCurve":"linear","reverse":false}}
+  automation.clear {"op":"automation.clear","scope":{"kind":"lane","sectionId":"sec_1","trackId":"trk_1"},"target":"fx:fx_1/cutoffHz"}
+  automation.set {"op":"automation.set","scope":{"kind":"lane","sectionId":"sec_1","trackId":"trk_1"},"target":"fx:fx_1/cutoffHz","points":[{"tick":0,"value":0,"curve":"step"}]}
+  tempo.set {"op":"tempo.set","tempoMap":[{"tick":0,"bpm":120,"curve":"step"}]}
+  key.transpose {"op":"key.transpose","semitones":0,"scope":"all"}
+  region.clear {"op":"region.clear","region":{"startTick":0,"endTick":15360,"tracks":["trk_1"]}}
+
+TIME-LIMITED REGION (track fx/mixer changes act on the whole song; add fx neutral, automate it on the section lane; lane ticks are section-relative):
+  {"op":"fx.add","scope":{"kind":"track","trackId":"trk_1"},"fx":{"id":"fx_1","type":"filter","params":{},"bypass":false}}
+  {"op":"automation.set","scope":{"kind":"lane","sectionId":"sec_1","trackId":"trk_1"},"target":"fx:fx_1/cutoffHz","points":[{"tick":0,"value":18000,"curve":"linear"},{"tick":15360,"value":900,"curve":"linear"}]}"
+`;

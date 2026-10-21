@@ -28,9 +28,11 @@ describe("section features", () => {
       "  sec_a · energy 0.21 · chords i,\u2039VI\u203A · stems trk_d,trk_v",
     );
     expect(message).toContain("  sec_b · energy 0.80");
-    // The block sits after the summary and before the catalogue.
+    // The stable catalogue and op shapes come first, then the song, then the features.
+    expect(message.indexOf("CAPABILITIES")).toBeLessThan(message.indexOf("OP SHAPES"));
+    expect(message.indexOf("OP SHAPES")).toBeLessThan(message.indexOf("SONG: x"));
     expect(message.indexOf("SONG: x")).toBeLessThan(message.indexOf("SECTION FEATURES"));
-    expect(message.indexOf("SECTION FEATURES")).toBeLessThan(message.indexOf("CAPABILITIES"));
+    expect(message).toContain('"op":"fx.add"');
     // An analysis chord cannot close the user block.
     expect(message.match(/<\/user_request>/g)).toHaveLength(1);
   });

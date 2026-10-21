@@ -219,3 +219,44 @@ export const validateTrackUpdateOp: ValidateFunction<Types.TrackUpdateOp> = vali
 
 /** Validates a `TranscribeResult` (see `packages/schemas/song|analysis|jobs|api`). */
 export const validateTranscribeResult: ValidateFunction<Types.TranscribeResult> = validators.TranscribeResult as ValidateFunction<Types.TranscribeResult>;
+
+/**
+ * Validates one op against the single schema its `op` discriminator selects (02 §4.2).
+ *
+ * The planner reports the error for that op instead of the `Op` union's oneOf noise, so its
+ * repair round can name the property that is wrong.
+ */
+export const OP_VALIDATORS: Readonly<Record<string, ValidateFunction<unknown>>> = {
+  "project.set_meta": validators.ProjectSetMetaOp as ValidateFunction<unknown>,
+  "analysis.apply": validators.AnalysisApplyOp as ValidateFunction<unknown>,
+  "track.add": validators.TrackAddOp as ValidateFunction<unknown>,
+  "track.remove": validators.TrackRemoveOp as ValidateFunction<unknown>,
+  "track.update": validators.TrackUpdateOp as ValidateFunction<unknown>,
+  "fx.add": validators.FxAddOp as ValidateFunction<unknown>,
+  "fx.remove": validators.FxRemoveOp as ValidateFunction<unknown>,
+  "fx.reorder": validators.FxReorderOp as ValidateFunction<unknown>,
+  "fx.update": validators.FxUpdateOp as ValidateFunction<unknown>,
+  "section.duplicate": validators.SectionDuplicateOp as ValidateFunction<unknown>,
+  "section.insert": validators.SectionInsertOp as ValidateFunction<unknown>,
+  "section.merge": validators.SectionMergeOp as ValidateFunction<unknown>,
+  "section.move": validators.SectionMoveOp as ValidateFunction<unknown>,
+  "section.remove": validators.SectionRemoveOp as ValidateFunction<unknown>,
+  "section.resize": validators.SectionResizeOp as ValidateFunction<unknown>,
+  "section.set_transition": validators.SectionSetTransitionOp as ValidateFunction<unknown>,
+  "section.split": validators.SectionSplitOp as ValidateFunction<unknown>,
+  "section.update": validators.SectionUpdateOp as ValidateFunction<unknown>,
+  "clip.add": validators.ClipAddOp as ValidateFunction<unknown>,
+  "clip.remove": validators.ClipRemoveOp as ValidateFunction<unknown>,
+  "clip.replace": validators.ClipReplaceOp as ValidateFunction<unknown>,
+  "clip.split": validators.ClipSplitOp as ValidateFunction<unknown>,
+  "clip.update": validators.ClipUpdateOp as ValidateFunction<unknown>,
+  "automation.clear": validators.AutomationClearOp as ValidateFunction<unknown>,
+  "automation.set": validators.AutomationSetOp as ValidateFunction<unknown>,
+  "tempo.set": validators.TempoSetOp as ValidateFunction<unknown>,
+  "key.transpose": validators.KeyTransposeOp as ValidateFunction<unknown>,
+  "region.adopt": validators.RegionAdoptOp as ValidateFunction<unknown>,
+  "region.clear": validators.RegionClearOp as ValidateFunction<unknown>,
+};
+
+/** Every op kind the schemas define, in discriminator order. */
+export const OP_NAMES: readonly string[] = ["project.set_meta", "analysis.apply", "track.add", "track.remove", "track.update", "fx.add", "fx.remove", "fx.reorder", "fx.update", "section.duplicate", "section.insert", "section.merge", "section.move", "section.remove", "section.resize", "section.set_transition", "section.split", "section.update", "clip.add", "clip.remove", "clip.replace", "clip.split", "clip.update", "automation.clear", "automation.set", "tempo.set", "key.transpose", "region.adopt", "region.clear"];
