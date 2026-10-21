@@ -44,7 +44,7 @@ const VARIANT_LABELS = ["Subtle", "Dusty tape", "Stripped"] as const;
 /** A valid ops-only plan over the song's real track id and gain. */
 function fakePlan(trackId: string, gainDb: number) {
   return {
-    planId: "pln_e2e_planner_000000000000",
+    planId: "pln_e2eplanner000000000000",
     interpretation: "I'll make that instrument a little quieter.",
     variants: VARIANT_LABELS.map((label, index) => ({
       label,

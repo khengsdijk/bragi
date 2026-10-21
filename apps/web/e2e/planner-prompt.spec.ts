@@ -13,7 +13,7 @@ import { openDemo } from "./song-helpers.js";
 import { seriousOrCritical } from "./stack-helpers.js";
 
 const PLAN = {
-  planId: "pln_e2e_demo_00000000000000",
+  planId: "pln_e2edemo00000000000000",
   interpretation: "I'll warm up the whole song a little.",
   variants: [
     {
