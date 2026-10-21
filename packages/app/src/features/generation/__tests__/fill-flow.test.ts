@@ -132,7 +132,7 @@ describe("the fill gap flow", () => {
     expect(Object.keys(submit?.body.assets ?? {}).sort()).toEqual(["after", "before"]);
     expect(submit?.body.params).toMatchObject({
       gapBars: 2,
-      overlapBars: 1,
+      overlapBars: 2,
       tier: "preview",
       n: 3,
     });

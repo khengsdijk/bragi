@@ -457,6 +457,21 @@ describe("the extend flow", () => {
     });
   });
 
+  it("ends in preview when the job completes while a partial is still being added", async () => {
+    const h = await harness();
+    await startForward(h, "dreamy outro");
+    const first = await h.candidate(0);
+    // The partial's blob download is still in flight when `completed` arrives.
+    h.partial(0, first.assetHash, first.blobHash);
+    h.realtime.emit({ t: "job.completed", jobId: "job_EXTEND01", outputs: {} });
+    await vi.waitFor(() => {
+      expect(h.audition.store.getState().group?.candidates).toHaveLength(1);
+    });
+    await vi.waitFor(() => {
+      expect(state(h).phase).toBe("preview");
+    });
+  });
+
   it("cancels the job when the ideas are discarded", async () => {
     const h = await harness();
     await startForward(h);

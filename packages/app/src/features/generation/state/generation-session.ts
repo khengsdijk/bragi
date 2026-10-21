@@ -455,10 +455,15 @@ export function createGenerationFlow<Request, Params extends GenerationParams>(
       return;
     }
     if (message.t === "job.completed" && message.jobId === current.jobId) {
-      deps.audition.setQueue(null);
-      if (current.accepted === null && store.getState().phase !== "failed") {
-        set({ phase: "preview" });
-      }
+      // After the queued partials: a partial still downloading its blob would otherwise set the
+      // phase back to "generating" once the job is already over.
+      partials = partials.then(() => {
+        if (session !== current) return;
+        deps.audition.setQueue(null);
+        if (current.accepted === null && store.getState().phase !== "failed") {
+          set({ phase: "preview" });
+        }
+      });
       return;
     }
     if (message.t === "job.failed" && message.jobId === current.jobId) {
@@ -518,6 +523,11 @@ export function createGenerationFlow<Request, Params extends GenerationParams>(
       { assetHash: event.assetHash, stage: event.stage, blob: event.blob, json },
     );
     if (outcome.ok) deps.onCommit?.(outcome.commit, outcome.doc);
+    else
+      console.warn(
+        `the song model rejected the ${event.stage} stage`,
+        JSON.stringify(outcome.errors),
+      );
   }
 
   /** Submits the HQ re-render after an accept; a failure is a soft message, not an error. */

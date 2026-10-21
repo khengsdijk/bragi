@@ -32,7 +32,7 @@ import { musicalContextForSpan, secondsAtTick } from "../musical-context.js";
 /** The most context the model hears on each side (09 §4.3: up to 15 s). */
 export const FILL_CONTEXT_SECONDS = 15;
 /** The overlap the gate pass splices in on each side (09 §4.3 default). */
-export const FILL_OVERLAP_BARS = 1;
+export const FILL_OVERLAP_BARS = 2;
 /** Preview candidates per request (07 §6: three ideas). */
 export const FILL_CANDIDATES = 3;
 
@@ -47,6 +47,8 @@ export interface FillGapRequest {
 interface FillGap {
   readonly gap: { readonly startTick: number; readonly endTick: number };
   readonly gapBars: number;
+  /** The erased tracks; the fill's separation maps only their roles (02 §6.4). */
+  readonly tracks?: readonly string[];
 }
 
 /** The crossfade the clips use at each gap edge: one beat, capped at 500 ms (03 §8.2). */
@@ -112,7 +114,11 @@ export function createFillAdapter(): GenerationAdapter<FillGapRequest, GenerateI
         lengthTicks: gap.endTick - gap.startTick,
         ...(musical.sectionKind === undefined ? {} : { sectionKind: musical.sectionKind }),
       };
-      candidates.set(plan, { gap, gapBars: bars });
+      candidates.set(plan, {
+        gap,
+        gapBars: bars,
+        ...(request.region.tracks === "all" ? {} : { tracks: request.region.tracks }),
+      });
       return plan;
     },
     parse({ json, plan, geometry }) {
@@ -131,7 +137,7 @@ export function createFillAdapter(): GenerationAdapter<FillGapRequest, GenerateI
         covered + 1,
         Math.round((bars + 2 * overlaps) * geometry.barSamplesAt(plan.anchorTick)),
       );
-      candidates.set(plan, { gap, gapBars: bars });
+      candidates.set(plan, { ...known, gap, gapBars: bars });
       return {
         index: result.index,
         assetHash: result.asset,
@@ -175,6 +181,7 @@ export function createFillAdapter(): GenerationAdapter<FillGapRequest, GenerateI
         startOffsetSamples: result.startOffsetSamples,
         endOffsetSamples: result.endOffsetSamples,
         crossfadeTicks: crossfadeTicks(geometry),
+        ...(known?.tracks === undefined ? {} : { tracks: known.tracks }),
         batchId: `bat_${ulid()}`,
         label: t("generation.fill.candidate", { bars: known?.gapBars ?? plan.params.gapBars }),
         createdAt,

@@ -385,7 +385,7 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
           endTick: apply.placement.region.endTick,
         };
         const gaps = samplesBetween(geometry, gap.startTick, gap.endTick);
-        const overlaps = numberParam(step, "overlapBars", 1);
+        const overlaps = numberParam(step, "overlapBars", 2);
         const bars = numberParam(step, "gapBars", 1);
         const durationSamples = Math.max(
           gaps + Math.abs(result.startOffsetSamples) + Math.max(0, result.endOffsetSamples) + 1,
@@ -408,6 +408,9 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
               startOffsetSamples: result.startOffsetSamples,
               endOffsetSamples: result.endOffsetSamples,
               crossfadeTicks: crossfade,
+              ...(apply.placement.region.tracks === "all"
+                ? {}
+                : { tracks: apply.placement.region.tracks }),
               batchId: `bat_${ulid()}`,
               label: variant.label,
               createdAt,
