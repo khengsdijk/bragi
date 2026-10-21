@@ -7,7 +7,10 @@
  * arrived. Gestures flow back as op batches into the Song Store, and each commit is forwarded to
  * the engine, so what you see, what a screen reader gets and what you hear are one document.
  */
+
+import type { ApiClient, RealtimeClient } from "@bragi/api-client";
 import { Button } from "@bragi/design";
+import type { Platform } from "@bragi/platform";
 import type {
   AnalysisView,
   CanvasEvents,
@@ -32,7 +35,14 @@ import { usePaintStroke } from "../../brushes/hooks/use-paint-stroke.js";
 import { createBrushStore } from "../../brushes/state/brush-store.js";
 import { CommandPaletteDialog } from "../../commands/components/CommandPaletteDialog.js";
 import { createCommandRegistry } from "../../commands/state/commands.js";
-import { SONG_COMMANDS } from "../../commands/state/song-commands.js";
+import { EXTEND_COMMANDS, SONG_COMMANDS } from "../../commands/state/song-commands.js";
+import { ExtendHandle } from "../../generation/components/ExtendHandle.js";
+import {
+  createExtendFlow,
+  type ExtendDirection,
+  type ExtendFlow,
+  type WarmupStatus,
+} from "../../generation/state/extend-flow.js";
 import { HistoryPanel } from "../../history/components/HistoryPanel.js";
 import type { History } from "../../history/state/history.js";
 import { Inspector } from "../../inspector/components/Inspector.js";
@@ -55,6 +65,13 @@ import { formatTime, TransportBar } from "./TransportBar.js";
 /** The analysis data that has arrived (stages come from the document). */
 export type AnalysisData = Omit<AnalysisView, "stages">;
 
+/** The clients the extend flow needs; absent on hosts without an API (the demo page). */
+export interface GenerationHost {
+  readonly platform: Platform;
+  readonly api: ApiClient;
+  readonly realtime: RealtimeClient;
+}
+
 export interface SongWorkspaceProps {
   readonly songStore: SongStore;
   readonly controller: EngineController;
@@ -71,6 +88,8 @@ export interface SongWorkspaceProps {
   readonly testHooks?: boolean;
   /** Job events for AI candidates (WP-2.6/2.7); the Audition bar works without one. */
   readonly candidateSource?: CandidateSource;
+  /** The generation clients; present on a stored song, absent on the demo (09 §4.2). */
+  readonly generation?: GenerationHost;
 }
 
 /** What the e2e tests reach through `window.__bragi`. */
@@ -80,6 +99,8 @@ export interface BragiTestHooks {
   controller: EngineController;
   history: History | null;
   audition: Audition | null;
+  /** The extend flow, when this canvas has a generation host. */
+  extend: ExtendFlow | null;
 }
 
 declare global {
@@ -118,7 +139,46 @@ export function SongWorkspace(props: SongWorkspaceProps) {
   const preview = useStore(songStore.store, (state) => state.preview);
   const [announcement, setAnnouncement] = useState("");
   const history = props.history;
-  const candidateSource = props.candidateSource;
+  const generation = props.generation;
+  /** The extend flow owns the job; its events reach the bar through `flow.source`. */
+  const auditionRef = useRef<Audition | null>(null);
+  const analysisRef = useRef<AnalysisData | null>(props.analysis);
+  analysisRef.current = props.analysis;
+  const flow = useMemo<ExtendFlow | null>(() => {
+    if (generation === undefined || history === undefined) return null;
+    return createExtendFlow({
+      platform: generation.platform,
+      api: generation.api,
+      realtime: generation.realtime,
+      songStore,
+      history,
+      renderContext: (range) => controller.renderContext(range),
+      audition: {
+        open: (options) => auditionRef.current?.openCandidates(options) ?? Promise.resolve(false),
+        setQueue: (status) => auditionRef.current?.setQueue(status),
+        isOpen: () => auditionRef.current?.store.getState().group != null,
+      },
+      energy: () => analysisRef.current?.energy,
+      onAnnounce: setAnnouncement,
+      onError: setAnnouncement,
+      onCommit: (commit, document) => controller.commit(commit, document),
+    });
+  }, [controller, generation, history, songStore]);
+  const [warmup, setWarmup] = useState<WarmupStatus>("idle");
+  const [extendOpen, setExtendOpen] = useState<ExtendDirection | null>(null);
+  useEffect(() => {
+    if (flow === null) return;
+    let live = true;
+    // The first interactive generation of a session warms the pool (09 §5).
+    void flow.warmup().then((status) => {
+      if (live) setWarmup(status);
+    });
+    return () => {
+      live = false;
+    };
+  }, [flow]);
+  useEffect(() => () => flow?.dispose(), [flow]);
+  const candidateSource = props.candidateSource ?? flow?.source;
   /** The open candidate group or comparison (07 §6); needs a version tree. */
   const audition = useMemo(
     () =>
@@ -129,6 +189,12 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             history,
             document: () => songStore.store.getState().doc,
             ...(candidateSource === undefined ? {} : { source: candidateSource }),
+            ...(flow === null
+              ? {}
+              : {
+                  onAccept: (candidateId: string) => flow.accepted(candidateId),
+                  onDiscard: (group: string) => flow.discarded(group),
+                }),
             onOutcome: (outcome, message) => {
               if (outcome?.ok) {
                 controller.commit(outcome.commit, outcome.doc);
@@ -139,8 +205,9 @@ export function SongWorkspace(props: SongWorkspaceProps) {
             },
             onAnnounce: setAnnouncement,
           }),
-    [controller, history, songStore, candidateSource],
+    [controller, history, songStore, candidateSource, flow],
   );
+  auditionRef.current = audition;
   useEffect(() => () => audition?.dispose(), [audition]);
   /** The selected candidate's document: the canvas draws what is audible (07 §6). */
   const auditionDoc = useStore(audition?.store ?? EMPTY_AUDITION_STORE, (state) =>
@@ -264,6 +331,9 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     historyOpen: sidePanel === "history",
     onToggleHistory: toggleHistory,
     onAnnounce: setAnnouncement,
+    ...(flow === null
+      ? {}
+      : { onOpenExtend: (direction: ExtendDirection) => setExtendOpen(direction) }),
   });
   const drag = useSectionDrag({
     songStore,
@@ -281,7 +351,11 @@ export function SongWorkspace(props: SongWorkspaceProps) {
     ...(props.history === undefined ? {} : { history: props.history }),
     onAnnounce: setAnnouncement,
   });
-  const commandRegistry = useMemo(() => createCommandRegistry(SONG_COMMANDS), []);
+  const commandRegistry = useMemo(
+    () =>
+      createCommandRegistry(flow === null ? SONG_COMMANDS : [...SONG_COMMANDS, ...EXTEND_COMMANDS]),
+    [flow],
+  );
 
   /** Right-click or Shift+F10: select the part and open the shared menu at that point. */
   const openSectionMenu = useCallback(
@@ -337,11 +411,12 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       controller,
       history: props.history ?? null,
       audition,
+      extend: flow,
     } as BragiTestHooks;
     return () => {
       window.__bragi = undefined;
     };
-  }, [props.testHooks, songStore, controller, props.history, audition]);
+  }, [props.testHooks, songStore, controller, props.history, audition, flow]);
 
   // Global shortcuts (07 §3, 11 §6.2). The grid handles M and O itself when it has focus.
   useEffect(() => {
@@ -499,38 +574,48 @@ export function SongWorkspace(props: SongWorkspaceProps) {
       >
         <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
           {audition === null ? null : <AuditionBar audition={audition} />}
-          <SongCanvasView
-            document={canvasDoc}
-            analysis={analysis}
-            selection={selection}
-            focus={focus}
-            controller={controller}
-            {...(props.renderer === undefined ? {} : { renderer: props.renderer })}
-            onSelectionChange={props.onSelectionChange}
-            onTrackToggle={onCanvasToggle}
-            onSectionContextMenu={onSectionContextMenu}
-            onSectionDragStart={drag.onSectionDragStart}
-            onSectionDragMove={drag.onSectionDragMove}
-            onSectionDragEnd={drag.onSectionDragEnd}
-            onSectionDragCancel={drag.onSectionDragCancel}
-            onSectionResizeStart={drag.onSectionResizeStart}
-            onSectionResizeMove={drag.onSectionResizeMove}
-            onSectionResizeEnd={drag.onSectionResizeEnd}
-            onSectionResizeCancel={drag.onSectionResizeCancel}
-            onPaintStart={paint.onPaintStart}
-            onPaintMove={paint.onPaintMove}
-            onPaintEnd={paint.onPaintEnd}
-            onPaintCancel={paint.onPaintCancel}
-            onHoverTrack={(trackId) => {
-              hovered.current = trackId;
-            }}
-            onViewport={(next: ZoomLevel, _viewport: Viewport) => setLevel(next)}
-            onReady={(next) => {
-              handle.current = next;
-              next?.canvas.setTool(brushes.store.getState().tool);
-              next?.canvas.setPaintStrength(brushes.store.getState().sizeStrength);
-            }}
-          />
+          <div style={{ position: "relative", minWidth: 0 }}>
+            <SongCanvasView
+              document={canvasDoc}
+              analysis={analysis}
+              selection={selection}
+              focus={focus}
+              controller={controller}
+              {...(props.renderer === undefined ? {} : { renderer: props.renderer })}
+              onSelectionChange={props.onSelectionChange}
+              onTrackToggle={onCanvasToggle}
+              onSectionContextMenu={onSectionContextMenu}
+              onSectionDragStart={drag.onSectionDragStart}
+              onSectionDragMove={drag.onSectionDragMove}
+              onSectionDragEnd={drag.onSectionDragEnd}
+              onSectionDragCancel={drag.onSectionDragCancel}
+              onSectionResizeStart={drag.onSectionResizeStart}
+              onSectionResizeMove={drag.onSectionResizeMove}
+              onSectionResizeEnd={drag.onSectionResizeEnd}
+              onSectionResizeCancel={drag.onSectionResizeCancel}
+              onPaintStart={paint.onPaintStart}
+              onPaintMove={paint.onPaintMove}
+              onPaintEnd={paint.onPaintEnd}
+              onPaintCancel={paint.onPaintCancel}
+              onHoverTrack={(trackId) => {
+                hovered.current = trackId;
+              }}
+              onViewport={(next: ZoomLevel, _viewport: Viewport) => setLevel(next)}
+              onReady={(next) => {
+                handle.current = next;
+                next?.canvas.setTool(brushes.store.getState().tool);
+                next?.canvas.setPaintStrength(brushes.store.getState().sizeStrength);
+              }}
+            />
+            {flow === null ? null : (
+              <ExtendHandle
+                flow={flow}
+                warmup={warmup}
+                open={extendOpen}
+                onOpenChange={setExtendOpen}
+              />
+            )}
+          </div>
           <AccessibleGrid
             model={grid}
             selection={selection}

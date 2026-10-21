@@ -11,7 +11,7 @@ import type { SectionInstance } from "@bragi/schemas";
 import type { MessageKey } from "../../../i18n/index.js";
 
 /** Palette headings, in this order. */
-export type CommandGroup = "section" | "edit" | "view" | "playback";
+export type CommandGroup = "section" | "generation" | "edit" | "view" | "playback";
 
 /** Everything a command may read or do. */
 export interface CommandContext {
@@ -40,6 +40,8 @@ export interface CommandActions {
   setLocked(sectionId: string, locked: boolean): void;
   loopSection(sectionId: string): void;
   openResize(sectionId: string, direction: "longer" | "shorter"): void;
+  /** Opens the extend popover at the song edge this part touches (07 §4.2, 09 §4.2). */
+  openExtend(direction: "forward" | "backward"): void;
   /** The keyboard painting path: pick a brush and apply it to a whole part (11 §6.2). */
   openBrush(sectionId: string): void;
   splitAtPlayhead(): void;

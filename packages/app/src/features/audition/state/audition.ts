@@ -41,6 +41,8 @@ export interface AuditionCandidate {
   readonly label: string;
   readonly slot: CandidateSlot;
   readonly status: CandidateStatus;
+  /** "This one might not blend perfectly" when the gates flagged it (09 §6). */
+  readonly warning?: string;
   /** The document the slot plays; `null` until its snapshot is read. */
   readonly doc: Project | null;
 }
@@ -51,6 +53,11 @@ export interface AuditionGroup {
   readonly kind: "candidates" | "compare";
   /** What the user asked for ("Half-time drums in Verse 2"), or the comparison's title. */
   readonly prompt: string;
+  /**
+   * The job's queue status while its candidates are being generated (09 §5): "Waiting for a free
+   * generator… (~20 s)" or "Generating 40%". Absent once the first idea is in.
+   */
+  readonly queue?: CandidateStatus;
   readonly candidates: readonly AuditionCandidate[];
 }
 
@@ -75,6 +82,11 @@ export interface OpenCandidatesOptions {
    * finished job) start as `hq`; candidates still being generated start as `queued`.
    */
   readonly initialStatus?: CandidateStatus;
+  /**
+   * Open the group before its first candidate exists, so the bar can show the queue status while
+   * the job runs (09 §5). Candidates are added as their `partial` events arrive.
+   */
+  readonly allowEmpty?: boolean;
 }
 
 export interface AuditionOptions {
@@ -87,6 +99,10 @@ export interface AuditionOptions {
   /** The accepted candidate's Song Store outcome; the workspace forwards it to the engine. */
   readonly onOutcome: (outcome: ApplyOutcome | null, message: string) => void;
   readonly onAnnounce: (message: string) => void;
+  /** The accepted candidate; the generator queues its HQ render and analysis (07 §6). */
+  readonly onAccept?: (candidateId: string) => void;
+  /** A discarded candidate group; the generator cancels the job (05 §4.4). */
+  readonly onDiscard?: (group: string) => void;
   /** Injected in tests. */
   readonly setTimeout?: (callback: () => void, ms: number) => unknown;
 }
@@ -95,6 +111,8 @@ export interface Audition {
   readonly store: StoreApi<AuditionState>;
   /** Opens an AI candidate group. `false` when another group is open (07 §6: one at a time). */
   openCandidates(options: OpenCandidatesOptions): Promise<boolean>;
+  /** Shows the job's queue status while a streaming group has no candidate yet (09 §5). */
+  setQueue(status: CandidateStatus | null): void;
   /** Opens a comparison of two versions from the History panel (07 §7). */
   openCompare(a: string, b: string): Promise<boolean>;
   /** Switches the audible slot. `false` when that slot has nothing to play yet. */
@@ -193,6 +211,7 @@ export function createAudition(options: AuditionOptions): Audition {
 
   const announceReady = (group: AuditionGroup): void => {
     const ready = group.candidates.filter((candidate) => isPlayable(candidate.status)).length;
+    if (ready === 0) return;
     const selected = store.getState().selected;
     const playing = selected === 0 ? t("audition.original") : slotLabel(group, selected);
     options.onAnnounce(
@@ -201,6 +220,64 @@ export function createAudition(options: AuditionOptions): Audition {
         playing,
       }),
     );
+  };
+
+  /**
+   * Adds a candidate the group did not have when it opened: an extend job streams its partials in
+   * (09 §5), so the Audition bar fills while the user watches. Serialised, because two partials
+   * can arrive in one tick and both need a free slot.
+   */
+  let streaming: Promise<void> = Promise.resolve();
+  const addStreamed = (
+    candidateId: string,
+    status: CandidateStatus,
+    ticket: number,
+    source: CandidateSource,
+  ): void => {
+    streaming = streaming.then(async () => {
+      if (ticket !== generation) return;
+      const group = store.getState().group;
+      if (group === null || group.kind !== "candidates") return;
+      if (group.candidates.some((candidate) => candidate.id === candidateId)) return;
+      const slot = CANDIDATE_SLOTS.find(
+        (candidateSlot) => !group.candidates.some((candidate) => candidate.slot === candidateSlot),
+      );
+      if (slot === undefined) return;
+      const commit = options.history.store.getState().commits.get(candidateId);
+      if (commit === undefined) return;
+      const doc = await options.history.readSnapshot(candidateId);
+      if (ticket !== generation) return;
+      const live = store.getState().group;
+      if (live === null || live.candidates.some((candidate) => candidate.id === candidateId)) {
+        return;
+      }
+      const warning = source.warning?.(candidateId);
+      const candidate: AuditionCandidate = {
+        id: candidateId,
+        label: commit.label,
+        slot,
+        status,
+        ...(warning === undefined ? {} : { warning }),
+        doc,
+      };
+      store.setState({
+        group: {
+          ...live,
+          candidates: [...live.candidates, candidate].sort((a, b) => a.slot - b.slot),
+        },
+      });
+      if (isPlayable(status)) {
+        await warm(candidate, ticket);
+        if (ticket !== generation) return;
+        // The first idea that can play starts playing (07 §6), also when it arrives after the bar
+        // opened for a streaming job.
+        if (store.getState().selected === 0 && store.getState().warm.includes(slot)) {
+          audition.select(slot);
+        }
+        const current = store.getState().group;
+        if (current !== null && ticket === generation) announceReady(current);
+      }
+    });
   };
 
   const begin = async (group: AuditionGroup): Promise<boolean> => {
@@ -244,17 +321,31 @@ export function createAudition(options: AuditionOptions): Audition {
 
   const audition: Audition = {
     store,
+    setQueue(status) {
+      const group = store.getState().group;
+      if (group === null || group.kind !== "candidates") return;
+      if (status === null) {
+        const { queue: _drop, ...rest } = group;
+        store.setState({ group: rest });
+        return;
+      }
+      store.setState({ group: { ...group, queue: status } });
+    },
     async openCandidates(open) {
       if (store.getState().group !== null) return false;
       const commits = [...options.history.store.getState().commits.values()]
         .filter((commit) => commit.state === "candidate" && commit.candidateGroup === open.group)
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
         .slice(0, CANDIDATE_SLOTS.length);
-      if (commits.length === 0) return false;
+      if (commits.length === 0 && open.allowEmpty !== true) return false;
       const docs = await Promise.all(
         commits.map((commit) => options.history.readSnapshot(commit.id)),
       );
       const status = open.initialStatus ?? { kind: "hq" };
+      const warningFor = (candidateId: string): { warning?: string } => {
+        const warning = options.source?.warning?.(candidateId);
+        return warning === undefined ? {} : { warning };
+      };
       const group: AuditionGroup = {
         id: open.group,
         kind: "candidates",
@@ -264,6 +355,7 @@ export function createAudition(options: AuditionOptions): Audition {
           label: commit.label,
           slot: CANDIDATE_SLOTS[index] ?? 3,
           status,
+          ...warningFor(commit.id),
           doc: docs[index] ?? null,
         })),
       };
@@ -276,13 +368,21 @@ export function createAudition(options: AuditionOptions): Audition {
         });
       }
       if (options.source !== undefined) {
+        const source = options.source;
         const ticket = generation + 1;
-        unsubscribe = options.source.subscribe(open.group, (candidateId, event) => {
+        unsubscribe = source.subscribe(open.group, (candidateId, event) => {
           if (ticket !== generation) return;
           const before = store.getState().group?.candidates.find((c) => c.id === candidateId);
-          if (before === undefined) return;
+          if (before === undefined) {
+            addStreamed(candidateId, statusFromJobEvent(event), ticket, source);
+            return;
+          }
           const next = statusFromJobEvent(event);
-          setCandidate(candidateId, { status: next });
+          const warning = warningFor(candidateId);
+          setCandidate(candidateId, {
+            status: next,
+            ...(warning.warning === undefined ? {} : { warning: warning.warning }),
+          });
           const after = store.getState().group?.candidates.find((c) => c.id === candidateId);
           // New audio (the first preview, or the HQ render replacing it) is warmed again.
           if (after !== undefined && isPlayable(next) && next.kind !== before.status.kind) {
@@ -341,6 +441,7 @@ export function createAudition(options: AuditionOptions): Audition {
       // The new HEAD reaches the engine through the workspace; installing it while a candidate
       // is audible crossfades to it (03 §5.4), so playback continues without a gap.
       options.onOutcome(outcome, message);
+      if (outcome?.ok === true) options.onAccept?.(candidate.id);
       close(outcome === null || !outcome.ok);
       return outcome?.ok === true;
     },
@@ -350,6 +451,7 @@ export function createAudition(options: AuditionOptions): Audition {
       if (group.kind === "candidates") {
         store.setState({ busy: true });
         await options.history.discardGroup(group.id);
+        options.onDiscard?.(group.id);
       }
       close(true);
       options.onAnnounce(

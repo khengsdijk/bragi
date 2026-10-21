@@ -69,6 +69,8 @@ export interface SongActionsOptions {
   readonly historyOpen: boolean;
   readonly onToggleHistory: () => void;
   readonly onAnnounce: (message: string) => void;
+  /** Opens the extend popover; absent when this canvas has no generation host (09 §4.2). */
+  readonly onOpenExtend?: (direction: "forward" | "backward") => void;
 }
 
 export interface SongActions {
@@ -449,6 +451,7 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       setLocked,
       loopSection,
       openResize,
+      openExtend: (direction: "forward" | "backward") => options.onOpenExtend?.(direction),
       openBrush,
       splitAtPlayhead,
       undo,
@@ -467,6 +470,7 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       openKind,
       openRename,
       openResize,
+      options.onOpenExtend,
       options.onToggleHistory,
       redo,
       removeSection,

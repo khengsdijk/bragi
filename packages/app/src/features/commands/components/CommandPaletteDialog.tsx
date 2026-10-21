@@ -13,6 +13,7 @@ import type { Command, CommandContext, CommandGroup } from "../state/commands.js
 
 const GROUP_KEYS: Readonly<Record<CommandGroup, MessageKey>> = {
   section: "commands.group.section",
+  generation: "commands.group.generation",
   edit: "commands.group.edit",
   view: "commands.group.view",
   playback: "commands.group.playback",
