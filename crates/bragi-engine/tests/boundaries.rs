@@ -13,10 +13,10 @@ use std::sync::Arc;
 use bragi_engine::engine::Engine;
 use bragi_engine::offline::null_level_dbfs;
 use bragi_engine::pcm::{PcmBuffer, PcmSource};
-use bragi_engine::plan::{PlanOptions, RenderPlan, compile, compile_with_options};
+use bragi_engine::plan::{PlanOptions, RenderPlan, compile, compile_with_options, overlay_gain};
 use bragi_engine::render::Renderer;
 use bragi_model::diff;
-use bragi_model::generated::Project;
+use bragi_model::generated::{AssetHash, Project};
 use common::*;
 use serde_json::{Value, json};
 
@@ -604,4 +604,265 @@ fn render_from(
         rendered += count;
     }
     out
+}
+
+// --- generated transition overlays (WP-2.8, 03 §5.5) -----------------------------------------
+
+/// A section with an explicit transition, including the asset for `generated`.
+fn section_with_asset(
+    id: &str,
+    length_ticks: u64,
+    lanes: Value,
+    transition: Value,
+    asset: Option<&AssetHash>,
+) -> Value {
+    let mut transition = transition;
+    if let Some(asset) = asset {
+        transition["asset"] = json!(asset);
+    }
+    json!({
+        "id": id, "kind": "custom", "label": id, "lengthTicks": length_ticks,
+        "lanes": lanes, "transitionIn": transition
+    })
+}
+
+/// The transition fixture's sections are two beats long, so a one-beat transition is not clamped
+/// to half of a section (03 §5.5).
+const TRANSITION_SECTION_TICKS: u64 = 2 * BEAT_TICKS;
+
+/// One beat of generated bridging audio.
+fn transition_asset() -> AssetHash {
+    hash('7')
+}
+
+/// Two one-beat sections of the reordered sine with `transition` on the second one.
+fn transition_song(transition: Value, asset: Option<&AssetHash>) -> Project {
+    let h = hash('b');
+    let offsets = [654u64, 25_090];
+    let mut sections = Vec::new();
+    for (index, offset) in offsets.into_iter().enumerate() {
+        let clip = clip_none(
+            &format!("clp_{index}"),
+            &h,
+            offset,
+            offset + SECTION_SAMPLES,
+            0,
+        );
+        let lanes = json!({ "trk_01": lane(vec![clip]) });
+        if index == 1 {
+            sections.push(section_with_asset(
+                "sec_b",
+                TRANSITION_SECTION_TICKS,
+                lanes,
+                transition.clone(),
+                asset,
+            ));
+        } else {
+            sections.push(section("sec_a", TRANSITION_SECTION_TICKS, lanes));
+        }
+    }
+    project(vec![track("trk_01")], sections)
+}
+
+fn transition_pcm() -> bragi_engine::pcm::MemoryPcm {
+    let mut pcm = pcm(&hash('b'), tone(SINE_FRAMES as usize, 55.0, 0.5));
+    pcm.insert(transition_asset(), tone(BEAT_SAMPLES as usize, 220.0, 0.25));
+    pcm
+}
+
+fn transition_assets() -> bragi_model::AssetIndex {
+    bragi_model::AssetIndex::from_metas([
+        meta(&hash('b'), SINE_FRAMES),
+        meta(&transition_asset(), BEAT_SAMPLES),
+    ])
+}
+
+fn generated_transition(asset: Option<&AssetHash>) -> Value {
+    let mut transition = json!({ "kind": "generated", "lengthTicks": BEAT_TICKS });
+    if let Some(asset) = asset {
+        transition["asset"] = json!(asset);
+    }
+    transition
+}
+
+#[test]
+fn a_generated_transition_is_an_overlay_centred_on_the_boundary() {
+    let asset = transition_asset();
+    let doc = transition_song(generated_transition(Some(&asset)), Some(&asset));
+    let plan = compile(&doc, &transition_assets(), 48_000, 1).unwrap();
+    let boundary = plan.sections[1].start;
+    let half = BEAT_SAMPLES / 2;
+    assert_eq!(plan.overlays.len(), 1, "one generated transition");
+    let overlay = &plan.overlays[0];
+    assert_eq!(overlay.section, 1);
+    assert_eq!(overlay.dst_start, boundary - half);
+    assert_eq!(overlay.dst_end, boundary + half);
+    assert_eq!(overlay.clip_start, overlay.dst_start);
+    assert_eq!(overlay.clip_end, overlay.dst_end);
+    assert_eq!(overlay.fade_in.len_samples, BEAT_SAMPLES / 4);
+    assert_eq!(overlay.fade_out.len_samples, BEAT_SAMPLES / 4);
+    assert_eq!(overlay.src_start, 0);
+    assert_eq!(overlay.src_end, BEAT_SAMPLES);
+    // The overlay envelope: zero at the edges, unity in the middle half.
+    assert_eq!(overlay_gain(boundary, BEAT_SAMPLES, boundary - half), 0.0);
+    assert_eq!(overlay_gain(boundary, BEAT_SAMPLES, boundary), 1.0);
+    assert!(
+        (overlay_gain(boundary, BEAT_SAMPLES, overlay.dst_start + BEAT_SAMPLES / 8)
+            - std::f32::consts::FRAC_1_SQRT_2)
+            .abs()
+            < 1e-5
+    );
+    assert_eq!(overlay_gain(boundary, BEAT_SAMPLES, boundary + half), 0.0);
+
+    let pcm = transition_pcm();
+    let with_overlay = render_plan(&plan, &pcm, plan.length_samples as usize, 512);
+    // The baseline is the same generated transition without its asset: the same crossfade
+    // underneath, no overlay, so the difference is the overlay alone.
+    let placeholder = transition_song(generated_transition(None), None);
+    let without = compile(&placeholder, &transition_assets(), 48_000, 1).unwrap();
+    let without_overlay = render_plan(&without, &pcm, without.length_samples as usize, 512);
+
+    // The two renders differ exactly inside the overlay window and nowhere else.
+    let mut inside = 0.0_f64;
+    let mut outside = 0.0_f64;
+    for frame in 0..plan.length_samples as usize {
+        let diff = (with_overlay[frame * 2] - without_overlay[frame * 2]).abs();
+        if (frame as u64) >= overlay.dst_start && (frame as u64) < overlay.dst_end {
+            inside += f64::from(diff);
+        } else {
+            outside = outside.max(f64::from(diff));
+        }
+    }
+    assert!(inside > 0.0, "the overlay is audible");
+    assert_eq!(
+        outside, 0.0,
+        "nothing outside the transition window changes"
+    );
+
+    // Measured level where the two renders differ (M2 Pro / MPS, not the reference GPU: this is
+    // arithmetic on 48 kHz samples, not a model run).
+    let rms = |samples: &[f32]| {
+        let from = overlay.dst_start as usize;
+        let to = overlay.dst_end as usize;
+        let mut sum = 0.0_f64;
+        for frame in from..to {
+            sum += f64::from(samples[frame * 2]) * f64::from(samples[frame * 2]);
+        }
+        (sum / (to - from) as f64).sqrt() as f32
+    };
+    let mut difference = 0.0_f64;
+    for frame in overlay.dst_start as usize..overlay.dst_end as usize {
+        let diff = f64::from(with_overlay[frame * 2] - without_overlay[frame * 2]);
+        difference += diff * diff;
+    }
+    let difference = (difference / (overlay.dst_end - overlay.dst_start) as f64).sqrt() as f32;
+    println!(
+        "overlay window: with {:.2} dBFS, placeholder crossfade {:.2} dBFS, overlay alone {:.2} dBFS",
+        dbfs(rms(&with_overlay)),
+        dbfs(rms(&without_overlay)),
+        dbfs(difference)
+    );
+
+    // Centred: the energy before and after the boundary is the same.
+    let split = (boundary - overlay.dst_start) as usize;
+    let before: f64 = (0..split)
+        .map(|frame| f64::from((with_overlay[frame * 2] - without_overlay[frame * 2]).abs()))
+        .sum();
+    let after: f64 = (split..(overlay.dst_end - overlay.dst_start) as usize)
+        .map(|frame| f64::from((with_overlay[frame * 2] - without_overlay[frame * 2]).abs()))
+        .sum();
+    assert!(
+        (before - after).abs() < 1e-3,
+        "before {before}, after {after}"
+    );
+}
+
+#[test]
+fn the_overlay_adds_no_step_at_its_edges() {
+    let asset = transition_asset();
+    let doc = transition_song(generated_transition(Some(&asset)), Some(&asset));
+    let plan = compile(&doc, &transition_assets(), 48_000, 1).unwrap();
+    let overlay = &plan.overlays[0];
+    let out = render_plan(&plan, &transition_pcm(), plan.length_samples as usize, 512);
+    let frames = plan.length_samples as usize;
+
+    let edges = |frame: usize| {
+        (frame as u64) >= overlay.dst_start.saturating_sub(1)
+            && (frame as u64) <= overlay.dst_start + 1
+            || (frame as u64) >= overlay.dst_end.saturating_sub(1)
+                && (frame as u64) <= overlay.dst_end + 1
+    };
+    let at_edges = max_step(&out, (1..frames).filter(|frame| edges(*frame)));
+    let elsewhere = max_step(&out, (1..frames).filter(|frame| !edges(*frame)));
+    println!(
+        "overlay edge step: {:.2} dBFS (elsewhere {:.2})",
+        dbfs(at_edges),
+        dbfs(elsewhere)
+    );
+    assert!(
+        at_edges <= elsewhere + 0.01,
+        "overlay edge step {} > {} + 0.01",
+        dbfs(at_edges),
+        dbfs(elsewhere)
+    );
+}
+
+#[test]
+fn a_generated_transition_asset_missing_from_the_index_keeps_the_placeholder() {
+    let asset = hash('9');
+    let doc = transition_song(generated_transition(Some(&asset)), Some(&asset));
+    let plan = compile(&doc, &transition_assets(), 48_000, 1).unwrap();
+    assert!(plan.overlays.is_empty(), "nothing to render");
+    assert!(
+        plan.warnings
+            .iter()
+            .any(|warning| warning.contains("not in the index")),
+        "the planner says why: {:?}",
+        plan.warnings
+    );
+    // The crossfade underneath is still planned, so the join does not click.
+    let segment = plan.tracks[0]
+        .segments
+        .iter()
+        .find(|segment| segment.dst_start == plan.sections[1].start)
+        .unwrap();
+    assert!(segment.boundary_in.is_some());
+}
+
+#[test]
+fn a_context_render_includes_the_transition_overlay() {
+    use bragi_engine::export::{StemSelection, export_context};
+    use bragi_model::generated::TickRange;
+
+    let asset = transition_asset();
+    let doc = transition_song(generated_transition(Some(&asset)), Some(&asset));
+    let plan = compile(&doc, &transition_assets(), 48_000, 1).unwrap();
+    let boundary = plan.sections[1].start;
+    let range = TickRange {
+        start_tick: 0,
+        end_tick: (2 * TRANSITION_SECTION_TICKS) as i64,
+    };
+    let pcm = transition_pcm();
+    let with_overlay = export_context(&plan, &pcm, &range, &StemSelection::All).unwrap();
+
+    let placeholder = transition_song(generated_transition(None), None);
+    let without = compile(&placeholder, &transition_assets(), 48_000, 1).unwrap();
+    let plain = export_context(&without, &pcm, &range, &StemSelection::All).unwrap();
+
+    assert_eq!(with_overlay.frames, plain.frames);
+    assert_ne!(with_overlay.bytes, plain.bytes);
+    let first_difference = with_overlay
+        .bytes
+        .iter()
+        .zip(plain.bytes.iter())
+        .position(|(a, b)| a != b)
+        .expect("the overlay is in the file");
+    assert!(first_difference > 44, "the WAV header is unchanged");
+    let overlay = &plan.overlays[0];
+    let start_byte = 44 + overlay.dst_start as usize * 8;
+    assert!(
+        first_difference >= start_byte,
+        "the file changes only from the overlay window on"
+    );
+    let _ = boundary;
 }

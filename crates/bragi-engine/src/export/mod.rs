@@ -344,8 +344,9 @@ pub fn export_mixdown<P: PcmSource + ?Sized>(
 }
 
 /// A plan that renders only `track`: its mute and solo are cleared (a stem is
-/// the track as written, not as auditioned), the master gain is kept, and the
-/// safety limiter is bypassed so stems stay linear.
+/// the track as written, not as auditioned), the master gain is kept, the safety
+/// limiter is bypassed so stems stay linear, and a generated transition overlay
+/// is left out (it bridges the master bus, not a track; 03 §5.5, §9).
 #[must_use]
 pub fn stem_plan(plan: &RenderPlan, track: &TrackPlan) -> RenderPlan {
     let mut stem = plan.clone();
@@ -354,6 +355,7 @@ pub fn stem_plan(plan: &RenderPlan, track: &TrackPlan) -> RenderPlan {
     only.solo = false;
     stem.tracks = vec![only];
     stem.master.ceiling = 1.0e6;
+    stem.overlays.clear();
     stem
 }
 

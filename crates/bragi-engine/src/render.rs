@@ -81,6 +81,8 @@ pub struct PreparedPlan {
     pub plan: Arc<RenderPlan>,
     /// One runtime per segment, flattened in plan track/segment order.
     pub runtimes: Vec<SegmentRuntime>,
+    /// One runtime per generated transition overlay (`plan.overlays`, 03 §5.5).
+    pub overlay_runtimes: Vec<SegmentRuntime>,
     /// Prefix offsets into `runtimes`, one entry per track plus the end.
     offsets: Vec<usize>,
     /// Live effect chains, parallel to `plan.tracks[i].fx`.
@@ -293,9 +295,15 @@ impl PreparedPlan {
             .map(|_| DelayLine::new(MAX_COMPENSATION_FRAMES))
             .collect();
         let master_latency = live_chain_latency(&plan.master.fx, &master_fx);
+        let overlay_runtimes = plan
+            .overlays
+            .iter()
+            .map(|overlay| runtime_for(overlay, quality, plan.sample_rate))
+            .collect();
         Self {
             plan,
             runtimes,
+            overlay_runtimes,
             offsets,
             fx,
             master_fx,
@@ -474,6 +482,13 @@ impl PreparedPlan {
                 stretcher.reset();
             }
         }
+        for runtime in &mut self.overlay_runtimes {
+            runtime.primed = false;
+            runtime.next_offset = 0;
+            if let Some(stretcher) = runtime.stretcher.as_mut() {
+                stretcher.reset();
+            }
+        }
         for chain in &mut self.fx {
             for runtime in chain {
                 if let Some(effect) = runtime.effect.as_mut() {
@@ -620,6 +635,7 @@ impl PreparedSlot {
             let mut ctx = MixContext {
                 plan: &self.prepared.plan,
                 runtimes: &mut self.prepared.runtimes,
+                overlay_runtimes: &mut self.prepared.overlay_runtimes,
                 offsets: &self.prepared.offsets,
                 fx: &mut self.prepared.fx,
                 delays: &mut self.prepared.delays,
@@ -1635,6 +1651,7 @@ fn copy_out(out: &mut [&mut [f32]], offset: usize, block: &[f32], frames: usize)
 struct MixContext<'a> {
     plan: &'a RenderPlan,
     runtimes: &'a mut Vec<SegmentRuntime>,
+    overlay_runtimes: &'a mut Vec<SegmentRuntime>,
     offsets: &'a [usize],
     fx: &'a mut [Vec<FxRuntime>],
     delays: &'a mut [DelayLine],
@@ -1745,6 +1762,40 @@ impl MixContext<'_> {
             }
             self.meters
                 .update_track(track_index, peak, (sum_sq / (frames as f32 * 2.0)).sqrt());
+        }
+
+        // Generated transition overlays (`specs/03-audio-engine.md` §5.5): mixed into the master
+        // bus after the tracks and before the master chain. They belong to no track, so they are
+        // not metered, not soloed and not part of a stem export.
+        if !self.plan.overlays.is_empty() {
+            for sample in self.scratch.track[..frames * 2].iter_mut() {
+                *sample = 0.0;
+            }
+            for (overlay, state) in self
+                .plan
+                .overlays
+                .iter()
+                .zip(self.overlay_runtimes.iter_mut())
+            {
+                if let Some((offset, len)) = overlay.overlap(start, frames) {
+                    render_segment(
+                        self.scratch,
+                        self.pcm,
+                        self.stats,
+                        overlay,
+                        state,
+                        start,
+                        offset,
+                        len,
+                    );
+                }
+            }
+            for (dst, added) in dst[..frames * 2]
+                .iter_mut()
+                .zip(self.scratch.track[..frames * 2].iter())
+            {
+                *dst += *added;
+            }
         }
     }
 }

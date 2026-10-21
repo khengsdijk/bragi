@@ -29,9 +29,9 @@ use bragi_dsp::stretch::Quality;
 use bragi_model::EngineDelta;
 use bragi_model::generated::{
     AssetHash, AutomationCurve, Clip, ClipId, FxId, FxInstance, Project, TempoCurve, TempoPoint,
-    Track, TrackId, TransitionKind, Warp,
+    Track, TrackId, Transition, TransitionKind, Warp,
 };
-use bragi_model::{AssetIndex, TempoCtx, clip_end_local, section_spans};
+use bragi_model::{AssetIndex, TempoCtx, clip_end_local, derived_id, section_spans};
 
 use crate::error::PlanError;
 use crate::fade::{Fade, FadeShape, curve_gain};
@@ -91,6 +91,10 @@ pub struct RenderPlan {
     pub tempo_points: Vec<TempoPoint>,
     /// Pulses per quarter note for [`RenderPlan::tempo_points`].
     pub ppq: i64,
+    /// Generated transition overlays (`specs/03-audio-engine.md` §5.5), in section
+    /// order. They belong to no track: the renderer mixes them into the master bus
+    /// before the master chain, so they sound even when no track crosses the join.
+    pub overlays: Vec<Segment>,
 }
 
 /// A section's absolute extent in output samples.
@@ -508,6 +512,7 @@ impl RenderPlan {
         self.tracks
             .iter()
             .flat_map(|track| &track.segments)
+            .chain(self.overlays.iter())
             .map(|segment| {
                 let map_slope = segment
                     .src_map
@@ -777,6 +782,15 @@ fn compile_with(
         ceiling: 10.0_f32.powf(-0.3 / 20.0),
         fx: master_fx,
     };
+    let overlays = compile_overlays(
+        doc,
+        assets,
+        &tempo,
+        &spans,
+        &sections,
+        sample_rate,
+        &mut warnings,
+    );
 
     // Plugin delay compensation: the slowest track sets the alignment point.
     // The renderer clamps each per-track delay to `MAX_COMPENSATION_FRAMES`;
@@ -806,6 +820,7 @@ fn compile_with(
         warnings,
         tempo_points: doc.arrangement.timebase.tempo_map.0.clone(),
         ppq: *doc.arrangement.timebase.ppq,
+        overlays,
     })
 }
 
@@ -933,19 +948,13 @@ fn apply_section_boundaries(
         }
 
         let transition = &section.transition_in;
-        let mut len_samples = match transition.kind {
-            TransitionKind::Cut => (BOUNDARY_FADE_MS * sample_rate as f32 / 1000.0).round() as u64,
-            TransitionKind::Crossfade => {
-                duration_samples(tempo, sample_rate, span.start_tick, transition.length_ticks)
-            }
-            TransitionKind::Generated => {
-                warnings.push(format!(
-                    "section {}: generated transitions are rendered as a crossfade until WP-2.7",
-                    section.id
-                ));
-                duration_samples(tempo, sample_rate, span.start_tick, transition.length_ticks)
-            }
-        };
+        if transition.kind == TransitionKind::Generated && transition.asset.is_none() {
+            warnings.push(format!(
+                "section {}: generated transition has no asset; rendering the crossfade placeholder",
+                section.id
+            ));
+        }
+        let mut len_samples = transition_len_samples(tempo, sample_rate, span, transition);
         // Never reach past half of either neighbouring section (03 §5.5).
         len_samples = len_samples
             .min((previous.end - previous.start) / 2)
@@ -972,6 +981,152 @@ fn apply_section_boundaries(
                 Some(BoundaryFade::new(boundary, len_samples, has_handle));
         }
     }
+}
+
+/// The boundary crossfade length a transition asks for, before the half-section clamp
+/// (`specs/03-audio-engine.md` §5.5).
+fn transition_len_samples(
+    tempo: &TempoCtx<'_>,
+    sample_rate: u32,
+    span: &bragi_model::SectionSpan,
+    transition: &Transition,
+) -> u64 {
+    match transition.kind {
+        TransitionKind::Cut => (BOUNDARY_FADE_MS * sample_rate as f32 / 1000.0).round() as u64,
+        TransitionKind::Crossfade | TransitionKind::Generated => {
+            duration_samples(tempo, sample_rate, span.start_tick, transition.length_ticks)
+        }
+    }
+}
+
+/// The gain of a generated transition overlay at absolute output sample `dst`
+/// (`specs/03-audio-engine.md` §5.5).
+///
+/// Zero outside `[center − L/2, center + L/2]`, an equal-power ramp over the first and last
+/// quarter, and unity over the middle half — the same envelope the overlay segment's own fades
+/// produce. Exposed so the tests and the spec's law can be checked sample by sample.
+///
+/// # Examples
+///
+/// ```
+/// use bragi_engine::plan::overlay_gain;
+/// assert_eq!(overlay_gain(1_000, 400, 800), 0.0);
+/// assert_eq!(overlay_gain(1_000, 400, 1_000), 1.0);
+/// assert!((overlay_gain(1_000, 400, 850) - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-6);
+/// ```
+#[must_use]
+pub fn overlay_gain(center: u64, len_samples: u64, dst: u64) -> f32 {
+    let half = len_samples / 2;
+    let span = 2 * half;
+    if span == 0 {
+        return 0.0;
+    }
+    let start = center.saturating_sub(half);
+    if dst < start || dst >= start.saturating_add(span) {
+        return 0.0;
+    }
+    let x = (dst - start) as f32 / span as f32;
+    let quarter = 0.25;
+    if x < quarter {
+        curve_gain(FadeShape::EqualPower, x / quarter)
+    } else if x > 1.0 - quarter {
+        curve_gain(FadeShape::EqualPower, (1.0 - x) / quarter)
+    } else {
+        1.0
+    }
+}
+
+/// Compiles the generated transition overlays of `specs/03-audio-engine.md` §5.5.
+///
+/// A section whose `transitionIn` is `generated` with an asset plays that asset centred on its
+/// boundary for the transition's length, over the normal boundary crossfade. The asset is fitted
+/// to the window linearly, so its first and last quarter fade away exactly as the crossfade under
+/// it runs; a tempo drift between the candidate and the grid (09 §6 conforms it to ≤ 4 %) shows up
+/// as a sub-percent ratio. A generated transition without an asset, or whose asset is not in the
+/// index, keeps the crossfade placeholder and warns.
+fn compile_overlays(
+    doc: &Project,
+    assets: &AssetIndex,
+    tempo: &TempoCtx<'_>,
+    spans: &[bragi_model::SectionSpan],
+    sections: &[SectionSpanSamples],
+    sample_rate: u32,
+    warnings: &mut Vec<String>,
+) -> Vec<Segment> {
+    let mut overlays = Vec::new();
+    for index in 1..sections.len() {
+        let Some((section, span)) = doc.arrangement.sections.get(index).zip(spans.get(index))
+        else {
+            continue;
+        };
+        let transition = &section.transition_in;
+        if transition.kind != TransitionKind::Generated {
+            continue;
+        }
+        let Some(asset) = &transition.asset else {
+            continue;
+        };
+        let Some(meta) = assets.get(asset) else {
+            warnings.push(format!(
+                "section {}: transition asset {} is not in the index",
+                section.id, asset
+            ));
+            continue;
+        };
+        // Never reach past half of either neighbouring section, like the crossfade (03 §5.5).
+        let previous = &sections[index - 1];
+        let current = &sections[index];
+        let len_samples = transition_len_samples(tempo, sample_rate, span, transition)
+            .min((previous.end - previous.start) / 2)
+            .min((current.end - current.start) / 2);
+        let half = len_samples / 2;
+        let span_samples = 2 * half;
+        if span_samples == 0 || meta.duration_samples == 0 {
+            continue;
+        }
+        let center = current.start;
+        let dst_start = center.saturating_sub(half);
+        let dst_end = dst_start.saturating_add(span_samples);
+        let quarter = (span_samples / 4).max(1);
+        let shape = FadeShape::EqualPower;
+        let Some(clip_id) = derived_id("clp_", section.id.as_str(), "transition")
+            .parse::<ClipId>()
+            .ok()
+        else {
+            warnings.push(format!(
+                "section {}: cannot derive the transition clip id",
+                section.id
+            ));
+            continue;
+        };
+        let src_rate = u32::try_from(meta.sample_rate.get()).unwrap_or(SAMPLE_RATE);
+        overlays.push(Segment {
+            clip_id,
+            asset: asset.clone(),
+            dst_start,
+            dst_end,
+            clip_start: dst_start,
+            clip_end: dst_end,
+            section: index,
+            src_start: 0,
+            src_end: meta.duration_samples,
+            src_map: SrcMap::linear(span_samples, 0, meta.duration_samples),
+            ratio: segment_ratio(span_samples, meta.duration_samples, src_rate, sample_rate),
+            pitch_semitones: 0.0,
+            gain: 1.0,
+            fade_in: Fade::new(quarter, shape),
+            fade_out: Fade::new(quarter, shape),
+            reverse: false,
+            channels: u16::try_from(meta.channels.get()).unwrap_or(2).clamp(1, 2),
+            src_rate,
+            asset_frames: meta.duration_samples,
+            pre_roll: 0,
+            post_roll: 0,
+            boundary_in: None,
+            boundary_out: None,
+        });
+    }
+    overlays
 }
 
 /// Whether two segments are the same material at a boundary: same asset and a
