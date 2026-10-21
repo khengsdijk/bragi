@@ -58,6 +58,16 @@
       "description": "The file is damaged or is not audio at all; ingest failed with a user-facing reason (04 §10)."
     },
     {
+      "code": "INSUFFICIENT_CREDITS",
+      "http": 402,
+      "description": "The user's credit balance cannot pay for this job (05 §9, 09 §5)."
+    },
+    {
+      "code": "GENERATION_BUSY",
+      "http": 503,
+      "description": "The daily GPU-seconds budget is spent, so an interactive generation cannot start now; the client offers a retry (05 §9, 09 §5)."
+    },
+    {
       "code": "JOB_NOT_FOUND",
       "http": 404,
       "description": "GET/DELETE /jobs/{id} for an unknown job (05 §2)."

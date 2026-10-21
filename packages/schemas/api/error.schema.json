@@ -38,6 +38,8 @@
         "UNSUPPORTED_MEDIA_TYPE",
         "ASSET_TOO_LONG",
         "ASSET_CORRUPT",
+        "INSUFFICIENT_CREDITS",
+        "GENERATION_BUSY",
         "JOB_NOT_FOUND",
         "JOB_CANCELLED",
         "MODEL_ERROR",

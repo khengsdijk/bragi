@@ -13,6 +13,9 @@
     "build": "tsc -b",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@bragi/schemas": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "catalog:",
     "vite": "catalog:",

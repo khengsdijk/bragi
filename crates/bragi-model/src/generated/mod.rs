@@ -3585,6 +3585,10 @@ pub enum ErrorCode {
     AssetTooLong,
     #[serde(rename = "ASSET_CORRUPT")]
     AssetCorrupt,
+    #[serde(rename = "INSUFFICIENT_CREDITS")]
+    InsufficientCredits,
+    #[serde(rename = "GENERATION_BUSY")]
+    GenerationBusy,
     #[serde(rename = "JOB_NOT_FOUND")]
     JobNotFound,
     #[serde(rename = "JOB_CANCELLED")]
@@ -3614,6 +3618,8 @@ impl ::std::fmt::Display for ErrorCode {
             Self::UnsupportedMediaType => f.write_str("UNSUPPORTED_MEDIA_TYPE"),
             Self::AssetTooLong => f.write_str("ASSET_TOO_LONG"),
             Self::AssetCorrupt => f.write_str("ASSET_CORRUPT"),
+            Self::InsufficientCredits => f.write_str("INSUFFICIENT_CREDITS"),
+            Self::GenerationBusy => f.write_str("GENERATION_BUSY"),
             Self::JobNotFound => f.write_str("JOB_NOT_FOUND"),
             Self::JobCancelled => f.write_str("JOB_CANCELLED"),
             Self::ModelError => f.write_str("MODEL_ERROR"),
@@ -3639,6 +3645,8 @@ impl ::std::str::FromStr for ErrorCode {
             "UNSUPPORTED_MEDIA_TYPE" => Ok(Self::UnsupportedMediaType),
             "ASSET_TOO_LONG" => Ok(Self::AssetTooLong),
             "ASSET_CORRUPT" => Ok(Self::AssetCorrupt),
+            "INSUFFICIENT_CREDITS" => Ok(Self::InsufficientCredits),
+            "GENERATION_BUSY" => Ok(Self::GenerationBusy),
             "JOB_NOT_FOUND" => Ok(Self::JobNotFound),
             "JOB_CANCELLED" => Ok(Self::JobCancelled),
             "MODEL_ERROR" => Ok(Self::ModelError),
