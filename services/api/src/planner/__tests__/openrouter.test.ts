@@ -110,15 +110,18 @@ describe("OpenRouterClient request shape", () => {
     expect(body.tool_choice.function.name).toBe("propose_edit_plan");
     expect(body.messages).toEqual(MESSAGES);
 
-    // The tool schema is the generated EditPlan minus the server-owned fields (06 §4).
+    // The tool schema is the generated EditPlan envelope with a loose ops step (06 §4, §5): ops
+    // are validated op by op on the server, so sending all 30 op schemas only costs tokens.
     const parameters = body.tools[0]?.function.parameters as {
       properties: Record<string, unknown>;
       required: string[];
       $defs: Record<string, unknown>;
     };
-    expect(parameters.$defs.Op).toBeDefined();
+    expect(parameters.$defs.Op).toBeUndefined();
     expect(parameters.properties.planId).toBeUndefined();
+    expect(parameters.properties.variants).toBeDefined();
     expect(parameters.required).toEqual(["interpretation", "variants"]);
+    expect(JSON.stringify(parameters).length).toBeLessThan(6000);
   });
 
   it("relaxes the data policy only when asked", async () => {
