@@ -173,6 +173,10 @@ async function main() {
     API_HOST: process.env.API_HOST ?? "127.0.0.1",
     // biome-ignore lint/suspicious/noUndeclaredEnvVars: a dev launcher, not a cached turbo task
     BRAGI_AUTH_MODE: process.env.BRAGI_AUTH_MODE ?? "single-user",
+    // This launcher starts the generation worker below, so the API may answer the
+    // warm-up ping `warming`/`warm` instead of `disabled` (09 §5).
+    // biome-ignore lint/suspicious/noUndeclaredEnvVars: a dev launcher, not a cached turbo task
+    BRAGI_GENERATE_WORKERS: process.env.BRAGI_GENERATE_WORKERS ?? "1",
   };
   const children = [
     run("orchestrator", "node", ["dist/orchestrator.js"], { cwd: API_DIR, env: apiEnv }),

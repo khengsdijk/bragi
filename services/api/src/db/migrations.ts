@@ -221,4 +221,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS embeddings_identity_idx
   ON embeddings (asset_hash, scope, coalesce(scope_ref, ''), model);
 `,
   },
+  {
+    // WP-2.7 charges generation jobs (09 §2, 05 §9). `001_init` only had the
+    // amount and a free-text reason; the allowance is summed by user and day, and
+    // the ledger has to say which capability and tier the credits bought.
+    id: "003_usage_ledger_cost",
+    sql: `
+ALTER TABLE usage_ledger ADD COLUMN IF NOT EXISTS capability text;
+ALTER TABLE usage_ledger ADD COLUMN IF NOT EXISTS tier text;
+
+CREATE INDEX IF NOT EXISTS usage_ledger_user_created_idx
+  ON usage_ledger (user_id, created_at DESC);
+`,
+  },
 ];

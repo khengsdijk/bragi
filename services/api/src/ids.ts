@@ -23,6 +23,11 @@ export function newPlanId(): string {
   return `pln_${ulid()}`;
 }
 
+/** A `usage_ledger` id, `led_` + ULID. */
+export function newLedgerId(): string {
+  return `led_${ulid()}`;
+}
+
 /** A local user id, `usr_` + ULID (Better Auth stores whatever string it is given). */
 export function newUserId(): string {
   return `usr_${ulid()}`;

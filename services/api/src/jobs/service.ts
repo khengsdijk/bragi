@@ -9,7 +9,7 @@ import { SpanKind } from "@opentelemetry/api";
 import type { NatsConnection } from "nats";
 import type { Pool } from "pg";
 
-import { hashBytes, newJobId } from "../ids.js";
+import { hashBytes, newJobId, newLedgerId } from "../ids.js";
 import { getTracer, spanContextToTraceparent } from "../telemetry.js";
 import { publishJobRequest } from "./publisher.js";
 
@@ -31,11 +31,34 @@ export interface DirectJobInput {
   context?: Record<string, unknown>;
   attempt?: number;
   deadlineSec?: number;
+  /**
+   * Makes the result cache key unique. A warm-up must really run every time: its
+   * inputs never change, so without a salt the worker would replay the old
+   * `completed` from `job_results` and never load the model (05 §4.3).
+   */
+  cacheKeySalt?: string;
 }
+
+/** One `usage_ledger` row for a submitted job (05 §5, §9). */
+export interface LedgerEntry {
+  readonly credits: number;
+  readonly capability: string;
+  readonly tier?: string;
+  readonly reason?: string;
+}
+
+/** How a job is submitted: enqueued, or recorded but held back by the budget guard. */
+export interface SubmitOptions {
+  /** `false` records the job as `paused` and publishes nothing (05 §9). */
+  readonly enqueue?: boolean;
+  readonly ledger?: LedgerEntry;
+}
+
+export type JobStatus = "queued" | "paused";
 
 export interface SubmittedJob {
   job: JobRequest;
-  status: "queued";
+  status: JobStatus;
 }
 
 /** What job submission needs: the database and the bus. */
@@ -53,6 +76,7 @@ export function idempotencyKey(input: DirectJobInput): string {
     assets: sortRecord(input.assets),
     blobs: sortRecord(input.blobs ?? {}),
     params: sortRecord(input.params),
+    ...(input.cacheKeySalt === undefined ? {} : { salt: input.cacheKeySalt }),
   };
   return hashBytes(new TextEncoder().encode(JSON.stringify(payload)));
 }
@@ -66,11 +90,13 @@ export async function submitJob(
   deps: JobDeps,
   userId: string,
   input: DirectJobInput,
+  options: SubmitOptions = {},
 ): Promise<SubmittedJob> {
   const createdAt = new Date();
   const jobId = newJobId();
   const key = idempotencyKey(input);
   const deadline = new Date(createdAt.getTime() + (input.deadlineSec ?? 60 * 60) * 1000);
+  const status: JobStatus = options.enqueue === false ? "paused" : "queued";
 
   return getTracer().startActiveSpan(
     "jobs.publish",
@@ -105,21 +131,37 @@ export async function submitJob(
         };
         await deps.pool.query(
           `INSERT INTO jobs (id, user_id, project_id, capability, priority, status, params, idempotency_key, input_hash, traceparent)
-           VALUES ($1, $2, $3, $4, $5, 'queued', $6, $7, $8, $9)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
             jobId,
             userId,
             input.projectId ?? null,
             input.capability,
             input.priority,
+            status,
             JSON.stringify({ ...input.params, ...input.context }),
             key,
             JSON.stringify(input.assets),
             job.traceparent,
           ],
         );
-        await publishJobRequest(deps.nc, job);
-        return { job, status: "queued" as const };
+        if (options.ledger !== undefined) {
+          await deps.pool.query(
+            `INSERT INTO usage_ledger (id, user_id, job_id, credits, capability, tier, reason)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+              newLedgerId(),
+              userId,
+              jobId,
+              options.ledger.credits,
+              options.ledger.capability,
+              options.ledger.tier ?? null,
+              options.ledger.reason ?? null,
+            ],
+          );
+        }
+        if (status === "queued") await publishJobRequest(deps.nc, job);
+        return { job, status };
       } finally {
         span.end();
       }

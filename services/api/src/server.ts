@@ -8,11 +8,15 @@ import { assertSafeBinding, ensureOwner, type OwnerUser } from "./auth/single-us
 import { loadConfig } from "./config.js";
 import { runMigrations } from "./db/migrate.js";
 import { createPool } from "./db/pool.js";
+import { creditsConfig } from "./jobs/credits.js";
 import { connectNats, ensureStreams } from "./nats/client.js";
 import { createObjectStore } from "./s3/client.js";
 import { stopTelemetry } from "./telemetry.js";
 
 const config = loadConfig();
+// A missing or malformed credit table must fail the process, not charge 0 later
+// (05 §9). Parsing is cached for the submit path.
+creditsConfig(config.creditsConfig);
 const pool = createPool(config);
 await runMigrations(pool);
 
