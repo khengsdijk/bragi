@@ -106,6 +106,28 @@ async function harness(): Promise<Harness> {
   };
 }
 
+/** The candidate commits of the flow's group. */
+function candidateCommits(h: Harness) {
+  return [...h.song.history.store.getState().commits.values()].filter(
+    (commit) => commit.state === "candidate",
+  );
+}
+
+/** Emits a completion whose outputs list every candidate, as a result-cache hit does. */
+function emitCompleted(
+  h: Harness,
+  jobId: string,
+  candidates: readonly { readonly assetHash: string; readonly blobHash: string }[],
+): void {
+  const assets: Record<string, string> = {};
+  const blobs: Record<string, string> = {};
+  candidates.forEach((candidate, index) => {
+    assets[`candidate_${index}`] = candidate.assetHash;
+    blobs[`candidate_${index}`] = candidate.blobHash;
+  });
+  h.fake.realtime.emit({ t: "job.completed", jobId, outputs: { assets, blobs } });
+}
+
 describe("the fill gap flow", () => {
   it("renders both sides of the gap and submits generate.inpaint", async () => {
     const h = await harness();
@@ -206,5 +228,45 @@ describe("the fill gap flow", () => {
     expect(h.flow.store.getState().phase).toBe("cancelled");
     expect(h.audition.store.getState().group).toBeNull();
     expect(h.song.history.store.getState().commits.size).toBe(1);
+  });
+
+  it("adds every candidate a completed-only job publishes (a result-cache hit)", async () => {
+    const h = await harness();
+    await h.flow.start({ region: { ...GAP, tracks: ["trk_drums"] } });
+    const jobId = h.fake.submits[0]?.jobId ?? "";
+    const first = await h.candidate(0);
+    const second = await h.candidate(1);
+    const third = await h.candidate(2);
+    // A cache hit sends no partials: all three arrive with `completed` (05 §4.3).
+    emitCompleted(h, jobId, [first, second, third]);
+    await vi.waitFor(() => {
+      expect(h.audition.store.getState().group?.candidates).toHaveLength(3);
+    });
+    expect(candidateCommits(h)).toHaveLength(3);
+    await vi.waitFor(() => {
+      expect(h.flow.store.getState().phase).toBe("preview");
+    });
+  });
+
+  it("does not add a streamed candidate twice when completed repeats it", async () => {
+    const h = await harness();
+    await h.flow.start({ region: { ...GAP, tracks: ["trk_drums"] } });
+    const jobId = h.fake.submits[0]?.jobId ?? "";
+    const first = await h.candidate(0);
+    const second = await h.candidate(1);
+    const third = await h.candidate(2);
+    h.fake.partial(jobId, 0, first.assetHash, first.blobHash);
+    await vi.waitFor(() => {
+      expect(h.audition.store.getState().group?.candidates).toHaveLength(1);
+    });
+
+    // The normal streaming path: `completed` lists the same three candidates.
+    emitCompleted(h, jobId, [first, second, third]);
+    await vi.waitFor(() => {
+      expect(h.audition.store.getState().group?.candidates).toHaveLength(3);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(h.audition.store.getState().group?.candidates).toHaveLength(3);
+    expect(candidateCommits(h)).toHaveLength(3);
   });
 });

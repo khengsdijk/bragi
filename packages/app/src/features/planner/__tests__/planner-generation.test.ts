@@ -83,7 +83,10 @@ interface Harness {
   readonly audition: Audition;
   readonly announced: string[];
   readonly renderContext: ReturnType<typeof vi.fn>;
-  candidate(index: number): Promise<{ assetHash: string; blobHash: string }>;
+  candidate(
+    index: number,
+    patch?: Partial<GenerateFillResult>,
+  ): Promise<{ assetHash: string; blobHash: string }>;
 }
 
 async function harness(): Promise<Harness> {
@@ -137,7 +140,10 @@ async function harness(): Promise<Harness> {
     setTimeout: () => {},
   });
 
-  async function candidate(index: number): Promise<{ assetHash: string; blobHash: string }> {
+  async function candidate(
+    index: number,
+    patch: Partial<GenerateFillResult> = {},
+  ): Promise<{ assetHash: string; blobHash: string }> {
     const assetHash = await fake.put(`planner-candidate-${index}`);
     const result: GenerateFillResult = {
       schemaVersion: 1,
@@ -154,6 +160,7 @@ async function harness(): Promise<Harness> {
       startOffsetSamples: -BAR_SAMPLES,
       endOffsetSamples: BAR_SAMPLES,
       steps: [{ step: "sanity", passed: true, skipped: false, metrics: {} }],
+      ...patch,
     };
     const blobHash = await fake.put(JSON.stringify(result));
     return { assetHash, blobHash };
@@ -171,6 +178,18 @@ async function harness(): Promise<Harness> {
     renderContext,
     candidate,
   };
+}
+
+/** The candidate commits the plan's generative variant made. */
+function generatedCommits(h: Harness) {
+  return [...h.song.history.store.getState().commits.values()].filter(
+    (commit) => commit.state === "candidate" && commit.label === "Generated fill",
+  );
+}
+
+/** Lets the queued candidate chain finish before asserting it added nothing more. */
+function settle(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 25));
 }
 
 describe("the planner's generation execute", () => {
@@ -297,6 +316,92 @@ describe("the planner's generation execute", () => {
       .getState()
       .group?.candidates.find((entry) => entry.label === "Generated fill");
     expect(warned?.warning).toBe("This one might not blend perfectly");
+  });
+
+  it("reads the whole candidate list of a completed-only job (a result-cache hit)", async () => {
+    const h = await harness();
+    const plan = mixedPlan();
+    await h.generation.execute({
+      plan,
+      prompt: "fill",
+      region: { startTick: GAP.startTick, endTick: GAP.endTick, tracks: ["trk_drums"] },
+      opsBatches: candidateBatches(plan, { now: NOW }),
+    });
+    // No partials at all: the cache hit publishes three candidates with the completion.
+    const first = await h.candidate(0, { passed: false });
+    const second = await h.candidate(1, { passed: true });
+    const third = await h.candidate(2, { passed: true });
+    h.fake.realtime.emit({
+      t: "job.completed",
+      jobId: "job_PLAN01",
+      outputs: {
+        assets: {
+          candidate_0: first.assetHash,
+          candidate_1: second.assetHash,
+          candidate_2: third.assetHash,
+        },
+        blobs: {
+          candidate_0: first.blobHash,
+          candidate_1: second.blobHash,
+          candidate_2: third.blobHash,
+        },
+      },
+    });
+    await vi.waitFor(() => {
+      expect(generatedCommits(h)).toHaveLength(1);
+    });
+    // The first passing candidate wins; the third is not published on top of it.
+    await settle();
+    expect(generatedCommits(h)).toHaveLength(1);
+
+    const snapshot = await h.song.history.readSnapshot(generatedCommits(h)[0]?.id ?? "");
+    const generated = snapshot?.tracks.find((track) => track.role === "generated");
+    const clips =
+      generated === undefined
+        ? []
+        : (snapshot?.arrangement.sections.flatMap(
+            (section) => section.lanes[generated.id]?.clips ?? [],
+          ) ?? []);
+    expect(clips.map((clip) => clip.asset)).toEqual([second.assetHash]);
+  });
+
+  it("publishes nothing twice when completed repeats a streamed candidate", async () => {
+    const h = await harness();
+    const plan = mixedPlan();
+    await h.generation.execute({
+      plan,
+      prompt: "fill",
+      region: { startTick: GAP.startTick, endTick: GAP.endTick, tracks: ["trk_drums"] },
+      opsBatches: candidateBatches(plan, { now: NOW }),
+    });
+    const first = await h.candidate(0, { passed: true });
+    const second = await h.candidate(1, { passed: true });
+    const third = await h.candidate(2, { passed: true });
+    h.fake.partial("job_PLAN01", 0, first.assetHash, first.blobHash);
+    await vi.waitFor(() => {
+      expect(generatedCommits(h)).toHaveLength(1);
+    });
+
+    // The normal streaming path: `completed` lists every candidate, including the published one.
+    h.fake.realtime.emit({
+      t: "job.completed",
+      jobId: "job_PLAN01",
+      outputs: {
+        assets: {
+          candidate_0: first.assetHash,
+          candidate_1: second.assetHash,
+          candidate_2: third.assetHash,
+        },
+        blobs: {
+          candidate_0: first.blobHash,
+          candidate_1: second.blobHash,
+          candidate_2: third.blobHash,
+        },
+      },
+    });
+    await settle();
+    expect(generatedCommits(h)).toHaveLength(1);
+    expect(h.audition.store.getState().group?.candidates).toHaveLength(2);
   });
 });
 
