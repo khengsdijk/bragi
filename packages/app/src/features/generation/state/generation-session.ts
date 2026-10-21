@@ -27,13 +27,7 @@ import {
   type RealtimeMessage,
 } from "@bragi/api-client";
 import type { BlobHash, ContextRange, Platform } from "@bragi/platform";
-import type {
-  AssetMeta,
-  JobEvent,
-  OpBatch,
-  Project,
-  SectionKind,
-} from "@bragi/schemas";
+import type { AssetMeta, JobEvent, OpBatch, Project, SectionKind } from "@bragi/schemas";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import { t } from "../../../i18n/index.js";
@@ -44,7 +38,8 @@ import type { History } from "../../history/state/history.js";
 import type { ModelApi } from "../../song/model/model-api.js";
 import type { Commit, SongStore } from "../../song/state/song-store.js";
 import { applyGeneratedAnalysis } from "./generated-analysis.js";
-import { type EnergyCurve, secondsAtTick, ticksPerBarAt } from "./musical-context.js";
+import type { EnergyCurve } from "./musical-context.js";
+import { geometryFor as documentGeometry } from "./session-geometry.js";
 
 export type GenerationPhase =
   | "idle"
@@ -130,9 +125,7 @@ export interface SessionGeometry {
   samplesBetween(startTick: number, endTick: number): number;
   /** Seconds elapsed at `tick`. */
   secondsAt(tick: number): number;
-}
-
-/** One conditioning asset to render and upload, under the job's input key. */
+} /** One conditioning asset to render and upload, under the job's input key. */
 export interface RenderedContext {
   readonly key: "context" | "before" | "after";
   readonly range: ContextRange;
@@ -243,6 +236,11 @@ export interface GenerationFlow<Request> {
 
 const INITIAL: GenerationState = { phase: "idle", candidates: 0 };
 
+/** A store that is never running, for views without a generation host (the demo page). */
+export const EMPTY_GENERATION_STORE: StoreApi<GenerationState> = createStore<GenerationState>(
+  () => INITIAL,
+);
+
 /** The "candidate_<n>" entry of a job output map. */
 export function candidateEntry(
   map: Readonly<Record<string, string>> | undefined,
@@ -329,32 +327,7 @@ export function createGenerationFlow<Request, Params extends GenerationParams>(
 
   /** The geometry of the current document handle, or `null` before a song is loaded. */
   function geometryFor(): SessionGeometry | null {
-    const handle = deps.songStore.handle();
-    const doc = deps.songStore.store.getState().doc;
-    if (handle === null || doc === null) return null;
-    const model = deps.songStore.model;
-    return {
-      model,
-      handle,
-      barSamplesAt: (tick) =>
-        Math.max(
-          1,
-          Math.round(
-            (secondsAtTick(model, handle, tick + ticksPerBarAt(doc, tick)) -
-              secondsAtTick(model, handle, tick)) *
-              48_000,
-          ),
-        ),
-      samplesBetween: (startTick, endTick) =>
-        Math.max(
-          0,
-          Math.round(
-            (secondsAtTick(model, handle, endTick) - secondsAtTick(model, handle, startTick)) *
-              48_000,
-          ),
-        ),
-      secondsAt: (tick) => secondsAtTick(model, handle, tick),
-    };
+    return documentGeometry(deps.songStore);
   }
 
   /** Caches a blob the document or a job names, downloading it once (01 §6 step 7). */
@@ -704,9 +677,7 @@ export function createGenerationFlow<Request, Params extends GenerationParams>(
           return false;
         }
         deps.audition.setQueue({ kind: "queued" });
-        announce(
-          t("generation.extend.live.generating", { count: plan.candidateCount }),
-        );
+        announce(t("generation.extend.live.generating", { count: plan.candidateCount }));
         return true;
       } catch (error) {
         fail(generationErrorMessage(error));

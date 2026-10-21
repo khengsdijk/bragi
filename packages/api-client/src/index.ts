@@ -149,10 +149,7 @@ export type GenerationCapability = "generate.extend" | "generate.inpaint" | "gen
 
 /** Every generation submit body: the shared envelope plus the capability's params. */
 export interface GenerationSubmit<
-  Params =
-    | GenerateExtendParams
-    | GenerateInpaintParams
-    | GenerateTransitionParams,
+  Params = GenerateExtendParams | GenerateInpaintParams | GenerateTransitionParams,
 > {
   readonly capability: GenerationCapability;
   readonly priority: JobPriority;
@@ -352,11 +349,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       }
     },
     executePlan: (planId, body) =>
-      request<PlanExecuteResponse>(
-        "POST",
-        `/v1/plans/${encodeURIComponent(planId)}/execute`,
-        body,
-      ),
+      request<PlanExecuteResponse>("POST", `/v1/plans/${encodeURIComponent(planId)}/execute`, body),
   };
 }
 

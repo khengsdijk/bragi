@@ -8,11 +8,10 @@
  * there exactly while that commit is HEAD, so an undo brings it back and an accept or a new edit
  * takes it away. Nothing here changes the document.
  */
-import type { StoredCommit } from "../../history/api/history-repo.js";
-import { createStore, type StoreApi } from "zustand/vanilla";
 
-import { t } from "../../../i18n/index.js";
 import type { OpBatch, Project, Region } from "@bragi/schemas";
+import { createStore, type StoreApi } from "zustand/vanilla";
+import { t } from "../../../i18n/index.js";
 import { meterAt, sectionStartTick } from "../../song/state/section-ops.js";
 
 /** The erased gap the Fill gap chip offers (already the region the user cleared). */
@@ -35,8 +34,8 @@ export interface GenerationOffersState {
 
 export interface GenerationOffers {
   readonly store: StoreApi<GenerationOffersState>;
-  /** Recomputes both offers from the commit that is HEAD now (or `null`). */
-  consider(commit: Pick<StoredCommit, "batch"> | null, doc: Project | null): void;
+  /** Recomputes both offers from the batch that produced HEAD (or `null`). */
+  consider(batch: OpBatch | null, doc: Project | null): void;
   clear(): void;
 }
 
@@ -83,18 +82,18 @@ export function createGenerationOffers(): GenerationOffers {
 
   return {
     store,
-    consider(commit, doc) {
-      if (commit === null || doc === null) {
+    consider(batch, doc) {
+      if (batch === null || doc === null) {
         store.setState(EMPTY);
         return;
       }
-      const cleared = commit.batch.ops.find((op) => op.op === "region.clear");
+      const cleared = batch.ops.find((op) => op.op === "region.clear");
       store.setState({
         fill:
           cleared === undefined
             ? null
             : { region: cleared.region, label: fillLabel(doc, cleared.region) },
-        smooth: smoothTargets(commit.batch, doc),
+        smooth: smoothTargets(batch, doc),
       });
     },
     clear() {

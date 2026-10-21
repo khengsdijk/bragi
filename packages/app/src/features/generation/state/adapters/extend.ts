@@ -7,11 +7,7 @@
  * `generation-session`; the constants, messages and placement are unchanged.
  */
 import type { ContextRange } from "@bragi/platform";
-import type {
-  AssetMeta,
-  GenerateExtendParams,
-  GenerateExtendResult,
-} from "@bragi/schemas";
+import type { AssetMeta, GenerateExtendParams, GenerateExtendResult } from "@bragi/schemas";
 import { validateGenerateExtendResult } from "@bragi/schemas";
 
 import { t } from "../../../../i18n/index.js";
@@ -21,17 +17,8 @@ import {
   extendCandidateAssets,
   extendCandidateBatch,
 } from "../extend-candidates.js";
-import {
-  type GenerationAdapter,
-  type GenerationPlan,
-  type SessionGeometry,
-} from "../generation-session.js";
-import {
-  musicalContextFor,
-  secondsAtTick,
-  ticksPerBarAt,
-  totalTicks,
-} from "../musical-context.js";
+import type { GenerationAdapter, GenerationPlan, SessionGeometry } from "../generation-session.js";
+import { musicalContextFor, secondsAtTick, ticksPerBarAt, totalTicks } from "../musical-context.js";
 
 /** How much song the model hears as context (09 §4.2 step 1). */
 export const CONTEXT_SECONDS = 30;
@@ -174,10 +161,11 @@ export function createExtendAdapter(): GenerationAdapter<ExtendRequest, Generate
         group: jobId,
         direction: plan.params.direction,
         bars: plan.bars ?? plan.params.bars,
-        contextRange: contexts.get(plan)?.contextRange ?? plan.assets[0]?.range ?? {
-          startTick: 0,
-          endTick: 0,
-        },
+        contextRange: contexts.get(plan)?.contextRange ??
+          plan.assets[0]?.range ?? {
+            startTick: 0,
+            endTick: 0,
+          },
         crossfadeTicks: crossfadeTicks(geometry),
         ...(plan.sectionKind === undefined ? {} : { sectionKind: plan.sectionKind }),
         ...(plan.params.prompt === undefined ? {} : { prompt: plan.params.prompt }),

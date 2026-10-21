@@ -9,6 +9,8 @@
  * Plain TypeScript over injected clients, so the whole flow is testable with a fake API, a fake
  * socket and a fake engine render.
  */
+
+import { createExtendAdapter, type ExtendRequest } from "./adapters/extend.js";
 import {
   createGenerationFlow,
   type GenerationDependencies,
@@ -17,7 +19,6 @@ import {
   generationErrorMessage,
   type WarmupStatus,
 } from "./generation-session.js";
-import { createExtendAdapter, type ExtendRequest } from "./adapters/extend.js";
 
 export {
   CONTEXT_SECONDS,
@@ -25,10 +26,10 @@ export {
   DEFAULT_EXTEND_BARS,
   EXTEND_BARS,
   EXTEND_CANDIDATES,
-  OVERLAP_BARS,
   type ExtendBarCount,
   type ExtendDirection,
   type ExtendRequest,
+  OVERLAP_BARS,
 } from "./adapters/extend.js";
 
 /** The handle's view of the flow. */

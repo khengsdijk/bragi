@@ -19,13 +19,10 @@ import { validateGenerateFillResult } from "@bragi/schemas";
 
 import { t } from "../../../../i18n/index.js";
 import { ulid } from "../../../../lib/ulid.js";
-import {
-  type GenerationAdapter,
-  type GenerationPlan,
-} from "../generation-session.js";
-import { barsEndingAt, barsStartingAt } from "../context-windows.js";
-import { musicalContextForSpan, secondsAtTick, ticksPerBarAt } from "../musical-context.js";
 import { sectionStartTick } from "../../../song/state/section-ops.js";
+import { barsEndingAt, barsStartingAt } from "../context-windows.js";
+import type { GenerationAdapter, GenerationPlan } from "../generation-session.js";
+import { musicalContextForSpan, secondsAtTick, ticksPerBarAt } from "../musical-context.js";
 
 /** The most context each side hears (09 §4.4: up to 8 bars). */
 export const SMOOTH_CONTEXT_BARS = 8;
@@ -58,7 +55,10 @@ export function boundaryFor(doc: Project, sectionId: string): number | null {
 }
 
 /** The `generate.transition` adapter for the shared flow. */
-export function createTransitionAdapter(): GenerationAdapter<SmoothRequest, GenerateTransitionParams> {
+export function createTransitionAdapter(): GenerationAdapter<
+  SmoothRequest,
+  GenerateTransitionParams
+> {
   const boundaries = new WeakMap<GenerationPlan<GenerateTransitionParams>, SmoothBoundary>();
 
   return {
@@ -100,11 +100,7 @@ export function createTransitionAdapter(): GenerationAdapter<SmoothRequest, Gene
         ],
         region: {
           startSec: secondsAtTick(geometry.model, geometry.handle, Math.max(0, boundary - half)),
-          endSec: secondsAtTick(
-            geometry.model,
-            geometry.handle,
-            boundary + lengthTicks - half,
-          ),
+          endSec: secondsAtTick(geometry.model, geometry.handle, boundary + lengthTicks - half),
         },
         prompt: request.prompt ?? t("generation.smooth.prompt"),
         candidateCount: SMOOTH_CANDIDATES,
@@ -124,10 +120,7 @@ export function createTransitionAdapter(): GenerationAdapter<SmoothRequest, Gene
         index: result.index,
         assetHash: result.asset,
         // Placement only needs a non-empty window; the engine fits the asset to `lengthTicks`.
-        durationSamples: Math.max(
-          1,
-          Math.round(bars * geometry.barSamplesAt(plan.anchorTick)),
-        ),
+        durationSamples: Math.max(1, Math.round(bars * geometry.barSamplesAt(plan.anchorTick))),
         channels: 2,
         qualityWarning: result.qualityWarning,
         seed: result.seed,

@@ -164,9 +164,7 @@ export interface MusicalSpanInput {
  * Chords are expressed in beats from the span's start, as 09 §2.1 asks. Every capability passes
  * the span it generates into, so an inpaint hears the gap and a transition hears its boundary.
  */
-export async function musicalContextForSpan(
-  input: MusicalSpanInput,
-): Promise<MusicalContext> {
+export async function musicalContextForSpan(input: MusicalSpanInput): Promise<MusicalContext> {
   const { doc, model, handle, span } = input;
   const meter = meterSignatureAt(doc, span.startTick);
   const bpm = doc.arrangement.timebase.tempoMap[0]?.bpm ?? 120;
@@ -234,7 +232,9 @@ export async function musicalContextFor(input: MusicalContextInput): Promise<Mus
     readBlob: input.readBlob,
   });
   // The ending guess is extend's alone: a fill or a transition keeps the section it sits in.
-  return kind === context.sectionKind || kind === undefined ? context : { ...context, sectionKind: kind };
+  return kind === context.sectionKind || kind === undefined
+    ? context
+    : { ...context, sectionKind: kind };
 }
 
 /** The kind of the section at `tick`, or of the section with `sectionId`. */
@@ -248,8 +248,7 @@ function sectionKindAt(
     sectionId === undefined
       ? doc.arrangement.sections.findIndex(
           (section, position) =>
-            tick >= (starts[position] ?? 0) &&
-            tick < (starts[position] ?? 0) + section.lengthTicks,
+            tick >= (starts[position] ?? 0) && tick < (starts[position] ?? 0) + section.lengthTicks,
         )
       : doc.arrangement.sections.findIndex((section) => section.id === sectionId);
   return index >= 0 ? doc.arrangement.sections[index]?.kind : undefined;

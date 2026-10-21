@@ -9,15 +9,9 @@
  */
 import type { ContextRange } from "@bragi/platform";
 import type { Project, Region } from "@bragi/schemas";
-
-import { meterAt } from "../../song/state/section-ops.js";
 import type { ModelApi } from "../../song/model/model-api.js";
-import {
-  meterSignatureAt,
-  secondsAtTick,
-  ticksPerBarAt,
-  totalTicks,
-} from "./musical-context.js";
+import { meterAt } from "../../song/state/section-ops.js";
+import { meterSignatureAt, secondsAtTick, ticksPerBarAt, totalTicks } from "./musical-context.js";
 
 /** The smallest context a two-sided capability can be given: one bar. */
 export interface BarRange {

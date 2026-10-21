@@ -74,6 +74,14 @@ export interface SongActionsOptions {
   readonly onAnnounce: (message: string) => void;
   /** Opens the extend popover; absent when this canvas has no generation host (09 §4.2). */
   readonly onOpenExtend?: (direction: "forward" | "backward") => void;
+  /** Opens the Fill gap chip's action programmatically (07 §4.8). */
+  readonly onFillGap?: () => void;
+  /** Opens the ✨ Smooth with AI popover on a boundary (07 §4.1). */
+  readonly onSmooth?: (sectionId: string) => void;
+  /** The erased gap's description, when a Fill gap chip is available. */
+  readonly fillGapLabel?: string | null;
+  /** The incoming sections a Smooth chip offers. */
+  readonly smoothTargetIds?: readonly string[];
 }
 
 export interface SongActions {
@@ -455,6 +463,8 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       loopSection,
       openResize,
       openExtend: (direction: "forward" | "backward") => options.onOpenExtend?.(direction),
+      fillGap: () => options.onFillGap?.(),
+      smoothTransition: (sectionId: string) => options.onSmooth?.(sectionId),
       openBrush,
       splitAtPlayhead,
       undo,
@@ -475,7 +485,9 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       openKind,
       openRename,
       openResize,
+      options.onFillGap,
       options.onOpenExtend,
+      options.onSmooth,
       options.onAskAi,
       options.onToggleExplain,
       options.onToggleHistory,
@@ -500,6 +512,8 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       historyOpen: options.historyOpen,
       playing,
       explainMode: options.explainMode,
+      fillGapLabel: options.fillGapLabel ?? null,
+      smoothTargetIds: options.smoothTargetIds ?? [],
       actions,
     }),
     [
@@ -509,8 +523,10 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       canUndo,
       doc,
       options.explainMode,
+      options.fillGapLabel,
       options.history,
       options.historyOpen,
+      options.smoothTargetIds,
       playing,
       section,
       sectionIndex,

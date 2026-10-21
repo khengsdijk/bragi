@@ -29,6 +29,10 @@ export interface CommandContext {
   readonly playing: boolean;
   /** Explain mode is on (07 §4.9). */
   readonly explainMode: boolean;
+  /** The erased gap's description when a Fill gap chip is available (07 §4.8). */
+  readonly fillGapLabel: string | null;
+  /** The incoming sections whose new boundary a Smooth chip offers (07 §4.1). */
+  readonly smoothTargetIds: readonly string[];
   readonly actions: CommandActions;
 }
 
@@ -44,6 +48,10 @@ export interface CommandActions {
   openResize(sectionId: string, direction: "longer" | "shorter"): void;
   /** Opens the extend popover at the song edge this part touches (07 §4.2, 09 §4.2). */
   openExtend(direction: "forward" | "backward"): void;
+  /** Fills the gap the last erase left (07 §4.8, 09 §4.3). */
+  fillGap(): void;
+  /** Opens the ✨ Smooth with AI popover on this boundary (07 §4.1, 09 §4.4). */
+  smoothTransition(sectionId: string): void;
   /** The keyboard painting path: pick a brush and apply it to a whole part (11 §6.2). */
   openBrush(sectionId: string): void;
   splitAtPlayhead(): void;

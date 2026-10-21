@@ -103,7 +103,9 @@ export function SmoothChip({
             options={SMOOTH_BARS.map((count) => ({
               value: String(count),
               label: t(
-                count === 1 ? "generation.smooth.bars.option" : "generation.smooth.bars.option.other",
+                count === 1
+                  ? "generation.smooth.bars.option"
+                  : "generation.smooth.bars.option.other",
                 { bars: count },
               ),
             }))}
@@ -126,12 +128,8 @@ export function SmoothChip({
               }}
             />
           </label>
-          {phase === "failed" && message !== undefined ? (
-            <p role="alert">{message}</p>
-          ) : null}
-          <div
-            style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-1)" }}
-          >
+          {phase === "failed" && message !== undefined ? <p role="alert">{message}</p> : null}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-1)" }}>
             <PopoverClose asChild>
               <Button type="button">{t("generation.smooth.close")}</Button>
             </PopoverClose>

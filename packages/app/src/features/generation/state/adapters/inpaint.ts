@@ -20,17 +20,13 @@ import { validateGenerateFillResult } from "@bragi/schemas";
 import { t } from "../../../../i18n/index.js";
 import { ulid } from "../../../../lib/ulid.js";
 import {
-  type GenerationAdapter,
-  type GenerationPlan,
-  type SessionGeometry,
-} from "../generation-session.js";
-import {
   gapBars as gapBarsOf,
   rangeEndingAt,
   rangeStartingAt,
   samplesBetween,
   snapRegionToBars,
 } from "../context-windows.js";
+import type { GenerationAdapter, GenerationPlan, SessionGeometry } from "../generation-session.js";
 import { musicalContextForSpan, secondsAtTick } from "../musical-context.js";
 
 /** The most context the model hears on each side (09 §4.3: up to 15 s). */
@@ -110,9 +106,7 @@ export function createFillAdapter(): GenerationAdapter<FillGapRequest, GenerateI
           { key: "after", range: after },
         ],
         region: gapRegion(geometry, gap),
-        prompt:
-          request.prompt ??
-          t("generation.fill.prompt", { bars }),
+        prompt: request.prompt ?? t("generation.fill.prompt", { bars }),
         candidateCount: FILL_CANDIDATES,
         anchorTick: gap.startTick,
         lengthTicks: gap.endTick - gap.startTick,

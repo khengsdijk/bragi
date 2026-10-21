@@ -119,6 +119,8 @@ export function SectionMenu({
       <MenuSeparator />
       {item("generation.extendForward")}
       {item("generation.extendBackward")}
+      {item("generation.fillGap")}
+      {item("generation.smooth")}
       <MenuSeparator />
       {item("section.applyBrush")}
       <MenuSeparator />
