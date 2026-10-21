@@ -114,6 +114,19 @@ const FIXTURES = [
     ],
     gate: true,
   },
+  {
+    // WP-2.8: a `generated` transition on the second section. The bridging asset is the tone
+    // fixture, exactly as long as the transition (2 beats), so both engines read the same window
+    // and mix it over the boundary crossfade with the quarter-length fades of 03 §5.5.
+    name: "engine-conformance-g-transition",
+    project: "fixtures/projects/engine-conformance-g-transition.json",
+    frames: 144000,
+    assets: [
+      { hash: DRUMS, path: "fixtures/audio/drums_120.wav", mime: "audio/wav" },
+      { hash: TONE, path: "fixtures/audio/tone_440.wav", mime: "audio/wav" },
+    ],
+    gate: true,
+  },
 ];
 
 const GOLDEN_DIR = join(ROOT, "fixtures", "audio", "golden");

@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "id": "prj_engineconfG",
+  "meta": {
+    "title": "Engine conformance G (generated transition)",
+    "createdAt": "2026-10-21T00:00:00Z",
+    "tags": ["conformance"]
+  },
+  "sources": [],
+  "analyses": {},
+  "tracks": [
+    {
+      "id": "trk_drums",
+      "name": "trk_drums",
+      "role": "full_mix",
+      "color": "#8A8F98",
+      "gainDb": 0.0,
+      "pan": 0.0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    }
+  ],
+  "arrangement": {
+    "timebase": {
+      "ppq": 960,
+      "tempoMap": [
+        {
+          "tick": 0,
+          "bpm": 120,
+          "curve": "step"
+        }
+      ],
+      "timeSignatures": [
+        {
+          "bar": 0,
+          "numerator": 4,
+          "denominator": 4
+        }
+      ]
+    },
+    "sections": [
+      {
+        "id": "sec_a",
+        "kind": "verse",
+        "label": "A",
+        "lengthTicks": 3840,
+        "lanes": {
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_d0",
+                "asset": "sha256:1b77ad128280974bbacf069084b80098f0561361a2b76e852ced984779a64900",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "none"
+                },
+                "gainDb": 0.0,
+                "pitchSemitones": 0.0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-21T00:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        },
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        }
+      },
+      {
+        "id": "sec_b",
+        "kind": "chorus",
+        "label": "B",
+        "lengthTicks": 3840,
+        "lanes": {
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_d1",
+                "asset": "sha256:1b77ad128280974bbacf069084b80098f0561361a2b76e852ced984779a64900",
+                "srcStart": 48000,
+                "srcEnd": 96000,
+                "start": 0,
+                "warp": {
+                  "mode": "none"
+                },
+                "gainDb": 0.0,
+                "pitchSemitones": 0.0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-21T00:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        },
+        "transitionIn": {
+          "kind": "generated",
+          "lengthTicks": 1920,
+          "asset": "sha256:4f0f99f60f5a81427887a233bacd5bbca2e0f7e4fe4f18ce1c39904955362f3e"
+        }
+      }
+    ],
+    "master": {
+      "fx": [],
+      "automation": [],
+      "gainDb": 0
+    }
+  }
+}
