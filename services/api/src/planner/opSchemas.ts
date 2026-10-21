@@ -25,6 +25,7 @@ const NOT_PLANNER_OPS: ReadonlySet<string> = new Set([
   "clip.add", // the payload is a complete Clip with a warp map and an asset hash
   "clip.replace", // the payload is a list of complete Clips
   "region.adopt", // needs a commit ID, and v1 carries none
+  "source.add", // generated audio enters through an accepted generation candidate (09 §4.2)
 ]);
 
 /** How deep a sample may recurse before it gives up on an optional structure. */
