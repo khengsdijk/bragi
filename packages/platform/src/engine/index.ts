@@ -5,6 +5,8 @@
  * `../tauri/engine.js`.
  */
 export * from "./codec.js";
+export type { ContextRange } from "./context.js";
+export { CONTEXT_FILE_NAME, renderContext } from "./context.js";
 export type {
   AssetHash,
   AudioFormat,

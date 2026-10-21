@@ -19,6 +19,8 @@ export {
   STATE_HEADER_WORDS,
   unpackCommand,
 } from "./engine/codec.js";
+export type { ContextRange } from "./engine/context.js";
+export { CONTEXT_FILE_NAME, renderContext } from "./engine/context.js";
 export { applyMixDelta } from "./engine/delta.js";
 export type {
   AssetHash,

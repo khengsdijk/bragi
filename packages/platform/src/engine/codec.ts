@@ -244,7 +244,7 @@ export function decodeExportFrame(frame: Uint8Array, format: AudioFormat): Rende
   return { channels: 2, sampleRate: 48000, format, frames: header.frames, files };
 }
 
-/** The format a job asks for; `context` and `cache` have no export format. */
+/** The format a job asks for; a `context` job is fixed to 32-bit WAV (`cache` has none). */
 export function jobFormat(job: { kind: string; format?: AudioFormat }): AudioFormat {
   return job.format ?? { container: "wav", bits: 32 };
 }

@@ -16,7 +16,8 @@ import {
   STATE_HEADER_WORDS,
   unpackCommand,
 } from "../engine/codec.js";
-import type { EngineState } from "../engine/types.js";
+import { CONTEXT_FILE_NAME, renderContext } from "../engine/context.js";
+import type { EngineHost, EngineState, RenderJob } from "../engine/types.js";
 import { createTauriEngineHost } from "../tauri/engine.js";
 import {
   collectAssetHashes,
@@ -256,6 +257,42 @@ describe("the wasm engine host", () => {
     expect(playback.sent[2]).toEqual([packCommand(0)]);
   });
 
+  it("renders a context range to WAV bytes", async () => {
+    const playback = fakePlayback();
+    const jobs: RenderJob[] = [];
+    const host = createWasmEngineHost({
+      playback: playback.bridge,
+      offline: {
+        ...fakeOffline(),
+        async render(job) {
+          jobs.push(job);
+          return {
+            channels: 2,
+            sampleRate: 48000,
+            format: { container: "wav", bits: 32 },
+            frames: 24_000,
+            files: [
+              {
+                name: CONTEXT_FILE_NAME,
+                bytes: new Uint8Array([0x52, 0x49]),
+                frames: 24_000,
+              },
+            ],
+          };
+        },
+      },
+      schedule: () => 1,
+      cancelSchedule: () => {},
+    });
+    const doc = { arrangement: { sections: [{ lengthTicks: 3840 }] } };
+    const bytes = await renderContext(host, doc, { startTick: 0, endTick: 960 }, ["trk_01"]);
+    expect([...bytes]).toEqual([0x52, 0x49]);
+    expect(jobs).toEqual([
+      { kind: "context", range: { startTick: 0, endTick: 960 }, tracks: ["trk_01"] },
+    ]);
+    await host.dispose();
+  });
+
   it("decodes and sends each asset once across structural reloads", async () => {
     const playback = fakePlayback();
     const first = `sha256:${"a".repeat(64)}` as const;
@@ -392,13 +429,19 @@ describe("the tauri engine host", () => {
       tracks: [{ peak: 0.1, rms: 0.05 }],
       master: { peak: 0.2, rms: 0.1 },
     };
-    const invoke = vi.fn(async (command: string, _args?: Record<string, unknown>) => {
+    const renderJobs: unknown[] = [];
+    const invoke = vi.fn(async (command: string, args?: Record<string, unknown>) => {
       calls.push(command);
       if (command === "engine_init") return { playback: false };
       if (command === "engine_state") return state;
       if (command === "engine_peaks") return pyramidBytes();
-      if (command === "engine_render")
-        return exportFrame([{ name: "Song.flac", bytes: [1, 2, 3], frames: 7 }]);
+      if (command === "engine_render") {
+        const job = args?.job as { kind?: string } | undefined;
+        renderJobs.push(job);
+        return job?.kind === "context"
+          ? exportFrame([{ name: CONTEXT_FILE_NAME, bytes: [4, 5], frames: 24_000 }])
+          : exportFrame([{ name: "Song.flac", bytes: [1, 2, 3], frames: 7 }]);
+      }
       return null;
     });
     const host = await createTauriEngineHost({
@@ -428,6 +471,20 @@ describe("the tauri engine host", () => {
     expect(rendered.format).toEqual({ container: "flac", bits: 24 });
     expect(rendered.files.map((file) => file.name)).toEqual(["Song.flac"]);
     expect([...(rendered.files[0]?.bytes ?? [])]).toEqual([1, 2, 3]);
+
+    const context = await renderContext(
+      host,
+      { arrangement: { sections: [{ lengthTicks: 1920 }] } },
+      { startTick: 0, endTick: 960 },
+      "all",
+    );
+    expect([...context]).toEqual([4, 5]);
+    expect(renderJobs.at(-1)).toEqual({
+      kind: "context",
+      range: { startTick: 0, endTick: 960 },
+      tracks: "all",
+    });
+
     const peaks = await host.peaks(hash, 256);
     expect([...peaks]).toEqual([-1, 1]);
     await host.dispose();
@@ -447,6 +504,42 @@ describe("the tauri engine host", () => {
       expect(calls).toContain(command);
     }
     expect(events.some((event) => event.kind === "error" && event.code === "no-device")).toBe(true);
+  });
+});
+
+describe("renderContext", () => {
+  const doc = { arrangement: { sections: [{ lengthTicks: 1920 }, { lengthTicks: 1920 }] } };
+
+  it("rejects a range the document cannot contain before calling the host", async () => {
+    const render = vi.fn();
+    const host = { render } as unknown as EngineHost;
+    for (const range of [
+      { startTick: 960, endTick: 960 },
+      { startTick: 1920, endTick: 960 },
+      { startTick: -1, endTick: 960 },
+      { startTick: 0, endTick: 3841 },
+      { startTick: 0.5, endTick: 960 },
+    ]) {
+      await expect(renderContext(host, doc, range)).rejects.toThrow(RangeError);
+    }
+    await expect(renderContext(host, doc, { startTick: 0, endTick: 960 }, [])).rejects.toThrow(
+      "the track list is empty",
+    );
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("returns the single context.wav the engine produced", async () => {
+    const render = vi.fn(async () => ({
+      channels: 2 as const,
+      sampleRate: 48000 as const,
+      format: { container: "wav", bits: 32 } as const,
+      frames: 24_000,
+      files: [{ name: "song.wav", bytes: new Uint8Array([1]), frames: 24_000 }],
+    }));
+    const host = { render } as unknown as EngineHost;
+    await expect(renderContext(host, doc, { startTick: 0, endTick: 960 })).rejects.toThrow(
+      "song.wav",
+    );
   });
 });
 
