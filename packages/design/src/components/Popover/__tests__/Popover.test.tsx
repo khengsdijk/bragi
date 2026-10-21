@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -39,5 +39,48 @@ describe("Popover", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Brushes" }));
     expect(await screen.findByRole("button", { name: "Space" })).toBeTruthy();
+  });
+
+  it("stays open when focus moves outside, if asked to, but still closes on Escape", async () => {
+    const closed: boolean[] = [];
+    render(
+      <>
+        <button type="button">Canvas</button>
+        <Popover
+          open
+          onOpenChange={(open) => closed.push(!open)}
+          dismissOnFocusOutside={false}
+          trigger={<Button>Explain</Button>}
+          label="Explain"
+        >
+          <p>The drums drop out.</p>
+        </Popover>
+      </>,
+    );
+    await screen.findByRole("dialog");
+    act(() => screen.getByRole("button", { name: "Canvas" }).focus());
+    expect(closed).toEqual([]);
+    await userEvent.keyboard("{Escape}");
+    expect(closed).toEqual([true]);
+  });
+
+  it("closes when focus moves outside by default", async () => {
+    const closed: boolean[] = [];
+    render(
+      <>
+        <button type="button">Canvas</button>
+        <Popover
+          open
+          onOpenChange={(open) => closed.push(!open)}
+          trigger={<Button>Explain</Button>}
+          label="Explain"
+        >
+          <p>The drums drop out.</p>
+        </Popover>
+      </>,
+    );
+    await screen.findByRole("dialog");
+    act(() => screen.getByRole("button", { name: "Canvas" }).focus());
+    expect(closed).toEqual([true]);
   });
 });

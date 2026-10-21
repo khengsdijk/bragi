@@ -27,6 +27,8 @@ export function ExplainPopover({ explanation, onClose }: ExplainPopoverProps): R
       side="bottom"
       align="start"
       label={t("planner.explainLabel")}
+      // The click that opens it also focuses the canvas; that must not close it again.
+      dismissOnFocusOutside={false}
       trigger={
         <Button
           variant="ghost"
