@@ -118,6 +118,8 @@ def _shift(samples: F32, shift_samples: int) -> F32:
         if shift_samples >= samples.shape[0]:
             return np.zeros((0, samples.shape[1]), dtype=np.float32)
         return samples[shift_samples:]
+    if -shift_samples >= samples.shape[0]:
+        return np.zeros((0, samples.shape[1]), dtype=np.float32)
     keep = samples.shape[0] + shift_samples
     padded = np.zeros((samples.shape[0], samples.shape[1]), dtype=np.float32)
     padded[-shift_samples:] = samples[:keep]
