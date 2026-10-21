@@ -1,5 +1,6 @@
 import type { PlanVariant } from "@bragi/schemas";
 import { describe, expect, it } from "vitest";
+import { normalizePlanEnvelope } from "../json.js";
 import { diffDocuments, validateRawPlan } from "../validate.js";
 import { loadModelWasm } from "../wasm.js";
 import {
@@ -251,6 +252,139 @@ describe("validateRawPlan — locks and v1 scope", () => {
       options(),
     );
     expect(result.ok).toBe(true);
+  });
+});
+
+describe("validateRawPlan — precise op errors", () => {
+  it("names the wrong property and the shape fx.add needs", async () => {
+    const result = await validateRawPlan(
+      {
+        interpretation: "Warm the vocals.",
+        variants: [
+          {
+            label: "Warm",
+            description: "A little warmer.",
+            steps: [
+              {
+                kind: "ops",
+                ops: [
+                  {
+                    op: "fx.add",
+                    trackId: "trk_vox",
+                    fx: { id: "fx_01", type: "eq3", params: { lowDb: 2 }, bypass: false },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      options(),
+    );
+    expect(result.ok).toBe(false);
+    const text = result.errors.join("\n");
+    expect(text).toMatch(/variant 1, op 1 \(fx\.add\): unknown property "trackId"/);
+    expect(text).toMatch(/fx\.add needs "scope"/);
+    // The noisy union branches must not come back.
+    expect(text).not.toMatch(/sourceId|"stage"|"blob"|one of the allowed values/);
+  });
+
+  it("names a missing required property at the op and nested level", async () => {
+    const missingScope = await validateRawPlan(
+      {
+        interpretation: "x",
+        variants: [
+          {
+            label: "Warm",
+            description: "d",
+            steps: [
+              {
+                kind: "ops",
+                ops: [
+                  {
+                    op: "fx.add",
+                    fx: { id: "fx_01", type: "eq3", params: {}, bypass: false },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      options(),
+    );
+    expect(missingScope.errors.join("\n")).toMatch(/missing "scope"/);
+
+    const missingTrack = await validateRawPlan(
+      {
+        interpretation: "x",
+        variants: [
+          {
+            label: "Warm",
+            description: "d",
+            steps: [
+              {
+                kind: "ops",
+                ops: [
+                  {
+                    op: "fx.add",
+                    scope: { kind: "track" },
+                    fx: { id: "fx_01", type: "eq3", params: {}, bypass: false },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      options(),
+    );
+    expect(missingTrack.errors.join("\n")).toMatch(/missing "scope\.trackId"/);
+  });
+
+  it("reports an unknown op or one the planner may not use with the usable list", async () => {
+    const unknown = await validateRawPlan(
+      {
+        interpretation: "x",
+        variants: [
+          { label: "a", description: "d", steps: [{ kind: "ops", ops: [{ op: "fx.paint" }] }] },
+        ],
+      },
+      options(),
+    );
+    expect(unknown.errors.join("\n")).toMatch(/unknown op "fx\.paint"; known ops are/);
+    expect(unknown.errors.join("\n")).toContain("fx.add");
+
+    const system = await validateRawPlan(
+      {
+        interpretation: "x",
+        variants: [
+          {
+            label: "a",
+            description: "d",
+            steps: [{ kind: "ops", ops: [{ op: "analysis.apply" }] }],
+          },
+        ],
+      },
+      options(),
+    );
+    expect(system.errors.join("\n")).toMatch(/"analysis\.apply" is not an op the planner may use/);
+  });
+
+  it("accepts variants delivered as a JSON string after the envelope is unwrapped", async () => {
+    const raw = normalizePlanEnvelope({
+      interpretation: "A small change.",
+      variants: JSON.stringify([
+        {
+          label: "Warm",
+          description: "A little warmer.",
+          steps: [{ kind: "ops", ops: [trackFx("trk_drums")] }],
+        },
+      ]),
+    });
+    const result = await validateRawPlan(raw, options());
+    expect(result.ok).toBe(true);
+    expect(result.variants.map((variant) => variant.label)).toEqual(["Warm"]);
   });
 });
 

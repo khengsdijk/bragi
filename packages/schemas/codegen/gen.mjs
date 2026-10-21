@@ -231,10 +231,11 @@ function withValidatorsBanner(code) {
  * The façade is what the rest of the repository imports: it gives every validator a
  * `ValidateFunction<T>` type, so a validator and its type cannot disagree.
  *
+ * @param {Record<string, unknown>} bundle
  * @param {string[]} rootTypes
  * @returns {string}
  */
-function generateValidatorFacade(rootTypes) {
+function generateValidatorFacade(bundle, rootTypes) {
   const lines = [
     BANNER("A typed façade over ./ajv-validators.js; one validator per root schema type."),
     "",
@@ -257,7 +258,63 @@ function generateValidatorFacade(rootTypes) {
       "",
     );
   }
+  const ops = opKinds(bundle);
+  lines.push(
+    "/**",
+    " * Validates one op against the single schema its `op` discriminator selects (02 §4.2).",
+    " *",
+    " * The planner reports the error for that op instead of the `Op` union's oneOf noise, so its",
+    " * repair round can name the property that is wrong.",
+    " */",
+    "export const OP_VALIDATORS: Readonly<Record<string, ValidateFunction<unknown>>> = {",
+    ...ops.map(
+      ({ op, definition }) =>
+        `  ${JSON.stringify(op)}: validators.${definition} as ValidateFunction<unknown>,`,
+    ),
+    "};",
+    "",
+    "/** Every op kind the schemas define, in discriminator order. */",
+    `export const OP_NAMES: readonly string[] = [${ops.map(({ op }) => JSON.stringify(op)).join(", ")}];`,
+    "",
+  );
   return `${lines.join("\n").trimEnd()}\n`;
+}
+
+/**
+ * The op kinds the schemas define, each with the `$defs` name of its schema.
+ *
+ * Read from `Op.oneOf` and the `op` discriminator of every branch, so the map cannot drift from
+ * the op schemas. The order is the `oneOf` order.
+ *
+ * @param {Record<string, unknown>} bundle
+ * @returns {{op: string, definition: string}[]}
+ */
+function opKinds(bundle) {
+  const defs = /** @type {Record<string, Record<string, unknown>>} */ (bundle.$defs ?? {});
+  const opDef = defs.Op;
+  const branches = opDef?.oneOf;
+  if (!Array.isArray(branches)) throw new Error("the bundle's Op definition is not a oneOf union");
+  /** @type {{op: string, definition: string}[]} */
+  const out = [];
+  for (const branch of branches) {
+    if (branch === null || typeof branch !== "object") continue;
+    const ref = /** @type {{$ref?: unknown}} */ (branch).$ref;
+    if (typeof ref !== "string" || !ref.startsWith("#/$defs/")) continue;
+    const definition = ref.slice("#/$defs/".length);
+    const properties = defs[definition]?.properties;
+    if (properties === null || typeof properties !== "object") continue;
+    const op = /** @type {Record<string, unknown>} */ (properties).op;
+    if (op === null || typeof op !== "object") continue;
+    const opRef = /** @type {{$ref?: unknown, enum?: unknown}} */ (op).$ref;
+    const name =
+      typeof opRef === "string" && opRef.startsWith("#/$defs/")
+        ? /** @type {{enum?: unknown} | undefined} */ (defs[opRef.slice("#/$defs/".length)])?.enum
+        : /** @type {{enum?: unknown}} */ (op).enum;
+    if (Array.isArray(name) && typeof name[0] === "string") {
+      out.push({ op: name[0], definition });
+    }
+  }
+  return out;
 }
 
 /**
@@ -710,7 +767,7 @@ async function main() {
   const bundleText = `${JSON.stringify(bundle, null, 2)}\n`;
   const types = await generateTypes(bundle, rootTypes);
   const ajv = generateValidators(bundle, rootTypes);
-  const validators = generateValidatorFacade(rootTypes);
+  const validators = generateValidatorFacade(bundle, rootTypes);
   const fxCatalog = generateCatalogue(
     "FxCatalog",
     "FX_CATALOG",
