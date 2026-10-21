@@ -1,0 +1,1467 @@
+{
+  "schemaVersion": 1,
+  "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB5",
+  "meta": {
+    "title": "Night Shift",
+    "createdAt": "2026-10-20T12:00:00Z",
+    "tags": ["synthwave", "nocturnal"]
+  },
+  "sources": [
+    {
+      "id": "src_ns",
+      "kind": "upload",
+      "originalAsset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "workingAsset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "durationSamples": 8000000,
+      "channels": 2,
+      "label": "night_shift.wav"
+    }
+  ],
+  "analyses": {
+    "src_ns": {
+      "profile": "standard",
+      "status": {
+        "rhythm": "done",
+        "structure": "done",
+        "separation": "done",
+        "tag": "done",
+        "describe": "done"
+      },
+      "blobs": {
+        "rhythm": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structure": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "separation": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "tag": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "describe": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "summary": {
+        "bpm": 118,
+        "key": "F# minor",
+        "durationSec": 163,
+        "genres": ["synthwave", "electronic"],
+        "moods": ["nocturnal", "driving"]
+      }
+    }
+  },
+  "tracks": [
+    {
+      "id": "trk_vox",
+      "name": "Vocals",
+      "role": "vocals",
+      "color": "#8A8F98",
+      "gainDb": 0,
+      "pan": 0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    },
+    {
+      "id": "trk_drums",
+      "name": "Drums",
+      "role": "drums",
+      "color": "#8A8F98",
+      "gainDb": 0,
+      "pan": 0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    },
+    {
+      "id": "trk_bass",
+      "name": "Bass",
+      "role": "bass",
+      "color": "#8A8F98",
+      "gainDb": 0,
+      "pan": 0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    },
+    {
+      "id": "trk_synths",
+      "name": "Synths",
+      "role": "synth",
+      "color": "#8A8F98",
+      "gainDb": 0,
+      "pan": 0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    },
+    {
+      "id": "trk_keys",
+      "name": "Keys",
+      "role": "piano",
+      "color": "#8A8F98",
+      "gainDb": 0,
+      "pan": 0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    },
+    {
+      "id": "trk_texture",
+      "name": "Texture",
+      "role": "other",
+      "color": "#8A8F98",
+      "gainDb": 0,
+      "pan": 0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    }
+  ],
+  "arrangement": {
+    "timebase": {
+      "ppq": 960,
+      "tempoMap": [
+        {
+          "tick": 0,
+          "bpm": 118,
+          "curve": "step"
+        }
+      ],
+      "timeSignatures": [
+        {
+          "bar": 0,
+          "numerator": 4,
+          "denominator": 4
+        }
+      ]
+    },
+    "sections": [
+      {
+        "id": "sec_intro",
+        "kind": "intro",
+        "label": "Intro",
+        "lengthTicks": 30720,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_synths": {
+            "clips": [
+              {
+                "id": "clp_000",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_texture": {
+            "clips": [
+              {
+                "id": "clp_010",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        }
+      },
+      {
+        "id": "sec_verse1",
+        "kind": "verse",
+        "label": "Verse 1",
+        "lengthTicks": 61440,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_vox": {
+            "clips": [
+              {
+                "id": "clp_140",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 61440
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_110",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 61440
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_bass": {
+            "clips": [
+              {
+                "id": "clp_100",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 61440
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_synths": {
+            "clips": [
+              {
+                "id": "clp_130",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 61440
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_keys": {
+            "clips": [
+              {
+                "id": "clp_120",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 61440
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        }
+      },
+      {
+        "id": "sec_chorus1",
+        "kind": "chorus",
+        "label": "Chorus 1",
+        "lengthTicks": 30720,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_vox": {
+            "clips": [
+              {
+                "id": "clp_250",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_210",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_bass": {
+            "clips": [
+              {
+                "id": "clp_200",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_synths": {
+            "clips": [
+              {
+                "id": "clp_230",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_keys": {
+            "clips": [
+              {
+                "id": "clp_220",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_texture": {
+            "clips": [
+              {
+                "id": "clp_240",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        }
+      },
+      {
+        "id": "sec_verse2",
+        "kind": "verse",
+        "label": "Verse 2",
+        "lengthTicks": 61440,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_vox": {
+            "clips": [
+              {
+                "id": "clp_340",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 61440
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_310",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 61440
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_bass": {
+            "clips": [
+              {
+                "id": "clp_300",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 61440
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_synths": {
+            "clips": [
+              {
+                "id": "clp_330",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 61440
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_keys": {
+            "clips": [
+              {
+                "id": "clp_320",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 61440
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        }
+      },
+      {
+        "id": "sec_chorus2",
+        "kind": "chorus",
+        "label": "Chorus 2",
+        "lengthTicks": 30720,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_vox": {
+            "clips": [
+              {
+                "id": "clp_450",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_410",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_bass": {
+            "clips": [
+              {
+                "id": "clp_400",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_synths": {
+            "clips": [
+              {
+                "id": "clp_430",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_keys": {
+            "clips": [
+              {
+                "id": "clp_420",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_texture": {
+            "clips": [
+              {
+                "id": "clp_440",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        }
+      },
+      {
+        "id": "sec_bridge",
+        "kind": "bridge",
+        "label": "Bridge",
+        "lengthTicks": 30720,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_vox": {
+            "clips": [
+              {
+                "id": "clp_520",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_synths": {
+            "clips": [
+              {
+                "id": "clp_500",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_texture": {
+            "clips": [
+              {
+                "id": "clp_510",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        },
+        "locked": true
+      },
+      {
+        "id": "sec_chorus3",
+        "kind": "chorus",
+        "label": "Final Chorus",
+        "lengthTicks": 30720,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_vox": {
+            "clips": [
+              {
+                "id": "clp_650",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_610",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_bass": {
+            "clips": [
+              {
+                "id": "clp_600",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_synths": {
+            "clips": [
+              {
+                "id": "clp_630",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_keys": {
+            "clips": [
+              {
+                "id": "clp_620",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_texture": {
+            "clips": [
+              {
+                "id": "clp_640",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        }
+      },
+      {
+        "id": "sec_outro",
+        "kind": "outro",
+        "label": "Outro",
+        "lengthTicks": 30720,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_synths": {
+            "clips": [
+              {
+                "id": "clp_710",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_texture": {
+            "clips": [
+              {
+                "id": "clp_720",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_keys": {
+            "clips": [
+              {
+                "id": "clp_700",
+                "asset": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        }
+      }
+    ],
+    "master": {
+      "fx": [],
+      "automation": [],
+      "gainDb": 0
+    }
+  }
+}

@@ -28,18 +28,22 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   BUDGET_EXCEEDED: 503,
   GENERATION_BUSY: 503,
   COMMIT_PARENT_MISSING: 409,
+  PLANNER_UNAVAILABLE: 503,
+  PLAN_INVALID: 422,
+  PROMPT_POLICY: 422,
   INTERNAL: 500,
 };
 
 /** An error that is safe to serialise to the client verbatim. */
 export class ApiError extends Error {
-  constructor(
-    readonly code: ErrorCode,
-    override readonly message: string,
-    readonly details?: Record<string, unknown>,
-  ) {
+  readonly code: ErrorCode;
+  readonly details: Record<string, unknown> | undefined;
+
+  constructor(code: ErrorCode, message: string, details?: Record<string, unknown>) {
     super(message);
     this.name = "ApiError";
+    this.code = code;
+    this.details = details;
   }
 
   get status(): number {

@@ -157,6 +157,8 @@ s3://bragi-blobs/sha256/<aa>/<bb>/<full-hash>          # all assets & blobs, imm
 
 ## 7. Sync protocol (local-first)
 
+> **Deferred (WP-2.9, owner decision 2026-10-21).** Bragi runs on one machine for now; this protocol is the design for when multi-device sync is picked up later. Until then nothing pushes or pulls commits: the local history is the only copy.
+
 The client is the primary editor. The server is a durable replica plus the cross-device hub.
 
 **Push** (client → server), whenever online and there are unsynced commits:

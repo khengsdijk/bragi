@@ -204,6 +204,9 @@ async function harness(options: HarnessOptions = {}): Promise<Harness> {
       cancelled.push(jobId);
     },
     warmupGeneration: async () => ({ status: options.warmup ?? "warm" }),
+    plan: async () => {
+      throw new Error("the extend flow never plans");
+    },
   };
 
   let audition: Audition | null = null;

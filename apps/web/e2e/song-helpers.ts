@@ -72,6 +72,17 @@ export interface CanvasHook {
   zoomBy(factor: number, anchorX?: number): void;
   panByPx(dx: number): void;
   fit(): void;
+  /** The region drawn for the prompt bar (07 §4.3). */
+  getLassoRegion(): {
+    startSec: number;
+    endSec: number;
+    trackIds: readonly string[];
+  } | null;
+  /** The Explanation highlights drawn now (06 §8). */
+  getHighlights(): readonly {
+    region: { startSec: number; endSec: number; trackIds: readonly string[] };
+    label: string;
+  }[];
 }
 
 export interface Hooks {

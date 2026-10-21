@@ -332,6 +332,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.900.0
         version: 3.1152.0
+      '@bragi/model-wasm':
+        specifier: workspace:*
+        version: link:../../packages/model-wasm
       '@bragi/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas

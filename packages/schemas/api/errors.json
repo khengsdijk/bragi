@@ -98,6 +98,21 @@
       "description": "A pushed commit names a parent the server has not seen (05 §7)."
     },
     {
+      "code": "PLANNER_UNAVAILABLE",
+      "http": 503,
+      "description": "The planner cannot run here: `OPENROUTER_API_KEY` is unset, or the running model build lacks a required export (06 §4)."
+    },
+    {
+      "code": "PLAN_INVALID",
+      "http": 422,
+      "description": "The model still produced an invalid plan after one repair round (06 §5)."
+    },
+    {
+      "code": "PROMPT_POLICY",
+      "http": 422,
+      "description": "A generation prompt targeted a named artist or song, or otherwise breaks the content policy (10 §7)."
+    },
+    {
       "code": "INTERNAL",
       "http": 500,
       "description": "An unhandled server error. The message is generic; the detail goes to Sentry/OTel (05 §11)."

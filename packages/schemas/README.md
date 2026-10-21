@@ -31,6 +31,7 @@ languages.
 | `song/ops/<op>.schema.json` | One file per v1 op ([02 §4.2](../../specs/02-song-model.md)) | TS, Rust, Python |
 | `analysis/*.schema.json` | Analysis result blobs and the section summary ([04](../../specs/04-analysis-pipeline.md)) | Python produces, TS/Rust consume |
 | `jobs/*.schema.json` | `JobRequest` and `JobEvent` ([05 §4.2](../../specs/05-backend-and-jobs.md)) | API, workers |
+| `planner/*.schema.json` | `PlanRequest`, `EditPlan` and `Explanation` ([06](../../specs/06-ai-planner.md)) | API, `packages/api-client`, app |
 | `api/errors.json` | The stable REST API error-code registry ([05 §2](../../specs/05-backend-and-jobs.md)) | API, `packages/api-client` |
 | `api/error.schema.json` | The error envelope; its `ErrorCode` enum must equal `errors.json` | API, clients |
 | `dsp/fx-catalog.schema.json` | `FxCatalog`, the shape of `crates/bragi-dsp/fx_catalog.json` ([03 §6](../../specs/03-audio-engine.md)) | TS, Rust, Python |
@@ -38,7 +39,7 @@ languages.
 | `examples/<RootType>.json` | One valid instance per root type, used by the contract tests in all three languages | TS, Rust, Python |
 | `codegen/` | `bundle.mjs` (bundler + convention checks), `gen.mjs` (the pipeline) | `pnpm schemas:gen` |
 | `generated/` | `bundle.schema.json`: every schema merged into one document with every `$ref` rewritten | the three generators |
-| `src/generated/` | `types.ts`, `ajv-validators.js`, `validators.ts`, `fx-catalog.ts`, `macros.ts` | `@bragi/schemas` consumers |
+| `src/generated/` | `types.ts`, `ajv-validators.js`, `validators.ts`, `fx-catalog.ts`, `macros.ts`, `planner.ts` (the model-facing `propose_edit_plan` and explain JSON Schemas) | `@bragi/schemas` consumers |
 | `sqlite/migrations/` | Local database migrations shared by web and desktop | WP-0.5 |
 
 The generated Rust lives in `crates/bragi-model/src/generated/mod.rs`, driven by

@@ -46,6 +46,10 @@ crates/bragi-dsp/stretch-lab/renders/
 fixtures/eval/audio/
 reports/
 
+# Planner bench reports (WP-2.6): generated per run; the committed cases live in
+# services/api/test/planner-bench/.
+bench-results/
+
 # OS
 .DS_Store
 Thumbs.db

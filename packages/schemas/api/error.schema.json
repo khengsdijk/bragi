@@ -46,6 +46,9 @@
         "BUDGET_EXCEEDED",
         "GENERATION_BUSY",
         "COMMIT_PARENT_MISSING",
+        "PLANNER_UNAVAILABLE",
+        "PLAN_INVALID",
+        "PROMPT_POLICY",
         "INTERNAL"
       ]
     }

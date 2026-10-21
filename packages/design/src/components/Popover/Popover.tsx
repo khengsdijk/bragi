@@ -19,6 +19,12 @@ export interface PopoverProps {
   readonly alignOffset?: number;
   /** Modal popovers trap focus and block outside interaction. */
   readonly modal?: boolean;
+  /**
+   * Whether focus moving outside closes the popover (default true). Turn it off for a popover
+   * opened by a click on a control that takes focus itself, such as the canvas in Explain mode:
+   * that focus change would otherwise close it at once. Outside clicks and Esc still close it.
+   */
+  readonly dismissOnFocusOutside?: boolean;
   readonly className?: string;
 }
 
@@ -39,6 +45,7 @@ export function Popover({
   sideOffset = 6,
   alignOffset = 0,
   modal = false,
+  dismissOnFocusOutside = true,
   className,
 }: PopoverProps) {
   return (
@@ -58,6 +65,7 @@ export function Popover({
           alignOffset={alignOffset}
           role="dialog"
           aria-label={label}
+          {...(dismissOnFocusOutside ? {} : { onFocusOutside: (event) => event.preventDefault() })}
         >
           {children}
         </RadixPopover.Content>

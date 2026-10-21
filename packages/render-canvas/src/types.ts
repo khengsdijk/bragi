@@ -229,8 +229,40 @@ export interface SectionResizeEvent {
   readonly clientY: number;
 }
 
-/** What a primary-button drag on a ribbon does: select/pan, or paint a brush stroke (07 §4.4). */
-export type CanvasTool = "select" | "paint";
+/** What a primary-button drag on a ribbon does: select/pan, paint a brush stroke or lasso (07 §3). */
+export type CanvasTool = "select" | "paint" | "lasso";
+
+/** One point a lasso passed over (07 §4.3). */
+export interface LassoPoint {
+  /** Arrangement time in seconds. */
+  readonly sec: number;
+  /** The ribbon under the pointer, or `null` between lanes. */
+  readonly trackId: string | null;
+  /** Pointer y in canvas CSS pixels, so the free shape can be drawn back exactly. */
+  readonly y: number;
+}
+
+/** The bounding region a lasso covered, before the app snaps it to beats or bars. */
+export interface LassoRegion {
+  readonly startSec: number;
+  readonly endSec: number;
+  /** Ribbons whose lanes the free shape touched, in the order it first touched them. */
+  readonly trackIds: readonly string[];
+}
+
+/** A lasso so far. The canvas never changes the document; the app snaps and sends the prompt. */
+export interface LassoEvent {
+  readonly points: readonly LassoPoint[];
+  readonly region: LassoRegion;
+  /** `Alt` held at release: the app should not snap (07 §4.3). */
+  readonly altKey: boolean;
+}
+
+/** A labelled region drawn on the canvas, e.g. an Explanation's highlights (06 §8). */
+export interface CanvasHighlight {
+  readonly region: LassoRegion;
+  readonly label: string;
+}
 
 /** One point a paint stroke passed over. */
 export interface PaintPoint {
@@ -291,6 +323,21 @@ export interface CanvasEvents {
   readonly paintEnd: PaintStrokeEvent;
   /** Escape or a cancelled pointer: the app drops the preview. */
   readonly paintCancel: Record<string, never>;
+  /** The lasso tool's pointer went down on a ribbon (07 §4.3). */
+  readonly lassoStart: LassoEvent;
+  /** The free shape grew. */
+  readonly lassoMove: LassoEvent;
+  /** The pointer was released; the app snaps the region and opens the prompt bar. */
+  readonly lassoEnd: LassoEvent;
+  /** Escape or a cancelled pointer: no prompt bar opens. */
+  readonly lassoCancel: Record<string, never>;
+  /** In Explain mode a click asked for an explanation of the part under the pointer (07 §4.9). */
+  readonly explainAt: {
+    readonly sectionId: string;
+    readonly sec: number;
+    readonly clientX: number;
+    readonly clientY: number;
+  };
   /** The canvas wants a different height (lanes grow with the number of ribbons). */
   readonly contentHeight: { readonly px: number };
 }

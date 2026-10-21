@@ -16,6 +16,7 @@ export const loadProject: (a: number, b: number) => [number, number, number];
 export const resolveRegion: (a: number, b: number, c: number) => [number, number, number, number];
 export const secondsToTicks: (a: number, b: number) => [bigint, number, number];
 export const sectionSpans: (a: number) => [number, number, number, number];
+export const summarizeForLlm: (a: number, b: number, c: number) => [number, number, number, number];
 export const ticksToSeconds: (a: number, b: bigint) => [number, number, number];
 export const validateDoc: (a: number) => [number, number, number, number];
 export const __wbindgen_externrefs: WebAssembly.Table;

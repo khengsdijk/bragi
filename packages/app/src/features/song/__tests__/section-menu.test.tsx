@@ -66,6 +66,8 @@ function actions(): CommandActions {
     redo: vi.fn(),
     toggleHistory: vi.fn(),
     togglePlay: vi.fn(),
+    askAi: vi.fn(),
+    toggleExplain: vi.fn(),
   };
 }
 
@@ -81,6 +83,7 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     hasHistory: true,
     historyOpen: false,
     playing: false,
+    explainMode: false,
     actions: actions(),
     ...overrides,
   };
@@ -157,6 +160,8 @@ describe("SectionMenu", () => {
       "Make part longer…",
       "Make part shorter…",
       "Apply brush…",
+      "Ask AI…",
+      "Explain this part",
     ]);
     const smooth = screen.getByRole("menuitemcheckbox", { name: "Smooth new joins" });
     expect(smooth.getAttribute("aria-checked")).toBe("true");

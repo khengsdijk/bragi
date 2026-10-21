@@ -149,9 +149,10 @@ Bragi is built in **phases**. Every phase ends with a demo-able milestone (match
 - **Depends on:** 2.6, 2.7 · **Specs:** [09 §4.3–4.4](09-generation.md), [06 §3, §5](06-ai-planner.md), [07 §4.8](07-song-canvas.md)
 - **Acceptance:** **M2 demo 4** (lasso + prompt with a generative variant) works end-to-end. Fill-gap candidates pass the gates on 4 of 5 fixtures.
 
-### WP-2.9 Sync & desktop auth · M
+### WP-2.9 Sync & desktop auth · M · **Deferred** (owner, 2026-10-21)
 - **Depends on:** 2.0, 2.1, 0.7 · **Specs:** [05 §7–8](05-backend-and-jobs.md), [ADR-0014](decisions/ADR-0014-single-user-mode.md)
-- **Scope note:** in single-user mode sync needs no login. The desktop bearer/PKCE work applies to multi-user (hosted) mode only; ask the owner whether hosted multi-user sync is wanted before building it.
+- **Deferred:** the owner uses Bragi on one machine for now. Multi-device sync is wanted **later, once Bragi works properly** (after the Phase 2–5 editing, generation and fusion features are in place); it is not part of M2 and nothing in Phases 2–5 depends on it. Until then the client stays local-only: commits live in the local SQLite/OPFS history and the server is not a sync replica.
+- **Scope when picked up:** in single-user mode sync needs no login, so the first step is the 05 §7 push/pull between the owner's devices against their own server (Q85 and Q86 must be resolved first). The desktop bearer/PKCE login and OS keychain apply to hosted multi-user mode only, and stay out until the owner wants hosted accounts.
 - **Acceptance:** two devices editing offline then syncing produce two branch tips with no data loss. The desktop PKCE login works on all three OSes, and the token is stored in the OS keychain.
 
 ---
@@ -225,7 +226,7 @@ Bragi is built in **phases**. Every phase ends with a demo-able milestone (match
 | 6.4 | Accessibility audit & fixes | M | all UI WPs | [11 §6.5](11-ux-and-accessibility.md) |
 | 6.5 | Performance pass (all budgets) | M | all UI WPs | Budgets in 03, 07 and 08 |
 | 6.6 | DAW export bundle | S | 1.11, 1.5 | [03 §9](03-audio-engine.md) |
-| 6.7 | Bring-your-own-backend setting | S | 2.9 | [05 §10](05-backend-and-jobs.md) |
+| 6.7 | Bring-your-own-backend setting | S | 2.9 (deferred) | [05 §10](05-backend-and-jobs.md) |
 | 6.8 | Audio watermark evaluation & integration | S | 2.7 | [09 §8](09-generation.md) |
 | 6.9 | GPU hosting decision & prod deploy (→ ADR-0005) | M | 2.7 | [05 §9](05-backend-and-jobs.md) |
 
@@ -266,5 +267,7 @@ The Rust engine (0.3/0.4/1.1) and the analysis workers (0.7/1.x) are independent
 | 2.3 FX catalogue, macros & Inspector | **Done; listening check PENDING** (2026-10-20) | [`docs/wp/2.3.md`](../docs/wp/2.3.md), manual checks [`docs/wp/2.3-MANUAL_CHECKS.md`](../docs/wp/2.3-MANUAL_CHECKS.md). 14 effects with DSP tests (129), smoothing without zipper noise, engine chains with tails, automation, plugin delay compensation and sidechain source; 7 macros; the Inspector with vibe sliders and a catalogue-driven expert drawer. 12 tracks × 3 fx + master: 0.94 % of real time (M2 Pro, release). Live Inspector e2e (with playback) green in Chromium, Firefox and WebKit. Fixed on the way: no selection on stored songs; the web engine host decoded every asset on the audio thread on every reload (now in the worker, each asset once). |
 | 2.2 Section editing interactions | **Done** (2026-10-20) | [`docs/wp/2.2.md`](../docs/wp/2.2.md). Click-free section boundaries (centred equal-power crossfades only where material is discontinuous), section op batches with smart transitions, context menu, command palette and keyboard paths, canvas drags (reorder with live preview, Alt-duplicate, right-edge resize). Live: Chorus 2 dragged before Verse 2 while playing commits one `section.move`, undo is exact; green in Chromium, Firefox and WebKit (M2 Pro). |
 | 2.5 Audition engine & Audition bar | **Done** (2026-10-20) | [`docs/wp/2.5.md`](../docs/wp/2.5.md). Four warm plans with 30 ms equal-power switches at the same playhead (render-capture check: −30.6 vs −33.3 dBFS, a hard cut −12.1 fails), WASM/native conformance −184.9 dBFS, `warm`/`release`/`audition` in every host; audition store with job-event badges, the Audition bar (0–3, A/B), History Compare. Live: Compare A/B and Accept while playing, green in Chromium, Firefox and WebKit (M2 Pro). Changed-area outlines deferred to the first real candidates. |
+| 2.6 AI planner v1 (ops-only) | **Done; 06 §9 bench budget not met with the owner's default model** (2026-10-21) | [`docs/wp/2.6.md`](../docs/wp/2.6.md). Summary, catalogue, OpenRouter tool call with per-tier models/reasoning, per-op validation + repair, explain, 43-case bench (live + replay), lasso, prompt bar, plan → Audition bar, Explain mode, artist-name policy. Bench (43 cases, M2 Pro over OpenRouter): DeepSeek V4.1 Flash (owner's default) 88.4 % valid / 88.4 % expectations / 42 s P50; Claude Haiku 5.5 97.7 % / 95.3 % / 3.5 s P50; over-reach 0 for both. Prompt is ~5.8k tokens (was ~27k). Live `planner-flow` green in Chromium, Firefox and WebKit. |
 | 2.4 Paint brushes (instant set) | **Done** (2026-10-20) | [`docs/wp/2.4.md`](../docs/wp/2.4.md). Nine instant brushes as one op batch per stroke (ramps ≥ 50 ms; live shortest 50.5 ms), pen pressure/wheel/size strength, a preview that keeps fx instances (one engine delta per refresh), palette + `B`, keyboard Apply brush…. Live: Space while playing, undo, Remove — green in Chromium, Firefox and WebKit (M2 Pro). Listening check pending ([`2.4-MANUAL_CHECKS.md`](../docs/wp/2.4-MANUAL_CHECKS.md)). |
+| 2.9 Sync & desktop auth | **Deferred** (owner, 2026-10-21) | One machine for now; multi-device sync wanted once Bragi works properly (see WP-2.9 above). Hosted desktop PKCE/keychain stays out until hosted accounts are wanted. Q85, Q86 wait for it. |
 | All others | Not started | Specs v0.1 written 2026-10-18 |

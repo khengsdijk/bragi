@@ -35,6 +35,7 @@ mod patch;
 pub mod placement;
 pub mod region;
 pub mod spans;
+pub mod summary;
 pub mod time;
 pub mod validate;
 
@@ -50,6 +51,7 @@ pub use placement::{
 };
 pub use region::{RegionSlice, ResolvedRegion, resolve_region};
 pub use spans::{SectionSpan, section_spans};
+pub use summary::{SummaryFocus, escape_user_text, summarize_for_llm};
 pub use time::{
     ContextEdge, MAX_BPM, MIN_BPM, TempoCtx, bar_aligned_context_range, bar_beat_to_ticks,
     seconds_to_ticks, ticks_to_bar_beat, ticks_to_seconds,

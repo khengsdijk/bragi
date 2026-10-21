@@ -1,0 +1,10 @@
+---
+source: crates/bragi-model/tests/summary.rs
+expression: "summarize_for_llm(&example(), &SummaryFocus::default()).unwrap()"
+---
+SONG: "Midnight Drive" · 118 BPM · "F# minor" · 4/4 · 0:16 · genres: "synthwave" · moods: "nostalgic", "driving"
+TRACKS: trk_mix "Original mix"(full_mix)
+SECTIONS (idx, id, kind, bars, startBar, energy, chords, active stems, locked):
+  0 sec_01 intro    8    1     - -          -              -
+FOCUS: whole song
+CURRENT FX/MACROS: none

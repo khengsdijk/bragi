@@ -14,6 +14,7 @@ import type { AuthInstance } from "./auth/auth.js";
 import type { Session, SessionResolver } from "./auth/session.js";
 import type { Config } from "./config.js";
 import { ApiError } from "./errors.js";
+import type { PlannerService } from "./planner/planner.js";
 import { registerAnalyses } from "./routes/analyses.js";
 import { registerAssets } from "./routes/assets.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
@@ -21,6 +22,7 @@ import { registerGenerations } from "./routes/generations.js";
 import { registerJobs } from "./routes/jobs.js";
 import { registerLibrary } from "./routes/library.js";
 import { registerMeta } from "./routes/meta.js";
+import { registerPlans } from "./routes/plans.js";
 import type { ObjectStore } from "./s3/client.js";
 import { WsGateway } from "./ws/gateway.js";
 
@@ -35,6 +37,8 @@ export interface AppContext {
   sessions: SessionResolver;
   /** The owner account in single-user mode, absent in multi-user mode. */
   owner?: Session["user"];
+  /** Tests inject a fake planner; production builds it from the environment. */
+  planner?: PlannerService;
 }
 
 export interface BuiltApp {
@@ -78,6 +82,12 @@ export async function buildApp(ctx: AppContext): Promise<BuiltApp> {
       reply.status(400).send(new ApiError("VALIDATION_FAILED", messageOf(error)).toBody());
       return;
     }
+    if (isPayloadTooLarge(error)) {
+      reply
+        .status(413)
+        .send(new ApiError("PAYLOAD_TOO_LARGE", "request body is too large").toBody());
+      return;
+    }
     request.log.error({ err: error }, "unhandled error");
     reply.status(500).send(new ApiError("INTERNAL", "internal error").toBody());
   });
@@ -98,6 +108,7 @@ export async function buildApp(ctx: AppContext): Promise<BuiltApp> {
   registerGenerations(app, ctx);
   registerAnalyses(app, ctx);
   registerLibrary(app, ctx);
+  registerPlans(app, ctx);
 
   const gateway = new WsGateway(ctx);
   app.get("/v1/ws", { websocket: true }, (socket, request) => {
@@ -109,6 +120,16 @@ export async function buildApp(ctx: AppContext): Promise<BuiltApp> {
 
 function isValidationError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "validation" in error;
+}
+
+/** Fastify's body-limit error (`FST_ERR_CTP_BODY_TOO_LARGE`, HTTP 413). */
+function isPayloadTooLarge(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (("statusCode" in error && error.statusCode === 413) ||
+      ("code" in error && error.code === "FST_ERR_CTP_BODY_TOO_LARGE"))
+  );
 }
 
 function messageOf(error: unknown): string {

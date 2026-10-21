@@ -1,0 +1,426 @@
+{
+  "$comment": "Curated artist/style pre-pass (10 §7 check 3). Each name maps to 3–5 plain sonic descriptors; the planner replaces the name before the model sees it and tells the user. Descriptors name sounds, never artists.",
+  "version": 1,
+  "artists": [
+    {
+      "name": "Daft Punk",
+      "descriptors": [
+        "filtered disco house",
+        "vocoder vocals",
+        "French touch compression",
+        "talkbox leads"
+      ]
+    },
+    {
+      "name": "The Beatles",
+      "descriptors": [
+        "1960s guitar pop",
+        "close vocal harmonies",
+        "warm tape saturation",
+        "bright jangly guitars"
+      ]
+    },
+    {
+      "name": "Michael Jackson",
+      "descriptors": [
+        "punchy 1980s pop production",
+        "gated drums",
+        "bright synth bass",
+        "layered lead vocals"
+      ]
+    },
+    {
+      "name": "Prince",
+      "descriptors": [
+        "funk guitar",
+        "synth-funk bass",
+        "tight drum machine groove",
+        "high falsetto vocals"
+      ]
+    },
+    {
+      "name": "Madonna",
+      "descriptors": [
+        "1980s dance-pop",
+        "programmed drums",
+        "shiny synth chords",
+        "confident lead vocals"
+      ]
+    },
+    {
+      "name": "David Bowie",
+      "descriptors": [
+        "art-rock arrangements",
+        "theatrical vocals",
+        "baritone sax",
+        "glam guitar tones"
+      ]
+    },
+    {
+      "name": "Queen",
+      "descriptors": [
+        "layered operatic harmonies",
+        "grand piano",
+        "heavy guitar stacks",
+        "dramatic dynamics"
+      ]
+    },
+    {
+      "name": "Led Zeppelin",
+      "descriptors": ["blues-rock riffs", "roomy live drums", "overdriven guitar", "soaring vocals"]
+    },
+    {
+      "name": "Pink Floyd",
+      "descriptors": [
+        "spacious psychedelic rock",
+        "slow-building arrangements",
+        "analog synth textures",
+        "wide stereo delays"
+      ]
+    },
+    {
+      "name": "Nirvana",
+      "descriptors": [
+        "grunge distortion",
+        "raw room drums",
+        "quiet-verse loud-chorus dynamics",
+        "raspy vocals"
+      ]
+    },
+    {
+      "name": "Radiohead",
+      "descriptors": [
+        "experimental art rock",
+        "moody synth textures",
+        "restless drum programming",
+        "intimate vocals"
+      ]
+    },
+    {
+      "name": "Coldplay",
+      "descriptors": [
+        "anthemic pop rock",
+        "shimmering guitars",
+        "wide reverb",
+        "soaring group vocals"
+      ]
+    },
+    {
+      "name": "Beyoncé",
+      "descriptors": [
+        "contemporary R&B",
+        "layered background vocals",
+        "punchy kick and snare",
+        "polished pop production"
+      ]
+    },
+    {
+      "name": "Drake",
+      "descriptors": [
+        "moody rap and R&B",
+        "sparse trap drums",
+        "soft synth pads",
+        "close whispered vocals"
+      ]
+    },
+    {
+      "name": "Taylor Swift",
+      "descriptors": [
+        "storytelling pop",
+        "bright acoustic guitar",
+        "clean modern drums",
+        "layered vocal stacks"
+      ]
+    },
+    {
+      "name": "Kanye West",
+      "descriptors": [
+        "soul-sample hip-hop",
+        "warm chopped vocals",
+        "punchy boom-bap drums",
+        "brass stabs"
+      ]
+    },
+    {
+      "name": "Jay-Z",
+      "descriptors": [
+        "east-coast hip-hop",
+        "confident rap delivery",
+        "sparse drum loops",
+        "bass-heavy low end"
+      ]
+    },
+    {
+      "name": "Eminem",
+      "descriptors": [
+        "dense rap flows",
+        "cinematic minor-key loops",
+        "hard snare",
+        "layered vocal doubles"
+      ]
+    },
+    {
+      "name": "Rihanna",
+      "descriptors": [
+        "dancehall-tinged pop",
+        "syncopated drums",
+        "airy synth chords",
+        "smooth lead vocals"
+      ]
+    },
+    {
+      "name": "Lady Gaga",
+      "descriptors": [
+        "electro-pop",
+        "four-on-the-floor kick",
+        "glossy synth arpeggios",
+        "big theatrical vocals"
+      ]
+    },
+    {
+      "name": "Adele",
+      "descriptors": [
+        "piano ballad",
+        "warm upright piano",
+        "restrained strings",
+        "powerful soulful vocals"
+      ]
+    },
+    {
+      "name": "Ed Sheeran",
+      "descriptors": [
+        "acoustic pop",
+        "fingerpicked guitar",
+        "handclap percussion",
+        "close intimate vocals"
+      ]
+    },
+    {
+      "name": "Bruno Mars",
+      "descriptors": [
+        "retro funk-pop",
+        "tight horn section",
+        "bright rhythm guitar",
+        "smooth high vocals"
+      ]
+    },
+    {
+      "name": "Billie Eilish",
+      "descriptors": [
+        "whispered close-mic vocals",
+        "muted sub bass",
+        "minimal clicking percussion",
+        "dark roomy textures"
+      ]
+    },
+    {
+      "name": "The Weeknd",
+      "descriptors": [
+        "moody synth-pop",
+        "gated drum machine",
+        "wide analog pads",
+        "falsetto lead vocals"
+      ]
+    },
+    {
+      "name": "Frank Ocean",
+      "descriptors": [
+        "intimate alternative R&B",
+        "sparse warm keys",
+        "loose drum programming",
+        "layered soft vocals"
+      ]
+    },
+    {
+      "name": "Kendrick Lamar",
+      "descriptors": [
+        "jazz-tinged hip-hop",
+        "live-sounding drums",
+        "syncopated rap delivery",
+        "cinematic string swells"
+      ]
+    },
+    {
+      "name": "Bob Dylan",
+      "descriptors": [
+        "folk-rock",
+        "acoustic strumming",
+        "nasal storytelling vocals",
+        "harmonica fills"
+      ]
+    },
+    {
+      "name": "Jimi Hendrix",
+      "descriptors": [
+        "psychedelic blues rock",
+        "fuzz guitar leads",
+        "wah pedal",
+        "loose live drums"
+      ]
+    },
+    {
+      "name": "The Rolling Stones",
+      "descriptors": ["blues rock", "loose swaggering drums", "twangy rhythm guitar", "raw vocals"]
+    },
+    {
+      "name": "U2",
+      "descriptors": [
+        "arena rock",
+        "delay-drenched guitar",
+        "driving eighth-note bass",
+        "wide anthemic vocals"
+      ]
+    },
+    {
+      "name": "Depeche Mode",
+      "descriptors": [
+        "dark synth-pop",
+        "mechanical drum programming",
+        "analog bass sequences",
+        "deep baritone vocals"
+      ]
+    },
+    {
+      "name": "Kraftwerk",
+      "descriptors": [
+        "minimal electronic",
+        "metronomic drum machine",
+        "cold synth chords",
+        "spoken robotic vocals"
+      ]
+    },
+    {
+      "name": "Aphex Twin",
+      "descriptors": [
+        "IDM",
+        "glitchy breakbeats",
+        "warm analog synth melodies",
+        "unexpected rhythmic edits"
+      ]
+    },
+    {
+      "name": "Boards of Canada",
+      "descriptors": [
+        "downtempo electronica",
+        "tape-worn synth pads",
+        "dusty drum loops",
+        "nostalgic haze"
+      ]
+    },
+    {
+      "name": "Burial",
+      "descriptors": [
+        "atmospheric dubstep",
+        "pitched vocal fragments",
+        "vinyl crackle",
+        "deep sub bass"
+      ]
+    },
+    {
+      "name": "Four Tet",
+      "descriptors": [
+        "organic electronic",
+        "chopped acoustic samples",
+        "loose shuffled drums",
+        "warm melodic loops"
+      ]
+    },
+    {
+      "name": "Flying Lotus",
+      "descriptors": [
+        "experimental beat music",
+        "off-kilter drum programming",
+        "dense synth layers",
+        "jazzy harmony"
+      ]
+    },
+    {
+      "name": "Miles Davis",
+      "descriptors": ["modal jazz", "muted trumpet", "brushed drums", "spacious upright bass"]
+    },
+    {
+      "name": "John Coltrane",
+      "descriptors": [
+        "spiritual jazz",
+        "saxophone runs",
+        "swinging ride cymbal",
+        "modal piano comping"
+      ]
+    },
+    {
+      "name": "Bob Marley",
+      "descriptors": ["roots reggae", "one-drop drums", "bubbling organ", "warm bass groove"]
+    },
+    {
+      "name": "Dolly Parton",
+      "descriptors": ["country pop", "bright acoustic guitar", "pedal steel", "warm twangy vocals"]
+    },
+    {
+      "name": "Johnny Cash",
+      "descriptors": [
+        "outlaw country",
+        "sparse boom-chick rhythm",
+        "deep baritone vocals",
+        "twangy electric guitar"
+      ]
+    },
+    {
+      "name": "Aretha Franklin",
+      "descriptors": ["soul", "gospel piano", "live horn section", "powerful lead vocals"]
+    },
+    {
+      "name": "Stevie Wonder",
+      "descriptors": [
+        "1970s soul-funk",
+        "clavinet grooves",
+        "bright horns",
+        "layered joyful vocals"
+      ]
+    },
+    {
+      "name": "Marvin Gaye",
+      "descriptors": [
+        "smooth soul",
+        "warm string arrangements",
+        "soft bass groove",
+        "intimate vocals"
+      ]
+    },
+    {
+      "name": "Tame Impala",
+      "descriptors": [
+        "psychedelic pop",
+        "flanged guitars",
+        "tight drum-machine groove",
+        "hazy layered vocals"
+      ]
+    },
+    {
+      "name": "Mac DeMarco",
+      "descriptors": [
+        "slacker indie rock",
+        "chorused guitars",
+        "loose drums",
+        "lazy drawled vocals"
+      ]
+    },
+    {
+      "name": "Tyler, the Creator",
+      "descriptors": [
+        "eclectic hip-hop",
+        "warm soul samples",
+        "punchy irregular drums",
+        "playful vocal delivery"
+      ]
+    },
+    {
+      "name": "Björk",
+      "descriptors": [
+        "art pop",
+        "unusual electronic textures",
+        "expressive vocals",
+        "organic percussion"
+      ]
+    }
+  ]
+}

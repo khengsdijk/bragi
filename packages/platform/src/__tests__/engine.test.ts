@@ -302,7 +302,9 @@ describe("the wasm engine host", () => {
     const offline: EngineOfflineBridge = {
       ...fakeOffline(),
       async load(doc, assets) {
-        steps.push(`load ${JSON.stringify(doc)} [${assets.map((asset) => asset.hash[7]).join("")}]`);
+        steps.push(
+          `load ${JSON.stringify(doc)} [${assets.map((asset) => asset.hash[7]).join("")}]`,
+        );
       },
       async render(job) {
         steps.push(`render ${job.kind}`);
@@ -322,7 +324,11 @@ describe("the wasm engine host", () => {
       schedule: () => 1,
       cancelSchedule: () => {},
     });
-    const job: RenderJob = { kind: "context", range: { startTick: 0, endTick: 960 }, tracks: "all" };
+    const job: RenderJob = {
+      kind: "context",
+      range: { startTick: 0, endTick: 960 },
+      tracks: "all",
+    };
 
     const doc = { sources: [{ workingAsset: first }], tracks: [] };
     await host.loadDocument(doc);

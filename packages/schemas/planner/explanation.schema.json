@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Explanation",
+  "description": "The answer to \"Explain this\" (06 §8). Every claim is grounded in an analysis feature; the highlights are drawn on the canvas.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["text", "highlights"],
+  "properties": {
+    "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "highlights": { "$ref": "#/$defs/HighlightList" },
+    "learnMore": { "type": "string", "minLength": 1 }
+  },
+  "$defs": {
+    "HighlightList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Highlight" }
+    },
+    "Highlight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["region", "label"],
+      "properties": {
+        "region": { "$ref": "../song/region.schema.json" },
+        "label": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

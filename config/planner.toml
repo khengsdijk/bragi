@@ -1,0 +1,22 @@
+# Planner model tiers and limits (06 §4, docs/wp/2.6.md §B).
+
+# Model IDs are OpenRouter slugs (`vendor/model`). They are configuration, never hard-coded:
+# change them here or override each tier with BRAGI_PLANNER_MODEL_FAST / _SMART / _EXPLAIN.
+#
+# `fast`    short prompts that map to mix/fx edits (no generation verbs, region ≤ 1 track).
+# `smart`   everything else.
+#
+# DeepSeek V4.1 Flash on every tier is the owner's choice (2026-10-21). The WP-2.6 bench numbers for
+# it and the alternatives are in docs/wp/2.6.md "Bench results".
+# `explain` "Explain this" answers, which only need JSON output rather than tool calling.
+[models]
+fast = "deepseek/deepseek-v4.1-flash"
+smart = "deepseek/deepseek-v4.1-flash"
+explain = "deepseek/deepseek-v4.1-flash"
+
+[limits]
+# DeepSeek v4.1 flash spends tokens on reasoning before the tool call; 4096 was exhausted on
+# longer prompts and OpenRouter returned `finish_reason: "error"` with no content (WP-2.6 bench).
+maxTokens = 8192
+timeoutMs = 120000
+variantCount = 3

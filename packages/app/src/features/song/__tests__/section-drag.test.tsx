@@ -105,6 +105,9 @@ function useHarness(
     selection: { kind: "sections", ids: ["sec_000"] },
     focus: null,
     historyOpen: false,
+    explainMode: false,
+    onAskAi: () => {},
+    onToggleExplain: () => {},
     onToggleHistory: () => {},
     onAnnounce: fixture.announce,
   });

@@ -1,0 +1,395 @@
+{
+  "schemaVersion": 1,
+  "id": "prj_01JAB3QK7M9P2V6XWN0T4Y8ZB6",
+  "meta": {
+    "title": "Paper Lanterns",
+    "createdAt": "2026-10-20T12:00:00Z",
+    "tags": []
+  },
+  "sources": [],
+  "analyses": {},
+  "tracks": [
+    {
+      "id": "trk_drums",
+      "name": "Drums",
+      "role": "drums",
+      "color": "#8A8F98",
+      "gainDb": 0,
+      "pan": 0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    },
+    {
+      "id": "trk_bass",
+      "name": "Bass",
+      "role": "bass",
+      "color": "#8A8F98",
+      "gainDb": 0,
+      "pan": 0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    },
+    {
+      "id": "trk_keys",
+      "name": "Keys",
+      "role": "piano",
+      "color": "#8A8F98",
+      "gainDb": 0,
+      "pan": 0,
+      "mute": false,
+      "solo": false,
+      "hidden": false,
+      "fx": []
+    }
+  ],
+  "arrangement": {
+    "timebase": {
+      "ppq": 960,
+      "tempoMap": [
+        {
+          "tick": 0,
+          "bpm": 118,
+          "curve": "step"
+        }
+      ],
+      "timeSignatures": [
+        {
+          "bar": 0,
+          "numerator": 4,
+          "denominator": 4
+        }
+      ]
+    },
+    "sections": [
+      {
+        "id": "sec_a",
+        "kind": "intro",
+        "label": "Intro",
+        "lengthTicks": 15360,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_keys": {
+            "clips": [
+              {
+                "id": "clp_000",
+                "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 15360
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        }
+      },
+      {
+        "id": "sec_b",
+        "kind": "verse",
+        "label": "Verse",
+        "lengthTicks": 30720,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_110",
+                "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_bass": {
+            "clips": [
+              {
+                "id": "clp_100",
+                "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_keys": {
+            "clips": [
+              {
+                "id": "clp_120",
+                "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        }
+      },
+      {
+        "id": "sec_c",
+        "kind": "chorus",
+        "label": "Chorus",
+        "lengthTicks": 30720,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_drums": {
+            "clips": [
+              {
+                "id": "clp_210",
+                "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_bass": {
+            "clips": [
+              {
+                "id": "clp_200",
+                "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          },
+          "trk_keys": {
+            "clips": [
+              {
+                "id": "clp_220",
+                "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 30720
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        }
+      },
+      {
+        "id": "sec_d",
+        "kind": "outro",
+        "label": "Outro",
+        "lengthTicks": 15360,
+        "transitionIn": {
+          "kind": "cut",
+          "lengthTicks": 0
+        },
+        "lanes": {
+          "trk_keys": {
+            "clips": [
+              {
+                "id": "clp_300",
+                "asset": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "srcStart": 0,
+                "srcEnd": 48000,
+                "start": 0,
+                "warp": {
+                  "mode": "beatgrid",
+                  "anchors": [
+                    {
+                      "srcSample": 0,
+                      "tick": 0
+                    },
+                    {
+                      "srcSample": 48000,
+                      "tick": 15360
+                    }
+                  ]
+                },
+                "gainDb": 0,
+                "pitchSemitones": 0,
+                "fadeInTicks": 0,
+                "fadeOutTicks": 0,
+                "fadeCurve": "equal_power",
+                "provenance": {
+                  "kind": "user",
+                  "createdAt": "2026-10-20T12:00:00Z"
+                }
+              }
+            ],
+            "automation": []
+          }
+        }
+      }
+    ],
+    "master": {
+      "fx": [],
+      "automation": [],
+      "gainDb": 0
+    }
+  }
+}

@@ -12,5 +12,6 @@
 
 export * from "./generated/fx-catalog.js";
 export * from "./generated/macros.js";
+export * from "./generated/planner.js";
 export * from "./generated/types.js";
 export * from "./generated/validators.js";

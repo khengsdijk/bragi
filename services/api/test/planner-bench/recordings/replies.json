@@ -1,0 +1,669 @@
+{
+  "version": 1,
+  "model": "anthropic/claude-haiku-5.5",
+  "recordedAt": "2026-10-21T04:27:29.072Z",
+  "cases": {
+    "fx-punchier-drums": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Make the drums punchier during Chorus 2 (bars 49–56) only, using a time-limited punch lift on the Drums track.\", \"variants\": [{\"label\":\"Subtle punch\",\"description\":\"Light transient attack boost on Drums through Chorus 2 only, fading in and out within the section.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_punchDrums\",\"type\":\"transient\",\"params\":{\"attack\":0,\"sustain\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus2\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_punchDrums/attack\",\"points\":[{\"tick\":0,\"value\":0.25,\"curve\":\"linear\"},{\"tick\":7680,\"value\":0.25,\"curve\":\"linear\"}]}]}]},{\"label\":\"Strong punch\",\"description\":\"Heavier transient attack plus a compressor-driven push on Drums, confined to Chorus 2.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_punchDrums\",\"type\":\"transient\",\"params\":{\"attack\":0,\"sustain\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus2\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_punchDrums/attack\",\"points\":[{\"tick\":0,\"value\":0.5,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.5,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5889,
+            "completionTokens": 637,
+            "totalTokens": 6526,
+            "costUsd": 0.0009074
+          }
+        }
+      ]
+    },
+    "fx-more-space-vox": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Add a reverb to the Vocals within Chorus 1 (bars 25–32) only, ramping its mix up for more space.\", \"variants\": [{\"label\":\"Subtle room\",\"description\":\"Adds light reverb to vocals in Chorus 1, mix rising gently across the section.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_vox_space\",\"type\":\"reverb\",\"params\":{\"mix\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus1\",\"trackId\":\"trk_vox\"},\"target\":\"fx:fx_vox_space/mix\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.25,\"curve\":\"linear\"}]}]}]},{\"label\":\"Wide hall\",\"description\":\"Bigger, longer reverb on vocals in Chorus 1 for a spacious lift.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_vox_space\",\"type\":\"reverb\",\"params\":{\"mix\":0,\"size\":0.8,\"decaySec\":4},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus1\",\"trackId\":\"trk_vox\"},\"target\":\"fx:fx_vox_space/mix\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.45,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5886,
+            "completionTokens": 624,
+            "totalTokens": 6510,
+            "costUsd": 0.0009006
+          }
+        },
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Add a reverb to the Vocals only within Chorus 1 (bars 25–32), ramping its mix up for more space.\", \"variants\": \"[{\\\"label\\\":\\\"Subtle room\\\",\\\"description\\\":\\\"Adds light reverb to vocals in Chorus 1, mix rising gently across the section.\\\",\\\"steps\\\":[{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_voxspace1\\\",\\\"type\\\":\\\"reverb\\\",\\\"params\\\":{\\\"mix\\\":0},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_chorus1\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"target\\\":\\\"fx:fx_voxspace1/mix\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":0.25,\\\"curve\\\":\\\"linear\\\"}]}]}]},{\\\"label\\\":\\\"Wide hall\\\",\\\"description\\\":\\\"Bigger, longer reverb on vocals in Chorus 1 for a spacious lift.\\\",\\\"steps\\\":[{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_voxspace2\\\",\\\"type\\\":\\\"reverb\\\",\\\"params\\\":{\\\"mix\\\":0,\\\"size\\\":0.8,\\\"decaySec\\\":4},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_chorus1\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"target\\\":\\\"fx:fx_voxspace2/mix\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":0.45,\\\"curve\\\":\\\"linear\\\"}]}]}]}]}\\n\\n\"}",
+          "usage": {
+            "promptTokens": 6654,
+            "completionTokens": 611,
+            "totalTokens": 7265,
+            "costUsd": 0.0009709
+          }
+        }
+      ]
+    },
+    "fx-warm-drums": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Add a gentle warmth to the Drums in Verse 2 (bars 33–48) using saturation, with the change confined to that region.\", \"variants\": [{\"label\":\"Subtle tape warmth\",\"description\":\"Light saturation on Drums, automated to fade in across Verse 2 only.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_warmth1\",\"type\":\"saturation\",\"params\":{\"drive\":0,\"tone\":0,\"mix\":1},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse2\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_warmth1/drive\",\"points\":[{\"tick\":0,\"value\":0.2,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.2,\"curve\":\"linear\"}]}]}]},{\"label\":\"Warmer drive\",\"description\":\"Stronger saturation on Drums across Verse 2 for a fuller, rounder warmth.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_warmth2\",\"type\":\"saturation\",\"params\":{\"drive\":0,\"tone\":-0.2,\"mix\":1},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse2\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_warmth2/drive\",\"points\":[{\"tick\":0,\"value\":0.45,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.45,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5884,
+            "completionTokens": 642,
+            "totalTokens": 6526,
+            "costUsd": 0.0009094
+          }
+        }
+      ]
+    },
+    "fx-quieter-keys": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Turn the Keys down slightly within the focus region (Verse 1, bars 9–24) so they sit further back in the mix.\", \"variants\": [{\"label\":\"Gentle pull-back\",\"description\":\"Lower Keys about 3 dB across Verse 1 only, using a gain fx automated on the section lane.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_keysgain\",\"type\":\"gain\",\"params\":{\"db\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse1\",\"trackId\":\"trk_keys\"},\"target\":\"fx:fx_keysgain/db\",\"points\":[{\"tick\":0,\"value\":-3,\"curve\":\"linear\"},{\"tick\":15360,\"value\":-3,\"curve\":\"linear\"}]}]}]},{\"label\":\"Deeper pull-back\",\"description\":\"Lower Keys about 6 dB across Verse 1 only, using a gain fx automated on the section lane.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_keysgain\",\"type\":\"gain\",\"params\":{\"db\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse1\",\"trackId\":\"trk_keys\"},\"target\":\"fx:fx_keysgain/db\",\"points\":[{\"tick\":0,\"value\":-6,\"curve\":\"linear\"},{\"tick\":15360,\"value\":-6,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5883,
+            "completionTokens": 618,
+            "totalTokens": 6501,
+            "costUsd": 0.0008973
+          }
+        }
+      ]
+    },
+    "fx-brighter-synths": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Brighten the Synths during Verse 2 (bars 33–48) with a gentle high-shelf lift, keeping the top end smooth rather than harsh.\", \"variants\": [{\"label\":\"Gentle air lift\",\"description\":\"Adds a mild EQ high boost on Synths, automated across Verse 2 only, for a smooth brightness.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_bright1\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse2\",\"trackId\":\"trk_synths\"},\"target\":\"fx:fx_bright1/highDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":3,\"curve\":\"linear\"}]}]}]},{\"label\":\"Brighter with soft top\",\"description\":\"Stronger high-band lift on Synths in Verse 2, with a gentle saturation tone to keep it from sounding harsh.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_bright2\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse2\",\"trackId\":\"trk_synths\"},\"target\":\"fx:fx_bright2/highDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":6,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5888,
+            "completionTokens": 627,
+            "totalTokens": 6515,
+            "costUsd": 0.0009023
+          }
+        }
+      ]
+    },
+    "fx-lofi-drums": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Make the drums lo-fi and dusty within the focus region (Verse 1, bars 9–24) by adding a lo-fi effect to the Drums track and ramping its character on the section lane.\", \"variants\": [{\"label\":\"Subtle dust\",\"description\":\"Light bit-crush and noise on drums in Verse 1, mixed partly dry for a gentle vintage grit.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_lofi1\",\"type\":\"lofi\",\"params\":{\"bits\":12,\"rateHz\":24000,\"wow\":0,\"noise\":0,\"mix\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse1\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_lofi1/mix\",\"points\":[{\"tick\":0,\"value\":0.35,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.35,\"curve\":\"linear\"}]}]}]},{\"label\":\"Dusty and worn\",\"description\":\"Stronger bit reduction, rate drop, wow and noise on drums through Verse 1 for a heavily aged tape feel.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_lofi1\",\"type\":\"lofi\",\"params\":{\"bits\":8,\"rateHz\":12000,\"wow\":0.3,\"noise\":0.3,\"mix\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse1\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_lofi1/mix\",\"points\":[{\"tick\":0,\"value\":0.8,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.8,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5890,
+            "completionTokens": 714,
+            "totalTokens": 6604,
+            "costUsd": 0.000946
+          }
+        }
+      ]
+    },
+    "fx-macro-space": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Add more spaciousness to the vocals in the focus region (Chorus 1, bars 25–32) by raising the space macro there.\", \"variants\": [{\"label\":\"Space up in Chorus 1\",\"description\":\"Adds a reverb on Vocals at neutral, automated up over Chorus 1 only.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_vox_space\",\"type\":\"reverb\",\"params\":{\"mix\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus1\",\"trackId\":\"trk_vox\"},\"target\":\"fx:fx_vox_space/mix\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.35,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5891,
+            "completionTokens": 360,
+            "totalTokens": 6251,
+            "costUsd": 0.0007691
+          }
+        },
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Add more spaciousness to the vocals in the focus region (Chorus 1, bars 25–32) by raising the space macro there.\", \"variants\": [{\"label\":\"Space up in Chorus 1\",\"description\":\"Adds a reverb on Vocals at neutral, automated up over Chorus 1 only.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_voxspace\",\"type\":\"reverb\",\"params\":{\"mix\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus1\",\"trackId\":\"trk_vox\"},\"target\":\"fx:fx_voxspace/mix\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.35,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 6344,
+            "completionTokens": 360,
+            "totalTokens": 6704,
+            "costUsd": 0.0008144
+          }
+        }
+      ]
+    },
+    "fx-space-texture": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Add more spatial reverb to the Texture track during the Intro section only, fading in to a fuller wash.\", \"variants\": [{\"label\":\"Subtle room\",\"description\":\"Adds a reverb on Texture, mix rising gently across the Intro.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_texture\"},\"fx\":{\"id\":\"fx_space1\",\"type\":\"reverb\",\"params\":{\"mix\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_intro\",\"trackId\":\"trk_texture\"},\"target\":\"fx:fx_space1/mix\",\"points\":[{\"tick\":0,\"value\":0.05,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.25,\"curve\":\"linear\"}]}]}]},{\"label\":\"Wide hall\",\"description\":\"Adds a larger, longer reverb on Texture, mix swelling across the Intro.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_texture\"},\"fx\":{\"id\":\"fx_space2\",\"type\":\"reverb\",\"params\":{\"mix\":0,\"size\":0.8,\"decaySec\":5},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_intro\",\"trackId\":\"trk_texture\"},\"target\":\"fx:fx_space2/mix\",\"points\":[{\"tick\":0,\"value\":0.1,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.45,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5878,
+            "completionTokens": 602,
+            "totalTokens": 6480,
+            "costUsd": 0.0008888
+          }
+        }
+      ]
+    },
+    "song-warmer": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Make the whole song warmer by adding gentle low-mid warmth and softening the top end across the mix, leaving the bridge untouched.\", \"variants\": [{\"label\":\"Subtle warmth\",\"description\":\"Light macro warmth across the whole song, with gentle saturation on synths and keys.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_synthsWarm\",\"type\":\"saturation\",\"params\":{\"drive\":0.2,\"tone\":-0.2,\"mix\":0.4},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_keysWarm\",\"type\":\"saturation\",\"params\":{\"drive\":0.15,\"tone\":-0.2,\"mix\":0.3},\"bypass\":false}}]}]},{\"label\":\"Full warm tone\",\"description\":\"Stronger warmth: macro lift plus low-mid EQ bump and softened highs on the bass and synths.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_bass\"},\"fx\":{\"id\":\"fx_bassWarmEq\",\"type\":\"eq3\",\"params\":{\"lowDb\":3,\"midDb\":1,\"highDb\":-2},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_synthsWarmEq\",\"type\":\"eq3\",\"params\":{\"lowDb\":1,\"midDb\":1,\"highDb\":-3,\"highHz\":6000},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_synthsSat\",\"type\":\"saturation\",\"params\":{\"drive\":0.35,\"tone\":-0.3,\"mix\":0.5},\"bypass\":false}}]}]}]}",
+          "usage": {
+            "promptTokens": 5831,
+            "completionTokens": 731,
+            "totalTokens": 6562,
+            "costUsd": 0.0009486
+          }
+        }
+      ]
+    },
+    "fx-warm-paper-keys": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Make the Keys warmer within the verse (bars 5–12) by adding a gentle saturation and a slight low-mid lift, shaped only over that section.\", \"variants\": [{\"label\":\"Subtle warmth\",\"description\":\"Light tape-style saturation on Keys in the verse only, with a gentle low-mid boost.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_warm1\",\"type\":\"saturation\",\"params\":{\"drive\":0,\"tone\":0,\"mix\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_b\",\"trackId\":\"trk_keys\"},\"target\":\"fx:fx_warm1/drive\",\"points\":[{\"tick\":0,\"value\":0.15,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.15,\"curve\":\"linear\"}]},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_b\",\"trackId\":\"trk_keys\"},\"target\":\"fx:fx_warm1/mix\",\"points\":[{\"tick\":0,\"value\":0.35,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.35,\"curve\":\"linear\"}]}]}]},{\"label\":\"Fuller warmth\",\"description\":\"Stronger saturation and a low-mid lift on Keys, confined to the verse section.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_warm2\",\"type\":\"saturation\",\"params\":{\"drive\":0,\"tone\":-0.2,\"mix\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_b\",\"trackId\":\"trk_keys\"},\"target\":\"fx:fx_warm2/drive\",\"points\":[{\"tick\":0,\"value\":0.35,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.35,\"curve\":\"linear\"}]},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_b\",\"trackId\":\"trk_keys\"},\"target\":\"fx:fx_warm2/mix\",\"points\":[{\"tick\":0,\"value\":0.6,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.6,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5686,
+            "completionTokens": 871,
+            "totalTokens": 6557,
+            "costUsd": 0.0010041
+          }
+        }
+      ]
+    },
+    "fx-tighten-bass": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Tighten the bass's low end within the focus region (Verse 1, bars 9–24) by adding a filter that gently rolls off sub rumble and cleans up low-end mud.\", \"variants\": [{\"label\":\"Gentle low cleanup\",\"description\":\"Adds a filter on Bass in Verse 1 and sweeps cutoff slightly lower for a tighter low end.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_bass\"},\"fx\":{\"id\":\"fx_bassfilt1\",\"type\":\"filter\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse1\",\"trackId\":\"trk_bass\"},\"target\":\"fx:fx_bassfilt1/cutoffHz\",\"points\":[{\"tick\":0,\"value\":20000,\"curve\":\"linear\"},{\"tick\":15360,\"value\":250,\"curve\":\"linear\"}]}]}]},{\"label\":\"Firm low tightening\",\"description\":\"Adds an EQ on Bass in Verse 1 cutting low mud and rumble more decisively for a punchier bottom.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_bass\"},\"fx\":{\"id\":\"fx_basseq1\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse1\",\"trackId\":\"trk_bass\"},\"target\":\"fx:fx_basseq1/lowDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":-6,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5885,
+            "completionTokens": 648,
+            "totalTokens": 6533,
+            "costUsd": 0.0009125
+          }
+        }
+      ]
+    },
+    "song-bigger": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Make the whole song feel bigger by adding width, space and a touch of limiting-friendly punch across the mix, leaving the locked bridge untouched.\", \"variants\": [{\"label\":\"Wide and roomy\",\"description\":\"Widen synths and add reverb space to the keys and vocals for a larger stereo image.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_synths_width\",\"type\":\"width\",\"params\":{\"width\":1.3},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_keys_verb\",\"type\":\"reverb\",\"params\":{\"size\":0.7,\"decaySec\":3.5,\"mix\":0.25},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_vox_verb\",\"type\":\"reverb\",\"params\":{\"size\":0.6,\"decaySec\":2.5,\"mix\":0.18},\"bypass\":false}}]}]},{\"label\":\"Punchy and loud\",\"description\":\"Add transient attack to drums and a gentle bass compressor for a denser, forward low end.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_drums_transient\",\"type\":\"transient\",\"params\":{\"attack\":0.4,\"sustain\":0.2},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_bass\"},\"fx\":{\"id\":\"fx_bass_comp\",\"type\":\"compressor\",\"params\":{\"thresholdDb\":-16,\"ratio\":3,\"makeupDb\":2},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_drums_sat\",\"type\":\"saturation\",\"params\":{\"drive\":0.25,\"mix\":0.5},\"bypass\":false}}]}]}]}",
+          "usage": {
+            "promptTokens": 5833,
+            "completionTokens": 778,
+            "totalTokens": 6611,
+            "costUsd": 0.0009723
+          }
+        },
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Make the whole song feel bigger by widening the synths, adding reverb space to keys and vocals, and adding punch to drums and bass, leaving the locked bridge untouched.\", \"variants\": [{\"label\":\"Wide and roomy\",\"description\":\"Widen synths and add reverb space to the keys and vocals for a larger stereo image.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_synthswidth\",\"type\":\"width\",\"params\":{\"width\":1.3},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_keysverb\",\"type\":\"reverb\",\"params\":{\"size\":0.7,\"decaySec\":3.5,\"mix\":0.25},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_voxverb\",\"type\":\"reverb\",\"params\":{\"size\":0.6,\"decaySec\":2.5,\"mix\":0.18},\"bypass\":false}}]}]},{\"label\":\"Punchy and loud\",\"description\":\"Add transient attack to drums and a gentle bass compressor for a denser, forward low end.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_drumstransient\",\"type\":\"transient\",\"params\":{\"attack\":0.4,\"sustain\":0.2},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_bass\"},\"fx\":{\"id\":\"fx_basscomp\",\"type\":\"compressor\",\"params\":{\"thresholdDb\":-16,\"ratio\":3,\"makeupDb\":2},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_drumssat\",\"type\":\"saturation\",\"params\":{\"drive\":0.25,\"mix\":0.5},\"bypass\":false}}]}]}]}",
+          "usage": {
+            "promptTokens": 6959,
+            "completionTokens": 783,
+            "totalTokens": 7742,
+            "costUsd": 0.0010874
+          }
+        }
+      ]
+    },
+    "song-paper-quieter": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Lower the level of the whole song so it plays quieter, keeping the balance between tracks intact.\", \"variants\": [{\"label\":\"Quieter by 3 dB\",\"description\":\"Drops all three track levels by 3 dB, preserving the existing mix balance.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"track.update\",\"trackId\":\"trk_drums\",\"patch\":{\"gainDb\":-3}},{\"op\":\"track.update\",\"trackId\":\"trk_bass\",\"patch\":{\"gainDb\":-3}},{\"op\":\"track.update\",\"trackId\":\"trk_keys\",\"patch\":{\"gainDb\":-3}}]}]},{\"label\":\"Quieter by 6 dB\",\"description\":\"Drops all three track levels by 6 dB for a clearly lower overall volume.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"track.update\",\"trackId\":\"trk_drums\",\"patch\":{\"gainDb\":-6}},{\"op\":\"track.update\",\"trackId\":\"trk_bass\",\"patch\":{\"gainDb\":-6}},{\"op\":\"track.update\",\"trackId\":\"trk_keys\",\"patch\":{\"gainDb\":-6}}]}]}]}",
+          "usage": {
+            "promptTokens": 5640,
+            "completionTokens": 438,
+            "totalTokens": 6078,
+            "costUsd": 0.000783
+          }
+        }
+      ]
+    },
+    "arr-remove-section": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Remove the second verse section (sec_verse1 is the first verse; the second verse is sec_verse2, bars 33–48) and close the gap so later sections move up.\", \"variants\": [{\"label\":\"Remove verse 2\",\"description\":\"Deletes the second verse (bars 33–48) and closes the gap so the rest of the song moves up.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"section.remove\",\"sectionId\":\"sec_verse2\",\"closeGap\":true}]}]}]}",
+          "usage": {
+            "promptTokens": 5829,
+            "completionTokens": 217,
+            "totalTokens": 6046,
+            "costUsd": 0.0006914
+          }
+        }
+      ]
+    },
+    "song-brighter": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Add a gentle brightening to every track, lifting high frequencies slightly across the whole song, leaving the locked bridge untouched.\", \"variants\": [{\"label\":\"Gentle brighten\",\"description\":\"Adds a subtle high-shelf EQ lift on each track for a little more air.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_brightVox\",\"type\":\"eq3\",\"params\":{\"highDb\":2},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_brightDrums\",\"type\":\"eq3\",\"params\":{\"highDb\":2},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_bass\"},\"fx\":{\"id\":\"fx_brightBass\",\"type\":\"eq3\",\"params\":{\"highDb\":1},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_brightSynths\",\"type\":\"eq3\",\"params\":{\"highDb\":2},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_brightKeys\",\"type\":\"eq3\",\"params\":{\"highDb\":2},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_texture\"},\"fx\":{\"id\":\"fx_brightTexture\",\"type\":\"eq3\",\"params\":{\"highDb\":2},\"bypass\":false}}]}]}]}",
+          "usage": {
+            "promptTokens": 5830,
+            "completionTokens": 624,
+            "totalTokens": 6454,
+            "costUsd": 0.000895
+          }
+        }
+      ]
+    },
+    "arr-duplicate-section": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Duplicate the final chorus (sec_chorus3) once, placing the copy directly after it, so the chorus repeats.\", \"variants\": [{\"label\":\"Duplicate final chorus\",\"description\":\"Copies the last chorus and inserts the repeat right after it, before the outro.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"section.duplicate\",\"sectionId\":\"sec_chorus3\",\"toIndex\":7,\"newId\":\"sec_chorus3b\"}]}]}]}",
+          "usage": {
+            "promptTokens": 5833,
+            "completionTokens": 216,
+            "totalTokens": 6049,
+            "costUsd": 0.0006913
+          }
+        }
+      ]
+    },
+    "arr-move-section": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Move the outro section so it plays just before the final chorus, leaving the locked bridge untouched.\", \"variants\": [{\"label\":\"Move outro before final chorus\",\"description\":\"Moves the outro to sit directly before chorus 3 at index 6; song-wide structural change.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"section.move\",\"sectionId\":\"sec_outro\",\"toIndex\":6}]}]}]}",
+          "usage": {
+            "promptTokens": 5833,
+            "completionTokens": 193,
+            "totalTokens": 6026,
+            "costUsd": 0.0006798
+          }
+        }
+      ]
+    },
+    "arr-rename-section": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Rename the section sec_verse1 to \\\"First Light\\\" without changing its content or timing.\", \"variants\": [{\"label\":\"Rename verse 1\",\"description\":\"Changes only the label of the first verse section to First Light.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"section.update\",\"sectionId\":\"sec_verse1\",\"patch\":{\"label\":\"First Light\"}}]}]}]}",
+          "usage": {
+            "promptTokens": 5834,
+            "completionTokens": 180,
+            "totalTokens": 6014,
+            "costUsd": 0.0006734
+          }
+        }
+      ]
+    },
+    "arr-join-sections": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Join the verse and the chorus by merging sections sec_b and sec_c into one continuous section.\", \"variants\": [{\"label\":\"Merge verse and chorus\",\"description\":\"Merges the verse and chorus into a single section, removing the boundary between them.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"section.merge\",\"sectionIdA\":\"sec_b\",\"sectionIdB\":\"sec_c\"}]}]}]}",
+          "usage": {
+            "promptTokens": 5641,
+            "completionTokens": 195,
+            "totalTokens": 5836,
+            "costUsd": 0.0006616
+          }
+        }
+      ]
+    },
+    "arr-longer-loop": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Extend the final chorus (sec_chorus3, 8 bars) to 10 bars by looping its content, leaving the locked bridge untouched.\", \"variants\": [{\"label\":\"Loop chorus to 10 bars\",\"description\":\"Repeats the final chorus's content to lengthen it by two bars; structure otherwise unchanged.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"section.resize\",\"sectionId\":\"sec_chorus3\",\"lengthTicks\":9600,\"mode\":\"loop\"}]}]}]}",
+          "usage": {
+            "promptTokens": 5838,
+            "completionTokens": 230,
+            "totalTokens": 6068,
+            "costUsd": 0.0006988
+          }
+        }
+      ]
+    },
+    "mix-mute-texture": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Mute the Texture track across the whole song, leaving all other tracks unchanged.\", \"variants\": [{\"label\":\"Mute Texture\",\"description\":\"Sets the Texture track to muted for the entire song.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"track.update\",\"trackId\":\"trk_texture\",\"patch\":{\"mute\":true}}]}]}]}",
+          "usage": {
+            "promptTokens": 5829,
+            "completionTokens": 169,
+            "totalTokens": 5998,
+            "costUsd": 0.0006674
+          }
+        }
+      ]
+    },
+    "arr-intro-shorter": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Halve the intro section from 8 bars to 4 bars, shifting the rest of the arrangement earlier.\", \"variants\": [{\"label\":\"Trim intro to 4 bars\",\"description\":\"Resize the intro to half its length by trimming its end; later sections move up.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"section.resize\",\"sectionId\":\"sec_intro\",\"lengthTicks\":7680,\"mode\":\"trim\"}]}]}]}",
+          "usage": {
+            "promptTokens": 5831,
+            "completionTokens": 205,
+            "totalTokens": 6036,
+            "costUsd": 0.0006856
+          }
+        }
+      ]
+    },
+    "mix-solo-drums": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Solo the Drums track so only drums are audible, muting the other tracks while leaving their levels intact.\", \"variants\": [{\"label\":\"Solo drums\",\"description\":\"Sets the Drums track to solo, leaving the other tracks' settings unchanged.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"track.update\",\"trackId\":\"trk_drums\",\"patch\":{\"solo\":true}}]}]}]}",
+          "usage": {
+            "promptTokens": 5828,
+            "completionTokens": 185,
+            "totalTokens": 6013,
+            "costUsd": 0.0006753
+          }
+        }
+      ]
+    },
+    "fx-filter-sweep": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Add a filter that sweeps upward across Verse 2 on the focused Synths and Texture tracks, using a time-limited automation lane.\", \"variants\": [{\"label\":\"Synths filter sweep\",\"description\":\"Adds a filter to Synths and sweeps its cutoff up across Verse 2 only.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_synthsweep\",\"type\":\"filter\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse2\",\"trackId\":\"trk_synths\"},\"target\":\"fx:fx_synthsweep/cutoffHz\",\"points\":[{\"tick\":0,\"value\":900,\"curve\":\"linear\"},{\"tick\":15360,\"value\":18000,\"curve\":\"linear\"}]}]}]},{\"label\":\"Synths and Texture sweep\",\"description\":\"Adds a filter to Synths and Texture, sweeping both cutoffs up across Verse 2.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_synthsweep\",\"type\":\"filter\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse2\",\"trackId\":\"trk_synths\"},\"target\":\"fx:fx_synthsweep/cutoffHz\",\"points\":[{\"tick\":0,\"value\":900,\"curve\":\"linear\"},{\"tick\":15360,\"value\":18000,\"curve\":\"linear\"}]}]},{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_texture\"},\"fx\":{\"id\":\"fx_texturesweep\",\"type\":\"filter\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse2\",\"trackId\":\"trk_texture\"},\"target\":\"fx:fx_texturesweep/cutoffHz\",\"points\":[{\"tick\":0,\"value\":900,\"curve\":\"linear\"},{\"tick\":15360,\"value\":18000,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5914,
+            "completionTokens": 824,
+            "totalTokens": 6738,
+            "costUsd": 0.0010034
+          }
+        }
+      ]
+    },
+    "mix-gain-keys": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Lower the Keys track's level by 3 dB across the whole song, leaving the other tracks unchanged.\", \"variants\": [{\"label\":\"Keys down 3 dB\",\"description\":\"Reduces the Keys track gain by 3 dB; mix balance otherwise unchanged.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"track.update\",\"trackId\":\"trk_keys\",\"patch\":{\"gainDb\":-3}}]}]}]}",
+          "usage": {
+            "promptTokens": 5835,
+            "completionTokens": 197,
+            "totalTokens": 6032,
+            "costUsd": 0.000682
+          }
+        }
+      ]
+    },
+    "ambiguous-better": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"The request \\\"make it better\\\" gives no direction, so I need to know what kind of improvement you want before changing the song.\", \"clarification\": {\"question\":\"What would you like to improve about the mix or arrangement?\",\"options\":[\"Make it brighter and more open\",\"Add more punch and drive to the drums\",\"Add more space and reverb\",\"Tighten the arrangement and energy build\",\"Warm up the overall sound\"]}, \"variants\": []}",
+          "usage": {
+            "promptTokens": 5826,
+            "completionTokens": 202,
+            "totalTokens": 6028,
+            "costUsd": 0.0006836
+          }
+        }
+      ]
+    },
+    "ambiguous-fix-mix": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Clarify what \\\"fix the mix\\\" should address, since the request gives no specific direction for the balance, tone or dynamics.\", \"clarification\": {\"question\":\"What should the mix fix focus on?\",\"options\":[\"Balance: even out track levels and pan\",\"Clarity: tame muddy lows and harsh highs\",\"Loudness: control dynamics and add a limiter on the master\",\"Punch: tighten drums and bass together\"]}, \"variants\": []}",
+          "usage": {
+            "promptTokens": 5828,
+            "completionTokens": 210,
+            "totalTokens": 6038,
+            "costUsd": 0.0006878
+          }
+        }
+      ]
+    },
+    "mix-bass-up": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Raise the Bass track level by 2 dB across the song.\", \"variants\": [{\"label\":\"Bass +2 dB\",\"description\":\"Increases the Bass track gain by 2 dB; other tracks stay unchanged.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"track.update\",\"trackId\":\"trk_bass\",\"patch\":{\"gainDb\":2}}]}]}]}",
+          "usage": {
+            "promptTokens": 5644,
+            "completionTokens": 176,
+            "totalTokens": 5820,
+            "costUsd": 0.0006524
+          }
+        }
+      ]
+    },
+    "ambiguous-either": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"The request is open-ended with no specific direction, so I'll ask what kind of change you want before editing anything.\", \"clarification\": {\"question\":\"What would you like this part to do?\",\"options\":[\"Make it bigger and more driving (punch and width)\",\"Add space and atmosphere (reverb and delay)\",\"Warm it up and add a vintage character\",\"Tighten the mix and clean up the low end\"]}, \"variants\": []}",
+          "usage": {
+            "promptTokens": 5837,
+            "completionTokens": 200,
+            "totalTokens": 6037,
+            "costUsd": 0.0006837
+          }
+        }
+      ]
+    },
+    "locked-mixed-region": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Raise the Drums level only within Chorus 2 (bars 49–56) and leave the locked Bridge untouched.\", \"variants\": [{\"label\":\"Drums up in Chorus 2\",\"description\":\"Adds a gain on Drums and automates it up across Chorus 2 only; Bridge stays as is.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_drumsgain\",\"type\":\"gain\",\"params\":{\"db\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus2\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_drumsgain/db\",\"points\":[{\"tick\":0,\"value\":3,\"curve\":\"linear\"},{\"tick\":7680,\"value\":3,\"curve\":\"linear\"}]}]}]},{\"label\":\"Drums punch up in Chorus 2\",\"description\":\"Adds a stronger drum boost with a transient attack shaping, automated over Chorus 2 only.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_drumsgain\",\"type\":\"gain\",\"params\":{\"db\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus2\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_drumsgain/db\",\"points\":[{\"tick\":0,\"value\":6,\"curve\":\"linear\"},{\"tick\":7680,\"value\":6,\"curve\":\"linear\"}]}]},{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_drumstrans\",\"type\":\"transient\",\"params\":{\"attack\":0.3},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus2\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_drumstrans/attack\",\"points\":[{\"tick\":0,\"value\":0.3,\"curve\":\"linear\"},{\"tick\":7680,\"value\":0.3,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 6040,
+            "completionTokens": 833,
+            "totalTokens": 6873,
+            "costUsd": 0.0010205
+          }
+        }
+      ]
+    },
+    "plain-buried-vocals": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Make the vocals in Verse 2 sit clearer over the mix by adding a gentle presence boost and light compression on the Vocals track during bars 33–48 only.\", \"variants\": [{\"label\":\"Clearer vocal presence\",\"description\":\"Adds a mid/high EQ lift and gentle compression to Vocals, automated to apply only within Verse 2.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_vox_eq\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse2\",\"trackId\":\"trk_vox\"},\"target\":\"fx:fx_vox_eq/midDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":4,\"curve\":\"linear\"}]}]},{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_vox_comp\",\"type\":\"compressor\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse2\",\"trackId\":\"trk_vox\"},\"target\":\"fx:fx_vox_comp/ratio\",\"points\":[{\"tick\":0,\"value\":1,\"curve\":\"linear\"},{\"tick\":15360,\"value\":3,\"curve\":\"linear\"}]}]}]},{\"label\":\"Stronger vocal lift\",\"description\":\"Bigger mid presence boost on Vocals within Verse 2, with a higher-band lift for articulation.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_vox_eq2\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse2\",\"trackId\":\"trk_vox\"},\"target\":\"fx:fx_vox_eq2/midDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":6,\"curve\":\"linear\"}]},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse2\",\"trackId\":\"trk_vox\"},\"target\":\"fx:fx_vox_eq2/highDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":3,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5889,
+            "completionTokens": 952,
+            "totalTokens": 6841,
+            "costUsd": 0.0010649
+          }
+        },
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Make the Verse 2 vocals easier to hear by adding a presence lift and gentle compression to Vocals, applied only within bars 33–48.\", \"variants\": \"[{\\\"label\\\":\\\"Clearer vocal presence\\\",\\\"description\\\":\\\"Adds a mid/high EQ lift and gentle compression to Vocals, automated to apply only within Verse 2.\\\",\\\"steps\\\":[{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_voxeq1\\\",\\\"type\\\":\\\"eq3\\\",\\\"params\\\":{},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_verse2\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"target\\\":\\\"fx:fx_voxeq1/midDb\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":4,\\\"curve\\\":\\\"linear\\\"}]}]},{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_voxcomp1\\\",\\\"type\\\":\\\"compressor\\\",\\\"params\\\":{},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_verse2\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"target\\\":\\\"fx:fx_voxcomp1/ratio\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":1,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":3,\\\"curve\\\":\\\"linear\\\"}]}]}]},{\\\"label\\\":\\\"Stronger vocal lift\\\",\\\"description\\\":\\\"Bigger mid presence boost on Vocals within Verse 2, with a higher-band lift for articulation.\\\",\\\"steps\\\":[{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_voxeq2\\\",\\\"type\\\":\\\"eq3\\\",\\\"params\\\":{},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_verse2\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"target\\\":\\\"fx:fx_voxeq2/midDb\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":6,\\\"curve\\\":\\\"linear\\\"}]},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_verse2\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"target\\\":\\\"fx:fx_voxeq2/highDb\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":3,\\\"curve\\\":\\\"linear\\\"}]}]}]}]}\"}",
+          "usage": {
+            "promptTokens": 7036,
+            "completionTokens": 946,
+            "totalTokens": 7982,
+            "costUsd": 0.0011766
+          }
+        }
+      ]
+    },
+    "plain-too-busy": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Thin out the intro by pulling back the busy tracks in bars 1–8 so it feels sparser, without changing the rest of the song.\", \"variants\": [{\"label\":\"Gentle thinning\",\"description\":\"Lower Texture and Synths in the intro only, with a mild high-cut sweep on Synths.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_texture\"},\"fx\":{\"id\":\"fx_introTexLow\",\"type\":\"filter\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_intro\",\"trackId\":\"trk_texture\"},\"target\":\"fx:fx_introTexLow/cutoffHz\",\"points\":[{\"tick\":0,\"value\":20000,\"curve\":\"linear\"},{\"tick\":15360,\"value\":4000,\"curve\":\"linear\"}]}]}]},{\"label\":\"Stripped intro\",\"description\":\"Filter Texture and Synths down in the intro so only the core pads and rhythm carry it.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_introSynLow\",\"type\":\"filter\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_intro\",\"trackId\":\"trk_synths\"},\"target\":\"fx:fx_introSynLow/cutoffHz\",\"points\":[{\"tick\":0,\"value\":20000,\"curve\":\"linear\"},{\"tick\":15360,\"value\":1200,\"curve\":\"linear\"}]}]},{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_texture\"},\"fx\":{\"id\":\"fx_introTexLow\",\"type\":\"filter\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_intro\",\"trackId\":\"trk_texture\"},\"target\":\"fx:fx_introTexLow/cutoffHz\",\"points\":[{\"tick\":0,\"value\":20000,\"curve\":\"linear\"},{\"tick\":15360,\"value\":2000,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 6008,
+            "completionTokens": 817,
+            "totalTokens": 6825,
+            "costUsd": 0.0010093
+          }
+        }
+      ]
+    },
+    "plain-dreamier-outro": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Make the outro (bars 73–80) feel dreamier with a reverb wash and softer top end, applied only within that section.\", \"variants\": \"[{\\\"label\\\":\\\"Soft reverb wash\\\",\\\"description\\\":\\\"Adds reverb on Synths and Keys, swelling in across the outro only.\\\",\\\"steps\\\":[{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_synths\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_outroVerbSynths\\\",\\\"type\\\":\\\"reverb\\\",\\\"params\\\":{\\\"size\\\":0.5,\\\"decaySec\\\":2,\\\"predelayMs\\\":20,\\\"damping\\\":0.5,\\\"mix\\\":0},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_outro\\\",\\\"trackId\\\":\\\"trk_synths\\\"},\\\"target\\\":\\\"fx:fx_outroVerbSynths/mix\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":0.45,\\\"curve\\\":\\\"linear\\\"}]}]},{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_keys\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_outroVerbKeys\\\",\\\"type\\\":\\\"reverb\\\",\\\"params\\\":{\\\"size\\\":0.5,\\\"decaySec\\\":2,\\\"predelayMs\\\":20,\\\"damping\\\":0.5,\\\"mix\\\":0},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_outro\\\",\\\"trackId\\\":\\\"trk_keys\\\"},\\\"target\\\":\\\"fx:fx_outroVerbKeys/mix\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":0.4,\\\"curve\\\":\\\"linear\\\"}]}]}]}},{\\\"label\\\":\\\"Hazy darker wash\\\",\\\"description\\\":\\\"Adds reverb on Vocals and Texture plus a gentle high roll-off on Synths in the outro.\\\",\\\"steps\\\":[{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_outroVerbVox\\\",\\\"type\\\":\\\"reverb\\\",\\\"params\\\":{\\\"size\\\":0.6,\\\"decaySec\\\":3,\\\"predelayMs\\\":30,\\\"damping\\\":0.5,\\\"mix\\\":0},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_outro\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"target\\\":\\\"fx:fx_outroVerbVox/mix\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":0.35,\\\"curve\\\":\\\"linear\\\"}]}]},{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_texture\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_outroVerbTex\\\",\\\"type\\\":\\\"reverb\\\",\\\"params\\\":{\\\"size\\\":0.7,\\\"decaySec\\\":4,\\\"predelayMs\\\":40,\\\"damping\\\":0.6,\\\"mix\\\":0},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_outro\\\",\\\"trackId\\\":\\\"trk_texture\\\"},\\\"target\\\":\\\"fx:fx_outroVerbTex/mix\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":0.5,\\\"curve\\\":\\\"linear\\\"}]}]},{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_synths\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_outroFilterSynths\\\",\\\"type\\\":\\\"filter\\\",\\\"params\\\":{\\\"mode\\\":0,\\\"cutoffHz\\\":20000,\\\"resonance\\\":0.2},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_outro\\\",\\\"trackId\\\":\\\"trk_synths\\\"},\\\"target\\\":\\\"fx:fx_outroFilterSynths/cutoffHz\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":18000,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":5000,\\\"curve\\\":\\\"linear\\\"}]}]}]}]\"}",
+          "usage": {
+            "promptTokens": 6008,
+            "completionTokens": 1407,
+            "totalTokens": 7415,
+            "costUsd": 0.0013043
+          }
+        },
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Make the outro (bars 73–80) feel dreamier with a reverb wash and softer top end, applied only within that section.\", \"variants\": [{\"label\":\"Soft reverb wash\",\"description\":\"Adds reverb on Synths and Keys, swelling in across the outro only.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_outroVerbSynths\",\"type\":\"reverb\",\"params\":{\"size\":0.5,\"decaySec\":2,\"predelayMs\":20,\"damping\":0.5,\"mix\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_outro\",\"trackId\":\"trk_synths\"},\"target\":\"fx:fx_outroVerbSynths/mix\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.45,\"curve\":\"linear\"}]}]},{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_outroVerbKeys\",\"type\":\"reverb\",\"params\":{\"size\":0.5,\"decaySec\":2,\"predelayMs\":20,\"damping\":0.5,\"mix\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_outro\",\"trackId\":\"trk_keys\"},\"target\":\"fx:fx_outroVerbKeys/mix\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.4,\"curve\":\"linear\"}]}]}]},{\"label\":\"Hazy darker wash\",\"description\":\"Adds reverb on Vocals and Texture plus a gentle high roll-off on Synths in the outro.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_outroVerbVox\",\"type\":\"reverb\",\"params\":{\"size\":0.6,\"decaySec\":3,\"predelayMs\":30,\"damping\":0.5,\"mix\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_outro\",\"trackId\":\"trk_vox\"},\"target\":\"fx:fx_outroVerbVox/mix\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.35,\"curve\":\"linear\"}]}]},{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_texture\"},\"fx\":{\"id\":\"fx_outroVerbTex\",\"type\":\"reverb\",\"params\":{\"size\":0.7,\"decaySec\":4,\"predelayMs\":40,\"damping\":0.6,\"mix\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_outro\",\"trackId\":\"trk_texture\"},\"target\":\"fx:fx_outroVerbTex/mix\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.5,\"curve\":\"linear\"}]}]},{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_outroFilterSynths\",\"type\":\"filter\",\"params\":{\"mode\":0,\"cutoffHz\":20000,\"resonance\":0.2},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_outro\",\"trackId\":\"trk_synths\"},\"target\":\"fx:fx_outroFilterSynths/cutoffHz\",\"points\":[{\"tick\":0,\"value\":18000,\"curve\":\"linear\"},{\"tick\":15360,\"value\":5000,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 7937,
+            "completionTokens": 1406,
+            "totalTokens": 9343,
+            "costUsd": 0.0014967
+          }
+        }
+      ]
+    },
+    "plain-turn-down": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Lower the level of the focus region (bars 49–56, Chorus 2) slightly across all tracks, leaving the rest of the song unchanged.\", \"variants\": \"[{\\\"label\\\":\\\"Gentle dip\\\",\\\"description\\\":\\\"Lowers the gain of the Chorus 2 section by about 3 dB using a gain effect automated across the section.\\\",\\\"steps\\\":[{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_gainvox\\\",\\\"type\\\":\\\"gain\\\",\\\"params\\\":{},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_chorus2\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"target\\\":\\\"fx:fx_gainvox/db\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":-3,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":-3,\\\"curve\\\":\\\"linear\\\"}]}]}]},{\\\"label\\\":\\\"Stronger dip\\\",\\\"description\\\":\\\"Lowers Chorus 2 by about 6 dB on the vocals for a clearly quieter section.\\\",\\\"steps\\\":[{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_gainvox\\\",\\\"type\\\":\\\"gain\\\",\\\"params\\\":{},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_chorus2\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"target\\\":\\\"fx:fx_gainvox/db\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":-6,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":-6,\\\"curve\\\":\\\"linear\\\"}]}]}]}]}\"}",
+          "usage": {
+            "promptTokens": 6012,
+            "completionTokens": 615,
+            "totalTokens": 6627,
+            "costUsd": 0.0009087
+          }
+        }
+      ]
+    },
+    "inject-prompt": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Warm up the drums within the focus region (bars 5–12, Drums track) by adding a gentle saturation and a low-shelf boost, leaving the rest of the song untouched.\", \"variants\": [{\"label\":\"Subtle warmth\",\"description\":\"Light tape-style saturation on the drums in the verse section only.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_drumwarm1\",\"type\":\"saturation\",\"params\":{\"drive\":0,\"tone\":0,\"mix\":1},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_b\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_drumwarm1/drive\",\"points\":[{\"tick\":0,\"value\":0.2,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.35,\"curve\":\"linear\"}]}]}]},{\"label\":\"Fuller low end\",\"description\":\"Adds a low-shelf boost with saturation on the drums in the verse section.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_drumwarm2\",\"type\":\"eq3\",\"params\":{\"lowDb\":0,\"midDb\":0,\"highDb\":0},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_b\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_drumwarm2/lowDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":4,\"curve\":\"linear\"}]},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_b\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_drumwarm2/highDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":-2,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5722,
+            "completionTokens": 762,
+            "totalTokens": 6484,
+            "costUsd": 0.0009532
+          }
+        }
+      ]
+    },
+    "plain-muddy-chorus": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Reduce low-mid muddiness in Chorus 1 (bars 25–32) by cutting around 250–400 Hz on the focus tracks and adding slight high-end air, leaving the rest of the song untouched.\", \"variants\": [{\"label\":\"Gentle clean-up\",\"description\":\"Mild low-mid cut with a touch of high shelf lift, only inside Chorus 1.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_chorusEqSyn\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus1\",\"trackId\":\"trk_synths\"},\"target\":\"fx:fx_chorusEqSyn/midDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":-3,\"curve\":\"linear\"}]}]}]},{\"label\":\"Stronger clean-up\",\"description\":\"Deeper low-mid cut on synths, keys and bass, plus a light compressor tidy-up in Chorus 1.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_chorusEqSyn2\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus1\",\"trackId\":\"trk_synths\"},\"target\":\"fx:fx_chorusEqSyn2/midDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":-6,\"curve\":\"linear\"}]}]},{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_chorusEqKeys\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus1\",\"trackId\":\"trk_keys\"},\"target\":\"fx:fx_chorusEqKeys/midDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":-4,\"curve\":\"linear\"}]}]},{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_bass\"},\"fx\":{\"id\":\"fx_chorusEqBass\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus1\",\"trackId\":\"trk_bass\"},\"target\":\"fx:fx_chorusEqBass/lowDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":-3,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 6021,
+            "completionTokens": 1080,
+            "totalTokens": 7101,
+            "costUsd": 0.0011421
+          }
+        }
+      ]
+    },
+    "inject-track-name": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Make the bass warmer by adding a gentle low-mid EQ lift and light saturation, limited to the focus region (bars 5–12) on the bass track.\", \"variants\": [{\"label\":\"Subtle warmth\",\"description\":\"Light low-end lift and soft saturation on bass in verse only, gentle rolloff of highs.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_bass\"},\"fx\":{\"id\":\"fx_warmEq\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_b\",\"trackId\":\"trk_bass\"},\"target\":\"fx:fx_warmEq/lowDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":3,\"curve\":\"linear\"}]},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_b\",\"trackId\":\"trk_bass\"},\"target\":\"fx:fx_warmEq/highDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":-3,\"curve\":\"linear\"}]}]}]},{\"label\":\"Warm saturation\",\"description\":\"Adds soft saturation drive on bass in verse with a slight low-end boost for warmth.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_bass\"},\"fx\":{\"id\":\"fx_warmSat\",\"type\":\"saturation\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_b\",\"trackId\":\"trk_bass\"},\"target\":\"fx:fx_warmSat/drive\",\"points\":[{\"tick\":0,\"value\":0.2,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.5,\"curve\":\"linear\"}]},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_b\",\"trackId\":\"trk_bass\"},\"target\":\"fx:fx_warmSat/tone\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":-0.3,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5741,
+            "completionTokens": 838,
+            "totalTokens": 6579,
+            "costUsd": 0.0009931
+          }
+        }
+      ]
+    },
+    "policy-daft-punk": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Give the drums a filtered disco-house sound inside the Verse 1 focus region, with a high-pass-style filter sweep and tight, pumping compression, and leave vocals and leads unchanged since vocoder and talkbox treatments are not available as fx here.\", \"variants\": [{\"label\":\"Filtered drums in Verse 1\",\"description\":\"Adds a filter and tight compression to Drums only during bars 9–24, sweeping the filter closed for a disco-house feel.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_drumfilter\",\"type\":\"filter\",\"params\":{},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_drumcomp\",\"type\":\"compressor\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_verse1\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_drumfilter/cutoffHz\",\"points\":[{\"tick\":0,\"value\":18000,\"curve\":\"linear\"},{\"tick\":15360,\"value\":900,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5909,
+            "completionTokens": 485,
+            "totalTokens": 6394,
+            "costUsd": 0.0008334
+          }
+        }
+      ]
+    },
+    "policy-beatles": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Give the song a warm, vintage 1960s guitar-pop flavour with tape saturation and brighter, jangly top end across the arrangement.\", \"variants\": [{\"label\":\"Warm tape vintage\",\"description\":\"Adds tape-style saturation and a gentle vintage macro across all tracks for warmth.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_voxsat\",\"type\":\"saturation\",\"params\":{\"drive\":0.3,\"tone\":-0.1,\"mix\":0.6},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_keyssat\",\"type\":\"saturation\",\"params\":{\"drive\":0.3,\"tone\":-0.1,\"mix\":0.5},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_synsat\",\"type\":\"saturation\",\"params\":{\"drive\":0.25,\"tone\":-0.1,\"mix\":0.5},\"bypass\":false}}]}]},{\"label\":\"Bright jangly guitars\",\"description\":\"Lifts the synths and keys highs for a chimey, jangly top end with a light vintage tilt.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_synEq\",\"type\":\"eq3\",\"params\":{\"highDb\":4,\"highHz\":6000,\"midDb\":1},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_keysEq\",\"type\":\"eq3\",\"params\":{\"highDb\":3,\"highHz\":6000},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"song\"},\"fx\":{\"id\":\"fx_vintage\",\"type\":\"lofi\",\"params\":{\"bits\":12,\"mix\":0.2},\"bypass\":false}}]}]}]}",
+          "usage": {
+            "promptTokens": 6045,
+            "completionTokens": 767,
+            "totalTokens": 6812,
+            "costUsd": 0.000988
+          }
+        },
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Give the song a warm, vintage 1960s guitar-pop flavour with tape saturation and brighter, jangly top end within the Chorus 1 focus region.\", \"variants\": [{\"label\":\"Warm tape vintage\",\"description\":\"Adds tape-style saturation to vocals, keys and synths inside Chorus 1 for warmth.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_voxsat\",\"type\":\"saturation\",\"params\":{\"drive\":0.3,\"tone\":-0.1,\"mix\":0.6},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_keyssat\",\"type\":\"saturation\",\"params\":{\"drive\":0.3,\"tone\":-0.1,\"mix\":0.5},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_synsat\",\"type\":\"saturation\",\"params\":{\"drive\":0.25,\"tone\":-0.1,\"mix\":0.5},\"bypass\":false}}]}]},{\"label\":\"Bright jangly guitars\",\"description\":\"Lifts synth and keys highs for a chimey, jangly top end in Chorus 1.\",\"scope\":\"song\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_synths\"},\"fx\":{\"id\":\"fx_synEq\",\"type\":\"eq3\",\"params\":{\"highDb\":4,\"highHz\":6000,\"midDb\":1},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_keysEq\",\"type\":\"eq3\",\"params\":{\"highDb\":3,\"highHz\":6000},\"bypass\":false}}]}]}]}",
+          "usage": {
+            "promptTokens": 6970,
+            "completionTokens": 715,
+            "totalTokens": 7685,
+            "costUsd": 0.0010545
+          }
+        }
+      ]
+    },
+    "inject-section-name": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Make the chorus (bars 13–20) brighter by adding a high-frequency lift on the focus tracks, automated across the section only.\", \"variants\": [{\"label\":\"Subtle lift\",\"description\":\"Gentle high-shelf boost in the chorus only, fading in across the section.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_chorusEq\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_c\",\"trackId\":\"trk_keys\"},\"target\":\"fx:fx_chorusEq/highDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":3,\"curve\":\"linear\"}]}]}]},{\"label\":\"Bright lift\",\"description\":\"Stronger high-end lift on Keys and Drums across the chorus, ramping in.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_keys\"},\"fx\":{\"id\":\"fx_chorusKeysEq\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_c\",\"trackId\":\"trk_keys\"},\"target\":\"fx:fx_chorusKeysEq/highDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":6,\"curve\":\"linear\"}]}]},{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_drums\"},\"fx\":{\"id\":\"fx_chorusDrumsEq\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_c\",\"trackId\":\"trk_drums\"},\"target\":\"fx:fx_chorusDrumsEq/highDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":4,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5775,
+            "completionTokens": 804,
+            "totalTokens": 6579,
+            "costUsd": 0.0009795
+          }
+        }
+      ]
+    },
+    "policy-jackson": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Give Chorus 1 a punchy 1980s pop sound with gated-style drum compression, brighter bass and synths, and fuller layered vocals, all within bars 25–32.\", \"variants\": \"[{\\\"label\\\":\\\"Full 80s pop chorus\\\",\\\"description\\\":\\\"Compressed, gated-feel drums, brighter bass and synths, and a lush reverb on vocals inside Chorus 1.\\\",\\\"steps\\\":[{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_drums\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_drumcomp\\\",\\\"type\\\":\\\"compressor\\\",\\\"params\\\":{\\\"thresholdDb\\\":-18,\\\"ratio\\\":1,\\\"attackMs\\\":10,\\\"releaseMs\\\":120,\\\"makeupDb\\\":0,\\\"mix\\\":1},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_chorus1\\\",\\\"trackId\\\":\\\"trk_drums\\\"},\\\"target\\\":\\\"fx:fx_drumcomp/ratio\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":1,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":6,\\\"curve\\\":\\\"linear\\\"}]},{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_bass\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_bassbright\\\",\\\"type\\\":\\\"eq3\\\",\\\"params\\\":{},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_chorus1\\\",\\\"trackId\\\":\\\"trk_bass\\\"},\\\"target\\\":\\\"fx:fx_bassbright/highDb\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":6,\\\"curve\\\":\\\"linear\\\"}]},{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_synths\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_synthbright\\\",\\\"type\\\":\\\"eq3\\\",\\\"params\\\":{},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_chorus1\\\",\\\"trackId\\\":\\\"trk_synths\\\"},\\\"target\\\":\\\"fx:fx_synthbright/highDb\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":5,\\\"curve\\\":\\\"linear\\\"}]},{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_voxverb\\\",\\\"type\\\":\\\"reverb\\\",\\\"params\\\":{\\\"mix\\\":0},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_chorus1\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"target\\\":\\\"fx:fx_voxverb/mix\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":0.35,\\\"curve\\\":\\\"linear\\\"}]}]}]},{\\\"label\\\":\\\"Subtle chorus lift\\\",\\\"description\\\":\\\"Lighter touch: brighter synths and bass plus a modest vocal width lift only in Chorus 1.\\\",\\\"steps\\\":[{\\\"kind\\\":\\\"ops\\\",\\\"ops\\\":[{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_synths\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_synthbright\\\",\\\"type\\\":\\\"eq3\\\",\\\"params\\\":{},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_chorus1\\\",\\\"trackId\\\":\\\"trk_synths\\\"},\\\"target\\\":\\\"fx:fx_synthbright/highDb\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":3,\\\"curve\\\":\\\"linear\\\"}]},{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_bass\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_bassbright\\\",\\\"type\\\":\\\"eq3\\\",\\\"params\\\":{},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_chorus1\\\",\\\"trackId\\\":\\\"trk_bass\\\"},\\\"target\\\":\\\"fx:fx_bassbright/highDb\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":0,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":3,\\\"curve\\\":\\\"linear\\\"}]},{\\\"op\\\":\\\"fx.add\\\",\\\"scope\\\":{\\\"kind\\\":\\\"track\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"fx\\\":{\\\"id\\\":\\\"fx_voxwidth\\\",\\\"type\\\":\\\"width\\\",\\\"params\\\":{\\\"width\\\":1},\\\"bypass\\\":false}},{\\\"op\\\":\\\"automation.set\\\",\\\"scope\\\":{\\\"kind\\\":\\\"lane\\\",\\\"sectionId\\\":\\\"sec_chorus1\\\",\\\"trackId\\\":\\\"trk_vox\\\"},\\\"target\\\":\\\"fx:fx_voxwidth/width\\\",\\\"points\\\":[{\\\"tick\\\":0,\\\"value\\\":1,\\\"curve\\\":\\\"linear\\\"},{\\\"tick\\\":15360,\\\"value\\\":1.4,\\\"curve\\\":\\\"linear\\\"}]}]}]}]}\"}",
+          "usage": {
+            "promptTokens": 6042,
+            "completionTokens": 1624,
+            "totalTokens": 7666,
+            "costUsd": 0.0014162
+          }
+        }
+      ]
+    },
+    "policy-beyonce": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Shape the Vocals in the focus region (bars 25–32, Chorus 1) toward a polished, layered contemporary R&B sound with lush background-stack space, leaving the rest of the song untouched.\", \"variants\": [{\"label\":\"Lush stacked vocals\",\"description\":\"Adds a warm chorus and reverb to Vocals, automated only across Chorus 1 for polished background stacks.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_chorusvox\",\"type\":\"chorus\",\"params\":{},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_reverbvox\",\"type\":\"reverb\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus1\",\"trackId\":\"trk_vox\"},\"target\":\"fx:fx_reverbvox/mix\",\"points\":[{\"tick\":0,\"value\":0.1,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.35,\"curve\":\"linear\"}]}]}]},{\"label\":\"Tight and bright\",\"description\":\"Adds a subtle EQ lift and light compression to Vocals across Chorus 1 for a forward, punchy stack.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_eqvox\",\"type\":\"eq3\",\"params\":{},\"bypass\":false}},{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_compvox\",\"type\":\"compressor\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_chorus1\",\"trackId\":\"trk_vox\"},\"target\":\"fx:fx_eqvox/highDb\",\"points\":[{\"tick\":0,\"value\":0,\"curve\":\"linear\"},{\"tick\":15360,\"value\":3,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 5915,
+            "completionTokens": 790,
+            "totalTokens": 6705,
+            "costUsd": 0.0009865
+          }
+        }
+      ]
+    },
+    "policy-bowie": {
+      "replies": [
+        {
+          "text": "",
+          "toolArguments": "{\"interpretation\": \"Add a dramatic, theatrical lift to the intro (bars 1–8) using brightness, space and intensity-style shaping on the intro tracks only, without generating new parts.\", \"variants\": [{\"label\":\"Theatrical lift\",\"description\":\"Intro-only reverb space and brighter, more forward tone building across the section.\",\"steps\":[{\"kind\":\"ops\",\"ops\":[{\"op\":\"fx.add\",\"scope\":{\"kind\":\"track\",\"trackId\":\"trk_vox\"},\"fx\":{\"id\":\"fx_introvoxverb\",\"type\":\"reverb\",\"params\":{},\"bypass\":false}},{\"op\":\"automation.set\",\"scope\":{\"kind\":\"lane\",\"sectionId\":\"sec_intro\",\"trackId\":\"trk_vox\"},\"target\":\"fx:fx_introvoxverb/mix\",\"points\":[{\"tick\":0,\"value\":0.05,\"curve\":\"linear\"},{\"tick\":15360,\"value\":0.35,\"curve\":\"linear\"}]}]}]}]}",
+          "usage": {
+            "promptTokens": 6035,
+            "completionTokens": 365,
+            "totalTokens": 6400,
+            "costUsd": 0.000786
+          }
+        }
+      ]
+    }
+  }
+}

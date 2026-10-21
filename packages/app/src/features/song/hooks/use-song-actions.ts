@@ -67,7 +67,10 @@ export interface SongActionsOptions {
   readonly selection: Selection;
   readonly focus: { readonly kind: "section" | "track"; readonly id: string } | null;
   readonly historyOpen: boolean;
+  readonly explainMode: boolean;
   readonly onToggleHistory: () => void;
+  readonly onAskAi: () => void;
+  readonly onToggleExplain: () => void;
   readonly onAnnounce: (message: string) => void;
   /** Opens the extend popover; absent when this canvas has no generation host (09 §4.2). */
   readonly onOpenExtend?: (direction: "forward" | "backward") => void;
@@ -457,6 +460,8 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       undo,
       redo,
       toggleHistory: options.onToggleHistory,
+      askAi: options.onAskAi,
+      toggleExplain: options.onToggleExplain,
       togglePlay: () => {
         void controller.toggle();
       },
@@ -471,6 +476,8 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       openRename,
       openResize,
       options.onOpenExtend,
+      options.onAskAi,
+      options.onToggleExplain,
       options.onToggleHistory,
       redo,
       removeSection,
@@ -492,6 +499,7 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       hasHistory: options.history !== undefined,
       historyOpen: options.historyOpen,
       playing,
+      explainMode: options.explainMode,
       actions,
     }),
     [
@@ -500,6 +508,7 @@ export function useSongActions(options: SongActionsOptions): SongActions {
       canRedo,
       canUndo,
       doc,
+      options.explainMode,
       options.history,
       options.historyOpen,
       playing,

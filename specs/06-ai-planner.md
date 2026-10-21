@@ -1,6 +1,6 @@
 # 06 — AI Intent Planner
 
-Status: Draft v0.2 · Code: `services/api/src/planner/` · Schemas: `packages/schemas/planner/`
+Status: Draft v0.4 · Code: `services/api/src/planner/` · Schemas: `packages/schemas/planner/`
 
 The planner turns **what the user wants** ("make this more aggressive", "add strings under the chorus", "make the outro longer and dreamier") into an **EditPlan**: concrete ops ([02 §4](02-song-model.md)) plus generation steps ([09](09-generation.md)), offered as 1–3 variants. It is the bridge between plain language and the deterministic model.
 
@@ -32,7 +32,16 @@ interface PlanRequest {
 }
 ```
 
-The API loads the commit snapshot and analyses and calls `bragi-model::summarize_for_llm(doc, analyses, focus)` (using the same WASM build, `packages/model-wasm`, running in Node). It produces a **compact LLM context** of about 2–6k tokens:
+The API loads the commit snapshot and calls `bragi-model::summarize_for_llm(doc, &focus)` (using the same WASM build, `packages/model-wasm`, running in Node). The analyses travel inside the document as `analyses[].summary` and `analyses[].effects`, so no separate bundle is passed (`docs/wp/2.6.md`). It produces a **compact LLM context** of about 2–6k tokens:
+
+> **v1 note (WP-2.6):** the server holds no projects (history is local-first), so `POST /v1/plans`
+> carries the `Project` document in the request (`PlanRequest.doc`) and the API never stores it.
+> Analyses travel inside the document, which is everything `summarize_for_llm` needs. The
+> `projectId`/`commitId` pair above stays the shape for a future hosted sync; the current schema
+> takes the document instead ([`docs/wp/2.6.md`](../docs/wp/2.6.md), Deviation 1). Because energy,
+> chords and per-section stem activity live in analysis blobs the model never reads, the client
+> also sends a bounded optional `sectionFeatures` array; the API appends it to the summary as an
+> escaped data block.
 
 ```
 SONG: "Midnight Drive" · 118 BPM · F# minor · 4/4 · 4:00 · genres: synthwave · moods: nostalgic, driving
@@ -81,7 +90,7 @@ The plan is a **small program**. Ops-only variants are instant. Variants with `g
 
 ## 4. LLM call
 
-- Calls an LLM through **OpenRouter** (OpenAI-compatible chat completions, key `OPENROUTER_API_KEY`, [ADR-0012](decisions/ADR-0012-describe-llm-client.md)) using OpenAI-format **tool calling** with a single tool `propose_edit_plan` whose input schema is the `EditPlan` JSON Schema (minus `planId` and the estimates).
+- Calls an LLM through **OpenRouter** (OpenAI-compatible chat completions, key `OPENROUTER_API_KEY`, [ADR-0012](decisions/ADR-0012-describe-llm-client.md)) using OpenAI-format **tool calling** with a single tool `propose_edit_plan` whose input schema is the `EditPlan` JSON Schema (minus `planId`, `notices` and the estimates). To keep the prompt inside §2's budget, the envelope stays strict but `ops` items are described loosely (`op` is an enum, the rest is free); §5 validates every op against its own schema. The op shapes the model needs are a generated `OP SHAPES` block in the user message, not a copy of the `Op` union.
 - **Model tiering** (configured in `config/planner.toml` as OpenRouter slugs, `vendor/model`; never hard-coded, and the owner may change them freely to trade quality against cost):
   - `fast` tier for short prompts that map to mix/fx edits (classified by a cheap heuristic: no generation verbs, region ≤ 1 track).
   - `smart` tier for everything else.
@@ -100,7 +109,8 @@ The plan is a **small program**. Ops-only variants are instant. Variants with `g
 
 ```
 LLM → EditPlan (raw)
-  → JSON Schema validation
+  → JSON Schema validation (each op against the schema its `op` discriminator selects,
+    so the repair round gets one precise error rather than the `Op` union's branches)
   → for each variant: dry-run all "ops" steps with bragi-model::apply on the snapshot (generated assets stubbed)
   → check credits ≤ user remaining and ≤ preferences.maxCredits
   → on failure: one repair round (send validation errors back to the LLM), then fail gracefully with a message
@@ -131,7 +141,15 @@ When the user drags the energy skyline, each affected section gets an `energyTar
 ## 7. Guardrails
 
 - **Schema-only output:** anything the LLM produces is data that passes schema + dry-run validation. There is no free-form code execution.
-- **Region discipline:** ops touching ticks or tracks outside the requested region are rejected unless the variant declares `scope: "song"` and the prompt contained a song-wide intent (checked by a simple classifier and shown to the user: "This will change the whole song").
+- **Region discipline:** a time-limited region is expressed with section-lane
+  automation — optionally shaping an fx that was added at a neutral setting so it only bites where
+  the curve moves — or with section/clip ops. A bare track-level fx or mixer change acts on the
+  whole song and is not a region edit. Ops touching ticks or tracks outside the requested region
+  are rejected unless the variant declares `scope: "song"` and the prompt contained a song-wide
+  intent (checked by a simple classifier and shown to the user: "This will change the whole song").
+  A structural change declares `scope: "song"` even when no region is selected, so the UI can
+  always warn. The classifier also counts section rearrangement ("remove the second verse",
+  "shorten the intro") as a song-wide request, because those ops are structural.
 - **Cost discipline:** a plan above 50 credits requires explicit confirmation.
 - **Content policy:** generation steps are checked against [10 §7](10-fusion.md) (no artist names in prompts, no voice cloning).
 - **Prompt injection:** analysis-derived text (lyrics, titles, filenames) is escaped and placed in data blocks. Instructions inside lyrics or filenames must be ignored, and this is covered by a test case.
@@ -146,7 +164,10 @@ Explanations must ground every claim in analysis features. For example: "At bar 
 
 ## 9. Evaluation
 
-`services/api/test/planner-bench/` contains about 100 cases: `{ fixtureProject, region?, prompt, expectations }`. Expectations are structural, for example "uses only fx/macro ops", "touches only trk_drums in bars 41–56", "≥ 2 distinct lever types across variants", or "asks clarification".
+`services/api/test/planner-bench/` contains 43 ops-only cases in WP-2.6 (the set grows with the
+generation capabilities in WP-2.7): `{ fixtureProject, region?, prompt, expectations }`. Expectations
+are structural, for example "uses only fx/macro ops", "touches only trk_drums in bars 41–56", "≥ 2
+distinct lever types across variants", or "asks clarification".
 
 | Metric | Target |
 |---|---|
