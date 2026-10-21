@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from gates_support import click_track, drum_pattern, metric, request
+from gates_support import click_track, drum_pattern, metric, request, song
 
-from bragi_generate.postprocess import tempo
+from bragi_generate.postprocess import tempo, tonality
 from bragi_generate.postprocess.config import GateConfig
 from bragi_generate.postprocess.stretch import pitch_shift, time_stretch
+from bragi_generate.postprocess.types import Audio
 
 CFG = GateConfig()
 
@@ -53,6 +54,13 @@ def test_warp_lands_on_the_requested_tempo() -> None:
     # Beat times are rescaled with the audio, so they still index the output.
     assert np.all(np.diff(result.beats_sec) > 0.0)
     assert result.beats_sec[-1] < result.audio.duration_sec
+
+
+def test_a_sub_percent_stretch_keeps_a_tonal_song_in_its_key() -> None:
+    """Regression: the WSOLA search used to start one hop late and mangle the chroma."""
+    before = song(120.0, 8.0, root_pc=9, mode="minor")
+    stretched = Audio(time_stretch(before.samples, 1.0007, 48_000), 48_000)
+    assert tonality.detect(stretched)[0] == tonality.detect(before)[0]
 
 
 def test_stretch_factor_is_linear_in_length() -> None:
