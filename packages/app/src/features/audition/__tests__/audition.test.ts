@@ -129,8 +129,17 @@ const event = (type: JobEvent["type"], pct?: number): JobEvent => ({
 
 describe("candidate status", () => {
   it("maps job events onto the badge", () => {
-    expect(statusFromJobEvent(event("started"))).toEqual({ kind: "generating", pct: 0 });
+    expect(statusFromJobEvent(event("started"))).toEqual({ kind: "queued" });
+    expect(statusFromJobEvent({ ...event("started"), etaSec: 18 })).toEqual({
+      kind: "queued",
+      etaSec: 18,
+    });
     expect(statusFromJobEvent(event("progress", 0.4))).toEqual({ kind: "generating", pct: 0.4 });
+    // A progress report before any work starts is the queue estimate (09 §5).
+    expect(statusFromJobEvent({ ...event("progress", 0), etaSec: 20 })).toEqual({
+      kind: "queued",
+      etaSec: 20,
+    });
     expect(statusFromJobEvent(event("progress", 3))).toEqual({ kind: "generating", pct: 1 });
     expect(statusFromJobEvent(event("partial"))).toEqual({ kind: "preview" });
     expect(statusFromJobEvent(event("completed"))).toEqual({ kind: "hq" });

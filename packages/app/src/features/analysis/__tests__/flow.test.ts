@@ -130,6 +130,11 @@ async function harness(
     getAnalyses: async (hash) => ({ assetHash: hash, stages: [] }),
     library: async () => ({ items: [], nextCursor: null }),
     importLibrary: async () => ({ items: [], enqueuedStages: [] }),
+    submitJob: async () => {
+      throw new Error("the upload flow does not submit generation jobs");
+    },
+    cancelJob: async () => {},
+    warmupGeneration: async () => ({ status: "disabled" }),
   };
 
   const flow = createUploadFlow({
@@ -553,6 +558,11 @@ describe("the upload -> live-analysis flow", () => {
         }),
         library: async () => ({ items: [], nextCursor: null }),
         importLibrary: async () => ({ items: [], enqueuedStages: [] }),
+        submitJob: async () => {
+          throw new Error("resume does not submit generation jobs");
+        },
+        cancelJob: async () => {},
+        warmupGeneration: async () => ({ status: "disabled" }),
       } as ApiClient,
       realtime,
       songStore: resumedStore,
@@ -647,6 +657,11 @@ describe("the upload -> live-analysis flow", () => {
         }),
         library: async () => ({ items: [], nextCursor: null }),
         importLibrary: async () => ({ items: [], enqueuedStages: [] }),
+        submitJob: async () => {
+          throw new Error("resume does not submit generation jobs");
+        },
+        cancelJob: async () => {},
+        warmupGeneration: async () => ({ status: "disabled" }),
       } as ApiClient,
       realtime: new FakeRealtime(),
       songStore: resumedStore,

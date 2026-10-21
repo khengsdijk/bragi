@@ -8,7 +8,7 @@ import {
   type CommandContext,
   createCommandRegistry,
 } from "../state/commands.js";
-import { SONG_COMMANDS } from "../state/song-commands.js";
+import { EXTEND_COMMANDS, SONG_COMMANDS } from "../state/song-commands.js";
 
 const SECTION: SectionInstance = {
   id: "sec_001",
@@ -29,6 +29,7 @@ function actions(): CommandActions {
     setLocked: vi.fn(),
     loopSection: vi.fn(),
     openResize: vi.fn(),
+    openExtend: vi.fn(),
     openBrush: vi.fn(),
     splitAtPlayhead: vi.fn(),
     undo: vi.fn(),
@@ -177,6 +178,28 @@ describe("song commands", () => {
     expect(command("edit.redo").enabled(context({ hasHistory: false }))).toBe(false);
     expect(command("view.history").enabled(context({ hasHistory: false }))).toBe(false);
     expect(command("edit.redo").enabled(context({ canRedo: false }))).toBe(false);
+  });
+
+  it("offers extending the song only at the edge the focused part touches", () => {
+    const last = context({ sectionIndex: 4 });
+    const forward = EXTEND_COMMANDS.find((entry) => entry.id === "generation.extendForward");
+    const backward = EXTEND_COMMANDS.find((entry) => entry.id === "generation.extendBackward");
+    expect(forward?.enabled(last)).toBe(true);
+    expect(backward?.enabled(last)).toBe(false);
+    forward?.run(last);
+    expect(last.actions.openExtend).toHaveBeenCalledWith("forward");
+
+    const first = context({ sectionIndex: 0 });
+    expect(backward?.enabled(first)).toBe(true);
+    expect(forward?.enabled(first)).toBe(false);
+    backward?.run(first);
+    expect(first.actions.openExtend).toHaveBeenCalledWith("backward");
+
+    // A part in the middle is neither edge.
+    const middle = context({ sectionIndex: 2 });
+    expect(forward?.enabled(middle)).toBe(false);
+    expect(backward?.enabled(middle)).toBe(false);
+    expect(backward?.enabled(context({ section: null }))).toBe(false);
   });
 });
 
