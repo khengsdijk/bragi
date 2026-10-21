@@ -197,7 +197,7 @@ async function harness(options: HarnessOptions = {}): Promise<Harness> {
         createdAt: NOW.toISOString(),
         estimatedCredits: 2,
       };
-      submits.push({ body, jobId: accepted.jobId });
+      submits.push({ body: body as GenerateExtendSubmit, jobId: accepted.jobId });
       return accepted;
     },
     cancelJob: async (jobId) => {
@@ -207,6 +207,7 @@ async function harness(options: HarnessOptions = {}): Promise<Harness> {
     plan: async () => {
       throw new Error("the extend flow never plans");
     },
+    executePlan: async () => ({ jobs: [] }),
   };
 
   let audition: Audition | null = null;

@@ -75,6 +75,8 @@ Each interaction lists **gesture → live preview → committed result**. The pr
 - **Delete/Backspace** on a selected section removes it (`section.remove`) with the same transition smoothing.
 - **Right-click a section** opens a menu: Duplicate, Remove, Rename, Change type, Lock from AI, Loop this, Make longer…, Make shorter…, Regenerate…, Explain.
 
+**As built in WP-2.8:** the ✨ Smooth with AI chip is a DOM button anchored to the new boundary, with the same action in the section menu ("Smooth this transition with AI") and the command palette. It opens a labelled popover with the bridge length (1 or 2 bars; **1** is the default) and an optional prompt; Generate submits one `generate.transition` job whose contexts are the 8 bars on each side. The chip is offered only when the move/remove's smart transitions actually re-joined a boundary, and it comes from the commit that is HEAD, so undo brings it back and a new edit takes it away. Accept sets the incoming section's `transitionIn` to `generated` with the candidate's asset ([09 §4.4](09-generation.md)).
+
 ### 4.2 Resizing and extending
 - **Drag a section's right edge.** The popover on release asks "How should it get longer?": **Loop** (repeat bars), **Stretch** (slower), or **✨ Continue with AI** (generate new bars in style). Shortening offers **Trim** or **✨ Condense** (AI re-composes a shorter version). The ghost preview shows the bar count ("+8 bars").
 - **Extend handle at song end (⟶):** opens "Make longer…" for `generate.extend` with 3 candidates for the requested length. Max per request is 3 minutes. For longer lengths, Bragi suggests long-form mode ([09 §4.5](09-generation.md)).
@@ -128,6 +130,8 @@ Clicking a ribbon selects it and opens the **Inspector**:
 ### 4.8 Erase & fill
 Erase a region (any tracks). A floating chip offers **✨ Fill gap**: `generate.inpaint` with context before and after → candidates. Without fill, the gap stays silent (with fades).
 
+**As built in WP-2.8:** the Remove brush (or any `region.clear`) offers the chip while that commit is HEAD. Clicking it (or the command palette's "Fill gap with AI", or the section menu's item) submits one `generate.inpaint` job. The gap is snapped inward to whole bars (06 §3); an erased region smaller than a bar widens to the bar containing it, because the worker cannot generate less than one bar. `before` is up to 15 s ending at the gap's first bar line and `after` up to 15 s starting at its last, rendered from all tracks. Candidates stream into the Audition bar; Accept queues `standard` analysis of the fill and the later stem mapping puts its stems into that gap only ([09 §4.3](09-generation.md)).
+
 ### 4.9 Explain mode
 In explain mode, clicking a point or section requests an Explanation ([06 §8](06-ai-planner.md)). The popover shows text, and the canvas highlights the referenced regions. **Learn mode** (a toggle in settings) shows roman numerals, section function hints, and an occasional "Did you notice…?" tip during playback, with at most one tip per minute.
 
@@ -153,6 +157,8 @@ In explain mode, clicking a point or section requests an Explanation ([06 §8](0
 - Only one candidate group is active at a time. Starting a new AI action while one is open asks the user to accept or discard first.
 
 **As built in WP-2.7:** a job that streams its candidates (an extend) opens the bar before the first idea exists. Until then the bar shows the job's queue status as one chip, from `etaSec` ("Waiting for a free generator… (~20 s)") and then `pct` ("Generating 40%"); each `partial` adds its idea as a slot, and the first playable idea starts playing. `Escape` discards a candidate group and cancels its job, like **Discard**. The HQ render is announced when it arrives; the accepted preview stays in the document until a model op can swap a source's asset (see `docs/wp/2.7.md`).
+
+**As built in WP-2.8:** a planner plan with one generative variant puts its instant (ops-only) variants in the bar immediately and the generative variant's job as the same queue chip; the generative idea appears as one more slot when its first passing partial arrives (06 §5). Fill gap and Smooth with AI use the same streaming bar and the same Accept path (analysis + announced HQ).
 
 ## 7. History panel (version tree)
 

@@ -17,7 +17,6 @@ import {
   CONTEXT_BYTES,
   createFakeApi,
   flowDeps,
-  NOW,
   openSong,
   type SongFixture,
   TICKS_PER_BAR,
@@ -120,13 +119,12 @@ describe("the fill gap flow", () => {
     const [before, after] = h.renderContext.mock.calls.map(
       (call) => call[0] as { startTick: number; endTick: number },
     );
-    expect(before?.endTick).toBe(GAP.startTick);
-    expect(after?.startTick).toBe(GAP.endTick);
-    expect(before?.startTick % TICKS_PER_BAR).toBe(0);
-    expect(after?.endTick % TICKS_PER_BAR).toBe(0);
-    expect((after?.endTick ?? 0) - (after?.startTick ?? 0)).toBeLessThanOrEqual(
-      15 * 48_000 + TICKS_PER_BAR,
-    );
+    if (before === undefined || after === undefined) throw new Error("missing contexts");
+    expect(before.endTick).toBe(GAP.startTick);
+    expect(after.startTick).toBe(GAP.endTick);
+    expect(before.startTick % TICKS_PER_BAR).toBe(0);
+    expect(after.endTick % TICKS_PER_BAR).toBe(0);
+    expect(after.endTick - after.startTick).toBeLessThanOrEqual(15 * 48_000 + TICKS_PER_BAR);
 
     const submit = h.fake.submits[0];
     expect(submit?.body.capability).toBe("generate.inpaint");
@@ -138,7 +136,8 @@ describe("the fill gap flow", () => {
       tier: "preview",
       n: 3,
     });
-    expect((submit?.body.params as { context: { bpm: number } }).context.bpm).toBe(120);
+    if (submit === undefined) throw new Error("no submit");
+    expect((submit.body.params as { context: { bpm: number } }).context.bpm).toBe(120);
 
     // The bar is open before the first idea exists.
     expect(h.audition.store.getState().group?.id).toBe(submit?.jobId);

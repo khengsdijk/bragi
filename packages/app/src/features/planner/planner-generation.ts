@@ -494,6 +494,7 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
       seed: numberFromResult(json) ?? 0,
     });
     if (qualityWarning) warnings.set(commit.id, t("generation.extend.qualityWarning"));
+    setQueue(null);
     emit(commit.id, "partial");
     deps.onAnnounce?.(t("generation.extend.live.ideaReady", { index: 0 }));
   }

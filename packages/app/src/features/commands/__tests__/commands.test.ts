@@ -30,6 +30,8 @@ function actions(): CommandActions {
     loopSection: vi.fn(),
     openResize: vi.fn(),
     openExtend: vi.fn(),
+    fillGap: vi.fn(),
+    smoothTransition: vi.fn(),
     openBrush: vi.fn(),
     splitAtPlayhead: vi.fn(),
     undo: vi.fn(),
@@ -54,6 +56,8 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
     historyOpen: false,
     playing: false,
     explainMode: false,
+    fillGapLabel: null,
+    smoothTargetIds: [],
     actions: actions(),
     ...overrides,
   };

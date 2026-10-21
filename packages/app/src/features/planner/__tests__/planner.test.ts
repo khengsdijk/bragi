@@ -306,7 +306,13 @@ describe("the planner prompt", () => {
   });
 
   it("hands a plan with a generate step to the execute path", async () => {
-    const execute = vi.fn(async () => true);
+    const execute = vi.fn(
+      async (_input: {
+        prompt: string;
+        region: { startTick: number };
+        opsBatches: readonly OpBatch[];
+      }) => true,
+    );
     const generation: PlannerGeneration = {
       source: { subscribe: () => () => {} },
       execute,
@@ -323,11 +329,8 @@ describe("the planner prompt", () => {
     await planner.submit("fill that gap");
 
     expect(execute).toHaveBeenCalledTimes(1);
-    const input = execute.mock.calls[0]?.[0] as {
-      prompt: string;
-      region: { startTick: number };
-      opsBatches: readonly OpBatch[];
-    };
+    const input = execute.mock.calls[0]?.[0];
+    if (input === undefined) throw new Error("execute was not called");
     expect(input.prompt).toBe("fill that gap");
     expect(input.region.startTick).toBe(1920);
     // Only the ops-only variant is instant; the generative one lands when its job does.
