@@ -57,7 +57,7 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext): void {
     const { rows } = await ctx.pool.query<LibraryRow>(
       `SELECT id, asset_hash, filename, title, artist, album, imported_at, project_id, hidden
        FROM library_items
-       WHERE user_id = $1 AND hidden = false AND ($2::text IS NULL OR imported_at < $2::text)
+       WHERE user_id = $1 AND hidden = false AND ($2::text IS NULL OR imported_at < $2::timestamptz)
        ORDER BY imported_at DESC, id DESC
        LIMIT $3`,
       [session.user.id, cursor, limit + 1],
