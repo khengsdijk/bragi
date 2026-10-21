@@ -31,7 +31,7 @@ import { createSettingsStore } from "../../settings/state/settings-store.js";
 import { loadModel } from "../model/model-api.js";
 import { createEngineController, type EngineController } from "../state/engine-controller.js";
 import { createSongStore, type SongStore } from "../state/song-store.js";
-import { type AnalysisData, SongWorkspace } from "./SongWorkspace.js";
+import { type AnalysisData, type GenerationHost, SongWorkspace } from "./SongWorkspace.js";
 
 const SAMPLE_RATE = 48_000;
 
@@ -121,14 +121,25 @@ export function StoredSongCanvas({ projectId }: { readonly projectId: string }) 
   const dispose = useRef<(() => void)[]>([]);
   const settings = useMemo(() => createSettingsStore(platform.localDb), [platform.localDb]);
   /**
-   * One API and WebSocket client for generation, created once per opened song (not per render):
-   * the extend flow is memoised on this object, so a new one would dispose a running job.
+   * One API and WebSocket client for generation per opened song (not per render): the extend
+   * flow is memoised on this object, so a new one would dispose a running job. It is created in
+   * the effect that closes it, so a remount (StrictMode's in development) never leaves the flow
+   * holding a closed socket.
    */
-  const generation = useMemo(() => {
-    if (platform.api === undefined) return undefined;
-    return { platform, api: apiFor(platform), realtime: realtimeFor(platform) };
+  const [generation, setGeneration] = useState<GenerationHost | undefined>(undefined);
+  useEffect(() => {
+    if (platform.api === undefined) return;
+    const host: GenerationHost = {
+      platform,
+      api: apiFor(platform),
+      realtime: realtimeFor(platform),
+    };
+    setGeneration(host);
+    return () => {
+      host.realtime.close();
+      setGeneration(undefined);
+    };
   }, [platform]);
-  useEffect(() => () => generation?.realtime.close(), [generation]);
 
   useEffect(() => {
     void settings.load();
