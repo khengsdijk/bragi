@@ -17,6 +17,8 @@ export interface ModelApi {
   readonly canonicalJson: typeof ModelWasm.canonicalJson;
   readonly commitId: typeof ModelWasm.commitId;
   readonly diffDocs: typeof ModelWasm.diffDocs;
+  /** Builds the candidate batch that places an accepted extend (09 §4.2). */
+  readonly extendPlacement: typeof ModelWasm.extendPlacement;
   readonly freeDoc: typeof ModelWasm.freeDoc;
   /** How many handles are live; the tests use it to prove nothing leaks. */
   readonly docCount: typeof ModelWasm.docCount;
