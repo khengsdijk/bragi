@@ -158,6 +158,14 @@ class GenerationBackend(Protocol):
         """Generates ``n`` candidates, calling ``on_progress(0..1)`` as they finish."""
         ...
 
+    def warmup(self) -> None:
+        """Loads the model so the next interactive generation is warm (09 §5).
+
+        Blocking like :meth:`generate`; a backend whose model is already loaded or
+        external (the fake backend) returns immediately.
+        """
+        ...
+
 
 __all__ = [
     "Direction",

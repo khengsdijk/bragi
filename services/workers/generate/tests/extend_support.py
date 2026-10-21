@@ -147,6 +147,10 @@ class StubBackend:
     def __init__(self) -> None:
         self.seeds: list[int] = []
         self.seen: list[GenRequest] = []
+        self.warms = 0
+
+    def warmup(self) -> None:
+        self.warms += 1
 
     def generate(
         self,

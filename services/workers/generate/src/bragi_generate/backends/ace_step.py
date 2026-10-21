@@ -237,6 +237,15 @@ class AceStepBackend:
                 on_progress((index + 1) / n)
         return outputs
 
+    def warmup(self) -> None:
+        """Loads the DiT, VAE and text encoder through ``POST /v1/init`` (09 §5).
+
+        ``/health`` succeeds before the model is loaded, so it is not the warm-up;
+        ``/v1/init`` is. It blocks for 10-14 s on the M2 Pro / MPS (``docs/wp/2.7.md``).
+        """
+        self._client.health()
+        self._client.init()
+
     def _one(
         self,
         req: GenRequest,

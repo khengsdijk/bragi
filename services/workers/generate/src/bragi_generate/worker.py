@@ -12,10 +12,10 @@ from collections.abc import Sequence
 from bragi_common.config import Settings
 from bragi_common.protocol import Capability
 from bragi_common.worker import run_worker
-from bragi_generate.capabilities import extend
+from bragi_generate.capabilities import extend, warmup
 
 #: Every capability this process serves (13 §3: one module per capability).
-CAPABILITIES: Sequence[Capability] = [extend]
+CAPABILITIES: Sequence[Capability] = [extend, warmup]
 
 
 def main() -> None:

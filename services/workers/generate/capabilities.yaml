@@ -1,6 +1,8 @@
 # The generation capability registry (specs/09-generation.md §2), exported to the
 # planner's catalogue (06 §2). `implemented` is false until the capability's module,
 # schema and route exist; only `generate.extend` is implemented in WP-2.7.
+# `generate.warmup` (09 §5) is an internal job, not a user-facing capability, so it
+# is deliberately not listed here.
 capabilities:
   generate.extend:
     implemented: true

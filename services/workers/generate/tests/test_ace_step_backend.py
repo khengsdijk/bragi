@@ -43,6 +43,8 @@ class FakeAceStep:
     def __init__(self, render: Callable[[dict[str, Any]], bytes]) -> None:
         self.render = render
         self.payloads: list[dict[str, Any]] = []
+        self.inits: list[dict[str, object]] = []
+        self.health_calls = 0
         self.audio = b""
         fake = self
 
@@ -61,7 +63,12 @@ class FakeAceStep:
             def do_POST(self) -> None:
                 length = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(length)) if length else {}
-                if self.path == "/release_task":
+                if self.path == "/v1/init":
+                    fake.inits.append(body)
+                    self._send_json(
+                        {"data": {"message": "Model initialization completed"}, "code": 200}
+                    )
+                elif self.path == "/release_task":
                     fake.payloads.append(body)
                     fake.audio = fake.render(body)
                     self._send_json({"data": {"task_id": TASK_ID}, "code": 200})
@@ -79,7 +86,15 @@ class FakeAceStep:
                     self._send_json({"code": 404, "error": "not found"})
 
             def do_GET(self) -> None:
-                if self.path.startswith("/v1/audio"):
+                if self.path == "/health":
+                    fake.health_calls += 1
+                    self._send_json(
+                        {
+                            "data": {"status": "ok", "service": "ace-step", "version": "1.5.0"},
+                            "code": 200,
+                        }
+                    )
+                elif self.path.startswith("/v1/audio"):
                     self.send_response(200)
                     self.send_header("Content-Type", "audio/wav")
                     self.send_header("Content-Length", str(len(fake.audio)))
@@ -196,6 +211,14 @@ def test_n_candidates_use_distinct_seeds_and_progress() -> None:
     assert [output.seed for output in outputs] == [1234, 1235, 1236]
     assert [payload["seed"] for payload in fake.payloads] == [1234, 1235, 1236]
     assert seen == [pytest.approx(1 / 3), pytest.approx(2 / 3), pytest.approx(1.0)]
+
+
+def test_warmup_loads_the_model_through_init() -> None:
+    with FakeAceStep(render_forward) as fake:
+        backend(fake).warmup()
+
+    assert fake.health_calls == 1
+    assert fake.inits == [{"model": None, "init_llm": False}]
 
 
 def test_backward_prepends_silence_and_repaints_the_intro() -> None:

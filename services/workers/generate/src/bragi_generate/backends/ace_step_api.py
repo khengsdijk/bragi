@@ -486,6 +486,15 @@ class AceStepClient:
             version=str(data.get("version", "")),
         )
 
+    def init(self, *, model: str | None = None) -> None:
+        """Load the DiT, VAE and text encoder (``POST /v1/init``).
+
+        The server loads lazily, so the first generation pays the load; the warm-up
+        ping (09 §5) makes it pay it before the user is waiting. ``model`` selects a
+        DiT from the server's inventory; ``None`` keeps the server's default.
+        """
+        self._request("POST", "/v1/init", body={"model": model, "init_llm": False})
+
     def submit_extend(self, request: ExtendRequest) -> str:
         """Queue an extend and return its task id."""
         return self._submit(build_extend_payload(request))

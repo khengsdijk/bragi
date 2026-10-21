@@ -173,3 +173,17 @@ def test_the_context_asset_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
     job.inputs.assets.pop("context")
     with pytest.raises(ValueError, match=r"inputs\.assets\.context"):
         run_async(extend.run(job, cast(JobContext, FakeContext(context_bytes()))))
+
+
+def test_a_top_level_seed_overrides_the_context_seed(monkeypatch: pytest.MonkeyPatch) -> None:
+    backend = StubBackend()
+    use_backend(monkeypatch, backend)
+    monkeypatch.setattr(
+        extend, "run_gates", lambda candidate, _context, _req: gate(candidate, passed=True)
+    )
+    # An HQ re-render sends the accepted candidate's seed this way (09 §5).
+    document = {**params(n=1), "seed": 4321, "tier": "hq"}
+
+    run_async(extend.run(make_job(document), cast(JobContext, FakeContext(context_bytes()))))
+
+    assert backend.seeds == [4321]

@@ -276,5 +276,8 @@ class FakeBackend:
             on_progress((index + 1) / n)
         return outputs
 
+    def warmup(self) -> None:
+        """No-op: there is no model to load (09 §5's ping is cheap)."""
+
 
 __all__ = ["FakeBackend", "midi_to_hz", "synthesize"]

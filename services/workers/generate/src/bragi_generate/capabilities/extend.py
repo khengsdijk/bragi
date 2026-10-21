@@ -197,7 +197,7 @@ def _gen_request(params: GenerateExtendParams, context: Audio) -> GenRequest:
         overlap_bars=params.overlapBars or 2,
         direction=_direction(params.direction),
         descriptors=tuple(params.context.descriptors),
-        seed=params.context.seed,
+        seed=params.seed if params.seed is not None else params.context.seed,
         prompt=params.prompt,
         section_kind=(
             params.context.sectionKind.value if params.context.sectionKind is not None else None

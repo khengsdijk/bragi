@@ -17,6 +17,7 @@ import { ApiError } from "./errors.js";
 import { registerAnalyses } from "./routes/analyses.js";
 import { registerAssets } from "./routes/assets.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
+import { registerGenerations } from "./routes/generations.js";
 import { registerJobs } from "./routes/jobs.js";
 import { registerLibrary } from "./routes/library.js";
 import { registerMeta } from "./routes/meta.js";
@@ -94,6 +95,7 @@ export async function buildApp(ctx: AppContext): Promise<BuiltApp> {
   });
   registerAssets(app, ctx);
   registerJobs(app, ctx);
+  registerGenerations(app, ctx);
   registerAnalyses(app, ctx);
   registerLibrary(app, ctx);
 
