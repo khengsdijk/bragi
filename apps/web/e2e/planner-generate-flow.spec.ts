@@ -33,7 +33,7 @@ import {
 
 test.skip(!STACK, SKIP_REASON);
 
-const PLAN_ID = "pln_e2e_generate0000000000000";
+const PLAN_ID = "pln_e2egenerate0000000000000";
 
 interface RawDoc {
   id: string;
@@ -179,8 +179,9 @@ function planFor(request: PlanRequestLike): PreparedPlan {
 }
 
 async function lasso(page: Page, trackId: string): Promise<void> {
-  const from = await ribbonPoint(page, trackId, 2);
-  const to = await ribbonPoint(page, trackId, 6);
+  // Mid-song: a fill needs at least a bar of context plus a seam window on each side.
+  const from = await ribbonPoint(page, trackId, 100);
+  const to = await ribbonPoint(page, trackId, 104);
   await page.locator("body").click({ position: { x: 2, y: 2 } });
   await page.keyboard.press("l");
   await page.mouse.move(from.x, from.y);

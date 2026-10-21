@@ -41,7 +41,15 @@ import { t } from "../../i18n/index.js";
 import { ulid } from "../../lib/ulid.js";
 import { uploadAsset } from "../analysis/api/upload.js";
 import type { CandidateSource, CandidateStatus } from "../audition/state/candidate-status.js";
-import { samplesBetween } from "../generation/state/context-windows.js";
+import { FILL_CONTEXT_SECONDS } from "../generation/state/adapters/inpaint.js";
+import { SMOOTH_CONTEXT_BARS } from "../generation/state/adapters/transition.js";
+import {
+  barsEndingAt,
+  barsStartingAt,
+  rangeEndingAt,
+  rangeStartingAt,
+  samplesBetween,
+} from "../generation/state/context-windows.js";
 import {
   type ExtendCandidatePartial,
   type ExtendJob,
@@ -287,8 +295,23 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
     if (before === undefined || after === undefined) {
       throw new Error(`the plan's ${capability} step has no context ranges`);
     }
+    // The plan's ranges mark the gap (or boundary); the conditioning windows are the same ones the
+    // Fill gap and Smooth chips render, so a short range written by the model cannot starve the
+    // worker of the overlap and seam window it needs.
+    const doc = deps.songStore.store.getState().doc;
+    if (doc === null) throw new Error("a plan needs a loaded project");
+    const windows =
+      capability === "generate.transition"
+        ? {
+            before: barsEndingAt(doc, before.endTick, SMOOTH_CONTEXT_BARS),
+            after: barsStartingAt(doc, after.startTick, SMOOTH_CONTEXT_BARS),
+          }
+        : {
+            before: rangeEndingAt(doc, geometry, before.endTick, FILL_CONTEXT_SECONDS),
+            after: rangeStartingAt(doc, geometry, after.startTick, FILL_CONTEXT_SECONDS),
+          };
     return {
-      assets: { before: await upload(before), after: await upload(after) },
+      assets: { before: await upload(windows.before), after: await upload(windows.after) },
       contextRange: null,
     };
   }
@@ -417,8 +440,14 @@ export function createPlannerGeneration(deps: PlannerGenerationDependencies): Pl
             }),
           ),
         ) as OpBatch;
+        // `replace` (06 §3): the placement region's own audio goes first, in the same batch, so the
+        // fill's later stems land in an empty gap instead of over the original clips.
+        const clear: Op[] =
+          apply.placement.mode === "replace"
+            ? [{ op: "region.clear", region: apply.placement.region }]
+            : [];
         return {
-          ops: [...batch.ops],
+          ops: [...clear, ...batch.ops],
           assets: [assetMetaFor(assetHash, durationSamples)],
         };
       }
