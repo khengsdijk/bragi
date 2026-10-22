@@ -4,7 +4,7 @@
 //! Two acceptance criteria live here:
 //!
 //! 1. **Every permutation of stage arrival yields the same document** —
-//!    [`every_stage_order_produces_the_same_document`] does all 720 orders of the six
+//!    [`every_stage_order_produces_the_same_document`] does all 5040 orders of the seven
 //!    effect-bearing stages, and [`a_random_analysis_agrees_under_a_random_order`] is the
 //!    property test over random analysis content and a random order.
 //! 2. **A late `structure` on an edited document yields `meta.suggestedSections` instead of
@@ -15,7 +15,7 @@
 
 use bragi_model::canonical_json;
 use bragi_model::generated::{
-    AssetMeta, OpBatch, Project, SectionInstance, SectionKind, StemRole, Warp,
+    AnalysisEffect, AssetMeta, OpBatch, Project, SectionInstance, SectionKind, StemRole, Warp,
 };
 use bragi_model::{AssetIndex, ValidationCode, apply, derived_id, section_spans, validate};
 use insta::assert_json_snapshot;
@@ -220,7 +220,14 @@ fn describe_op() -> Value {
     )
 }
 
-/// All six stages that carry a document effect, in the canonical order.
+fn harmony_op() -> Value {
+    apply_op(
+        "harmony",
+        json!([{ "kind": "key", "tonic": "F#", "mode": "minor" }]),
+    )
+}
+
+/// All seven stages that carry a document effect, in the canonical order.
 fn canonical_ops() -> Vec<Value> {
     vec![
         ingest_op(),
@@ -229,6 +236,7 @@ fn canonical_ops() -> Vec<Value> {
         separation_op(),
         tag_op(),
         describe_op(),
+        harmony_op(),
     ]
 }
 
@@ -256,12 +264,12 @@ fn permutations(count: usize) -> Vec<Vec<usize>> {
 fn every_stage_order_produces_the_same_document() {
     let assets = asset_index(DURATION);
     let ops = canonical_ops();
-    let reference = run_order(&base_doc(), &ops, &[0, 1, 2, 3, 4, 5], &assets);
+    let reference = run_order(&base_doc(), &ops, &[0, 1, 2, 3, 4, 5, 6], &assets);
 
     let orders = permutations(ops.len());
-    assert_eq!(orders.len(), 720, "six stages have 720 arrival orders");
+    assert_eq!(orders.len(), 5040, "seven stages have 5040 arrival orders");
     for order in orders {
-        if order == [0, 1, 2, 3, 4, 5] {
+        if order == [0, 1, 2, 3, 4, 5, 6] {
             continue;
         }
         let doc = run_order(&base_doc(), &ops, &order, &assets);
@@ -284,7 +292,7 @@ proptest! {
         bars in prop::collection::vec(1u32..5u32, 1..4),
         kinds in prop::collection::vec(section_kind(), 1..4),
         stems in prop::collection::vec(stem_role(), 1..4),
-        keys in prop::collection::vec(any::<u64>(), 6),
+        keys in prop::collection::vec(any::<u64>(), 7),
     ) {
         let mut boundaries = vec![0.0f64];
         let mut start = 0.0f64;
@@ -327,13 +335,14 @@ proptest! {
             }])),
             tag_op(),
             describe_op(),
+            harmony_op(),
         ];
 
         let mut order: Vec<usize> = (0..ops.len()).collect();
         order.sort_by_key(|index| keys[*index]);
 
         let assets = asset_index(DURATION);
-        let reference = run_order(&base_doc(), &ops, &[0, 1, 2, 3, 4, 5], &assets);
+        let reference = run_order(&base_doc(), &ops, &[0, 1, 2, 3, 4, 5, 6], &assets);
         let doc = run_order(&base_doc(), &ops, &order, &assets);
         prop_assert_eq!(canonical_json(&doc), canonical_json(&reference), "order {:?}", order);
     }
@@ -487,10 +496,58 @@ fn project_set_meta_clears_the_suggestions() {
 fn redelivering_every_stage_changes_nothing() {
     let assets = asset_index(DURATION);
     let ops = canonical_ops();
-    let doc = run_order(&base_doc(), &ops, &[0, 1, 2, 3, 4, 5], &assets);
-    // The same six stages arrive again, in a different order (a retry, a reconnect).
-    let again = run_order(&doc, &ops, &[5, 3, 0, 4, 2, 1], &assets);
+    let doc = run_order(&base_doc(), &ops, &[0, 1, 2, 3, 4, 5, 6], &assets);
+    // The same seven stages arrive again, in a different order (a retry, a reconnect).
+    let again = run_order(&doc, &ops, &[6, 3, 0, 5, 1, 4, 2], &assets);
     assert_eq!(canonical_json(&again), canonical_json(&doc));
+}
+
+#[test]
+fn the_harmony_key_effect_is_recorded_and_idempotent() {
+    let assets = asset_index(DURATION);
+    let mut doc = run_op(&base_doc(), ingest_op(), &assets);
+    let before_sections = serde_json::to_value(&doc.arrangement.sections).unwrap();
+    doc = run_op(&doc, harmony_op(), &assets);
+
+    let analysis = &doc.analyses.0[&SRC.parse().unwrap()];
+    let effects = analysis
+        .effects
+        .as_ref()
+        .expect("the key effect is recorded");
+    assert_eq!(effects.0.len(), 1, "harmony owns exactly one effect");
+    assert!(
+        matches!(&effects.0[0], AnalysisEffect::KeyEffect(key)
+            if key.tonic.as_str() == "F#"
+                && key.mode == bragi_model::generated::KeyMode::Minor),
+        "the recorded effect is the key: {:?}",
+        effects.0
+    );
+    // A key is not an arrangement fact: recording it changes no section or clip.
+    assert_eq!(
+        serde_json::to_value(&doc.arrangement.sections).unwrap(),
+        before_sections
+    );
+
+    // A re-delivery merges by kind, so the list keeps one key effect and the document is equal.
+    let again = run_op(&doc, harmony_op(), &assets);
+    assert_eq!(canonical_json(&again), canonical_json(&doc));
+    let effects = again.analyses.0[&SRC.parse().unwrap()]
+        .effects
+        .as_ref()
+        .expect("still one key effect");
+    assert_eq!(effects.0.len(), 1);
+
+    // A stage that owns an effect must carry it (02 §6).
+    let err = apply(
+        &doc,
+        &batch(
+            json!({ "kind": "system", "reason": "analysis" }),
+            vec![apply_op("harmony", json!([]))],
+        ),
+        &assets,
+    )
+    .unwrap_err();
+    assert_eq!(err.code(), ValidationCode::AnalysisEffects);
 }
 
 #[test]
@@ -859,7 +916,7 @@ fn effect_payloads_are_checked() {
 fn the_full_analysis_document_snapshot() {
     let assets = asset_index(DURATION);
     let ops = canonical_ops();
-    let doc = run_order(&base_doc(), &ops, &[2, 0, 4, 1, 5, 3], &assets);
+    let doc = run_order(&base_doc(), &ops, &[6, 2, 0, 4, 1, 5, 3], &assets);
     // Serialized through `serde_json` so the HashMap-backed lane maps are key-sorted.
     assert_json_snapshot!("analysis_full", serde_json::to_value(doc).unwrap());
 }

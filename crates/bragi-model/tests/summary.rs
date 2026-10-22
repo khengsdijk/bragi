@@ -272,6 +272,31 @@ fn selected_sections_and_tracks_follow_arrangement_order() {
 }
 
 #[test]
+fn the_song_line_reads_the_key_effect_when_the_summary_has_none() {
+    let mut doc = analysed();
+    let analysis = doc
+        .analyses
+        .0
+        .get_mut(&"src_01".parse().unwrap())
+        .expect("the analysed source");
+    // The new pipeline records the key as a typed effect; no flow writes `summary.key`.
+    analysis.summary = None;
+    let key: bragi_model::generated::KeyEffect = serde_json::from_value(json!({
+        "kind": "key", "tonic": "Eb", "mode": "major"
+    }))
+    .expect("a valid key effect");
+    let mut effects = analysis.effects.take().map_or_else(Vec::new, |list| list.0);
+    effects.push(bragi_model::generated::AnalysisEffect::KeyEffect(key));
+    analysis.effects = Some(bragi_model::generated::AnalysisEffectList(effects));
+
+    let text = summarize_for_llm(&doc, &SummaryFocus::default()).unwrap();
+    assert!(
+        text.starts_with("SONG: \"Midnight Drive (analysed)\" · 118→124 BPM · \"Eb major\" ·"),
+        "{text}"
+    );
+}
+
+#[test]
 fn the_same_document_always_produces_the_same_context() {
     let doc = analysed();
     let focus = region(2, 6, json!("all"));

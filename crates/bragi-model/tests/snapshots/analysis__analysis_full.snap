@@ -7,6 +7,7 @@ expression: "serde_json::to_value(doc).unwrap()"
     "src_01": {
       "blobs": {
         "describe": "sha256:4a8fbfd2eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "harmony": "sha256:00b0131feeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
         "ingest": "sha256:2bb6ed2beeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
         "rhythm": "sha256:3ac6635deeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
         "separation": "sha256:9414468deeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -82,11 +83,17 @@ expression: "serde_json::to_value(doc).unwrap()"
         {
           "description": "A nocturnal synthwave drive.",
           "kind": "description"
+        },
+        {
+          "kind": "key",
+          "mode": "minor",
+          "tonic": "F#"
         }
       ],
       "profile": "standard",
       "status": {
         "describe": "done",
+        "harmony": "done",
         "ingest": "done",
         "rhythm": "done",
         "separation": "done",

@@ -468,10 +468,25 @@ fn analysis_refs(doc: &Project) -> Vec<&AnalysisRef> {
 }
 
 fn analysis_key(doc: &Project) -> Option<String> {
-    analysis_refs(doc)
-        .into_iter()
-        .find_map(|analysis| analysis.summary.as_ref().map(|summary| summary.key.clone()))
-        .filter(|key| !key.is_empty())
+    for analysis in analysis_refs(doc) {
+        if let Some(summary) = &analysis.summary
+            && !summary.key.is_empty()
+        {
+            return Some(summary.key.clone());
+        }
+        // The harmony stage records the key as a typed effect (02 §6), so a song analysed after
+        // the fix has its key on the SONG line even when no flow wrote `summary.key`. The summary
+        // stays the first choice: it is the human-readable form a flow may have written.
+        if let Some(effects) = &analysis.effects
+            && let Some(AnalysisEffect::KeyEffect(key)) = effects
+                .0
+                .iter()
+                .find(|effect| matches!(effect, AnalysisEffect::KeyEffect(_)))
+        {
+            return Some(format!("{} {}", key.tonic.as_str(), key.mode));
+        }
+    }
+    None
 }
 
 /// Genres and moods from the analysis summaries, falling back to the `tags` effects.

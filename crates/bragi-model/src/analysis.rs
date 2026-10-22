@@ -139,6 +139,7 @@ enum EffectKind {
     Separation,
     Tags,
     Description,
+    Key,
 }
 
 fn effect_kind(effect: &AnalysisEffect) -> EffectKind {
@@ -148,6 +149,7 @@ fn effect_kind(effect: &AnalysisEffect) -> EffectKind {
         AnalysisEffect::SeparationEffect(_) => EffectKind::Separation,
         AnalysisEffect::TagsEffect(_) => EffectKind::Tags,
         AnalysisEffect::DescriptionEffect(_) => EffectKind::Description,
+        AnalysisEffect::KeyEffect(_) => EffectKind::Key,
     }
 }
 
@@ -159,6 +161,7 @@ fn expected_kind(stage: AnalysisStage) -> Option<EffectKind> {
         AnalysisStage::Separation => Some(EffectKind::Separation),
         AnalysisStage::Tag => Some(EffectKind::Tags),
         AnalysisStage::Describe => Some(EffectKind::Description),
+        AnalysisStage::Harmony => Some(EffectKind::Key),
         _ => None,
     }
 }
@@ -305,6 +308,7 @@ fn validate_effect(effect: &AnalysisEffect, op_index: usize) -> Result<(), Apply
             validate_separation(&separation.stems.0, op_index)
         }
         AnalysisEffect::TagsEffect(_) | AnalysisEffect::DescriptionEffect(_) => Ok(()),
+        AnalysisEffect::KeyEffect(_) => Ok(()),
     }
 }
 
