@@ -41,6 +41,16 @@ export function barAlignedContextRange(handle: number, edge: string, seconds: nu
 export function canonicalJson(handle: number): string;
 
 /**
+ * The tick-accurate changed spans between two loaded documents, as JSON
+ * (`specs/06-ai-planner.md` §7).
+ *
+ * The two documents must have the same section set, order and lengths; a different set is
+ * reported section-wide per track. The asset indexes of both handles are merged, because a
+ * document that added a clip may know an asset the other does not.
+ */
+export function changedSpans(prev: number, next: number): string;
+
+/**
  * The commit ID for `(parents, batch, snapshotHash)`, all as JSON/strings.
  */
 export function commitId(parents_json: string, batch_json: string, snapshot_hash: string): string;
@@ -140,6 +150,7 @@ export interface InitOutput {
     readonly assetAdd: (a: number, b: number, c: number) => [number, number];
     readonly barAlignedContextRange: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly canonicalJson: (a: number) => [number, number, number, number];
+    readonly changedSpans: (a: number, b: number) => [number, number, number, number];
     readonly commitId: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly diffDocs: (a: number, b: number) => [number, number, number, number];
     readonly docCount: () => number;

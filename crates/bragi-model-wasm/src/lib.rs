@@ -18,7 +18,10 @@ use bragi_model::generated::{AssetHash, AssetMeta, CommitId, OpBatch, Project, R
 use bragi_model::placement::{
     ExtendPlacementRequest, FillPlacementRequest, TransitionPlacementRequest,
 };
-use bragi_model::{AssetIndex, diff as model_diff, section_spans as model_spans};
+use bragi_model::{
+    AssetIndex, changed_spans as model_changed_spans, diff as model_diff,
+    section_spans as model_spans,
+};
 use bragi_model::{
     ContextEdge, apply as model_apply, apply_with as model_apply_with,
     bar_aligned_context_range as model_context_range, canonical_json as model_canonical_json,
@@ -342,6 +345,33 @@ pub fn diff_docs(prev: u32, next: u32) -> Result<String, String> {
             .get(&next)
             .ok_or_else(|| format!("unknown handle {next}"))?;
         serde_json::to_string(&model_diff(&prev.project, &next.project))
+            .map_err(|error| error.to_string())
+    })
+}
+
+/// The tick-accurate changed spans between two loaded documents, as JSON
+/// (`specs/06-ai-planner.md` §7).
+///
+/// The two documents must have the same section set, order and lengths; a different set is
+/// reported section-wide per track. The asset indexes of both handles are merged, because a
+/// document that added a clip may know an asset the other does not.
+#[wasm_bindgen(js_name = changedSpans)]
+pub fn changed_spans(prev: u32, next: u32) -> Result<String, String> {
+    DOCS.with(|docs| {
+        let docs = docs.borrow();
+        let prev = docs
+            .get(&prev)
+            .ok_or_else(|| format!("unknown handle {prev}"))?;
+        let next = docs
+            .get(&next)
+            .ok_or_else(|| format!("unknown handle {next}"))?;
+        let assets = AssetIndex::from_metas(
+            prev.assets
+                .iter()
+                .chain(next.assets.iter())
+                .map(|(_, meta)| meta.clone()),
+        );
+        serde_json::to_string(&model_changed_spans(&prev.project, &next.project, &assets))
             .map_err(|error| error.to_string())
     })
 }

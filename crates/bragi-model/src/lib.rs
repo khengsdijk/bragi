@@ -19,12 +19,14 @@
 //! - [`validate`], [`apply`] — the invariants and the op interpreter.
 //! - [`canonical`] — stable bytes and the commit hash.
 //! - [`diff`] — the delta handed to the audio engine.
+//! - [`changes`] — the tick-accurate spans whose lane audio changed (06 §7's region check).
 #![forbid(unsafe_code)]
 
 mod analysis;
 pub mod apply;
 pub mod assets;
 pub mod canonical;
+pub mod changes;
 pub mod clipmath;
 pub mod commits;
 pub mod diff;
@@ -42,6 +44,7 @@ pub mod validate;
 pub use apply::{apply, apply_with};
 pub use assets::AssetIndex;
 pub use canonical::{base32, canonical_json, canonical_value, commit_id, derived_id, sha256};
+pub use changes::{ChangedSpan, changed_spans};
 pub use clipmath::{clip_end_local, local_at_src_sample, src_sample_at_local};
 pub use commits::{CommitDocs, NoCommits};
 pub use diff::{EngineDelta, diff};

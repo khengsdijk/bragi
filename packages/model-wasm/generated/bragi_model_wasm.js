@@ -138,6 +138,36 @@ export function canonicalJson(handle) {
 }
 
 /**
+ * The tick-accurate changed spans between two loaded documents, as JSON
+ * (`specs/06-ai-planner.md` §7).
+ *
+ * The two documents must have the same section set, order and lengths; a different set is
+ * reported section-wide per track. The asset indexes of both handles are merged, because a
+ * document that added a clip may know an asset the other does not.
+ * @param {number} prev
+ * @param {number} next
+ * @returns {string}
+ */
+export function changedSpans(prev, next) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ret = wasm.changedSpans(prev, next);
+        var ptr1 = ret[0];
+        var len1 = ret[1];
+        if (ret[3]) {
+            ptr1 = 0; len1 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred2_0 = ptr1;
+        deferred2_1 = len1;
+        return getStringFromWasm0(ptr1, len1);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
  * The commit ID for `(parents, batch, snapshotHash)`, all as JSON/strings.
  * @param {string} parents_json
  * @param {string} batch_json

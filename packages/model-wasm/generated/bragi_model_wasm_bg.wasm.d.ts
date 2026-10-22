@@ -6,6 +6,7 @@ export const applyBatchWith: (a: number, b: number, c: number, d: number, e: num
 export const assetAdd: (a: number, b: number, c: number) => [number, number];
 export const barAlignedContextRange: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const canonicalJson: (a: number) => [number, number, number, number];
+export const changedSpans: (a: number, b: number) => [number, number, number, number];
 export const commitId: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
 export const diffDocs: (a: number, b: number) => [number, number, number, number];
 export const docCount: () => number;
