@@ -256,8 +256,22 @@ async function undoTo(
   beforeHead: string | null,
   mod: string,
 ): Promise<void> {
+  // Accepting starts the generated audio's own analysis, which lands about a dozen commits on
+  // top of the accepted one; undo only once that history has stopped growing.
+  let settled = -1;
+  await expect
+    .poll(
+      async () => {
+        const { count } = await historyView(page);
+        const stable = count === settled;
+        settled = count;
+        return stable;
+      },
+      { timeout: 180_000, intervals: [5000] },
+    )
+    .toBe(true);
   await page.locator("body").click({ position: { x: 1, y: 1 } });
-  for (let step = 0; step < 12; step += 1) {
+  for (let step = 0; step < 40; step += 1) {
     const head = await historyView(page).then((history) => history.head);
     if (head === beforeHead) break;
     await page.keyboard.press(`${mod}+z`);
@@ -599,11 +613,12 @@ test.describe("a planner plan with a generative variant", () => {
 
     const slot = await withHooks(
       appPage,
-      (hooks) =>
+      // The callback runs in the page, so the label travels as its argument.
+      (hooks, label) =>
         hooks.audition?.store
           .getState()
-          .group?.candidates.find((candidate) => candidate.label === generative.label)?.slot ??
-        null,
+          .group?.candidates.find((candidate) => candidate.label === label)?.slot ?? null,
+      generative.label,
     );
     if (slot === null) throw new Error("the generated idea has no slot");
     await acceptCandidate(appPage, ideas, slot, generative.label);
