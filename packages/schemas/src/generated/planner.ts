@@ -74,12 +74,15 @@ export const PLAN_TOOL_SCHEMA: Record<string, unknown> = {
         },
         {
           "$ref": "#/$defs/DescriptionEffect"
+        },
+        {
+          "$ref": "#/$defs/KeyEffect"
         }
       ]
     },
     "AnalysisEffectList": {
       "title": "AnalysisEffectList",
-      "description": "The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description) so the list is a set rather than an arrival log (02 §6).",
+      "description": "The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description, key) so the list is a set rather than an arrival log (02 §6).",
       "type": "array",
       "items": {
         "$ref": "#/$defs/AnalysisEffect"
@@ -1013,7 +1016,7 @@ export const PLAN_TOOL_SCHEMA: Record<string, unknown> = {
     },
     "GenerateStep": {
       "title": "GenerateStep",
-      "description": "A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, descriptors, seed) except `key`, which the model reads from the summary (06 §3).",
+      "description": "A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, analysed key, descriptors, seed) (06 §3).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -1067,6 +1070,45 @@ export const PLAN_TOOL_SCHEMA: Record<string, unknown> = {
       "description": "Job ID: `job_` + ULID (02 §2.1, 05 §3).",
       "type": "string",
       "pattern": "^job_[0-9A-Za-z]{1,64}$"
+    },
+    "KeyEffect": {
+      "title": "KeyEffect",
+      "description": "`harmony`: the analysed key, projected from the harmony blob's `key { tonic, mode, confidence }` (04 §5.3). The confidence stays in the blob; the arrangement does not change.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "tonic",
+        "mode"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/KeyEffectKind"
+        },
+        "tonic": {
+          "description": "Note name, e.g. \"F#\".",
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "$ref": "#/$defs/KeyMode"
+        }
+      }
+    },
+    "KeyEffectKind": {
+      "title": "KeyEffectKind",
+      "type": "string",
+      "enum": [
+        "key"
+      ]
+    },
+    "KeyMode": {
+      "title": "KeyMode",
+      "type": "string",
+      "enum": [
+        "major",
+        "minor"
+      ]
     },
     "KeyTransposeOp": {
       "title": "KeyTransposeOp",

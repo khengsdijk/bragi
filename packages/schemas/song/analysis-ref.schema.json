@@ -52,7 +52,7 @@
       }
     },
     "AnalysisEffectList": {
-      "description": "The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description) so the list is a set rather than an arrival log (02 §6).",
+      "description": "The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description, key) so the list is a set rather than an arrival log (02 §6).",
       "type": "array",
       "items": { "$ref": "#/$defs/AnalysisEffect" }
     },
@@ -63,7 +63,8 @@
         { "$ref": "#/$defs/SectionsEffect" },
         { "$ref": "#/$defs/SeparationEffect" },
         { "$ref": "#/$defs/TagsEffect" },
-        { "$ref": "#/$defs/DescriptionEffect" }
+        { "$ref": "#/$defs/DescriptionEffect" },
+        { "$ref": "#/$defs/KeyEffect" }
       ]
     },
     "TempoEffect": {
@@ -117,6 +118,21 @@
       "properties": {
         "kind": { "type": "string", "enum": ["description"] },
         "description": { "type": "string", "minLength": 1 }
+      }
+    },
+    "KeyEffect": {
+      "description": "`harmony`: the analysed key, projected from the harmony blob's `key { tonic, mode, confidence }` (04 §5.3). The confidence stays in the blob; the arrangement does not change.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "tonic", "mode"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["key"] },
+        "tonic": {
+          "description": "Note name, e.g. \"F#\".",
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": { "$ref": "../analysis/common.schema.json#/$defs/KeyMode" }
       }
     }
   }

@@ -43,6 +43,11 @@
     {
       "kind": "description",
       "description": "A nocturnal synthwave drive with a wide, nostalgic chorus."
+    },
+    {
+      "kind": "key",
+      "tonic": "F#",
+      "mode": "minor"
     }
   ],
   "stems": {

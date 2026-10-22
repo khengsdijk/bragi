@@ -35,7 +35,8 @@ export type AssetHash = string;
 /**
  * One analysed fact the arrangement is built from. Each kind is owned by exactly one stage (02 §6).
  */
-export type AnalysisEffect = TempoEffect | SectionsEffect | SeparationEffect | TagsEffect | DescriptionEffect;
+export type AnalysisEffect =
+  TempoEffect | SectionsEffect | SeparationEffect | TagsEffect | DescriptionEffect | KeyEffect;
 export type TempoEffectKind = "tempo";
 /**
  * Sorted by tick, first entry at tick 0 (02 §2.2, invariant 4.3.4).
@@ -112,8 +113,10 @@ export type StemRole =
 export type TagsEffectKind = "tags";
 export type TagList = string[];
 export type DescriptionEffectKind = "description";
+export type KeyEffectKind = "key";
+export type KeyMode = "major" | "minor";
 /**
- * The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description) so the list is a set rather than an arrival log (02 §6).
+ * The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description, key) so the list is a set rather than an arrival log (02 §6).
  */
 export type AnalysisEffectList = AnalysisEffect[];
 /**
@@ -439,7 +442,6 @@ export type CatalogNumberListParamType = "number[]";
  * @maxItems 2
  */
 export type TimeSignature = [number, number];
-export type KeyMode = "major" | "minor";
 export type ChordAtBeatList = ChordAtBeat[];
 export type DescriptorList = string[];
 /**
@@ -784,6 +786,17 @@ export interface TagsEffect {
 export interface DescriptionEffect {
   kind: DescriptionEffectKind;
   description: string;
+}
+/**
+ * `harmony`: the analysed key, projected from the harmony blob's `key { tonic, mode, confidence }` (04 §5.3). The confidence stays in the blob; the arrangement does not change.
+ */
+export interface KeyEffect {
+  kind: KeyEffectKind;
+  /**
+   * Note name, e.g. "F#".
+   */
+  tonic: string;
+  mode: KeyMode;
 }
 /**
  * What the document knows about one source's analysis: stage statuses, refs to the result blobs and the projection of those results the arrangement is built from (02 §3.3, §6). The blobs' full shapes are in packages/schemas/analysis/.
@@ -1579,7 +1592,7 @@ export interface OpsStep {
   ops: OpList;
 }
 /**
- * A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, descriptors, seed) except `key`, which the model reads from the summary (06 §3).
+ * A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, analysed key, descriptors, seed) (06 §3).
  */
 export interface GenerateStep {
   kind: GenerateStepKind;

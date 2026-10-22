@@ -769,6 +769,10 @@ class JobRequestSchemaVersion(IntEnum):
     integer_1 = 1
 
 
+class KeyEffectKind(StrEnum):
+    key = 'key'
+
+
 class KeyMode(StrEnum):
     major = 'major'
     minor = 'minor'
@@ -2228,6 +2232,19 @@ class KeyChange(BaseModel):
 type KeyChangeList = Annotated[list[KeyChange], Field(title='KeyChangeList')]
 
 
+class KeyEffect(BaseModel):
+    """
+    `harmony`: the analysed key, projected from the harmony blob's `key { tonic, mode, confidence }` (04 §5.3). The confidence stays in the blob; the arrangement does not change.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: KeyEffectKind
+    tonic: Annotated[str, Field(description='Note name, e.g. "F#".', min_length=1)]
+    mode: KeyMode
+
+
 class KeyEstimate(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -3238,7 +3255,7 @@ class GenerateInpaintParams(BaseModel):
 
 class GenerateStep(BaseModel):
     """
-    A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, descriptors, seed) except `key`, which the model reads from the summary (06 §3).
+    A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, analysed key, descriptors, seed) (06 §3).
     """
 
     model_config = ConfigDict(
@@ -3676,7 +3693,7 @@ type Warp = Annotated[
 
 
 type AnalysisEffect = Annotated[
-    TempoEffect | SectionsEffect | SeparationEffect | TagsEffect | DescriptionEffect,
+    TempoEffect | SectionsEffect | SeparationEffect | TagsEffect | DescriptionEffect | KeyEffect,
     Field(
         description='One analysed fact the arrangement is built from. Each kind is owned by exactly one stage (02 §6).',
         title='AnalysisEffect',
@@ -3687,12 +3704,12 @@ type AnalysisEffect = Annotated[
 type AnalysisEffectList = Annotated[
     list[AnalysisEffect],
     Field(
-        description='The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description) so the list is a set rather than an arrival log (02 §6).',
+        description='The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description, key) so the list is a set rather than an arrival log (02 §6).',
         title='AnalysisEffectList',
     ),
 ]
 """
-The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description) so the list is a set rather than an arrival log (02 §6).
+The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description, key) so the list is a set rather than an arrival log (02 §6).
 """
 
 

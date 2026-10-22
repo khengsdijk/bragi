@@ -96,7 +96,7 @@
       "items": { "$ref": "../song/op.schema.json" }
     },
     "GenerateStep": {
-      "description": "A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, descriptors, seed) except `key`, which the model reads from the summary (06 §3).",
+      "description": "A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, analysed key, descriptors, seed) (06 §3).",
       "type": "object",
       "additionalProperties": false,
       "required": ["kind", "id", "capability", "params", "context"],

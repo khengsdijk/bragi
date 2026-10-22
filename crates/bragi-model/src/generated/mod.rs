@@ -209,6 +209,7 @@ pub enum AnalysisEffect {
     SeparationEffect(SeparationEffect),
     TagsEffect(TagsEffect),
     DescriptionEffect(DescriptionEffect),
+    KeyEffect(KeyEffect),
 }
 impl ::std::convert::From<TempoEffect> for AnalysisEffect {
     fn from(value: TempoEffect) -> Self {
@@ -235,7 +236,12 @@ impl ::std::convert::From<DescriptionEffect> for AnalysisEffect {
         Self::DescriptionEffect(value)
     }
 }
-///The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description) so the list is a set rather than an arrival log (02 §6).
+impl ::std::convert::From<KeyEffect> for AnalysisEffect {
+    fn from(value: KeyEffect) -> Self {
+        Self::KeyEffect(value)
+    }
+}
+///The recorded effects, one per kind, in a fixed kind order (tempo, sections, separation, tags, description, key) so the list is a set rather than an arrival log (02 §6).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(transparent)]
 pub struct AnalysisEffectList(pub ::std::vec::Vec<AnalysisEffect>);
@@ -5907,7 +5913,7 @@ impl<'de> ::serde::Deserialize<'de> for GenerateInpaintParamsPrompt {
             })
     }
 }
-///A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, descriptors, seed) except `key`, which the model reads from the summary (06 §3).
+///A generation job (09). The offered capabilities are `generate.extend`, `generate.inpaint` and `generate.transition`; the server fills `params.context` from the song (bpm, time signature, analysed key, descriptors, seed) (06 §3).
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct GenerateStep {
@@ -7298,6 +7304,112 @@ impl ::std::convert::TryFrom<::std::string::String> for KeyChangeTonic {
     }
 }
 impl<'de> ::serde::Deserialize<'de> for KeyChangeTonic {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+///`harmony`: the analysed key, projected from the harmony blob's `key { tonic, mode, confidence }` (04 §5.3). The confidence stays in the blob; the arrangement does not change.
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct KeyEffect {
+    pub kind: KeyEffectKind,
+    pub mode: KeyMode,
+    ///Note name, e.g. "F#".
+    pub tonic: KeyEffectTonic,
+}
+///`KeyEffectKind`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum KeyEffectKind {
+    #[serde(rename = "key")]
+    Key,
+}
+impl ::std::fmt::Display for KeyEffectKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Key => f.write_str("key"),
+        }
+    }
+}
+impl ::std::str::FromStr for KeyEffectKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "key" => Ok(Self::Key),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for KeyEffectKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for KeyEffectKind {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///Note name, e.g. "F#".
+#[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct KeyEffectTonic(::std::string::String);
+impl ::std::ops::Deref for KeyEffectTonic {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<KeyEffectTonic> for ::std::string::String {
+    fn from(value: KeyEffectTonic) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for KeyEffectTonic {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for KeyEffectTonic {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for KeyEffectTonic {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for KeyEffectTonic {
     fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
     where
         D: ::serde::Deserializer<'de>,
