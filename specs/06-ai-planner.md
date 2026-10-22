@@ -138,6 +138,9 @@ LLM → EditPlan (raw)
   → return plan to client
 ```
 
+On `PLAN_INVALID` the error's `details` carry both rounds' validation messages (`firstAttempt` and
+`repairAttempt`) for debugging; the UI keeps showing the message only.
+
 **Execution** (after the user clicks "Try it", or immediately if the user has "auto-run" on):
 1. The client renders and uploads the context audio of every generate step, then calls
    `POST /v1/plans/{planId}/execute` with the chosen variant indexes and, per generate step id, the
