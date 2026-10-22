@@ -17,9 +17,11 @@
 //!   every track. The planner treats such a change as song-wide anyway.
 //! - Clips compare on audible content: the covering clips keyed by asset, the source sample at
 //!   the interval start, gain, pitch, reverse, warp mode/ratio, clip fx (ignoring fx IDs) and the
-//!   fade state at the interval start. Adjacent changed intervals merge per track; a merged
-//!   interval whose only difference is fade state gets `edgeFadeOnly: true` (the ~10 ms
-//!   [`crate::apply::CUT_FADE_SECS`] fade `region.clear` adds just outside its region).
+//!   fade state at the interval start. The sample is compared within two samples, because a cut
+//!   stores its split point as a rounded sample and the kept tail then starts from that rounded
+//!   value. Adjacent changed intervals merge per track; a merged interval whose only difference is
+//!   fade state gets `edgeFadeOnly: true` (the ~10 ms [`crate::apply::CUT_FADE_SECS`] fade
+//!   `region.clear` adds just outside its region).
 //! - Lane automation is section-relative. A changed target spans from the point before the first
 //!   differing point to the point after the last one (clamped to the section); a target that was
 //!   added or removed spans its first to its last point.
@@ -300,7 +302,7 @@ fn clip_intervals(
             &ignore,
             true,
         );
-        if prev_full == next_full {
+        if signatures_equal(&prev_full, &next_full) {
             continue;
         }
         let prev_content = signature(
@@ -324,7 +326,7 @@ fn clip_intervals(
         out.push(Interval {
             start,
             end,
-            edge_fade_only: prev_content == next_content,
+            edge_fade_only: signatures_equal(&prev_content, &next_content),
         });
     }
     out
@@ -412,7 +414,7 @@ fn clips_equal_without_fx(
 }
 
 /// One audible clip covering an interval, with the fade state at its start.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct ClipSig {
     asset: String,
     sample: u64,
@@ -423,6 +425,57 @@ struct ClipSig {
     fx: String,
     fade_in: Option<(u64, FadeCurve)>,
     fade_out: Option<(u64, FadeCurve)>,
+}
+
+/// How far two source samples may differ and still be the same audio.
+///
+/// A cut stores its split point as a rounded sample (`region.clear`), and every later tick in the
+/// kept tail is then computed from that rounded value, while the pre-cut clip computes it from its
+/// own `src_start`. At a tempo where a tick is not a whole number of samples the two differ by one
+/// sample; that is a rounding artefact, not a change outside the region.
+const SAMPLE_TOLERANCE: u64 = 2;
+
+impl ClipSig {
+    /// Field-by-field equality, with the source sample compared within [`SAMPLE_TOLERANCE`].
+    fn matches(&self, other: &Self) -> bool {
+        self.asset == other.asset
+            && samples_match(self.sample, other.sample)
+            && self.gain_bits == other.gain_bits
+            && self.pitch_bits == other.pitch_bits
+            && self.reverse == other.reverse
+            && self.warp == other.warp
+            && self.fx == other.fx
+            && self.fade_in == other.fade_in
+            && self.fade_out == other.fade_out
+    }
+
+    /// Compares everything except the sample, so pairing two lists stays stable when their
+    /// samples differ by the rounding tolerance.
+    fn cmp_without_sample(&self, other: &Self) -> std::cmp::Ordering {
+        self.asset
+            .cmp(&other.asset)
+            .then_with(|| self.gain_bits.cmp(&other.gain_bits))
+            .then_with(|| self.pitch_bits.cmp(&other.pitch_bits))
+            .then_with(|| self.reverse.cmp(&other.reverse))
+            .then_with(|| self.warp.cmp(&other.warp))
+            .then_with(|| self.fx.cmp(&other.fx))
+            .then_with(|| self.fade_in.cmp(&other.fade_in))
+            .then_with(|| self.fade_out.cmp(&other.fade_out))
+    }
+}
+
+/// Whether two sorted signature lists describe the same audible clips.
+fn signatures_equal(a: &[ClipSig], b: &[ClipSig]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(a, b)| a.matches(b))
+}
+
+/// Whether two source samples are the same audio; an unknown sample (`u64::MAX`) only equals itself.
+fn samples_match(a: u64, b: u64) -> bool {
+    if a == u64::MAX || b == u64::MAX {
+        a == b
+    } else {
+        a.abs_diff(b) <= SAMPLE_TOLERANCE
+    }
 }
 
 /// The audible content of `clips` at section-relative tick `local`.
@@ -475,7 +528,7 @@ fn signature(
             })
         })
         .collect();
-    out.sort();
+    out.sort_by(ClipSig::cmp_without_sample);
     out
 }
 
