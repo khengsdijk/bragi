@@ -39,6 +39,36 @@ fn long_clip_project() -> Value {
     })
 }
 
+/// One four-bar section at `bpm` with a single clip from `start` covering all of it.
+///
+/// The clip uses `warp` (`none` or `stretch`), whose source sample at a tick is only a whole
+/// number when the tempo happens to divide evenly.
+fn tempo_clip_project(bpm: f64, warp: Value, start: i64) -> Value {
+    json!({
+        "schemaVersion": 1, "id": "prj_01",
+        "meta": { "title": "Tempo", "createdAt": "2026-10-18T12:00:00Z", "tags": [] },
+        "sources": [], "analyses": {},
+        "tracks": [{ "id": "trk_0", "name": "Mix", "role": "full_mix", "color": "#8A8F98",
+                     "gainDb": 0, "pan": 0, "mute": false, "solo": false, "hidden": false, "fx": [] }],
+        "arrangement": {
+            "timebase": { "ppq": 960,
+                "tempoMap": [{ "tick": 0, "bpm": bpm, "curve": "step" }],
+                "timeSignatures": [{ "bar": 0, "numerator": 4, "denominator": 4 }] },
+            "sections": [{
+                "id": "sec_0", "kind": "verse", "label": "A", "lengthTicks": 15_360,
+                "lanes": { "trk_0": {
+                    "clips": [{
+                        "id": "clp_0", "asset": HASH, "srcStart": 0, "srcEnd": 470_000, "start": start,
+                        "warp": warp,
+                        "gainDb": 0, "pitchSemitones": 0, "fadeInTicks": 0, "fadeOutTicks": 0,
+                        "fadeCurve": "equal_power",
+                        "provenance": { "kind": "user", "createdAt": "2026-10-18T12:00:00Z" } }],
+                    "automation": [] } },
+                "transitionIn": { "kind": "cut", "lengthTicks": 0 } }],
+            "master": { "fx": [], "automation": [], "gainDb": 0 } }
+    })
+}
+
 fn span(track: &str, section: &str, start: i64, end: i64, edge_fade_only: bool) -> ChangedSpan {
     ChangedSpan {
         track_id: track.parse().unwrap(),
@@ -75,6 +105,68 @@ fn clearing_two_bars_of_a_long_clip_reports_the_cleared_ticks_and_the_cut_fades(
             span("trk_0", "sec_0", 19_200, 19_200 + CUT_FADE_TICKS, true),
         ]
     );
+}
+
+/// `region.clear` splits with rounded source samples; the kept tail must not look changed later.
+#[test]
+fn sample_rounding_does_not_report_changes_outside_a_clear() {
+    // The lasso is the middle two bars, off the beat by a few ticks, so that the cut's rounded
+    // sample is the one that would leak into the kept tail (see the module fix). Each warp and
+    // clip offset needs its own sub-tick start for that rounding to land on the wrong side.
+    let cases = [
+        ("warp none", json!({ "mode": "none" }), 0_i64, 1_939_i64),
+        (
+            "warp none, clip offset",
+            json!({ "mode": "none" }),
+            960,
+            1_938,
+        ),
+        (
+            "stretch 1.07",
+            json!({ "mode": "stretch", "ratio": 1.07 }),
+            0,
+            1_928,
+        ),
+        (
+            "stretch 1.07, clip offset",
+            json!({ "mode": "stretch", "ratio": 1.07 }),
+            960,
+            1_931,
+        ),
+    ];
+    for (label, warp, start, region_start) in cases {
+        let region_end = region_start + 3_840;
+        let doc = parse(tempo_clip_project(117.3, warp, start));
+        let next = apply(
+            &doc,
+            &user_batch(vec![json!({ "op": "region.clear",
+                "region": { "startTick": region_start, "endTick": region_end, "tracks": "all" } })]),
+            &assets(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            changed_spans(&doc, &next, &assets()),
+            vec![
+                span(
+                    "trk_0",
+                    "sec_0",
+                    region_start - CUT_FADE_TICKS,
+                    region_start,
+                    true,
+                ),
+                span("trk_0", "sec_0", region_start, region_end, false),
+                span(
+                    "trk_0",
+                    "sec_0",
+                    region_end,
+                    region_end + CUT_FADE_TICKS,
+                    true,
+                ),
+            ],
+            "{label}"
+        );
+    }
 }
 
 #[test]
