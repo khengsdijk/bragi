@@ -547,16 +547,10 @@ test.describe("a planner plan with a generative variant", () => {
       )}`,
     );
 
-    const ideas = appPage.getByTestId("audition-bar");
-    await expect(ideas).toBeVisible({ timeout: 60_000 });
-    await expect
-      .poll(() => withHooks(appPage, (hooks) => hooks.plannerGeneration?.group() ?? null), {
-        timeout: 60_000,
-      })
-      .toBe(plan.planId);
-
     // A plan without a generative idea is a planner-quality result, not a test bug: name the
-    // labels and step kinds so the reviewer can record exactly what came back.
+    // labels and step kinds so the reviewer can record exactly what came back. Checked before the
+    // group poll: an ops-only plan never queues a generation, so that poll would only time out
+    // with `null` and hide the planner's actual answer.
     const generative = plan.variants.find((variant) =>
       variant.steps.some((step) => step.kind === "generate"),
     );
@@ -572,6 +566,14 @@ test.describe("a planner plan with a generative variant", () => {
     }
     const generateStep = generative.steps.find((step) => step.kind === "generate");
     const applyStep = generative.steps.find((step) => step.kind === "apply_generated");
+
+    const ideas = appPage.getByTestId("audition-bar");
+    await expect(ideas).toBeVisible({ timeout: 60_000 });
+    await expect
+      .poll(() => withHooks(appPage, (hooks) => hooks.plannerGeneration?.group() ?? null), {
+        timeout: 60_000,
+      })
+      .toBe(plan.planId);
 
     // The ops-only variants are instant (06 §5 step 3); the generative one is queued.
     for (const variant of plan.variants) {
