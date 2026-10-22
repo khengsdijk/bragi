@@ -14,6 +14,7 @@ import {
   type AnalysisEffect,
   type AnalysisStage,
   validateDescriptionResult,
+  validateHarmonyResult,
   validateRhythmResult,
   validateSeparationResult,
   validateStructureResult,
@@ -65,12 +66,14 @@ export function effectsForStage(stage: AnalysisStage | string, blob: unknown): A
       return [sectionsEffect(stage, blob)];
     case "separation":
       return [separationEffect(stage, blob)];
+    case "harmony":
+      return keyEffects(stage, blob);
     case "tag":
       return [tagsEffect(stage, blob)];
     case "describe":
       return descriptionEffect(stage, blob);
     default:
-      // harmony, loudness_energy, energy_stems, stem_activity, preview, embed_*,
+      // loudness_energy, energy_stems, stem_activity, preview, embed_*,
       // section_embed, stem_embed, drum_split, transcribe, lyrics: no
       // arrangement change (02 §6).
       return [];
@@ -108,6 +111,17 @@ function separationEffect(stage: string, blob: unknown): AnalysisEffect {
   }
   const result = blob;
   return { kind: "separation", stems: result.stems, residual: result.residual };
+}
+
+/**
+ * The harmony stage's only document fact: the analysed key (02 §6, 04 §5.3). The confidence and
+ * the chords stay in the blob. A blob that does not validate contributes no effect, so a broken
+ * harmony result cannot block the rest of the analysis.
+ */
+function keyEffects(_stage: string, blob: unknown): AnalysisEffect[] {
+  if (!validateHarmonyResult(blob)) return [];
+  const result = blob;
+  return [{ kind: "key", tonic: result.key.tonic, mode: result.key.mode }];
 }
 
 function tagsEffect(stage: string, blob: unknown): AnalysisEffect {

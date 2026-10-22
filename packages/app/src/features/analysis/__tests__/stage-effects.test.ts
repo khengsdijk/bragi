@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import harmony from "../../../../../schemas/examples/HarmonyResult.json" with { type: "json" };
 import ingest from "../../../../../schemas/examples/IngestResult.json" with { type: "json" };
 import rhythm from "../../../../../schemas/examples/RhythmResult.json" with { type: "json" };
 import separation from "../../../../../schemas/examples/SeparationResult.json" with {
@@ -42,10 +43,19 @@ describe("effectsForStage (02 §6)", () => {
     expect(effectsForStage("ingest", ingest)).toEqual([]);
   });
 
+  it("turns harmony into its analysed key, without the confidence", () => {
+    expect(effectsForStage("harmony", harmony)).toEqual([
+      { kind: "key", tonic: "F#", mode: "minor" },
+    ]);
+  });
+
   it("gives a view-only stage no effects", () => {
-    expect(effectsForStage("harmony", {})).toEqual([]);
     expect(effectsForStage("loudness_energy", {})).toEqual([]);
     expect(effectsForStage("stem_activity", {})).toEqual([]);
+  });
+
+  it("gives an invalid harmony blob no effect", () => {
+    expect(effectsForStage("harmony", { schemaVersion: 1 })).toEqual([]);
   });
 
   it("rejects a blob that does not match its stage's schema", () => {
