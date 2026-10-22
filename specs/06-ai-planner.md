@@ -201,8 +201,8 @@ When the user drags the energy skyline, each affected section gets an `energyTar
   always warn. The classifier also counts section rearrangement ("remove the second verse",
   "shorten the intro") as a song-wide request, because those ops are structural. The tick check
   is tick-accurate: the model reports the ticks whose audible lane content changed, the short
-  edge fades a cut adds just outside the region are allowed, and a change to a section's own
-  fields counts the whole section.
+  edge fades a cut adds just outside the region are allowed when they are at most one beat long,
+  and a change to a section's own fields counts the whole section.
 - **Cost discipline:** a plan above 50 credits requires explicit confirmation.
 - **Content policy:** generation steps are checked against [10 §7](10-fusion.md) (no artist names in prompts, no voice cloning).
 - **Prompt injection:** analysis-derived text (lyrics, titles, filenames) is escaped and placed in data blocks. Instructions inside lyrics or filenames must be ignored, and this is covered by a test case.

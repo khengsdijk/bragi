@@ -90,9 +90,9 @@ function longProject(): Project {
 }
 
 /** A request over the long section with the given lasso. */
-function request(region: Region): PlanRequest {
+function request(region: Region, doc: Project = longProject()): PlanRequest {
   return {
-    doc: longProject(),
+    doc,
     prompt: "replace these bars with a new drum fill",
     region,
     uiContext: { view: "moment", selectedTrackIds: ["trk_drums"], selectedSectionIds: ["sec_a"] },
@@ -100,13 +100,28 @@ function request(region: Region): PlanRequest {
 }
 
 /** Validation options for that request. */
-function options(region: Region) {
+function options(region: Region, doc: Project = longProject()) {
   return {
-    request: request(region),
+    request: request(region, doc),
     model,
     songWideIntent: false,
     blockedNames: [],
   };
+}
+
+/** `longProject` with its clip ending exactly at the region start, so its fade-out touches it. */
+function projectWithClipBeforeRegion(): Project {
+  const project = longProject();
+  const clip = project.arrangement.sections[0]?.lanes.trk_drums?.clips[0];
+  if (clip === undefined) throw new Error("fixture has no drum clip");
+  clip.warp = {
+    mode: "beatgrid" as const,
+    anchors: [
+      { srcSample: 0, tick: 0 },
+      { srcSample: 48_000, tick: MID },
+    ],
+  };
+  return project;
 }
 
 /** A `region.clear` over absolute ticks. */
@@ -190,6 +205,23 @@ describe("tick-accurate region discipline", () => {
     expect(result.ok).toBe(false);
     const text = result.errors.join(" ");
     expect(text).toMatch(/It touches ticks 0–30720/);
+    expect(text).toMatch(/outside the selected region/);
+  });
+
+  it("rejects a two-bar fade-out on the clip before the region", async () => {
+    const doc = projectWithClipBeforeRegion();
+    const fade: Op = {
+      op: "clip.update",
+      clipId: "clp_long",
+      patch: { fadeOutTicks: 2 * BAR },
+    };
+    const result = await validateRawPlan(
+      draftPlan([variant([fade])]),
+      options({ startTick: MID, endTick: MID + 2 * BAR, tracks: ["trk_drums"] }, doc),
+    );
+    expect(result.ok).toBe(false);
+    const text = result.errors.join(" ");
+    expect(text).toMatch(new RegExp(`It touches ticks ${MID - 2 * BAR}–${MID}`));
     expect(text).toMatch(/outside the selected region/);
   });
 });

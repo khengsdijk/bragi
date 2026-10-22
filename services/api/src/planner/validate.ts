@@ -696,8 +696,15 @@ function regionErrors(
   }
   for (const span of diff.spans) {
     // A cut's short fade lands just outside the region by construction (02 §5.4); it is allowed
-    // when it touches or overlaps the selection (06 §7).
-    if (span.edgeFadeOnly === true && touchesRegion(span, region)) continue;
+    // when it touches or overlaps the selection (06 §7). Cap it at one beat so a long fade cannot
+    // hide an edit outside the selection.
+    if (
+      span.edgeFadeOnly === true &&
+      span.endTick - span.startTick <= request.doc.arrangement.timebase.ppq &&
+      touchesRegion(span, region)
+    ) {
+      continue;
+    }
     if (span.startTick < region.startTick || span.endTick > region.endTick) {
       errors.push(
         `It touches ticks ${span.startTick}–${span.endTick}, which are outside the selected region ${region.startTick}–${region.endTick}.`,
