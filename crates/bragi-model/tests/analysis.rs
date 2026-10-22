@@ -537,12 +537,24 @@ fn the_harmony_key_effect_is_recorded_and_idempotent() {
         .expect("still one key effect");
     assert_eq!(effects.0.len(), 1);
 
-    // A stage that owns an effect must carry it (02 §6).
+    // The key is optional for harmony: an older harmony op with no effects still applies and keeps
+    // the recorded key.
+    let empty = run_op(&doc, apply_op("harmony", json!([])), &assets);
+    let effects = empty
+        .analyses
+        .values()
+        .next()
+        .expect("one analysis")
+        .effects
+        .as_ref();
+    assert_eq!(effects.map(|list| list.0.len()), Some(1));
+
+    // A stage that must carry its effect still does (02 §6).
     let err = apply(
         &doc,
         &batch(
             json!({ "kind": "system", "reason": "analysis" }),
-            vec![apply_op("harmony", json!([]))],
+            vec![apply_op("describe", json!([]))],
         ),
         &assets,
     )

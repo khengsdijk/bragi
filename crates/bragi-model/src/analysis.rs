@@ -284,7 +284,10 @@ fn validate_effects(op: &AnalysisApplyOp, op_index: usize) -> Result<(), ApplyEr
         }
         seen.push(kind);
     }
+    // `harmony` gained its `key` effect after songs were already analysed, and a blob may hold no
+    // usable key, so for harmony the effect is optional: older history replays unchanged.
     if let Some(expected) = expected
+        && expected != EffectKind::Key
         && !seen.contains(&expected)
     {
         return Err(effect_error(

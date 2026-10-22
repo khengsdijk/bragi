@@ -355,7 +355,7 @@ Analysis arrives progressively, one `analysis.apply` op per finished stage ([01 
 | `separation` | `separation` | `stems[] {role, asset}`, `residual` |
 | `tag` | `tags` | `genres[]`, `moods[]` (scores stay in the blob) |
 | `describe` | `description` | the plain-language paragraph |
-| `harmony` | `key` | `tonic`, `mode` — the key generation is keyed to; confidence and chords stay in the blob, and the arrangement does not change |
+| `harmony` | `key` | `tonic`, `mode` — the key generation is keyed to; confidence and chords stay in the blob, and the arrangement does not change. Optional: a harmony op without it (recorded before WP-2.8, or a blob with no usable key) applies and keeps any key already recorded |
 | `loudness_energy`, `energy_stems`, `stem_activity`, `preview`, `embed_full`, `section_embed`, `stem_embed`, `drum_split`, `transcribe`, `lyrics` | — (empty list) | No arrangement change; the op only updates `analyses[src]` |
 
 An effect payload that does not match its stage, two effects of the same kind, or an empty/unsorted/overlapping `sections`/`stems` list is rejected with `{ opIndex, code: "analysis_effects", message }` (§4.3). A stage that owns an effect must carry it: `rhythm` without its tempo map is a producer bug, not a silent no-op.
