@@ -1,6 +1,7 @@
 import type { PlanRequest, PlanVariant, Region } from "@bragi/schemas";
 import { describe, expect, it } from "vitest";
 import { hasSongWideIntent } from "../classify.js";
+import { analysedKey } from "../generation.js";
 import { normalizePlanEnvelope } from "../json.js";
 import { diffDocuments, validateRawPlan } from "../validate.js";
 import { loadModelWasm } from "../wasm.js";
@@ -835,6 +836,38 @@ describe("validateRawPlan — generation steps", () => {
       options(),
     );
     expect(result.estimate).toEqual({ estimatedCredits: 0, estimatedSeconds: 0 });
+  });
+});
+
+describe("analysedKey", () => {
+  it("prefers the harmony key effect and keeps the summary as the fallback", () => {
+    const withEffect = testProject();
+    withEffect.analyses.src_a = {
+      profile: "standard",
+      status: { harmony: "done" },
+      blobs: {},
+      effects: [{ kind: "key", tonic: "f#", mode: "minor" }],
+    };
+    expect(analysedKey(withEffect)).toEqual({ tonic: "F#", mode: "minor" });
+
+    expect(analysedKey(testProject({ analysedKey: "G major" }))).toEqual({
+      tonic: "G",
+      mode: "major",
+    });
+
+    // An effect wins over a summary, so a re-analysis after the fix is authoritative.
+    const both = testProject({ analysedKey: "A major" });
+    const existing = both.analyses.src_a;
+    if (existing === undefined) throw new Error("the fixture has no analysis");
+    both.analyses.src_a = {
+      ...existing,
+      effects: [{ kind: "key", tonic: "F#", mode: "minor" }],
+    };
+    expect(analysedKey(both)).toEqual({ tonic: "F#", mode: "minor" });
+  });
+
+  it("returns undefined for a song with no analysis", () => {
+    expect(analysedKey(testProject())).toBeUndefined();
   });
 });
 

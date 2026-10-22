@@ -453,7 +453,7 @@ function composedContext(
   return {
     bpm: bpmAt(input.doc, tick),
     timeSignature: timeSignatureAt(input.doc, tick),
-    // The analysis summary carries the key; the document's effects do not (02 §6, docs/wp/2.6.md A).
+    // The harmony stage's `key` effect carries the key (summary is the legacy fallback).
     key: given.key ?? analysedKey(input.doc),
     ...(given.chords === undefined ? {} : { chords: given.chords }),
     ...(placed === undefined ? {} : { sectionKind: placed.section.kind }),
@@ -464,23 +464,35 @@ function composedContext(
 }
 
 /**
- * The song's key from its analysis summary, as `MusicalContext.key`.
+ * The song's key as `MusicalContext.key`: the harmony stage's `key` effect first, then the
+ * legacy analysis summary.
  *
- * The summary's `key` is human-readable ("F# minor", 02 §3.3); an unanalysed song has none, and
- * generation cannot be key-checked without it (09 §6), so the server reports the missing key rather
- * than inventing one.
+ * The effect is the typed projection of the harmony blob (02 §6), so a song analysed by the
+ * current pipeline carries a key even though no flow writes `summary.key`; the summary stays a
+ * fallback for older documents. It is human-readable ("F# minor", 02 §3.3). An unanalysed song
+ * has neither, and generation cannot be key-checked without one (09 §6), so the server reports
+ * the missing key rather than inventing it.
  */
 export function analysedKey(doc: Project): { tonic: string; mode: "major" | "minor" } | undefined {
   for (const ref of Object.values(doc.analyses)) {
+    for (const effect of ref.effects ?? []) {
+      if (effect.kind !== "key") continue;
+      return { tonic: capitaliseNote(effect.tonic), mode: effect.mode };
+    }
     const key = ref.summary?.key;
     if (typeof key !== "string") continue;
     const match = /^([A-Ga-g][#b]?)\s+(major|minor)$/.exec(key.trim());
     const tonic = match?.[1];
     const mode = match?.[2];
     if (tonic === undefined || (mode !== "major" && mode !== "minor")) continue;
-    return { tonic: tonic.charAt(0).toUpperCase() + tonic.slice(1), mode };
+    return { tonic: capitaliseNote(tonic), mode };
   }
   return undefined;
+}
+
+/** `f#` → `F#`; the effect's tonic is a note name, the context's spelling is capitalised. */
+function capitaliseNote(tonic: string): string {
+  return tonic.charAt(0).toUpperCase() + tonic.slice(1);
 }
 
 /** `ContextSpec` shape and range checks against the song (06 §5). */
