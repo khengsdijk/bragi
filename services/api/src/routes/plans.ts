@@ -47,6 +47,9 @@ export function registerPlans(app: FastifyInstance, ctx: AppContext): void {
     try {
       result = await planner.plan(body, { remainingCredits: remaining });
     } catch (error) {
+      if (error instanceof ApiError && error.code === "PLAN_INVALID") {
+        request.log.warn({ code: error.code, details: error.details }, "plan rejected");
+      }
       throw plannerError(error);
     }
     if ("variants" in result && result.variants.length > 0) {

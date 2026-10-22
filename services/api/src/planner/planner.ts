@@ -120,8 +120,10 @@ export class Planner implements PlannerService {
     }
 
     // One repair round (06 §5): send the concrete problems back and ask for the corrected plan.
+    let firstAttempt: string[] | undefined;
     if (!parsed.ok || validation === undefined || !validation.ok) {
       const errors = parsed.ok ? (validation?.errors ?? []) : [parsed.error];
+      firstAttempt = debugErrors(errors);
       messages.push(
         { role: "assistant", content: replyText(first) },
         {
@@ -157,9 +159,11 @@ export class Planner implements PlannerService {
     }
 
     if (!parsed.ok || validation === undefined || !validation.ok) {
+      const repairAttempt = debugErrors(parsed.ok ? (validation?.errors ?? []) : [parsed.error]);
       throw new ApiError(
         "PLAN_INVALID",
         "I couldn't turn that into a valid edit plan. Try describing the change a little more specifically.",
+        { firstAttempt: firstAttempt ?? [], repairAttempt },
       );
     }
 
@@ -227,6 +231,15 @@ function parsePlan(reply: LlmReply): ParsedPlan {
     }
   }
   return { ok: false, error: "the reply was not JSON (return exactly one JSON object)" };
+}
+
+/**
+ * Caps a round's validation messages for the `PLAN_INVALID` details, so a verbose model cannot
+ * bloat the response: at most 20 messages of at most 500 characters each. Only the messages are
+ * kept, never the prompt or the model's reply.
+ */
+function debugErrors(errors: readonly string[]): string[] {
+  return errors.slice(0, 20).map((error) => error.slice(0, 500));
 }
 
 /** The assistant turn sent back in the repair round. */
