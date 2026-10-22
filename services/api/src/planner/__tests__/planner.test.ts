@@ -119,7 +119,7 @@ describe("Planner", () => {
     if ("interpretation" in plan) expect(plan.interpretation).toBe("I'll warm the drums.");
   });
 
-  it("fails with PLAN_INVALID after two invalid replies", async () => {
+  it("fails with PLAN_INVALID after two invalid replies and keeps both rounds' errors", async () => {
     const invalid = draftPlan([
       {
         label: "Bass",
@@ -128,7 +128,19 @@ describe("Planner", () => {
       },
     ]);
     const { planner: service, calls } = planner([planReply(invalid), planReply(invalid)]);
-    await expect(service.plan(testRequest())).rejects.toMatchObject({ code: "PLAN_INVALID" });
+    await expect(service.plan(testRequest())).rejects.toMatchObject({
+      code: "PLAN_INVALID",
+      message:
+        "I couldn't turn that into a valid edit plan. Try describing the change a little more specifically.",
+      details: {
+        firstAttempt: expect.arrayContaining([
+          expect.stringContaining("outside the selected region"),
+        ]),
+        repairAttempt: expect.arrayContaining([
+          expect.stringContaining("outside the selected region"),
+        ]),
+      },
+    });
     expect(calls).toHaveLength(2);
   });
 
