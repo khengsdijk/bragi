@@ -519,12 +519,12 @@ test.describe("a planner plan with a generative variant", () => {
     await expect(prompt.getByRole("group", { name: "Suggestions" })).toBeVisible();
     expect(seriousOrCritical(await new AxeBuilder({ page: appPage }).analyze())).toEqual([]);
 
-    // The app posts the real plan request; read the plan and the lasso it answered about.
+    // The app posts the real plan request; read the plan and the lasso it answered about. Any
+    // status counts: a 422 PLAN_INVALID is a planner-quality failure the reviewer records, so it
+    // must surface as an error with the server's body instead of a 180 s waitForResponse timeout.
     const planResponse = appPage.waitForResponse(
       (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/v1/plans" &&
-        response.status() === 200,
+        response.request().method() === "POST" && new URL(response.url()).pathname === "/v1/plans",
       { timeout: 180_000 },
     );
     await prompt
@@ -533,6 +533,9 @@ test.describe("a planner plan with a generative variant", () => {
     const entered = Date.now();
     await appPage.keyboard.press("Enter");
     const response = await planResponse;
+    if (response.status() !== 200) {
+      throw new Error(`the live planner answered ${response.status()}: ${await response.text()}`);
+    }
     const plan = (await response.json()) as PlanResponseLike;
     const planRequest = response.request().postDataJSON() as PlanRequestLike;
     console.log(
