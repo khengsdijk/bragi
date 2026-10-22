@@ -47,6 +47,8 @@ export interface DryRunModel {
   assetAdd(handle: number, assetsJson: string): void;
   documentJson(handle: number): string;
   applyBatch(handle: number, batchJson: string): string;
+  /** Tick-accurate changed spans between two loaded documents, as JSON (`ChangedSpan[]`). */
+  changedSpans(prev: number, next: number): string;
   freeDoc(handle: number): boolean;
 }
 
@@ -88,10 +90,20 @@ export interface ValidateOptions {
   credits?: CreditsConfig;
 }
 
-/** A tag span in absolute ticks. */
+/** A span in absolute ticks, optionally a cut's fade only (06 §7). */
 interface Span {
   startTick: number;
   endTick: number;
+  edgeFadeOnly?: boolean;
+}
+
+/** One tick-accurate changed interval the model reports between two documents (06 §7). */
+export interface ChangedSpan {
+  trackId: string;
+  sectionId: string;
+  startTick: number;
+  endTick: number;
+  edgeFadeOnly?: boolean;
 }
 
 /** Everything that changed between two documents, in terms the guardrail checks. */
@@ -293,8 +305,9 @@ function inspectVariant(
 
   let before: Project;
   let after: Project;
+  let spans: ChangedSpan[];
   try {
-    ({ before, after } = dryRunVariant(normalised, options.request, options.model));
+    ({ before, after, spans } = dryRunVariant(normalised, options.request, options.model));
   } catch (error) {
     return {
       errors: [
@@ -306,7 +319,7 @@ function inspectVariant(
     };
   }
 
-  const diff = diffDocuments(before, after);
+  const diff = diffDocuments(before, after, spans);
   return {
     errors: regionErrors(diff, normalised, options.request, options.songWideIntent),
     variant: normalised,
@@ -325,26 +338,30 @@ function stepList(steps: PlanStep[]): PlanVariant["steps"] {
   return [first, ...rest];
 }
 
-/** Applies a variant's ops to a fresh handle and returns the canonical before/after documents. */
+/**
+ * Applies a variant's ops to a fresh handle and returns the canonical before/after documents plus
+ * the model's tick-accurate changed spans (06 §7).
+ */
 export function dryRunVariant(
   variant: PlanVariant,
   request: PlanRequest,
   model: DryRunModel,
-): { before: Project; after: Project } {
+): { before: Project; after: Project; spans: ChangedSpan[] } {
   const ops = variant.steps.flatMap((step) => (step.kind === "ops" ? step.ops : []));
   const handle = model.loadProject(JSON.stringify(request.doc));
   try {
     // The request carries no asset index; the model needs metadata for every referenced asset.
     // Stubs with a long enough duration keep the dry run about op structure and region, which is
     // all the planner checks (06 §5: generated assets are stubbed).
-    model.assetAdd(handle, JSON.stringify(stubAssets(request.doc)));
+    const assets = JSON.stringify(stubAssets(request.doc));
+    model.assetAdd(handle, assets);
     // Read the document back through the model so both sides of the diff come from the same
     // serialiser; comparing the request's JS object with the model's output would report field
     // order and default normalisation as edits.
     const before = parseDocument(model.documentJson(handle));
     // A variant made only of generation steps changes the document when its audio is placed,
     // which is the client's job; there is nothing to dry-run.
-    if (ops.length === 0) return { before, after: before };
+    if (ops.length === 0) return { before, after: before, spans: [] };
     const batch = {
       id: "bat_planner",
       author: { kind: "system", reason: "planner dry run" },
@@ -354,10 +371,51 @@ export function dryRunVariant(
       createdAt: new Date().toISOString(),
     };
     const after = parseDocument(model.applyBatch(handle, JSON.stringify(batch)));
-    return { before, after };
+    // `changedSpans` reads two handles, so the before side is a second handle loaded from the
+    // canonical `before` JSON. The diff itself stays on the one handle: a second parse of the
+    // request would give the document's hash maps a different iteration order and report
+    // unchanged maps (analyses, lanes, fx params) as edits.
+    const previous = model.loadProject(JSON.stringify(before));
+    try {
+      model.assetAdd(previous, assets);
+      return {
+        before,
+        after,
+        spans: parseChangedSpans(model.changedSpans(previous, handle)),
+      };
+    } finally {
+      model.freeDoc(previous);
+    }
   } finally {
     model.freeDoc(handle);
   }
+}
+
+/** The model's changed-span JSON as typed intervals, rejecting anything malformed. */
+function parseChangedSpans(text: string): ChangedSpan[] {
+  const parsed: unknown = JSON.parse(text);
+  if (!Array.isArray(parsed)) throw new Error("the model returned malformed changed spans");
+  return parsed.map((value: unknown) => {
+    if (typeof value !== "object" || value === null) {
+      throw new Error("the model returned malformed changed spans");
+    }
+    const span = value as Record<string, unknown>;
+    if (
+      typeof span.trackId !== "string" ||
+      typeof span.sectionId !== "string" ||
+      typeof span.startTick !== "number" ||
+      typeof span.endTick !== "number"
+    ) {
+      throw new Error("the model returned malformed changed spans");
+    }
+    return {
+      trackId: span.trackId,
+      sectionId: span.sectionId,
+      startTick: span.startTick,
+      endTick: span.endTick,
+      ...(span.edgeFadeOnly === true ? { edgeFadeOnly: true } : {}),
+    };
+  });
 }
 
 /**
@@ -444,9 +502,15 @@ function stubAssets(doc: Project): {
  *
  * @param before the request's document
  * @param after the dry-run result
+ * @param changed the model's tick-accurate changed spans (06 §7); when absent, a lane change
+ *   counts the whole section span
  * @returns the diff the guardrail reads
  */
-export function diffDocuments(before: Project, after: Project): DocDiff {
+export function diffDocuments(
+  before: Project,
+  after: Project,
+  changed?: readonly ChangedSpan[],
+): DocDiff {
   const diff: DocDiff = { songWide: false, tracks: new Set(), spans: [], locked: [] };
 
   if (
@@ -460,7 +524,7 @@ export function diffDocuments(before: Project, after: Project): DocDiff {
   }
 
   diffTracks(before.tracks, after.tracks, diff);
-  diffSections(before, after, diff);
+  diffSections(before, after, diff, changed);
   return diff;
 }
 
@@ -478,7 +542,12 @@ function diffTracks(before: Track[], after: Track[], diff: DocDiff): void {
 }
 
 /** Section and lane changes, with their absolute spans. */
-function diffSections(before: Project, after: Project, diff: DocDiff): void {
+function diffSections(
+  before: Project,
+  after: Project,
+  diff: DocDiff,
+  changed?: readonly ChangedSpan[],
+): void {
   const beforeSpans = sectionSpans(before);
   const afterSpans = sectionSpans(after);
   const beforeOrder = [...beforeSpans.keys()];
@@ -503,13 +572,41 @@ function diffSections(before: Project, after: Project, diff: DocDiff): void {
     const laneChanges = changedLanes(previous.section, next.section);
     if (sectionChanged || laneChanges.size > 0) {
       if (locked) diff.locked.push(id);
+      // A section's own fields have no finer granularity than the section (06 §7).
       if (sectionChanged) diff.spans.push(spanOf(next));
+      const byTrack = spansByTrack(changed, id);
       for (const track of laneChanges) {
         diff.tracks.add(track);
-        diff.spans.push(spanOf(next));
+        if (changed === undefined) {
+          // A pure document diff has no tick-accurate answer; keep the conservative section span.
+          diff.spans.push(spanOf(next));
+        } else {
+          // The model reports no span for a lane whose change is not audible (an fx added to an
+          // otherwise unchanged clip bites only where the automation moves).
+          for (const span of byTrack.get(track) ?? []) diff.spans.push(span);
+        }
       }
     }
   }
+}
+
+/** The model's changed spans for one section, keyed by track. */
+function spansByTrack(
+  changed: readonly ChangedSpan[] | undefined,
+  sectionId: string,
+): Map<string, Span[]> {
+  const out = new Map<string, Span[]>();
+  for (const span of changed ?? []) {
+    if (span.sectionId !== sectionId) continue;
+    const list = out.get(span.trackId) ?? [];
+    list.push({
+      startTick: span.startTick,
+      endTick: span.endTick,
+      ...(span.edgeFadeOnly === true ? { edgeFadeOnly: true } : {}),
+    });
+    out.set(span.trackId, list);
+  }
+  return out;
 }
 
 /** The section's own fields, without its lanes, so a lane-only change is attributed to its track. */
@@ -598,6 +695,9 @@ function regionErrors(
     }
   }
   for (const span of diff.spans) {
+    // A cut's short fade lands just outside the region by construction (02 §5.4); it is allowed
+    // when it touches or overlaps the selection (06 §7).
+    if (span.edgeFadeOnly === true && touchesRegion(span, region)) continue;
     if (span.startTick < region.startTick || span.endTick > region.endTick) {
       errors.push(
         `It touches ticks ${span.startTick}–${span.endTick}, which are outside the selected region ${region.startTick}–${region.endTick}.`,
@@ -605,6 +705,15 @@ function regionErrors(
     }
   }
   return errors;
+}
+
+/** Whether a span touches or overlaps the region's tick range. */
+function touchesRegion(span: Span, region: Region): boolean {
+  return (
+    span.endTick === region.startTick ||
+    span.startTick === region.endTick ||
+    (span.startTick < region.endTick && span.endTick > region.startTick)
+  );
 }
 
 /** Checks a region is inside a song, including its track IDs (06 §8 highlights). */

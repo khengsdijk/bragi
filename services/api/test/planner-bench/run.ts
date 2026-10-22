@@ -607,8 +607,8 @@ function findOverReach(
   const reasons: string[] = [];
   plan.variants.forEach((variant, index) => {
     try {
-      const { before, after } = dryRunVariant(variant, request, model);
-      const diff = diffDocuments(before, after);
+      const { before, after, spans } = dryRunVariant(variant, request, model);
+      const diff = diffDocuments(before, after, spans);
       if (
         overReaches(diff, variant, request.region) ||
         reachesOutsideRegion(variant, request.region)
