@@ -1,6 +1,6 @@
 # 06 — AI Intent Planner
 
-Status: Draft v0.4 · Code: `services/api/src/planner/` · Schemas: `packages/schemas/planner/`
+Status: Draft v0.5 · Code: `services/api/src/planner/` · Schemas: `packages/schemas/planner/`
 
 The planner turns **what the user wants** ("make this more aggressive", "add strings under the chorus", "make the outro longer and dreamier") into an **EditPlan**: concrete ops ([02 §4](02-song-model.md)) plus generation steps ([09](09-generation.md)), offered as 1–3 variants. It is the bridge between plain language and the deterministic model.
 
@@ -97,7 +97,7 @@ document already holds it (and the model cannot get it wrong):
 | Field | Filled by | From |
 |---|---|---|
 | `params.context.bpm`, `.timeSignature` | server | the tempo map at the step's target tick |
-| `params.context.key` | server when the analysis has one, else the model | `analyses[*].summary.key`; an unanalysed song cannot be generated from (09 §6 keys the gates) |
+| `params.context.key` | server when the analysis has one, else the model | the `harmony` stage's `key` effect, else the legacy `analyses[*].summary.key`; an unanalysed song cannot be generated from (09 §6 keys the gates) |
 | `params.context.descriptors` | server | the song's tags (09 §2.1: never artist names) |
 | `params.context.seed` | server when absent | `hash(song id, capability, step id)`, so the same request renders the same audio |
 | `params.context.sectionKind`, `.energy` | server | the section at the target tick (`energyTarget`, or the client's `sectionFeatures`) |

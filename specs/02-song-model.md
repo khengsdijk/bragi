@@ -1,6 +1,6 @@
 # 02 — Song Model & Versioning
 
-Status: Draft v0.7 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
+Status: Draft v0.8 · Owner crate: `crates/bragi-model` · Schemas: `packages/schemas/song/`
 
 This is the **architectural heart** of Bragi. Every feature (canvas, AI edits, generation, fusion, export) reads and writes this model, and nothing else. If a feature can't be expressed as operations on this model, the model is extended here first (with an ADR).
 
@@ -114,7 +114,7 @@ interface AnalysisRef {
   summary?: { bpm: number; key: string; durationSec: number; genres: string[]; moods: string[] };
 }
 ```
-`blobs` is a *reference* to the full result, and `effects` is the small, typed projection of it that `analysis.apply` records. `bragi-model` never reads a blob (it has no I/O), so the facts the arrangement is derived from have to live in the document; `summary` needs `key`, which no effect carries, so it is written by the flow that owns the blobs.
+`blobs` is a *reference* to the full result, and `effects` is the small, typed projection of it that `analysis.apply` records. `bragi-model` never reads a blob (it has no I/O), so the facts the arrangement is derived from have to live in the document; the `harmony` stage records the analysed key as its `key` effect (§6), and `summary.key` stays an optional legacy/flow-written field.
 
 ### 3.4 Track
 ```ts
@@ -355,7 +355,8 @@ Analysis arrives progressively, one `analysis.apply` op per finished stage ([01 
 | `separation` | `separation` | `stems[] {role, asset}`, `residual` |
 | `tag` | `tags` | `genres[]`, `moods[]` (scores stay in the blob) |
 | `describe` | `description` | the plain-language paragraph |
-| `harmony`, `loudness_energy`, `energy_stems`, `stem_activity`, `preview`, `embed_full`, `section_embed`, `stem_embed`, `drum_split`, `transcribe`, `lyrics` | — (empty list) | No arrangement change; the op only updates `analyses[src]` |
+| `harmony` | `key` | `tonic`, `mode` — the key generation is keyed to; confidence and chords stay in the blob, and the arrangement does not change |
+| `loudness_energy`, `energy_stems`, `stem_activity`, `preview`, `embed_full`, `section_embed`, `stem_embed`, `drum_split`, `transcribe`, `lyrics` | — (empty list) | No arrangement change; the op only updates `analyses[src]` |
 
 An effect payload that does not match its stage, two effects of the same kind, or an empty/unsorted/overlapping `sections`/`stems` list is rejected with `{ opIndex, code: "analysis_effects", message }` (§4.3). A stage that owns an effect must carry it: `rhythm` without its tempo map is a producer bug, not a silent no-op.
 
@@ -380,6 +381,7 @@ The `AssetIndex` the caller passes to `apply` — as for every clip op — must 
 - **`structure`** — the section starts become boundaries: seconds → ticks under the block's tempo map, then snapped to the **nearest bar** (§2.2). The first boundary is 0 and the last section runs to the end of the source, rounded **up** to a whole bar so nothing is cut off. Boundaries that snap together merge; a label is the kind plus its recurrence index ("Verse 1", "Verse 2"; "Intro" when the kind occurs once).
 - **`separation`** — hides the full-mix track, creates the stem tracks and the residual, each with one clip per section.
 - **`tag`/`describe`** — merge into `meta` (§6.3), no arrangement change.
+- **`harmony`** — records the analysed `key { tonic, mode }` so generation (and the planner's SONG line) can read it; no arrangement change.
 
 ### 6.2 Clip geometry
 
@@ -418,7 +420,8 @@ type AnalysisEffect =
   | { kind: "sections"; sections: StructureSection[] }
   | { kind: "separation"; stems: { role: StemRole; asset: AssetHash; rmsDb?: number }[]; residual: AssetHash }
   | { kind: "tags"; genres: string[]; moods: string[] }
-  | { kind: "description"; description: string };
+  | { kind: "description"; description: string }
+  | { kind: "key"; tonic: string; mode: "major" | "minor" };
 
 interface SectionSuggestion {          // meta.suggestedSections, Q13
   sourceId: SourceId;
