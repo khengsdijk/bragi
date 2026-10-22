@@ -23,6 +23,7 @@ import {
   SKIP_REASON,
   STACK,
   seriousOrCritical,
+  undoToHead,
 } from "./stack-helpers.js";
 
 test.skip(!STACK, SKIP_REASON);
@@ -220,16 +221,7 @@ test.describe("smoothing a moved boundary with AI", () => {
     }
 
     // Undo returns to the moved document exactly.
-    await appPage.locator("body").click({ position: { x: 1, y: 1 } });
-    for (let step = 0; step < 12; step += 1) {
-      const head = await historyView(appPage).then((history) => history.head);
-      if (head === moveHeading.head) break;
-      await appPage.keyboard.press(`${mod}+z`);
-      await appPage.waitForTimeout(400);
-    }
-    await expect
-      .poll(() => historyView(appPage).then((history) => history.head))
-      .toBe(moveHeading.head);
+    await undoToHead(appPage, moveHeading.head, mod);
     await expect.poll(() => hookDoc(appPage), { timeout: 30_000 }).toEqual(moved);
     expect(errors).toEqual([]);
   });

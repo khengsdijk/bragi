@@ -27,6 +27,7 @@ import {
   STACK,
   seriousOrCritical,
   type TrackLike,
+  undoToHead,
 } from "./stack-helpers.js";
 
 test.skip(!STACK, SKIP_REASON);
@@ -230,18 +231,8 @@ test.describe("extending the song with AI", () => {
       `[extend] ${testInfo.project.name}: accepted one idea, ${startHistory.count} -> ${endHistory.count} commits, underruns ${underrunsBefore}`,
     );
 
-    // Undo: back to the commit the job started from. The generated audio's own analysis may land
-    // on top first, so undo until HEAD is that commit again (each undo moves one commit, 02 §7).
-    await appPage.locator("body").click({ position: { x: 1, y: 1 } });
-    for (let step = 0; step < 12; step += 1) {
-      const head = await historyView(appPage).then((history) => history.head);
-      if (head === startHistory.head) break;
-      await appPage.keyboard.press(`${mod}+z`);
-      await appPage.waitForTimeout(400);
-    }
-    await expect
-      .poll(() => historyView(appPage).then((history) => history.head))
-      .toBe(startHistory.head);
+    // Undo: back to the commit the job started from, once the generated audio's analysis has landed.
+    await undoToHead(appPage, startHistory.head, mod);
     await expect.poll(() => hookDoc(appPage), { timeout: 30_000 }).toEqual(before);
 
     expect(errors).toEqual([]);

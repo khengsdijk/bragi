@@ -100,6 +100,37 @@ export const historyView = (page: Page): Promise<HistoryView> =>
   });
 
 /**
+ * Undoes back to the commit `head` (each undo moves one commit, 02 §7).
+ *
+ * Accepting a generated candidate starts the generated audio's own analysis, which lands about a
+ * dozen system commits on top of the accepted one, some of them after the first undo: pressing
+ * undo straight away would give up short of the target. So wait until the commit count has stopped
+ * growing (two polls 5 s apart with the same count), then press undo until HEAD is `head`.
+ */
+export async function undoToHead(page: Page, head: string | null, mod: string): Promise<void> {
+  let settled = -1;
+  await expect
+    .poll(
+      async () => {
+        const { count } = await historyView(page);
+        const stable = count === settled;
+        settled = count;
+        return stable;
+      },
+      { timeout: 180_000, intervals: [5000] },
+    )
+    .toBe(true);
+  await page.locator("body").click({ position: { x: 1, y: 1 } });
+  for (let step = 0; step < 40; step += 1) {
+    const current = await historyView(page).then((history) => history.head);
+    if (current === head) break;
+    await page.keyboard.press(`${mod}+z`);
+    await page.waitForTimeout(400);
+  }
+  await expect.poll(() => historyView(page).then((history) => history.head)).toBe(head);
+}
+
+/**
  * Uploads the fixture, switches to the song page with the test hooks, and waits until the stems
  * are in the document and no analysis commit has landed for 5 s. Returns the project id.
  *
